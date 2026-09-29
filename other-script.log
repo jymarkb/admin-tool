@@ -1,0 +1,494 @@
+09:30:37 #0001 START              v3.1b failure-focused (auto-flight) recording
+09:30:37 #0002 EGG_STATE          EMPTY → HOLDING | Pos=(549.2, 70.7, -361.3) | Zone=FOREST
+09:30:37 #0003 ZONE               none → FOREST | Pos=(549.2, 70.7, -361.3) | Holding=true
+09:30:37 #0004 ANIM_START         rbxassetid://14366558676  | Idle Spd:1.0
+09:30:37 #0005 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:30:39 #0006 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:7.7
+09:30:39 #0007 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:7.7
+09:30:40 #0008 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:30:40 #0009 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:30:41 #0010 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:30:41 #0011 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:30:42 #0012 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:30:42 #0013 ZONE               FOREST → TRANSIT | Pos=(707.4, 70.7, -323.7) | Holding=true
+09:30:42 #0014 LARGE_MOVE         14.5 studs | CF=230 Phys=233 Horiz=232.6 | Pos=(843.1, 70.7, -323.9) | Y=70.7 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -3.0, -0.4) | dt=0.000 | hVar=0.0
+09:30:43 #0015 LARGE_MOVE         12.6 studs | CF=231 Phys=233 Horiz=232.6 | Pos=(967.2, 70.7, -324.2) | Y=70.7 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -2.6, -0.4) | dt=0.534 | hVar=0.0
+09:30:43 #0016 LARGE_MOVE         15.5 studs | CF=221 Phys=233 Horiz=232.6 | Pos=(1084.4, 70.7, -324.3) | Y=70.7 H=3.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -3.3, -0.4) | dt=0.508 | hVar=0.0
+09:30:46 #0017 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:30:47 #0018 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:30:47 #0019 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:30:47 #0020 HEIGHT_JUMP        Y 70.7 → 89.6 (Δ18.9) | H=21.6 | Pos=(1354.7, 89.6, -311.7) | Zone=TRANSIT
+09:30:47 #0021 DIR_FLIP           Dot=-0.36 moved=133.4 | Pos=(1354.7, 89.6, -311.7) | Zone=TRANSIT
+09:30:47 #0022 ZERO_HORIZ         Horiz=0.0 moved=133.4 | CF=3585 Phys=7 | Vel=(0.0, -7.4, 0.0) | Y=89.6 H=21.6 | Plat=false Egg=YES | dt=4.013 | streak=1
+09:30:47 #0023 LARGE_MOVE         133.4 studs | CF=3585 Phys=7 Horiz=0.0 | Pos=(1354.7, 89.6, -311.7) | Y=89.6 H=21.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -7.4, 0.0) | dt=0.000 | hVar=3.4
+09:30:47 #0024 CFRAME_BURST       CF=3585 >> Phys=7 Horiz=0.0 | Y=89.6 H=21.6 | Plat=false Egg=YES
+09:30:47 #0025 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:30:47 #0026 ZERO_HORIZ         Horiz=0.0 moved=70.1 | CF=3313 Phys=12 | Vel=(0.0, -12.5, 0.0) | Y=99.5 H=31.6 | Plat=false Egg=YES | dt=0.021 | streak=2
+09:30:47 #0027 LARGE_MOVE         70.1 studs | CF=3313 Phys=12 Horiz=0.0 | Pos=(1285.3, 99.5, -312.9) | Y=99.5 H=31.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -12.5, 0.0) | dt=0.000 | hVar=6.1
+09:30:47 #0028 CFRAME_BURST       CF=3313 >> Phys=12 Horiz=0.0 | Y=99.5 H=31.6 | Plat=false Egg=YES
+09:30:48 #0029 ZERO_HORIZ         Horiz=0.0 moved=60.4 | CF=3150 Phys=18 | Vel=(0.0, -17.6, 0.0) | Y=108.1 H=40.5 | Plat=false Egg=YES | dt=0.019 | streak=3
+09:30:48 #0030 LARGE_MOVE         60.4 studs | CF=3150 Phys=18 Horiz=0.0 | Pos=(1225.5, 108.1, -314.0) | Y=108.1 H=40.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -17.6, 0.0) | dt=0.000 | hVar=8.8
+09:30:48 #0031 CFRAME_BURST       CF=3150 >> Phys=18 Horiz=0.0 | Y=108.1 H=40.5 | Plat=false Egg=YES
+09:30:48 #0032 HUM_STATE          Running → Freefall | Pos=(1195.3, 112.7, -314.5)
+09:30:48 #0033 FLIGHT_START       AUTO | Pos=(1195.3, 112.7, -314.5) | Y=112.7 H=45.1 | Egg=YES Zone=TRANSIT
+09:30:48 #0034 ZERO_HORIZ         Horiz=0.0 moved=30.6 | CF=1462 Phys=4 | Vel=(0.0, -4.1, 0.0) | Y=112.7 H=45.1 | Plat=false Egg=YES | dt=0.022 | streak=4
+09:30:48 #0035 LARGE_MOVE         30.6 studs | CF=1462 Phys=4 Horiz=0.0 | Pos=(1195.3, 112.7, -314.5) | Y=112.7 H=45.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -4.1, 0.0) | dt=0.000 | hVar=11.3
+09:30:48 #0036 CFRAME_BURST       CF=1462 >> Phys=4 Horiz=0.0 | Y=112.7 H=45.1 | Plat=false Egg=YES
+09:30:48 #0037 HEIGHT_UNSTABLE    hVar=11.3 | Y=112.7 H=45.1 | Pos=(1195.3, 112.7, -314.5)
+09:30:48 #0038 ZERO_HORIZ         Horiz=0.0 moved=67.1 | CF=1390 Phys=14 | Vel=(0.0, -13.9, 0.0) | Y=112.2 H=44.6 | Plat=false Egg=YES | dt=0.048 | streak=5
+09:30:48 #0039 LARGE_MOVE         67.1 studs | CF=1390 Phys=14 Horiz=0.0 | Pos=(1128.2, 112.2, -315.7) | Y=112.2 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -13.9, 0.0) | dt=0.000 | hVar=13.1
+09:30:48 #0040 CFRAME_BURST       CF=1390 >> Phys=14 Horiz=0.0 | Y=112.2 H=44.6 | Plat=false Egg=YES
+09:30:48 #0041 HEIGHT_UNSTABLE    hVar=13.1 | Y=112.2 H=44.6 | Pos=(1128.2, 112.2, -315.7)
+09:30:48 #0042 ZERO_HORIZ         Horiz=0.0 moved=128.3 | CF=7960 Phys=17 | Vel=(0.0, -17.2, 0.0) | Y=112.4 H=44.7 | Plat=false Egg=YES | dt=0.016 | streak=6
+09:30:48 #0043 LARGE_MOVE         128.3 studs | CF=7960 Phys=17 Horiz=0.0 | Pos=(1000.0, 112.4, -318.0) | Y=112.4 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -17.2, 0.0) | dt=0.000 | hVar=14.5
+09:30:48 #0044 CFRAME_BURST       CF=7960 >> Phys=17 Horiz=0.0 | Y=112.4 H=44.7 | Plat=false Egg=YES
+09:30:48 #0045 HEIGHT_UNSTABLE    hVar=14.5 | Y=112.4 H=44.7 | Pos=(1000.0, 112.4, -318.0)
+09:30:48 #0046 ZERO_HORIZ         Horiz=0.0 moved=47.7 | CF=2232 Phys=21 | Vel=(0.0, -21.3, 0.0) | Y=112.3 H=44.6 | Plat=false Egg=YES | dt=0.022 | streak=7
+09:30:48 #0047 LARGE_MOVE         47.7 studs | CF=2232 Phys=21 Horiz=0.0 | Pos=(952.3, 112.3, -318.9) | Y=112.3 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -21.3, 0.0) | dt=0.000 | hVar=15.7
+09:30:48 #0048 CFRAME_BURST       CF=2232 >> Phys=21 Horiz=0.0 | Y=112.3 H=44.6 | Plat=false Egg=YES
+09:30:48 #0049 HEIGHT_UNSTABLE    hVar=15.7 | Y=112.3 H=44.6 | Pos=(952.3, 112.3, -318.9)
+09:30:48 #0050 ZERO_HORIZ         Horiz=0.0 moved=48.5 | CF=2679 Phys=3 | Vel=(0.0, -3.3, 0.0) | Y=112.7 H=44.9 | Plat=false Egg=YES | dt=0.018 | streak=8
+09:30:48 #0051 LARGE_MOVE         48.5 studs | CF=2679 Phys=3 Horiz=0.0 | Pos=(903.7, 112.7, -319.8) | Y=112.7 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -3.3, 0.0) | dt=0.000 | hVar=16.7
+09:30:48 #0052 CFRAME_BURST       CF=2679 >> Phys=3 Horiz=0.0 | Y=112.7 H=44.9 | Plat=false Egg=YES
+09:30:48 #0053 HEIGHT_UNSTABLE    hVar=16.7 | Y=112.7 H=44.9 | Pos=(903.7, 112.7, -319.8)
+09:30:48 #0054 ZERO_HORIZ         Horiz=0.0 moved=51.2 | CF=3132 Phys=7 | Vel=(0.0, -6.5, 0.0) | Y=112.6 H=44.9 | Plat=false Egg=YES | dt=0.016 | streak=9
+09:30:48 #0055 LARGE_MOVE         51.2 studs | CF=3132 Phys=7 Horiz=0.0 | Pos=(852.5, 112.6, -320.7) | Y=112.6 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -6.5, 0.0) | dt=0.000 | hVar=17.6
+09:30:48 #0056 CFRAME_BURST       CF=3132 >> Phys=7 Horiz=0.0 | Y=112.6 H=44.9 | Plat=false Egg=YES
+09:30:48 #0057 HEIGHT_UNSTABLE    hVar=17.6 | Y=112.6 H=44.9 | Pos=(852.5, 112.6, -320.7)
+09:30:48 #0058 ZERO_HORIZ         Horiz=0.0 moved=47.6 | CF=2812 Phys=10 | Vel=(0.0, -9.8, 0.0) | Y=112.6 H=44.8 | Plat=false Egg=YES | dt=0.017 | streak=10
+09:30:48 #0059 LARGE_MOVE         47.6 studs | CF=2812 Phys=10 Horiz=0.0 | Pos=(804.9, 112.6, -321.5) | Y=112.6 H=44.8 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -9.8, 0.0) | dt=0.000 | hVar=18.3
+09:30:48 #0060 CFRAME_BURST       CF=2812 >> Phys=10 Horiz=0.0 | Y=112.6 H=44.8 | Plat=false Egg=YES
+09:30:48 #0061 HEIGHT_UNSTABLE    hVar=18.3 | Y=112.6 H=44.8 | Pos=(804.9, 112.6, -321.5)
+09:30:48 #0062 ZERO_HORIZ         Horiz=0.0 moved=56.5 | CF=2812 Phys=14 | Vel=(0.0, -13.9, 0.0) | Y=112.5 H=44.7 | Plat=false Egg=YES | dt=0.021 | streak=11
+09:30:48 #0063 LARGE_MOVE         56.5 studs | CF=2812 Phys=14 Horiz=0.0 | Pos=(748.4, 112.5, -322.6) | Y=112.5 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -13.9, 0.0) | dt=0.000 | hVar=18.9
+09:30:48 #0064 CFRAME_BURST       CF=2812 >> Phys=14 Horiz=0.0 | Y=112.5 H=44.7 | Plat=false Egg=YES
+09:30:48 #0065 HEIGHT_UNSTABLE    hVar=18.9 | Y=112.5 H=44.7 | Pos=(748.4, 112.5, -322.6)
+09:30:48 #0066 ZONE               TRANSIT → FOREST | Pos=(694.5, 112.4, -323.5) | Holding=true
+09:30:48 #0067 ZERO_HORIZ         Horiz=0.0 moved=54.0 | CF=3103 Phys=17 | Vel=(0.0, -17.2, 0.0) | Y=112.4 H=44.7 | Plat=false Egg=YES | dt=0.018 | streak=12
+09:30:48 #0068 LARGE_MOVE         54.0 studs | CF=3103 Phys=17 Horiz=0.0 | Pos=(694.5, 112.4, -323.5) | Y=112.4 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -17.2, 0.0) | dt=0.000 | hVar=19.3
+09:30:48 #0069 CFRAME_BURST       CF=3103 >> Phys=17 Horiz=0.0 | Y=112.4 H=44.7 | Plat=false Egg=YES
+09:30:48 #0070 HEIGHT_UNSTABLE    hVar=19.3 | Y=112.4 H=44.7 | Pos=(694.5, 112.4, -323.5)
+09:30:48 #0071 ZERO_HORIZ         Horiz=0.0 moved=59.3 | CF=2554 Phys=21 | Vel=(0.0, -21.3, 0.0) | Y=112.3 H=44.6 | Plat=false Egg=YES | dt=0.022 | streak=13
+09:30:48 #0072 LARGE_MOVE         59.3 studs | CF=2554 Phys=21 Horiz=0.0 | Pos=(635.2, 112.3, -324.6) | Y=112.3 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -21.3, 0.0) | dt=0.000 | hVar=19.7
+09:30:48 #0073 CFRAME_BURST       CF=2554 >> Phys=21 Horiz=0.0 | Y=112.3 H=44.6 | Plat=false Egg=YES
+09:30:48 #0074 HEIGHT_UNSTABLE    hVar=19.7 | Y=112.3 H=44.6 | Pos=(635.2, 112.3, -324.6)
+09:30:48 #0075 ANIM_START         http://www.roblox.com/asset/?id=10921258489 | Core Spd:1.0
+09:30:48 #0076 ANIM_START         http://www.roblox.com/asset/?id=10921262864 | Core Spd:1.0
+09:30:48 #0077 ZERO_HORIZ         Horiz=0.0 moved=23.0 | CF=1015 Phys=5 | Vel=(0.0, -4.9, 0.0) | Y=112.7 H=45.0 | Plat=false Egg=YES | dt=0.023 | streak=14
+09:30:48 #0078 LARGE_MOVE         23.0 studs | CF=1015 Phys=5 Horiz=0.0 | Pos=(612.2, 112.7, -325.0) | Y=112.7 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -4.9, 0.0) | dt=0.000 | hVar=19.9
+09:30:48 #0079 CFRAME_BURST       CF=1015 >> Phys=5 Horiz=0.0 | Y=112.7 H=45.0 | Plat=false Egg=YES
+09:30:48 #0080 HEIGHT_UNSTABLE    hVar=19.9 | Y=112.7 H=45.0 | Pos=(612.2, 112.7, -325.0)
+09:30:48 #0081 HEIGHT_JUMP        Y 112.7 → 83.3 (Δ-29.3) | H=15.6 | Pos=(612.2, 83.3, -325.0) | Zone=FOREST
+09:30:48 #0082 ZERO_HORIZ         Horiz=0.0 moved=29.3 | CF=1630 Phys=8 | Vel=(0.0, -8.2, 0.0) | Y=83.3 H=15.6 | Plat=false Egg=YES | dt=0.017 | streak=15
+09:30:48 #0083 LARGE_MOVE         29.3 studs | CF=1630 Phys=8 Horiz=0.0 | Pos=(612.2, 83.3, -325.0) | Y=83.3 H=15.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -8.2, 0.0) | dt=0.000 | hVar=19.6
+09:30:48 #0084 CFRAME_BURST       CF=1630 >> Phys=8 Horiz=0.0 | Y=83.3 H=15.6 | Plat=false Egg=YES
+09:30:48 #0085 HEIGHT_UNSTABLE    hVar=19.6 | Y=83.3 H=15.6 | Pos=(612.2, 83.3, -325.0)
+09:30:48 #0086 HUM_STATE          Freefall → Landed | Pos=(612.2, 70.7, -325.0)
+09:30:48 #0087 ZERO_HORIZ         Horiz=0.0 moved=12.6 | CF=675 Phys=0 | Vel=(0.0, 0.0, 0.0) | Y=70.7 H=3.1 | Plat=false Egg=YES | dt=0.019 | streak=16
+09:30:48 #0088 LARGE_MOVE         12.6 studs | CF=675 Phys=0 Horiz=0.0 | Pos=(612.2, 70.7, -325.0) | Y=70.7 H=3.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, 0.0, 0.0) | dt=0.000 | hVar=19.6
+09:30:48 #0089 CFRAME_BURST       CF=675 >> Phys=0 Horiz=0.0 | Y=70.7 H=3.1 | Plat=false Egg=YES
+09:30:48 #0090 HEIGHT_UNSTABLE    hVar=19.6 | Y=70.7 H=3.1 | Pos=(612.2, 70.7, -325.0)
+09:30:48 #0091 ZERO_HORIZ_END     Streak ended after 16 | Pos=(612.2, 70.7, -325.0)
+09:30:48 #0092 FLIGHT_END         dur=0.3s dist=585 | Pos=(612.2, 70.7, -325.0) | Zone=FOREST
+09:30:48 #0093 HUM_STATE          Landed → Running | Pos=(612.2, 70.7, -325.0)
+09:30:48 #0094 ANIM_STOP          http://www.roblox.com/asset/?id=10921258489
+09:30:48 #0095 ANIM_STOP          http://www.roblox.com/asset/?id=10921262864
+09:30:49 #0096 ANIM_STOP          rbxassetid://102039335618606
+09:30:51 #0097 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:10.5
+09:30:51 #0098 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:10.5
+09:30:51 #0099 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:30:51 #0100 ZONE               FOREST → TRANSIT | Pos=(703.4, 70.7, -325.0) | Holding=true
+09:30:51 #0101 LARGE_MOVE         15.5 studs | CF=210 Phys=233 Horiz=232.6 | Pos=(791.6, 70.7, -325.0) | Y=70.7 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -3.3, -0.0) | dt=3.536 | hVar=0.0
+09:30:52 #0102 LARGE_MOVE         13.6 studs | CF=234 Phys=233 Horiz=232.6 | Pos=(881.7, 70.7, -325.0) | Y=70.7 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -2.8, -0.0) | dt=0.382 | hVar=0.0
+09:30:55 #0103 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:30:55 #0104 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:30:55 #0105 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:30:56 #0106 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:2.3
+09:30:56 #0107 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:2.3
+09:30:57 #0108 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:30:57 #0109 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:30:57 #0110 DIR_FLIP           Dot=-0.60 moved=128.3 | Pos=(1360.7, 88.5, -320.2) | Zone=TRANSIT
+09:30:57 #0111 ZERO_HORIZ         Horiz=0.0 moved=128.3 | CF=1875 Phys=16 | Vel=(0.0, -16.4, 0.0) | Y=88.5 H=20.6 | Plat=false Egg=YES | dt=5.225 | streak=1
+09:30:57 #0112 LARGE_MOVE         128.3 studs | CF=1875 Phys=16 Horiz=0.0 | Pos=(1360.7, 88.5, -320.2) | Y=88.5 H=20.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -16.4, 0.0) | dt=0.000 | hVar=3.2
+09:30:57 #0113 CFRAME_BURST       CF=1875 >> Phys=16 Horiz=0.0 | Y=88.5 H=20.6 | Plat=false Egg=YES
+09:30:57 #0114 HUM_STATE          Running → Freefall | Pos=(1195.9, 112.6, -321.2)
+09:30:57 #0115 HEIGHT_JUMP        Y 88.5 → 112.6 (Δ24.1) | H=45.0 | Pos=(1195.9, 112.6, -321.2) | Zone=TRANSIT
+09:30:57 #0116 ZERO_HORIZ         Horiz=0.0 moved=166.5 | CF=5137 Phys=7 | Vel=(0.0, -6.5, 0.0) | Y=112.6 H=45.0 | Plat=false Egg=YES | dt=0.032 | streak=2
+09:30:57 #0117 LARGE_MOVE         166.5 studs | CF=5137 Phys=7 Horiz=0.0 | Pos=(1195.9, 112.6, -321.2) | Y=112.6 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -6.5, 0.0) | dt=0.000 | hVar=8.1
+09:30:57 #0118 CFRAME_BURST       CF=5137 >> Phys=7 Horiz=0.0 | Y=112.6 H=45.0 | Plat=false Egg=YES
+09:30:57 #0119 ZERO_HORIZ         Horiz=0.0 moved=85.5 | CF=4359 Phys=11 | Vel=(0.0, -10.6, 0.0) | Y=112.5 H=44.9 | Plat=false Egg=YES | dt=0.019 | streak=3
+09:30:57 #0120 LARGE_MOVE         85.5 studs | CF=4359 Phys=11 Horiz=0.0 | Pos=(1110.4, 112.5, -321.8) | Y=112.5 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -10.6, 0.0) | dt=0.000 | hVar=10.8
+09:30:57 #0121 CFRAME_BURST       CF=4359 >> Phys=11 Horiz=0.0 | Y=112.5 H=44.9 | Plat=false Egg=YES
+09:30:57 #0122 FLIGHT_START       AUTO | Pos=(1052.7, 112.4, -322.2) | Y=112.4 H=44.8 | Egg=YES Zone=TRANSIT
+09:30:57 #0123 ZERO_HORIZ         Horiz=0.0 moved=57.7 | CF=3147 Phys=15 | Vel=(0.0, -14.7, 0.0) | Y=112.4 H=44.8 | Plat=false Egg=YES | dt=0.019 | streak=4
+09:30:57 #0124 LARGE_MOVE         57.7 studs | CF=3147 Phys=15 Horiz=0.0 | Pos=(1052.7, 112.4, -322.2) | Y=112.4 H=44.8 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -14.7, 0.0) | dt=0.000 | hVar=12.7
+09:30:57 #0125 CFRAME_BURST       CF=3147 >> Phys=15 Horiz=0.0 | Y=112.4 H=44.8 | Plat=false Egg=YES
+09:30:57 #0126 HEIGHT_UNSTABLE    hVar=12.7 | Y=112.4 H=44.8 | Pos=(1052.7, 112.4, -322.2)
+09:30:57 #0127 ZERO_HORIZ         Horiz=0.0 moved=57.5 | CF=2604 Phys=19 | Vel=(0.0, -18.8, 0.0) | Y=112.3 H=44.6 | Plat=false Egg=YES | dt=0.021 | streak=5
+09:30:57 #0128 LARGE_MOVE         57.5 studs | CF=2604 Phys=19 Horiz=0.0 | Pos=(995.2, 112.3, -322.5) | Y=112.3 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -18.8, 0.0) | dt=0.000 | hVar=14.3
+09:30:57 #0129 CFRAME_BURST       CF=2604 >> Phys=19 Horiz=0.0 | Y=112.3 H=44.6 | Plat=false Egg=YES
+09:30:57 #0130 HEIGHT_UNSTABLE    hVar=14.3 | Y=112.3 H=44.6 | Pos=(995.2, 112.3, -322.5)
+09:30:57 #0131 ZERO_HORIZ         Horiz=0.0 moved=67.8 | CF=3034 Phys=23 | Vel=(0.0, -22.9, 0.0) | Y=112.3 H=44.5 | Plat=false Egg=YES | dt=0.024 | streak=6
+09:30:57 #0132 LARGE_MOVE         67.8 studs | CF=3034 Phys=23 Horiz=0.0 | Pos=(927.5, 112.3, -323.0) | Y=112.3 H=44.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -22.9, 0.0) | dt=0.000 | hVar=15.6
+09:30:57 #0133 CFRAME_BURST       CF=3034 >> Phys=23 Horiz=0.0 | Y=112.3 H=44.5 | Plat=false Egg=YES
+09:30:57 #0134 HEIGHT_UNSTABLE    hVar=15.6 | Y=112.3 H=44.5 | Pos=(927.5, 112.3, -323.0)
+09:30:57 #0135 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:30:57 #0136 ANIM_START         http://www.roblox.com/asset/?id=10921262864 | Core Spd:1.0
+09:30:57 #0137 ZERO_HORIZ         Horiz=0.0 moved=23.4 | CF=753 Phys=7 | Vel=(0.0, -6.5, 0.0) | Y=112.6 H=44.9 | Plat=false Egg=YES | dt=0.032 | streak=7
+09:30:57 #0138 LARGE_MOVE         23.4 studs | CF=753 Phys=7 Horiz=0.0 | Pos=(904.1, 112.6, -323.1) | Y=112.6 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -6.5, 0.0) | dt=0.000 | hVar=16.7
+09:30:57 #0139 CFRAME_BURST       CF=753 >> Phys=7 Horiz=0.0 | Y=112.6 H=44.9 | Plat=false Egg=YES
+09:30:57 #0140 HEIGHT_UNSTABLE    hVar=16.7 | Y=112.6 H=44.9 | Pos=(904.1, 112.6, -323.1)
+09:30:57 #0141 ZERO_HORIZ         Horiz=0.0 moved=98.2 | CF=3527 Phys=11 | Vel=(0.0, -11.4, 0.0) | Y=112.4 H=44.7 | Plat=false Egg=YES | dt=0.026 | streak=8
+09:30:57 #0142 LARGE_MOVE         98.2 studs | CF=3527 Phys=11 Horiz=0.0 | Pos=(805.8, 112.4, -323.7) | Y=112.4 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -11.4, 0.0) | dt=0.000 | hVar=17.6
+09:30:57 #0143 CFRAME_BURST       CF=3527 >> Phys=11 Horiz=0.0 | Y=112.4 H=44.7 | Plat=false Egg=YES
+09:30:57 #0144 HEIGHT_UNSTABLE    hVar=17.6 | Y=112.4 H=44.7 | Pos=(805.8, 112.4, -323.7)
+09:30:57 #0145 ZERO_HORIZ         Horiz=0.0 moved=68.5 | CF=3689 Phys=16 | Vel=(0.0, -15.5, 0.0) | Y=112.4 H=44.6 | Plat=false Egg=YES | dt=0.018 | streak=9
+09:30:57 #0146 LARGE_MOVE         68.5 studs | CF=3689 Phys=16 Horiz=0.0 | Pos=(737.3, 112.4, -324.2) | Y=112.4 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -15.5, 0.0) | dt=0.000 | hVar=18.4
+09:30:57 #0147 CFRAME_BURST       CF=3689 >> Phys=16 Horiz=0.0 | Y=112.4 H=44.6 | Plat=false Egg=YES
+09:30:57 #0148 HEIGHT_UNSTABLE    hVar=18.4 | Y=112.4 H=44.6 | Pos=(737.3, 112.4, -324.2)
+09:30:57 #0149 ZONE               TRANSIT → FOREST | Pos=(686.3, 112.3, -324.5) | Holding=true
+09:30:57 #0150 ZERO_HORIZ         Horiz=0.0 moved=51.0 | CF=2496 Phys=20 | Vel=(0.0, -19.6, 0.0) | Y=112.3 H=44.6 | Plat=false Egg=YES | dt=0.021 | streak=10
+09:30:57 #0151 LARGE_MOVE         51.0 studs | CF=2496 Phys=20 Horiz=0.0 | Pos=(686.3, 112.3, -324.5) | Y=112.3 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -19.6, 0.0) | dt=0.000 | hVar=19.0
+09:30:57 #0152 CFRAME_BURST       CF=2496 >> Phys=20 Horiz=0.0 | Y=112.3 H=44.6 | Plat=false Egg=YES
+09:30:57 #0153 HEIGHT_UNSTABLE    hVar=19.0 | Y=112.3 H=44.6 | Pos=(686.3, 112.3, -324.5)
+09:30:57 #0154 ZERO_HORIZ         Horiz=0.0 moved=59.4 | CF=3529 Phys=23 | Vel=(0.0, -22.9, 0.0) | Y=112.4 H=44.7 | Plat=false Egg=YES | dt=0.017 | streak=11
+09:30:57 #0155 LARGE_MOVE         59.4 studs | CF=3529 Phys=23 Horiz=0.0 | Pos=(626.9, 112.4, -324.9) | Y=112.4 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -22.9, 0.0) | dt=0.000 | hVar=19.5
+09:30:57 #0156 CFRAME_BURST       CF=3529 >> Phys=23 Horiz=0.0 | Y=112.4 H=44.7 | Plat=false Egg=YES
+09:30:57 #0157 HEIGHT_UNSTABLE    hVar=19.5 | Y=112.4 H=44.7 | Pos=(626.9, 112.4, -324.9)
+09:30:57 #0158 ZERO_HORIZ         Horiz=0.0 moved=14.7 | CF=646 Phys=4 | Vel=(0.0, -4.1, 0.0) | Y=112.7 H=45.0 | Plat=false Egg=YES | dt=0.023 | streak=12
+09:30:57 #0159 LARGE_MOVE         14.7 studs | CF=646 Phys=4 Horiz=0.0 | Pos=(612.2, 112.7, -325.0) | Y=112.7 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -4.1, 0.0) | dt=0.000 | hVar=19.9
+09:30:57 #0160 CFRAME_BURST       CF=646 >> Phys=4 Horiz=0.0 | Y=112.7 H=45.0 | Plat=false Egg=YES
+09:30:57 #0161 HEIGHT_UNSTABLE    hVar=19.9 | Y=112.7 H=45.0 | Pos=(612.2, 112.7, -325.0)
+09:30:57 #0162 HEIGHT_JUMP        Y 112.7 → 78.2 (Δ-34.5) | H=10.5 | Pos=(612.2, 78.2, -325.0) | Zone=FOREST
+09:30:57 #0163 ZERO_HORIZ         Horiz=0.0 moved=34.5 | CF=1220 Phys=10 | Vel=(0.0, -9.8, 0.0) | Y=78.2 H=10.5 | Plat=false Egg=YES | dt=0.028 | streak=13
+09:30:57 #0164 LARGE_MOVE         34.5 studs | CF=1220 Phys=10 Horiz=0.0 | Pos=(612.2, 78.2, -325.0) | Y=78.2 H=10.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -9.8, 0.0) | dt=0.000 | hVar=19.7
+09:30:57 #0165 CFRAME_BURST       CF=1220 >> Phys=10 Horiz=0.0 | Y=78.2 H=10.5 | Plat=false Egg=YES
+09:30:57 #0166 HEIGHT_UNSTABLE    hVar=19.7 | Y=78.2 H=10.5 | Pos=(612.2, 78.2, -325.0)
+09:30:57 #0167 HUM_STATE          Freefall → Landed | Pos=(612.2, 70.7, -325.0)
+09:30:57 #0168 ZERO_HORIZ_END     Streak ended after 13 | Pos=(612.2, 70.7, -325.0)
+09:30:57 #0169 FLIGHT_END         dur=0.2s dist=442 | Pos=(612.2, 70.7, -325.0) | Zone=FOREST
+09:30:57 #0170 CFRAME_BURST       CF=254 >> Phys=0 Horiz=0.0 | Y=70.7 H=3.1 | Plat=false Egg=YES
+09:30:57 #0171 HUM_STATE          Landed → Running | Pos=(612.2, 70.7, -325.0)
+09:30:58 #0172 ANIM_STOP          http://www.roblox.com/asset/?id=10921262864
+09:30:58 #0173 ANIM_STOP          rbxassetid://102039335618606
+09:30:58 #0174 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:30:58 #0175 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:5.4
+09:30:58 #0176 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:5.4
+09:30:59 #0177 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:30:59 #0178 ZONE               FOREST → TRANSIT | Pos=(519.3, 70.7, -325.0) | Holding=true
+09:31:00 #0179 ANIM_START         http://www.roblox.com/asset/?id=507768375 | Idle Spd:1.0
+09:31:00 #0180 ANIM_STOP          rbxassetid://102039335618606
+09:31:00 #0181 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:00 #0182 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:00 #0183 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:02 #0184 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:6.1
+09:31:02 #0185 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:6.1
+09:31:02 #0186 ZONE               TRANSIT → FOREST | Pos=(524.8, 70.7, -321.3) | Holding=true
+09:31:02 #0187 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:04 #0188 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:04 #0189 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:05 #0190 ZONE               FOREST → TRANSIT | Pos=(702.5, 70.7, -325.3) | Holding=true
+09:31:07 #0191 LARGE_MOVE         15.5 studs | CF=220 Phys=233 Horiz=232.6 | Pos=(1215.3, 70.7, -325.1) | Y=70.7 H=3.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -3.3, 0.1) | dt=9.650 | hVar=0.0
+09:31:09 #0192 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:09 #0193 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:09 #0194 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:09 #0195 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:09 #0196 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:10 #0197 ZERO_HORIZ         Horiz=0.0 moved=84.7 | CF=3663 Phys=4 | Vel=(0.0, -4.1, 0.0) | Y=82.7 H=14.7 | Plat=false Egg=YES | dt=2.872 | streak=1
+09:31:10 #0198 LARGE_MOVE         84.7 studs | CF=3663 Phys=4 Horiz=0.0 | Pos=(1408.5, 82.7, -310.7) | Y=82.7 H=14.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -4.1, 0.0) | dt=0.000 | hVar=2.1
+09:31:10 #0199 CFRAME_BURST       CF=3663 >> Phys=4 Horiz=0.0 | Y=82.7 H=14.7 | Plat=false Egg=YES
+09:31:10 #0200 ZERO_HORIZ         Horiz=0.0 moved=68.3 | CF=3350 Phys=8 | Vel=(0.0, -8.2, 0.0) | Y=92.3 H=24.3 | Plat=false Egg=YES | dt=0.020 | streak=2
+09:31:10 #0201 LARGE_MOVE         68.3 studs | CF=3350 Phys=8 Horiz=0.0 | Pos=(1340.9, 92.3, -311.9) | Y=92.3 H=24.3 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -8.2, 0.0) | dt=0.000 | hVar=4.4
+09:31:10 #0202 CFRAME_BURST       CF=3350 >> Phys=8 Horiz=0.0 | Y=92.3 H=24.3 | Plat=false Egg=YES
+09:31:10 #0203 ZERO_HORIZ         Horiz=0.0 moved=60.8 | CF=3330 Phys=13 | Vel=(0.0, -13.3, 0.0) | Y=100.8 H=32.8 | Plat=false Egg=YES | dt=0.018 | streak=3
+09:31:10 #0204 LARGE_MOVE         60.8 studs | CF=3330 Phys=13 Horiz=0.0 | Pos=(1280.8, 100.8, -313.0) | Y=100.8 H=32.8 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -13.3, 0.0) | dt=0.000 | hVar=6.8
+09:31:10 #0205 CFRAME_BURST       CF=3330 >> Phys=13 Horiz=0.0 | Y=100.8 H=32.8 | Plat=false Egg=YES
+09:31:10 #0206 FLIGHT_START       AUTO | Pos=(1223.8, 108.8, -314.0) | Y=108.8 H=41.3 | Egg=YES Zone=TRANSIT
+09:31:10 #0207 ZERO_HORIZ         Horiz=0.0 moved=57.6 | CF=2924 Phys=18 | Vel=(0.0, -18.4, 0.0) | Y=108.8 H=41.3 | Plat=false Egg=YES | dt=0.019 | streak=4
+09:31:10 #0208 LARGE_MOVE         57.6 studs | CF=2924 Phys=18 Horiz=0.0 | Pos=(1223.8, 108.8, -314.0) | Y=108.8 H=41.3 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -18.4, 0.0) | dt=0.000 | hVar=9.3
+09:31:10 #0209 CFRAME_BURST       CF=2924 >> Phys=18 Horiz=0.0 | Y=108.8 H=41.3 | Plat=false Egg=YES
+09:31:10 #0210 HEIGHT_UNSTABLE    hVar=9.3 | Y=108.8 H=41.3 | Pos=(1223.8, 108.8, -314.0)
+09:31:10 #0211 HUM_STATE          Running → Freefall | Pos=(1199.0, 112.7, -314.5)
+09:31:10 #0212 ZERO_HORIZ         Horiz=0.0 moved=25.1 | CF=1240 Phys=2 | Vel=(0.0, -2.5, 0.0) | Y=112.7 H=45.1 | Plat=false Egg=YES | dt=0.021 | streak=5
+09:31:10 #0213 LARGE_MOVE         25.1 studs | CF=1240 Phys=2 Horiz=0.0 | Pos=(1199.0, 112.7, -314.5) | Y=112.7 H=45.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -2.5, 0.0) | dt=0.000 | hVar=11.6
+09:31:10 #0214 CFRAME_BURST       CF=1240 >> Phys=2 Horiz=0.0 | Y=112.7 H=45.1 | Plat=false Egg=YES
+09:31:10 #0215 HEIGHT_UNSTABLE    hVar=11.6 | Y=112.7 H=45.1 | Pos=(1199.0, 112.7, -314.5)
+09:31:10 #0216 ZERO_HORIZ         Horiz=0.0 moved=65.5 | CF=3164 Phys=7 | Vel=(0.0, -7.4, 0.0) | Y=112.6 H=45.0 | Plat=false Egg=YES | dt=0.022 | streak=6
+09:31:10 #0217 LARGE_MOVE         65.5 studs | CF=3164 Phys=7 Horiz=0.0 | Pos=(1133.5, 112.6, -315.7) | Y=112.6 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -7.4, 0.0) | dt=0.000 | hVar=13.3
+09:31:10 #0218 CFRAME_BURST       CF=3164 >> Phys=7 Horiz=0.0 | Y=112.6 H=45.0 | Plat=false Egg=YES
+09:31:10 #0219 HEIGHT_UNSTABLE    hVar=13.3 | Y=112.6 H=45.0 | Pos=(1133.5, 112.6, -315.7)
+09:31:10 #0220 ZERO_HORIZ         Horiz=0.0 moved=59.3 | CF=2930 Phys=11 | Vel=(0.0, -11.4, 0.0) | Y=112.5 H=44.9 | Plat=false Egg=YES | dt=0.019 | streak=7
+09:31:10 #0221 LARGE_MOVE         59.3 studs | CF=2930 Phys=11 Horiz=0.0 | Pos=(1074.2, 112.5, -316.7) | Y=112.5 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -11.4, 0.0) | dt=0.000 | hVar=14.7
+09:31:10 #0222 CFRAME_BURST       CF=2930 >> Phys=11 Horiz=0.0 | Y=112.5 H=44.9 | Plat=false Egg=YES
+09:31:10 #0223 HEIGHT_UNSTABLE    hVar=14.7 | Y=112.5 H=44.9 | Pos=(1074.2, 112.5, -316.7)
+09:31:10 #0224 ZERO_HORIZ         Horiz=0.0 moved=54.6 | CF=3283 Phys=15 | Vel=(0.0, -14.7, 0.0) | Y=112.5 H=44.9 | Plat=false Egg=YES | dt=0.016 | streak=8
+09:31:10 #0225 LARGE_MOVE         54.6 studs | CF=3283 Phys=15 Horiz=0.0 | Pos=(1019.6, 112.5, -317.7) | Y=112.5 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -14.7, 0.0) | dt=0.000 | hVar=15.9
+09:31:10 #0226 CFRAME_BURST       CF=3283 >> Phys=15 Horiz=0.0 | Y=112.5 H=44.9 | Plat=false Egg=YES
+09:31:10 #0227 HEIGHT_UNSTABLE    hVar=15.9 | Y=112.5 H=44.9 | Pos=(1019.6, 112.5, -317.7)
+09:31:10 #0228 ZERO_HORIZ         Horiz=0.0 moved=47.0 | CF=2208 Phys=19 | Vel=(0.0, -18.8, 0.0) | Y=112.4 H=44.6 | Plat=false Egg=YES | dt=0.021 | streak=9
+09:31:10 #0229 LARGE_MOVE         47.0 studs | CF=2208 Phys=19 Horiz=0.0 | Pos=(972.6, 112.4, -318.5) | Y=112.4 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -18.8, 0.0) | dt=0.000 | hVar=16.8
+09:31:10 #0230 CFRAME_BURST       CF=2208 >> Phys=19 Horiz=0.0 | Y=112.4 H=44.6 | Plat=false Egg=YES
+09:31:10 #0231 HEIGHT_UNSTABLE    hVar=16.8 | Y=112.4 H=44.6 | Pos=(972.6, 112.4, -318.5)
+09:31:10 #0232 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:31:10 #0233 ANIM_START         http://www.roblox.com/asset/?id=10921262864 | Core Spd:1.0
+09:31:10 #0234 ANIM_STOP          http://www.roblox.com/asset/?id=507768375
+09:31:10 #0235 ZERO_HORIZ         Horiz=0.0 moved=64.2 | CF=3995 Phys=22 | Vel=(0.0, -22.1, 0.0) | Y=112.4 H=44.6 | Plat=false Egg=YES | dt=0.016 | streak=10
+09:31:10 #0236 LARGE_MOVE         64.2 studs | CF=3995 Phys=22 Horiz=0.0 | Pos=(908.4, 112.4, -319.7) | Y=112.4 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -22.1, 0.0) | dt=0.000 | hVar=17.6
+09:31:10 #0237 CFRAME_BURST       CF=3995 >> Phys=22 Horiz=0.0 | Y=112.4 H=44.6 | Plat=false Egg=YES
+09:31:10 #0238 HEIGHT_UNSTABLE    hVar=17.6 | Y=112.4 H=44.6 | Pos=(908.4, 112.4, -319.7)
+09:31:10 #0239 ZERO_HORIZ_END     Streak ended after 10 | Pos=(905.6, 112.7, -319.7)
+09:31:10 #0240 FLIGHT_END         dur=0.1s dist=318 | Pos=(905.6, 112.7, -319.7) | Zone=TRANSIT
+09:31:10 #0241 CFRAME_BURST       CF=140 >> Phys=4 Horiz=0.0 | Y=112.7 H=44.9 | Plat=false Egg=YES
+09:31:10 #0242 ZERO_HORIZ         Horiz=0.0 moved=69.0 | CF=2988 Phys=8 | Vel=(0.0, -8.2, 0.0) | Y=112.5 H=44.8 | Plat=false Egg=YES | dt=0.043 | streak=1
+09:31:10 #0243 LARGE_MOVE         69.0 studs | CF=2988 Phys=8 Horiz=0.0 | Pos=(836.6, 112.5, -321.0) | Y=112.5 H=44.8 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -8.2, 0.0) | dt=0.000 | hVar=18.8
+09:31:10 #0244 CFRAME_BURST       CF=2988 >> Phys=8 Horiz=0.0 | Y=112.5 H=44.8 | Plat=false Egg=YES
+09:31:10 #0245 ZERO_HORIZ         Horiz=0.0 moved=53.5 | CF=2754 Phys=12 | Vel=(0.0, -12.3, 0.0) | Y=112.5 H=44.7 | Plat=false Egg=YES | dt=0.019 | streak=2
+09:31:10 #0246 LARGE_MOVE         53.5 studs | CF=2754 Phys=12 Horiz=0.0 | Pos=(783.2, 112.5, -321.9) | Y=112.5 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -12.3, 0.0) | dt=0.000 | hVar=19.2
+09:31:10 #0247 CFRAME_BURST       CF=2754 >> Phys=12 Horiz=0.0 | Y=112.5 H=44.7 | Plat=false Egg=YES
+09:31:10 #0248 ZERO_HORIZ         Horiz=0.0 moved=54.0 | CF=3275 Phys=16 | Vel=(0.0, -15.5, 0.0) | Y=112.5 H=44.7 | Plat=false Egg=YES | dt=0.017 | streak=3
+09:31:10 #0249 LARGE_MOVE         54.0 studs | CF=3275 Phys=16 Horiz=0.0 | Pos=(729.2, 112.5, -322.9) | Y=112.5 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -15.5, 0.0) | dt=0.000 | hVar=19.5
+09:31:10 #0250 CFRAME_BURST       CF=3275 >> Phys=16 Horiz=0.0 | Y=112.5 H=44.7 | Plat=false Egg=YES
+09:31:10 #0251 ZONE               TRANSIT → FOREST | Pos=(680.1, 112.4, -323.8) | Holding=true
+09:31:10 #0252 FLIGHT_START       AUTO | Pos=(680.1, 112.4, -323.8) | Y=112.4 H=44.7 | Egg=YES Zone=FOREST
+09:31:10 #0253 ZERO_HORIZ         Horiz=0.0 moved=49.0 | CF=2945 Phys=19 | Vel=(0.0, -18.8, 0.0) | Y=112.4 H=44.7 | Plat=false Egg=YES | dt=0.017 | streak=4
+09:31:10 #0254 LARGE_MOVE         49.0 studs | CF=2945 Phys=19 Horiz=0.0 | Pos=(680.1, 112.4, -323.8) | Y=112.4 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -18.8, 0.0) | dt=0.000 | hVar=19.7
+09:31:10 #0255 CFRAME_BURST       CF=2945 >> Phys=19 Horiz=0.0 | Y=112.4 H=44.7 | Plat=false Egg=YES
+09:31:10 #0256 HEIGHT_UNSTABLE    hVar=19.7 | Y=112.4 H=44.7 | Pos=(680.1, 112.4, -323.8)
+09:31:10 #0257 ZERO_HORIZ         Horiz=0.0 moved=50.2 | CF=2867 Phys=22 | Vel=(0.0, -22.1, 0.0) | Y=112.4 H=44.7 | Plat=false Egg=YES | dt=0.017 | streak=5
+09:31:10 #0258 LARGE_MOVE         50.2 studs | CF=2867 Phys=22 Horiz=0.0 | Pos=(630.0, 112.4, -324.7) | Y=112.4 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -22.1, 0.0) | dt=0.000 | hVar=19.8
+09:31:10 #0259 CFRAME_BURST       CF=2867 >> Phys=22 Horiz=0.0 | Y=112.4 H=44.7 | Plat=false Egg=YES
+09:31:10 #0260 HEIGHT_UNSTABLE    hVar=19.8 | Y=112.4 H=44.7 | Pos=(630.0, 112.4, -324.7)
+09:31:10 #0261 ZERO_HORIZ         Horiz=0.0 moved=17.8 | CF=1126 Phys=3 | Vel=(0.0, -3.3, 0.0) | Y=112.7 H=45.0 | Plat=false Egg=YES | dt=0.016 | streak=6
+09:31:10 #0262 LARGE_MOVE         17.8 studs | CF=1126 Phys=3 Horiz=0.0 | Pos=(612.2, 112.7, -325.0) | Y=112.7 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -3.3, 0.0) | dt=0.000 | hVar=19.8
+09:31:10 #0263 CFRAME_BURST       CF=1126 >> Phys=3 Horiz=0.0 | Y=112.7 H=45.0 | Plat=false Egg=YES
+09:31:10 #0264 HEIGHT_UNSTABLE    hVar=19.8 | Y=112.7 H=45.0 | Pos=(612.2, 112.7, -325.0)
+09:31:10 #0265 HEIGHT_JUMP        Y 112.7 → 87.2 (Δ-25.5) | H=19.5 | Pos=(612.2, 87.2, -325.0) | Zone=FOREST
+09:31:10 #0266 ZERO_HORIZ         Horiz=0.0 moved=25.5 | CF=1329 Phys=7 | Vel=(0.0, -7.4, 0.0) | Y=87.2 H=19.5 | Plat=false Egg=YES | dt=0.022 | streak=7
+09:31:10 #0267 LARGE_MOVE         25.5 studs | CF=1329 Phys=7 Horiz=0.0 | Pos=(612.2, 87.2, -325.0) | Y=87.2 H=19.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -7.4, 0.0) | dt=0.000 | hVar=19.5
+09:31:10 #0268 CFRAME_BURST       CF=1329 >> Phys=7 Horiz=0.0 | Y=87.2 H=19.5 | Plat=false Egg=YES
+09:31:10 #0269 HEIGHT_UNSTABLE    hVar=19.5 | Y=87.2 H=19.5 | Pos=(612.2, 87.2, -325.0)
+09:31:10 #0270 HUM_STATE          Freefall → Landed | Pos=(612.2, 70.7, -325.0)
+09:31:10 #0271 ZERO_HORIZ         Horiz=0.0 moved=16.5 | CF=686 Phys=0 | Vel=(0.0, 0.0, 0.0) | Y=70.7 H=3.1 | Plat=false Egg=YES | dt=0.021 | streak=8
+09:31:10 #0272 LARGE_MOVE         16.5 studs | CF=686 Phys=0 Horiz=0.0 | Pos=(612.2, 70.7, -325.0) | Y=70.7 H=3.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, 0.0, 0.0) | dt=0.000 | hVar=19.5
+09:31:10 #0273 CFRAME_BURST       CF=686 >> Phys=0 Horiz=0.0 | Y=70.7 H=3.1 | Plat=false Egg=YES
+09:31:10 #0274 HEIGHT_UNSTABLE    hVar=19.5 | Y=70.7 H=3.1 | Pos=(612.2, 70.7, -325.0)
+09:31:10 #0275 ZERO_HORIZ_END     Streak ended after 8 | Pos=(612.2, 70.7, -325.0)
+09:31:10 #0276 FLIGHT_END         dur=0.1s dist=80 | Pos=(612.2, 70.7, -325.0) | Zone=FOREST
+09:31:10 #0277 HUM_STATE          Landed → Running | Pos=(612.2, 70.7, -325.0)
+09:31:11 #0278 ANIM_STOP          http://www.roblox.com/asset/?id=10921262864
+09:31:11 #0279 ANIM_STOP          rbxassetid://102039335618606
+09:31:11 #0280 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:31:11 #0281 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:1.0
+09:31:11 #0282 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:1.0
+09:31:11 #0283 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:12 #0284 ZONE               FOREST → TRANSIT | Pos=(518.0, 70.7, -325.0) | Holding=true
+09:31:13 #0285 ANIM_START         http://www.roblox.com/asset/?id=507768375 | Idle Spd:1.0
+09:31:13 #0286 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:13 #0287 ANIM_STOP          rbxassetid://102039335618606
+09:31:13 #0288 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:13 #0289 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:14 #0290 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:6.7
+09:31:14 #0291 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:6.7
+09:31:14 #0292 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:15 #0293 ZONE               TRANSIT → FOREST | Pos=(522.7, 70.7, -322.3) | Holding=true
+09:31:16 #0294 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:17 #0295 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:17 #0296 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:17 #0297 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:13.4
+09:31:17 #0298 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:13.4
+09:31:17 #0299 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:17 #0300 LARGE_MOVE         15.1 studs | CF=204 Phys=233 Horiz=232.6 | Pos=(644.7, 70.7, -324.4) | Y=70.7 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(232.6, -3.2, -0.1) | dt=6.921 | hVar=0.0
+09:31:17 #0301 ZONE               FOREST → TRANSIT | Pos=(702.8, 70.7, -324.5) | Holding=true
+09:31:19 #0302 LARGE_MOVE         12.6 studs | CF=240 Phys=233 Horiz=232.6 | Pos=(1042.1, 70.7, -324.7) | Y=70.7 H=3.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -2.6, -0.2) | dt=1.705 | hVar=0.0
+09:31:21 #0303 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:21 #0304 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:22 #0305 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:22 #0306 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:22 #0307 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:22 #0308 ZERO_HORIZ         Horiz=0.0 moved=113.0 | CF=3124 Phys=7 | Vel=(0.0, -7.4, 0.0) | Y=86.6 H=18.6 | Plat=false Egg=YES | dt=3.692 | streak=1
+09:31:22 #0309 LARGE_MOVE         113.0 studs | CF=3124 Phys=7 Horiz=0.0 | Pos=(1378.8, 86.6, -318.9) | Y=86.6 H=18.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -7.4, 0.0) | dt=0.000 | hVar=2.9
+09:31:22 #0310 CFRAME_BURST       CF=3124 >> Phys=7 Horiz=0.0 | Y=86.6 H=18.6 | Plat=false Egg=YES
+09:31:22 #0311 ZERO_HORIZ         Horiz=0.0 moved=91.0 | CF=3951 Phys=12 | Vel=(0.0, -12.5, 0.0) | Y=99.5 H=31.5 | Plat=false Egg=YES | dt=0.023 | streak=2
+09:31:22 #0312 LARGE_MOVE         91.0 studs | CF=3951 Phys=12 Horiz=0.0 | Pos=(1288.8, 99.5, -319.6) | Y=99.5 H=31.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -12.5, 0.0) | dt=0.000 | hVar=5.8
+09:31:22 #0313 CFRAME_BURST       CF=3951 >> Phys=12 Horiz=0.0 | Y=99.5 H=31.5 | Plat=false Egg=YES
+09:31:22 #0314 ZERO_HORIZ         Horiz=0.0 moved=61.2 | CF=3370 Phys=18 | Vel=(0.0, -17.6, 0.0) | Y=108.1 H=40.5 | Plat=false Egg=YES | dt=0.018 | streak=3
+09:31:22 #0315 LARGE_MOVE         61.2 studs | CF=3370 Phys=18 Horiz=0.0 | Pos=(1228.2, 108.1, -320.1) | Y=108.1 H=40.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -17.6, 0.0) | dt=0.000 | hVar=8.7
+09:31:22 #0316 CFRAME_BURST       CF=3370 >> Phys=18 Horiz=0.0 | Y=108.1 H=40.5 | Plat=false Egg=YES
+09:31:22 #0317 HUM_STATE          Running → Freefall | Pos=(1197.9, 112.7, -320.4)
+09:31:22 #0318 FLIGHT_START       AUTO | Pos=(1197.9, 112.7, -320.4) | Y=112.7 H=45.1 | Egg=YES Zone=TRANSIT
+09:31:22 #0319 ZERO_HORIZ         Horiz=0.0 moved=30.6 | CF=1627 Phys=3 | Vel=(0.0, -3.3, 0.0) | Y=112.7 H=45.1 | Plat=false Egg=YES | dt=0.019 | streak=4
+09:31:22 #0320 LARGE_MOVE         30.6 studs | CF=1627 Phys=3 Horiz=0.0 | Pos=(1197.9, 112.7, -320.4) | Y=112.7 H=45.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -3.3, 0.0) | dt=0.000 | hVar=11.1
+09:31:22 #0321 CFRAME_BURST       CF=1627 >> Phys=3 Horiz=0.0 | Y=112.7 H=45.1 | Plat=false Egg=YES
+09:31:22 #0322 HEIGHT_UNSTABLE    hVar=11.1 | Y=112.7 H=45.1 | Pos=(1197.9, 112.7, -320.4)
+09:31:22 #0323 ZERO_HORIZ         Horiz=0.0 moved=61.4 | CF=3219 Phys=7 | Vel=(0.0, -7.4, 0.0) | Y=112.6 H=45.0 | Plat=false Egg=YES | dt=0.022 | streak=5
+09:31:22 #0324 LARGE_MOVE         61.4 studs | CF=3219 Phys=7 Horiz=0.0 | Pos=(1136.5, 112.6, -320.8) | Y=112.6 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -7.4, 0.0) | dt=0.000 | hVar=13.0
+09:31:22 #0325 CFRAME_BURST       CF=3219 >> Phys=7 Horiz=0.0 | Y=112.6 H=45.0 | Plat=false Egg=YES
+09:31:22 #0326 HEIGHT_UNSTABLE    hVar=13.0 | Y=112.6 H=45.0 | Pos=(1136.5, 112.6, -320.8)
+09:31:23 #0327 ZERO_HORIZ         Horiz=0.0 moved=58.9 | CF=2661 Phys=11 | Vel=(0.0, -11.4, 0.0) | Y=112.5 H=44.9 | Plat=false Egg=YES | dt=0.019 | streak=6
+09:31:23 #0328 LARGE_MOVE         58.9 studs | CF=2661 Phys=11 Horiz=0.0 | Pos=(1077.6, 112.5, -321.3) | Y=112.5 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -11.4, 0.0) | dt=0.000 | hVar=14.5
+09:31:23 #0329 CFRAME_BURST       CF=2661 >> Phys=11 Horiz=0.0 | Y=112.5 H=44.9 | Plat=false Egg=YES
+09:31:23 #0330 HEIGHT_UNSTABLE    hVar=14.5 | Y=112.5 H=44.9 | Pos=(1077.6, 112.5, -321.3)
+09:31:23 #0331 ZERO_HORIZ         Horiz=0.0 moved=57.0 | CF=2760 Phys=15 | Vel=(0.0, -14.7, 0.0) | Y=112.5 H=44.9 | Plat=false Egg=YES | dt=0.020 | streak=7
+09:31:23 #0332 LARGE_MOVE         57.0 studs | CF=2760 Phys=15 Horiz=0.0 | Pos=(1020.6, 112.5, -321.8) | Y=112.5 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -14.7, 0.0) | dt=0.000 | hVar=15.7
+09:31:23 #0333 CFRAME_BURST       CF=2760 >> Phys=15 Horiz=0.0 | Y=112.5 H=44.9 | Plat=false Egg=YES
+09:31:23 #0334 HEIGHT_UNSTABLE    hVar=15.7 | Y=112.5 H=44.9 | Pos=(1020.6, 112.5, -321.8)
+09:31:23 #0335 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:31:23 #0336 ANIM_START         http://www.roblox.com/asset/?id=10921262864 | Core Spd:1.0
+09:31:23 #0337 ANIM_STOP          http://www.roblox.com/asset/?id=507768375
+09:31:23 #0338 ZERO_HORIZ         Horiz=0.0 moved=66.3 | CF=2398 Phys=20 | Vel=(0.0, -20.4, 0.0) | Y=112.2 H=44.4 | Plat=false Egg=YES | dt=0.028 | streak=8
+09:31:23 #0339 LARGE_MOVE         66.3 studs | CF=2398 Phys=20 Horiz=0.0 | Pos=(954.3, 112.2, -322.3) | Y=112.2 H=44.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -20.4, 0.0) | dt=0.000 | hVar=16.7
+09:31:23 #0340 CFRAME_BURST       CF=2398 >> Phys=20 Horiz=0.0 | Y=112.2 H=44.4 | Plat=false Egg=YES
+09:31:23 #0341 HEIGHT_UNSTABLE    hVar=16.7 | Y=112.2 H=44.4 | Pos=(954.3, 112.2, -322.3)
+09:31:23 #0342 ZERO_HORIZ         Horiz=0.0 moved=49.2 | CF=1808 Phys=6 | Vel=(0.0, -5.7, 0.0) | Y=112.6 H=44.9 | Plat=false Egg=YES | dt=0.027 | streak=9
+09:31:23 #0343 LARGE_MOVE         49.2 studs | CF=1808 Phys=6 Horiz=0.0 | Pos=(905.0, 112.6, -322.7) | Y=112.6 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -5.7, 0.0) | dt=0.000 | hVar=17.6
+09:31:23 #0344 CFRAME_BURST       CF=1808 >> Phys=6 Horiz=0.0 | Y=112.6 H=44.9 | Plat=false Egg=YES
+09:31:23 #0345 HEIGHT_UNSTABLE    hVar=17.6 | Y=112.6 H=44.9 | Pos=(905.0, 112.6, -322.7)
+09:31:23 #0346 ZERO_HORIZ         Horiz=0.0 moved=77.2 | CF=3409 Phys=10 | Vel=(0.0, -9.8, 0.0) | Y=112.5 H=44.7 | Plat=false Egg=YES | dt=0.022 | streak=10
+09:31:23 #0347 LARGE_MOVE         77.2 studs | CF=3409 Phys=10 Horiz=0.0 | Pos=(827.8, 112.5, -323.3) | Y=112.5 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -9.8, 0.0) | dt=0.000 | hVar=18.3
+09:31:23 #0348 CFRAME_BURST       CF=3409 >> Phys=10 Horiz=0.0 | Y=112.5 H=44.7 | Plat=false Egg=YES
+09:31:23 #0349 HEIGHT_UNSTABLE    hVar=18.3 | Y=112.5 H=44.7 | Pos=(827.8, 112.5, -323.3)
+09:31:23 #0350 ZERO_HORIZ         Horiz=0.0 moved=64.5 | CF=2614 Phys=15 | Vel=(0.0, -14.7, 0.0) | Y=112.4 H=44.6 | Plat=false Egg=YES | dt=0.025 | streak=11
+09:31:23 #0351 LARGE_MOVE         64.5 studs | CF=2614 Phys=15 Horiz=0.0 | Pos=(763.3, 112.4, -323.8) | Y=112.4 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -14.7, 0.0) | dt=0.000 | hVar=18.8
+09:31:23 #0352 CFRAME_BURST       CF=2614 >> Phys=15 Horiz=0.0 | Y=112.4 H=44.6 | Plat=false Egg=YES
+09:31:23 #0353 HEIGHT_UNSTABLE    hVar=18.8 | Y=112.4 H=44.6 | Pos=(763.3, 112.4, -323.8)
+09:31:23 #0354 ZONE               TRANSIT → FOREST | Pos=(697.2, 112.3, -324.3) | Holding=true
+09:31:23 #0355 ZERO_HORIZ         Horiz=0.0 moved=66.1 | CF=2987 Phys=20 | Vel=(0.0, -19.6, 0.0) | Y=112.3 H=44.5 | Plat=false Egg=YES | dt=0.021 | streak=12
+09:31:23 #0356 LARGE_MOVE         66.1 studs | CF=2987 Phys=20 Horiz=0.0 | Pos=(697.2, 112.3, -324.3) | Y=112.3 H=44.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -19.6, 0.0) | dt=0.000 | hVar=19.3
+09:31:23 #0357 CFRAME_BURST       CF=2987 >> Phys=20 Horiz=0.0 | Y=112.3 H=44.5 | Plat=false Egg=YES
+09:31:23 #0358 HEIGHT_UNSTABLE    hVar=19.3 | Y=112.3 H=44.5 | Pos=(697.2, 112.3, -324.3)
+09:31:23 #0359 ZERO_HORIZ         Horiz=0.0 moved=59.7 | CF=3219 Phys=23 | Vel=(0.0, -22.9, 0.0) | Y=112.4 H=44.7 | Plat=false Egg=YES | dt=0.019 | streak=13
+09:31:23 #0360 LARGE_MOVE         59.7 studs | CF=3219 Phys=23 Horiz=0.0 | Pos=(637.5, 112.4, -324.8) | Y=112.4 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -22.9, 0.0) | dt=0.000 | hVar=19.6
+09:31:23 #0361 CFRAME_BURST       CF=3219 >> Phys=23 Horiz=0.0 | Y=112.4 H=44.7 | Plat=false Egg=YES
+09:31:23 #0362 HEIGHT_UNSTABLE    hVar=19.6 | Y=112.4 H=44.7 | Pos=(637.5, 112.4, -324.8)
+09:31:23 #0363 ZERO_HORIZ         Horiz=0.0 moved=25.3 | CF=931 Phys=5 | Vel=(0.0, -4.9, 0.0) | Y=112.7 H=45.0 | Plat=false Egg=YES | dt=0.027 | streak=14
+09:31:23 #0364 LARGE_MOVE         25.3 studs | CF=931 Phys=5 Horiz=0.0 | Pos=(612.2, 112.7, -325.0) | Y=112.7 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -4.9, 0.0) | dt=0.000 | hVar=19.9
+09:31:23 #0365 CFRAME_BURST       CF=931 >> Phys=5 Horiz=0.0 | Y=112.7 H=45.0 | Plat=false Egg=YES
+09:31:23 #0366 HEIGHT_UNSTABLE    hVar=19.9 | Y=112.7 H=45.0 | Pos=(612.2, 112.7, -325.0)
+09:31:23 #0367 HEIGHT_JUMP        Y 112.7 → 80.2 (Δ-32.5) | H=12.5 | Pos=(612.2, 80.2, -325.0) | Zone=FOREST
+09:31:23 #0368 ZERO_HORIZ         Horiz=0.0 moved=32.5 | CF=1931 Phys=9 | Vel=(0.0, -9.0, 0.0) | Y=80.2 H=12.5 | Plat=false Egg=YES | dt=0.017 | streak=15
+09:31:23 #0369 LARGE_MOVE         32.5 studs | CF=1931 Phys=9 Horiz=0.0 | Pos=(612.2, 80.2, -325.0) | Y=80.2 H=12.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -9.0, 0.0) | dt=0.000 | hVar=19.7
+09:31:23 #0370 CFRAME_BURST       CF=1931 >> Phys=9 Horiz=0.0 | Y=80.2 H=12.5 | Plat=false Egg=YES
+09:31:23 #0371 HEIGHT_UNSTABLE    hVar=19.7 | Y=80.2 H=12.5 | Pos=(612.2, 80.2, -325.0)
+09:31:23 #0372 HUM_STATE          Freefall → Landed | Pos=(612.2, 70.7, -325.0)
+09:31:23 #0373 ZERO_HORIZ_END     Streak ended after 15 | Pos=(612.2, 70.7, -325.0)
+09:31:23 #0374 FLIGHT_END         dur=0.3s dist=587 | Pos=(612.2, 70.7, -325.0) | Zone=FOREST
+09:31:23 #0375 CFRAME_BURST       CF=518 >> Phys=0 Horiz=0.0 | Y=70.7 H=3.1 | Plat=false Egg=YES
+09:31:23 #0376 HUM_STATE          Landed → Running | Pos=(612.2, 70.7, -325.0)
+09:31:23 #0377 ANIM_STOP          http://www.roblox.com/asset/?id=10921262864
+09:31:23 #0378 ANIM_STOP          rbxassetid://102039335618606
+09:31:24 #0379 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:31:24 #0380 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:8.6
+09:31:24 #0381 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:8.6
+09:31:24 #0382 LARGE_MOVE         12.5 studs | CF=213 Phys=223 Horiz=223.3 | Pos=(570.6, 70.7, -325.0) | Y=70.7 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(-223.3, -2.8, -0.0) | dt=1.271 | hVar=0.0
+09:31:24 #0383 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:24 #0384 ZONE               FOREST → TRANSIT | Pos=(518.2, 70.7, -325.0) | Holding=true
+09:31:25 #0385 ANIM_START         http://www.roblox.com/asset/?id=507768375 | Idle Spd:1.0
+09:31:25 #0386 ANIM_STOP          rbxassetid://102039335618606
+09:31:26 #0387 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:27 #0388 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:27 #0389 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:28 #0390 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:2.1
+09:31:28 #0391 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:2.1
+09:31:28 #0392 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:28 #0393 ZONE               TRANSIT → FOREST | Pos=(523.8, 70.7, -319.8) | Holding=true
+09:31:29 #0394 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:30 #0395 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:30 #0396 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:30 #0397 ANIM_START         http://www.roblox.com/asset/?id=10921258489 | Core Spd:1.0
+09:31:30 #0398 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:30 #0399 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:30 #0400 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:30 #0401 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:4.4
+09:31:30 #0402 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:4.4
+09:31:31 #0403 ANIM_STOP          http://www.roblox.com/asset/?id=10921258489
+09:31:31 #0404 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:31 #0405 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:32 #0406 ZONE               FOREST → TRANSIT | Pos=(702.7, 70.7, -325.8) | Holding=true
+09:31:32 #0407 LARGE_MOVE         15.5 studs | CF=207 Phys=233 Horiz=232.6 | Pos=(836.5, 70.7, -325.7) | Y=70.7 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(232.6, -3.3, 0.2) | dt=8.221 | hVar=0.0
+09:31:36 #0408 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:37 #0409 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:37 #0410 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:38 #0411 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:31:38 #0412 ZERO_HORIZ         Horiz=0.0 moved=105.5 | CF=3514 Phys=6 | Vel=(0.0, -5.7, 0.0) | Y=85.6 H=17.6 | Plat=false Egg=YES | dt=5.456 | streak=1
+09:31:38 #0413 LARGE_MOVE         105.5 studs | CF=3514 Phys=6 Horiz=0.0 | Pos=(1388.0, 85.6, -311.5) | Y=85.6 H=17.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -5.7, 0.0) | dt=0.000 | hVar=2.7
+09:31:38 #0414 CFRAME_BURST       CF=3514 >> Phys=6 Horiz=0.0 | Y=85.6 H=17.6 | Plat=false Egg=YES
+09:31:38 #0415 ZERO_HORIZ         Horiz=0.0 moved=88.8 | CF=4361 Phys=12 | Vel=(0.0, -11.9, 0.0) | Y=98.0 H=30.1 | Plat=false Egg=YES | dt=0.020 | streak=2
+09:31:38 #0416 LARGE_MOVE         88.8 studs | CF=4361 Phys=12 Horiz=0.0 | Pos=(1300.1, 98.0, -313.1) | Y=98.0 H=30.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -11.9, 0.0) | dt=0.000 | hVar=5.5
+09:31:38 #0417 CFRAME_BURST       CF=4361 >> Phys=12 Horiz=0.0 | Y=98.0 H=30.1 | Plat=false Egg=YES
+09:31:38 #0418 ZERO_HORIZ         Horiz=0.0 moved=65.2 | CF=2789 Phys=17 | Vel=(0.0, -17.0, 0.0) | Y=107.2 H=39.6 | Plat=false Egg=YES | dt=0.023 | streak=3
+09:31:38 #0419 LARGE_MOVE         65.2 studs | CF=2789 Phys=17 Horiz=0.0 | Pos=(1235.5, 107.2, -314.2) | Y=107.2 H=39.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -17.0, 0.0) | dt=0.000 | hVar=8.4
+09:31:38 #0420 CFRAME_BURST       CF=2789 >> Phys=17 Horiz=0.0 | Y=107.2 H=39.6 | Plat=false Egg=YES
+09:31:38 #0421 HUM_STATE          Running → Freefall | Pos=(1199.0, 112.7, -314.8)
+09:31:38 #0422 FLIGHT_START       AUTO | Pos=(1199.0, 112.7, -314.8) | Y=112.7 H=45.1 | Egg=YES Zone=TRANSIT
+09:31:38 #0423 ZERO_HORIZ         Horiz=0.0 moved=36.9 | CF=1555 Phys=4 | Vel=(0.0, -4.1, 0.0) | Y=112.7 H=45.1 | Plat=false Egg=YES | dt=0.024 | streak=4
+09:31:38 #0424 LARGE_MOVE         36.9 studs | CF=1555 Phys=4 Horiz=0.0 | Pos=(1199.0, 112.7, -314.8) | Y=112.7 H=45.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -4.1, 0.0) | dt=0.000 | hVar=10.9
+09:31:38 #0425 CFRAME_BURST       CF=1555 >> Phys=4 Horiz=0.0 | Y=112.7 H=45.1 | Plat=false Egg=YES
+09:31:38 #0426 HEIGHT_UNSTABLE    hVar=10.9 | Y=112.7 H=45.1 | Pos=(1199.0, 112.7, -314.8)
+09:31:38 #0427 ZERO_HORIZ         Horiz=0.0 moved=68.9 | CF=3612 Phys=8 | Vel=(0.0, -8.2, 0.0) | Y=112.5 H=45.0 | Plat=false Egg=YES | dt=0.019 | streak=5
+09:31:38 #0428 LARGE_MOVE         68.9 studs | CF=3612 Phys=8 Horiz=0.0 | Pos=(1130.1, 112.5, -316.0) | Y=112.5 H=45.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -8.2, 0.0) | dt=0.000 | hVar=12.8
+09:31:38 #0429 CFRAME_BURST       CF=3612 >> Phys=8 Horiz=0.0 | Y=112.5 H=45.0 | Plat=false Egg=YES
+09:31:38 #0430 HEIGHT_UNSTABLE    hVar=12.8 | Y=112.5 H=45.0 | Pos=(1130.1, 112.5, -316.0)
+09:31:38 #0431 ZERO_HORIZ         Horiz=0.0 moved=64.7 | CF=2853 Phys=12 | Vel=(0.0, -12.3, 0.0) | Y=112.5 H=44.9 | Plat=false Egg=YES | dt=0.022 | streak=6
+09:31:38 #0432 LARGE_MOVE         64.7 studs | CF=2853 Phys=12 Horiz=0.0 | Pos=(1065.4, 112.5, -317.1) | Y=112.5 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -12.3, 0.0) | dt=0.000 | hVar=14.3
+09:31:38 #0433 CFRAME_BURST       CF=2853 >> Phys=12 Horiz=0.0 | Y=112.5 H=44.9 | Plat=false Egg=YES
+09:31:38 #0434 HEIGHT_UNSTABLE    hVar=14.3 | Y=112.5 H=44.9 | Pos=(1065.4, 112.5, -317.1)
+09:31:38 #0435 ZERO_HORIZ         Horiz=0.0 moved=62.1 | CF=3008 Phys=17 | Vel=(0.0, -17.2, 0.0) | Y=112.3 H=44.6 | Plat=false Egg=YES | dt=0.021 | streak=7
+09:31:38 #0436 LARGE_MOVE         62.1 studs | CF=3008 Phys=17 Horiz=0.0 | Pos=(1003.4, 112.3, -318.2) | Y=112.3 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -17.2, 0.0) | dt=0.000 | hVar=15.6
+09:31:38 #0437 CFRAME_BURST       CF=3008 >> Phys=17 Horiz=0.0 | Y=112.3 H=44.6 | Plat=false Egg=YES
+09:31:38 #0438 HEIGHT_UNSTABLE    hVar=15.6 | Y=112.3 H=44.6 | Pos=(1003.4, 112.3, -318.2)
+09:31:38 #0439 ZERO_HORIZ         Horiz=0.0 moved=60.1 | CF=3200 Phys=20 | Vel=(0.0, -20.4, 0.0) | Y=112.4 H=44.6 | Plat=false Egg=YES | dt=0.018 | streak=8
+09:31:38 #0440 LARGE_MOVE         60.1 studs | CF=3200 Phys=20 Horiz=0.0 | Pos=(943.3, 112.4, -319.3) | Y=112.4 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -20.4, 0.0) | dt=0.000 | hVar=16.6
+09:31:38 #0441 CFRAME_BURST       CF=3200 >> Phys=20 Horiz=0.0 | Y=112.4 H=44.6 | Plat=false Egg=YES
+09:31:38 #0442 HEIGHT_UNSTABLE    hVar=16.6 | Y=112.4 H=44.6 | Pos=(943.3, 112.4, -319.3)
+09:31:38 #0443 ZERO_HORIZ         Horiz=0.0 moved=37.7 | CF=1438 Phys=6 | Vel=(0.0, -5.7, 0.0) | Y=112.6 H=44.9 | Plat=false Egg=YES | dt=0.026 | streak=9
+09:31:38 #0444 LARGE_MOVE         37.7 studs | CF=1438 Phys=6 Horiz=0.0 | Pos=(905.6, 112.6, -319.9) | Y=112.6 H=44.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -5.7, 0.0) | dt=0.000 | hVar=17.5
+09:31:38 #0445 CFRAME_BURST       CF=1438 >> Phys=6 Horiz=0.0 | Y=112.6 H=44.9 | Plat=false Egg=YES
+09:31:38 #0446 HEIGHT_UNSTABLE    hVar=17.5 | Y=112.6 H=44.9 | Pos=(905.6, 112.6, -319.9)
+09:31:38 #0447 ZERO_HORIZ         Horiz=0.0 moved=70.0 | CF=4193 Phys=9 | Vel=(0.0, -9.0, 0.0) | Y=112.5 H=44.8 | Plat=false Egg=YES | dt=0.016 | streak=10
+09:31:38 #0448 LARGE_MOVE         70.0 studs | CF=4193 Phys=9 Horiz=0.0 | Pos=(835.7, 112.5, -321.1) | Y=112.5 H=44.8 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -9.0, 0.0) | dt=0.000 | hVar=18.2
+09:31:38 #0449 CFRAME_BURST       CF=4193 >> Phys=9 Horiz=0.0 | Y=112.5 H=44.8 | Plat=false Egg=YES
+09:31:38 #0450 HEIGHT_UNSTABLE    hVar=18.2 | Y=112.5 H=44.8 | Pos=(835.7, 112.5, -321.1)
+09:31:38 #0451 ZERO_HORIZ         Horiz=0.0 moved=52.5 | CF=2653 Phys=12 | Vel=(0.0, -12.3, 0.0) | Y=112.5 H=44.7 | Plat=false Egg=YES | dt=0.020 | streak=11
+09:31:38 #0452 LARGE_MOVE         52.5 studs | CF=2653 Phys=12 Horiz=0.0 | Pos=(783.1, 112.5, -322.0) | Y=112.5 H=44.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -12.3, 0.0) | dt=0.000 | hVar=18.8
+09:31:38 #0453 CFRAME_BURST       CF=2653 >> Phys=12 Horiz=0.0 | Y=112.5 H=44.7 | Plat=false Egg=YES
+09:31:38 #0454 HEIGHT_UNSTABLE    hVar=18.8 | Y=112.5 H=44.7 | Pos=(783.1, 112.5, -322.0)
+09:31:38 #0455 ZERO_HORIZ         Horiz=0.0 moved=56.3 | CF=3092 Phys=16 | Vel=(0.0, -16.4, 0.0) | Y=112.4 H=44.6 | Plat=false Egg=YES | dt=0.018 | streak=12
+09:31:38 #0456 LARGE_MOVE         56.3 studs | CF=3092 Phys=16 Horiz=0.0 | Pos=(726.8, 112.4, -323.0) | Y=112.4 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=TRANSIT | Vel=(0.0, -16.4, 0.0) | dt=0.000 | hVar=19.2
+09:31:38 #0457 CFRAME_BURST       CF=3092 >> Phys=16 Horiz=0.0 | Y=112.4 H=44.6 | Plat=false Egg=YES
+09:31:38 #0458 HEIGHT_UNSTABLE    hVar=19.2 | Y=112.4 H=44.6 | Pos=(726.8, 112.4, -323.0)
+09:31:38 #0459 ANIM_START         http://www.roblox.com/asset/?id=10921258489 | Core Spd:1.0
+09:31:38 #0460 ANIM_START         http://www.roblox.com/asset/?id=10921262864 | Core Spd:1.0
+09:31:38 #0461 ANIM_STOP          http://www.roblox.com/asset/?id=507768375
+09:31:38 #0462 ZONE               TRANSIT → FOREST | Pos=(674.0, 112.4, -323.9) | Holding=true
+09:31:38 #0463 ZERO_HORIZ         Horiz=0.0 moved=52.8 | CF=2817 Phys=20 | Vel=(0.0, -19.6, 0.0) | Y=112.4 H=44.6 | Plat=false Egg=YES | dt=0.019 | streak=13
+09:31:38 #0464 LARGE_MOVE         52.8 studs | CF=2817 Phys=20 Horiz=0.0 | Pos=(674.0, 112.4, -323.9) | Y=112.4 H=44.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -19.6, 0.0) | dt=0.000 | hVar=19.6
+09:31:38 #0465 CFRAME_BURST       CF=2817 >> Phys=20 Horiz=0.0 | Y=112.4 H=44.6 | Plat=false Egg=YES
+09:31:38 #0466 HEIGHT_UNSTABLE    hVar=19.6 | Y=112.4 H=44.6 | Pos=(674.0, 112.4, -323.9)
+09:31:38 #0467 ZERO_HORIZ         Horiz=0.0 moved=55.9 | CF=2443 Phys=25 | Vel=(0.0, -24.5, 0.0) | Y=112.2 H=44.5 | Plat=false Egg=YES | dt=0.023 | streak=14
+09:31:38 #0468 LARGE_MOVE         55.9 studs | CF=2443 Phys=25 Horiz=0.0 | Pos=(618.2, 112.2, -324.9) | Y=112.2 H=44.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -24.5, 0.0) | dt=0.000 | hVar=19.8
+09:31:38 #0469 CFRAME_BURST       CF=2443 >> Phys=25 Horiz=0.0 | Y=112.2 H=44.5 | Plat=false Egg=YES
+09:31:38 #0470 HEIGHT_UNSTABLE    hVar=19.8 | Y=112.2 H=44.5 | Pos=(618.2, 112.2, -324.9)
+09:31:38 #0471 ZERO_HORIZ_END     Streak ended after 14 | Pos=(612.2, 112.7, -325.0)
+09:31:38 #0472 FLIGHT_END         dur=0.2s dist=587 | Pos=(612.2, 112.7, -325.0) | Zone=FOREST
+09:31:38 #0473 CFRAME_BURST       CF=250 >> Phys=4 Horiz=0.0 | Y=112.7 H=45.0 | Plat=false Egg=YES
+09:31:38 #0474 HEIGHT_JUMP        Y 112.7 → 77.8 (Δ-34.8) | H=10.2 | Pos=(612.2, 77.8, -325.0) | Zone=FOREST
+09:31:38 #0475 ZERO_HORIZ         Horiz=0.0 moved=34.8 | CF=1541 Phys=9 | Vel=(0.0, -9.0, 0.0) | Y=77.8 H=10.2 | Plat=false Egg=YES | dt=0.048 | streak=1
+09:31:38 #0476 LARGE_MOVE         34.8 studs | CF=1541 Phys=9 Horiz=0.0 | Pos=(612.2, 77.8, -325.0) | Y=77.8 H=10.2 | Plat=false Anch=false Net=nil | Egg=YES Zone=FOREST | Vel=(0.0, -9.0, 0.0) | dt=0.000 | hVar=19.8
+09:31:38 #0477 CFRAME_BURST       CF=1541 >> Phys=9 Horiz=0.0 | Y=77.8 H=10.2 | Plat=false Egg=YES
+09:31:38 #0478 HUM_STATE          Freefall → Landed | Pos=(612.2, 70.7, -325.0)
+09:31:38 #0479 CFRAME_BURST       CF=313 >> Phys=0 Horiz=0.0 | Y=70.7 H=3.1 | Plat=false Egg=YES
+09:31:38 #0480 HUM_STATE          Landed → Running | Pos=(612.2, 70.7, -325.0)
+09:31:38 #0481 ANIM_STOP          http://www.roblox.com/asset/?id=10921258489
+09:31:38 #0482 ANIM_STOP          http://www.roblox.com/asset/?id=10921262864
+09:31:39 #0483 ANIM_STOP          rbxassetid://102039335618606
+09:31:39 #0484 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+09:31:39 #0485 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:1.0
+09:31:39 #0486 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:1.0
+09:31:39 #0487 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+09:31:40 #0488 ZONE               FOREST → TRANSIT | Pos=(518.3, 70.7, -325.0) | Holding=true
+09:31:41 #0489 ANIM_START         http://www.roblox.com/asset/?id=507768375 | Idle Spd:1.0
+09:31:41 #0490 ANIM_STOP          rbxassetid://102039335618606
+09:31:41 #0491 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+09:31:41 #0492 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+09:31:41 #0493 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
+09:31:42 #0494 STOP               Recording stopped
