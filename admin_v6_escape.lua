@@ -1,7 +1,7 @@
 --[[=========================================================================
-	SNOW → FOREST IMMEDIATE ARC TEST v6.5
+	SNOW ESCAPE + MANUAL CHUNKED CFRAME TEST v6.6
 	+ Snow only: ground approach → confirmed egg carry → immediate Forest flight
-	+ AssemblyLinearVelocity arc to Forest; no CFrame/Position/PivotTo writes
+	+ Snow flight stays velocity-only; separate manual test uses chunked CFrame
 	+ Planned travel <=1.5s, travel cutoff 1.9s; no false arrival on timeout
 	+ No boss wait, no ragdoll prerequisite and no automatic egg drop
 	+ No forced humanoid states, joint edits, anchoring or PlatformStand writes
@@ -16,6 +16,9 @@
 	command speed from route length and the capped duration for this test.
 	The egg is kept carried; reaching Forest is not a delivery acknowledgement.
 	Runtime game corrections can still prevent arrival; copy diagnostics.
+	Manual snap defaults: 10 studs/chunk, 1000 studs total, 0.05s interval.
+	Forward means the horizontal character-facing direction captured at Start.
+	Each write is at most one chunk; no giant final snap or rollback catch-up.
 =========================================================================]]
 
 local Players                = game:GetService("Players")
@@ -54,6 +57,8 @@ local CARRY_TIMEOUT_S     = 3
 local REMOTE_TIMEOUT_S    = 3
 local FLIGHT_ANIM_ID      = "rbxassetid://102039335618606"
 
+local SNAP_MAX_STEPS      = 10000
+local SNAP_TIMEOUT_S      = 300
 local GUI_NAME            = "GrokEscapeFlightV6"
 
 local currentToken        = 0
@@ -119,7 +124,7 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[Steal-Pipeline v6.5] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[Steal-Pipeline v6.6] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
@@ -687,12 +692,144 @@ local function executeTeleportPipeline(statusLabel)
 		runCharacter = nil
 		if not ok then
 			traceRun("ERROR_DETAIL", tostring(completed))
-			warn("[Steal-Pipeline v6.5] " .. tostring(completed))
+			warn("[Steal-Pipeline v6.6] " .. tostring(completed))
 			updateStatus("ERROR: Flight stopped; controls restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
 		else
 			updateStatus("Forest reached. No drop requested; verify egg in-game.", Color3.fromRGB(100, 255, 170))
+		end
+	end)
+end
+
+----------------------------------------------------------------
+-- MANUAL CHUNKED CFRAME TEST (independent of eggs / Snow flight)
+----------------------------------------------------------------
+
+local function parseSnapSettings(chunkText, distanceText, delayText)
+	local function numberInRange(text, low, high)
+		local value = tonumber(text)
+		if not value or value ~= value or value < low or value > high then return nil end
+		return value
+	end
+	local chunk = numberInRange(chunkText, 0.1, 1000)
+	local distance = numberInRange(distanceText, 1, 100000)
+	local delay = numberInRange(delayText, 0, 5)
+	if not chunk then return nil, "Chunk size must be 0.1–1000 studs" end
+	if not distance then return nil, "Distance must be 1–100000 studs" end
+	if not delay then return nil, "Interval must be 0–5 seconds" end
+	local steps = math.ceil(distance / chunk)
+	if steps > SNAP_MAX_STEPS then return nil, "Too many chunks (maximum 10000)" end
+	if steps * math.max(delay, 1 / 60) > SNAP_TIMEOUT_S then
+		return nil, "Requested run exceeds the 300-second test limit"
+	end
+	return { chunk = chunk, distance = distance, delay = delay, steps = steps }
+end
+
+local function runChunkedSnap(settings, myToken, onProgress)
+	local root, hum, reason = getRunRig(myToken)
+	if not root then return false, reason end
+	if root.Anchored then return false, "Character is anchored" end
+	local facing = root.CFrame.LookVector
+	local forward = Vector3.new(facing.X, 0, facing.Z)
+	if forward.Magnitude < 0.001 then return false, "Face horizontally before starting" end
+	forward = forward.Unit -- frozen for the entire test; camera/turning cannot redirect it
+	local origin = root.Position
+	local expected = origin
+	local tolerance = math.clamp(settings.chunk * 0.25, 0.5, 2)
+	local startedAt = os.clock()
+	local nextStepAt = startedAt
+	local traveled, steps = 0, 0
+	-- Share the existing Stop/respawn velocity cleanup, but never enable flight
+	-- friction, egg physics, animation, or the 500-WalkSpeed enforcer here.
+	flightRoot = root
+	hum:Move(Vector3.zero)
+	hum:MoveTo(root.Position)
+	hum.WalkSpeed = 0
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	traceRun("SNAP_START", string.format("chunk=%.3f total=%.3f interval=%.3fs steps=%d forward=(%.3f,0,%.3f)",
+		settings.chunk, settings.distance, settings.delay, settings.steps, forward.X, forward.Z))
+
+	while true do
+		-- Always yield: even interval=0 permits only one chunk per Heartbeat.
+		-- Validate again after the wait so Stop/respawn cannot cause a late snap.
+		RunService.Heartbeat:Wait()
+		root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		if root.Anchored then return false, "Character anchored during chunked snap" end
+		local displacement = horizontalDistance(root.Position, expected)
+		if displacement > tolerance then
+			traceRun("SNAP_INTERRUPTED", string.format("external horizontal movement=%.2f studs after %d chunks", displacement, steps))
+			return false, "Position changed externally; stopped without a catch-up snap"
+		end
+		-- Observe the final chunk on a later frame before claiming completion.
+		if steps >= settings.steps then
+			traceRun("SNAP_COMPLETE", string.format("chunks=%d commanded=%.3f netXZ=%.3f elapsed=%.3fs",
+				steps, traveled, horizontalDistance(root.Position, origin), os.clock() - startedAt))
+			return true
+		end
+		if os.clock() - startedAt >= SNAP_TIMEOUT_S then return false, "Chunked snap timed out" end
+		if os.clock() >= nextStepAt then
+			local step = math.min(settings.chunk, settings.distance - traveled)
+			-- Offset the CURRENT CFrame, preserving rotation and current height.
+			-- Never jump to an absolute endpoint or add missed chunks after a lag.
+			root.CFrame = root.CFrame + forward * step
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			expected = root.Position
+			traveled = math.min(settings.distance, traveled + step)
+			steps += 1
+			nextStepAt = os.clock() + settings.delay
+			if steps == 1 or steps % 10 == 0 or steps == settings.steps then
+				traceRun("SNAP_PROGRESS", string.format("chunk=%d/%d commanded=%.3f/%.3f", steps, settings.steps, traveled, settings.distance))
+				if onProgress then onProgress(steps, traveled) end
+			end
+		end
+	end
+end
+
+local function executeChunkedSnap(chunkText, distanceText, delayText, statusLabel)
+	if isRunning then return end
+	local settings, inputError = parseSnapSettings(chunkText, distanceText, delayText)
+	if not settings then
+		if statusLabel and statusLabel.Parent then
+			statusLabel.Text = "INPUT ERROR: " .. inputError
+			statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+		end
+		return
+	end
+	currentToken += 1
+	local myToken = currentToken
+	isRunning = true
+	runCharacter = LocalPlayer.Character
+	captureBaseSpeed()
+	table.clear(diagnosticLines)
+	table.clear(flightSamples)
+	local function status(text, color)
+		if currentToken == myToken and statusLabel and statusLabel.Parent then
+			statusLabel.Text = text
+			statusLabel.TextColor3 = color
+		end
+	end
+	task.spawn(function()
+		local ok, completed, reason = xpcall(function()
+			return runChunkedSnap(settings, myToken, function(steps, traveled)
+				status(string.format("Forward snap: %d/%d chunks | %.1f/%.1f studs",
+					steps, settings.steps, traveled, settings.distance), Color3.fromRGB(80, 210, 255))
+			end)
+		end, debug.traceback)
+		if currentToken ~= myToken then return end
+		cleanupRun()
+		isRunning = false
+		runCharacter = nil
+		if not ok or not completed then
+			local message = tostring(ok and reason or completed)
+			traceRun("SNAP_ABORTED", message)
+			status("SNAP STOPPED: " .. message, Color3.fromRGB(255, 100, 100))
+		else
+			status(string.format("Forward snap complete: %g studs in %d chunks.", settings.distance, settings.steps),
+				Color3.fromRGB(100, 255, 170))
 		end
 	end)
 end
@@ -710,8 +847,8 @@ gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 460, 0, 300)
-main.Position = UDim2.new(0.03, 0, 0.35, 0)
+main.Size = UDim2.new(0, 460, 0, 446)
+main.Position = UDim2.new(0.03, 0, 0.20, 0)
 main.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
 main.BorderSizePixel = 0
 main.Active = true
@@ -731,7 +868,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "SNOW → FOREST: GROK-V3 FLIGHT v6.5"
+title.Text = "SNOW ESCAPE + CHUNKED CFRAME v6.6"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -784,7 +921,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 0, 38)
 statusLabel.Position = UDim2.new(0, 8, 0, 5)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Snow only: Get egg → Immediate Forest flight. No boss wait."
+statusLabel.Text = "Snow flight above; independent forward CFrame test below. Stop cancels either."
 statusLabel.TextColor3 = Color3.fromRGB(180, 220, 255)
 statusLabel.TextSize = 10
 statusLabel.Font = Enum.Font.Code
@@ -852,12 +989,75 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.5: Grok-v3 flight port | Arc ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
+footer.Text = "v6.6: Grok-v3 flight port | Arc ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
 footer.TextWrapped = true
 footer.Parent = main
+
+local snapHeading = Instance.new("TextLabel")
+snapHeading.Size = UDim2.new(1, -20, 0, 20)
+snapHeading.Position = UDim2.fromOffset(10, 306)
+snapHeading.BackgroundTransparency = 1
+snapHeading.Text = "MANUAL FORWARD CFRAME — independent of egg pickup"
+snapHeading.TextColor3 = Color3.fromRGB(120, 220, 255)
+snapHeading.TextSize = 10
+snapHeading.Font = Enum.Font.GothamBold
+snapHeading.Parent = main
+
+local function makeSnapInput(column, label, defaultText)
+	local caption = Instance.new("TextLabel")
+	caption.Size = UDim2.new(1 / 3, -20, 0, 16)
+	caption.Position = UDim2.new(column / 3, 10, 0, 330)
+	caption.BackgroundTransparency = 1
+	caption.Text = label
+	caption.TextColor3 = Color3.fromRGB(180, 200, 220)
+	caption.TextSize = 10
+	caption.Font = Enum.Font.Code
+	caption.Parent = main
+	local input = Instance.new("TextBox")
+	input.Size = UDim2.new(1 / 3, -20, 0, 28)
+	input.Position = UDim2.new(column / 3, 10, 0, 348)
+	input.BackgroundColor3 = Color3.fromRGB(28, 39, 58)
+	input.TextColor3 = Color3.new(1, 1, 1)
+	input.Text = defaultText
+	input.PlaceholderText = defaultText
+	input.ClearTextOnFocus = false
+	input.MultiLine = false
+	input.TextSize = 12
+	input.Font = Enum.Font.Code
+	input.Parent = main
+	Instance.new("UICorner", input).CornerRadius = UDim.new(0, 4)
+	return input
+end
+local snapChunkInput = makeSnapInput(0, "Chunk (studs)", "10")
+local snapDistanceInput = makeSnapInput(1, "Total (studs)", "1000")
+local snapDelayInput = makeSnapInput(2, "Interval (seconds)", "0.05")
+
+local snapStartBtn = Instance.new("TextButton")
+snapStartBtn.Size = UDim2.new(1, -20, 0, 32)
+snapStartBtn.Position = UDim2.fromOffset(10, 384)
+snapStartBtn.BackgroundColor3 = Color3.fromRGB(105, 65, 165)
+snapStartBtn.Text = "SNAP FORWARD IN CHUNKS"
+snapStartBtn.TextColor3 = Color3.new(1, 1, 1)
+snapStartBtn.TextSize = 11
+snapStartBtn.Font = Enum.Font.GothamBold
+snapStartBtn.Parent = main
+Instance.new("UICorner", snapStartBtn).CornerRadius = UDim.new(0, 5)
+snapStartBtn.Activated:Connect(function()
+	executeChunkedSnap(snapChunkInput.Text, snapDistanceInput.Text, snapDelayInput.Text, statusLabel)
+end)
+
+local snapHint = Instance.new("TextLabel")
+snapHint.Size = UDim2.new(1, -20, 0, 18)
+snapHint.Position = UDim2.fromOffset(10, 422)
+snapHint.BackgroundTransparency = 1
+snapHint.Text = "Locks horizontal facing at Start. Interval 0 = one chunk per frame."
+snapHint.TextColor3 = Color3.fromRGB(150, 170, 200)
+snapHint.TextSize = 9
+snapHint.Font = Enum.Font.Code
+snapHint.Parent = main
 
 -- Both buttons work independently of the scanner. Clipboard is optional;
 -- the selectable snapshot is the fallback when the executor has no clipboard.
@@ -1020,4 +1220,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-traceRun("READY", "Snow→Forest Grok-v3 flight port ready. No boss wait/drop; travel target ≤1.5s; no CFrame movement.")
+traceRun("READY", "Snow velocity flight + separate manual chunked-CFrame test ready. Default snap: 10 × 100 = 1000 studs.")
