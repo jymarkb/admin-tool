@@ -1,5 +1,6 @@
 -- Standalone, velocity-only flight jump. Does not load or alter other scripts.
 -- Default: 200 studs in the character's horizontal facing direction per click.
+-- Grok-v3 timing: max(distance / 750, 0.35); default 200-stud plan is 0.35s.
 -- Close other movement scripts before use. Server corrections may still occur.
 
 local Players = game:GetService("Players")
@@ -7,8 +8,9 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local GUI_NAME = "SimpleFlightJump"
-local SPEED = 200
-local SPEED_CAP = 300
+local SPEED = 750 -- Grok-v3 aerial baseline
+local SPEED_CAP = SPEED * 1.5 -- 1125 studs/s maximum
+local MIN_DURATION = 0.35
 local MAX_DISTANCE = 2000
 local active = nil
 local flightConnection = nil
@@ -117,7 +119,7 @@ local function advanceFlight(run, dt)
 		stopFlight("Jump finished. Click again when ready.")
 		return
 	end
-	local progress = math.clamp((elapsed + dt) / run.duration, 0, 1)
+	local progress = math.clamp((elapsed + math.max(dt, 0.016)) / run.duration, 0, 1)
 	local waypoint = run.origin:Lerp(run.target, progress)
 		+ Vector3.new(0, run.height * math.sin(progress * math.pi), 0)
 	local velocity = (waypoint - root.Position) / math.max(dt, 0.001)
@@ -149,8 +151,8 @@ local function startFlight()
 		character = character, root = root, hum = hum,
 		origin = origin, target = origin + forward.Unit * distance,
 		lastPosition = origin, started = os.clock(),
-		duration = math.max(distance / SPEED, 0.5),
-		height = math.clamp(distance * 0.08, 12, 40),
+		duration = math.max(distance / SPEED, MIN_DURATION),
+		height = math.clamp(distance * 0.035, 8, 26),
 	}
 	active = run
 	status.Text = string.format("Jumping about %g studs forward…", distance)
