@@ -1,0 +1,269 @@
+-- Offline checks for advanced_scanner_v3.lua (run.mjs loads mock -> scanner -> this driver).
+local M = MOCK
+local F = M.fixture
+local total, passed = 0, 0
+local function check(name, cond, detail)
+	total = total + 1
+	if cond then passed = passed + 1; print(string.format("[PASS] %s", name))
+	else print(string.format("[FAIL] %s%s", name, detail ~= nil and ("  -> " .. tostring(detail)) or "")) end
+end
+local function has(text, needle)
+	return string.find(tostring(text or ""), needle, 1, true) ~= nil
+end
+local API = _G.ADVANCED_SCANNER_V3
+local function journalText() return M.journalText() end
+local function findInJournal(fragment, from)
+	local entries = API and API.journal() or {}
+	for i = (from or 0) + 1, #entries do
+		if has(entries[i].line, fragment) then return entries[i] end
+	end
+	return nil
+end
+local function waitFor(pred, limit)
+	local g = 0
+	while not pred() and g < (limit or 5000) do g = g + 1; M.pump(0.02) end
+	return pred()
+end
+
+M.reset()   -- fixture already installed by mock.lua at load time   -- writesArmed = true: ANY fixture property write by the scanner is a violation
+
+check("scanner exposes its API", type(API) == "table")
+if type(API) ~= "table" then
+	print(string.format("RESULT checks=%d passed=%d failed=%d", total, passed, total - passed)); return
+end
+M.pump(0.2)
+
+--=================== A. boot ===================
+local gui = F.playerGui:FindFirstChild("AdvancedScanner_v3")
+check("GUI is created", gui ~= nil)
+check("FULL SCAN button exists", M.findDescendantByName(gui, "Btn_FULLSCAN") ~= nil)
+check("WATCH button exists", M.findDescendantByName(gui, "Btn_WATCHOFF") ~= nil)
+check("MODE button exists", M.findDescendantByName(gui, "Btn_MODE") ~= nil)
+check("COPY button exists", M.findDescendantByName(gui, "Btn_COPY") ~= nil)
+check("CLEAR button exists", M.findDescendantByName(gui, "Btn_CLEAR") ~= nil)
+check("CLOSE button exists", M.findDescendantByName(gui, "Btn_CLOSE") ~= nil)
+check("starts with watch OFF", API.status().watching == false, tostring(API.status().watching))
+check("starts in focus mode", API.status().mode == "focus", API.status().mode)
+check("ready line logged", has(journalText(), "v3 listener ready"))
+check("no outgoing calls at boot", #M.outgoingCalls == 0 and API.stats().outgoingCalls == 0,
+	string.format("%d recorded", #M.outgoingCalls))
+
+local scanBtn = M.findDescendantByName(gui, "Btn_FULLSCAN")
+local watchBtn = M.findDescendantByName(gui, "Btn_WATCHOFF")
+local modeBtn = M.findDescendantByName(gui, "Btn_MODE")
+local copyBtn = M.findDescendantByName(gui, "Btn_COPY")
+
+--=================== B. FULL SCAN ===================
+scanBtn.MouseButton1Click:Fire()
+check("full scan runs to completion", waitFor(function() return has(journalText(), "SCAN COMPLETE") end),
+	API.status().statusText)
+local text = journalText()
+check("leaderstats section present", has(text, "LEADERSTATS"))
+check("leaderstats value read", has(text, "Money/s = 18108437162"), text:sub(1, 200))
+check("player attributes section present", has(text, "PLAYER ATTRIBUTES"))
+check("AreaId surfaced as the biome", has(text, "AreaId = Jungle   <- current biome"))
+local rdLine = findInJournal("RagdollEndTime = ")
+local rdLeft = rdLine and tonumber(string.match(rdLine.line, "%+(%d+%.%d)s"))
+check("RagdollEndTime decoded to clock + remaining", rdLine ~= nil and has(rdLine.line, "->")
+	and rdLeft ~= nil and rdLeft > 2.0 and rdLeft <= 3.05, rdLine and rdLine.line)
+check("JoinTick decoded to a clock time", has(text, "JoinTick = ") and has(text, "-> "))
+check("ragdoll remaining reported", has(text, "ragdoll remaining now = 3.") or has(text, "ragdoll remaining now = 2."),
+	findInJournal("ragdoll remaining now") and findInJournal("ragdoll remaining now").line)
+check("movement snapshot present", has(text, "MOVEMENT SNAPSHOT") and has(text, "state=Running hp=100.0/100.0"))
+check("carry snapshot present", has(text, "CARRY") and has(text, "IsCarrying=nil"))
+check("remote inventory totals", has(text, "total=") and has(text, "RemoteFunction="))
+check("boss family grouped", has(text, "RE/BossEvent") and has(text, "RE/ScrambleBoss"))
+check("egg family grouped", has(text, "RE/EggWorld") and has(text, "RF/EggWorld"))
+check("non-Networking remote listed", has(text, "BossFlightRemotes.BeginFlight")
+	or has(text, "BossFlightRemotes"))
+check("focus marker shown in inventory", has(text, "<-- FOCUS family (hit/ragdoll/carry)"))
+check("object search found the plot treadmill", has(text, "TreadmillUpgrade"))
+check("object search found the client render tool", has(text, "TreadmillRender_1"))
+check("object search found the running sound (real token match)", has(text, "Running"))
+check("'Trunk' no longer matches 'run' (v2 bug fixed)", not has(text, "Trunk"),
+	findInJournal("Trunk") and findInJournal("Trunk").line)
+check("scan summary line present", has(text, "read-only: no remote calls made"))
+check("scan made no outgoing calls", #M.outgoingCalls == 0, string.format("%d", #M.outgoingCalls))
+check("scan wrote nothing to the game", #M.violations == 0, tostring(M.violations[1] and M.violations[1].kind))
+
+--=================== C. watch list / modes ===================
+API.setMode("focus")
+local focusList = API._internals.watchList("focus")
+local allList = API._internals.watchList("all")
+check("focus list is non-empty", #focusList > 5, #focusList)
+check("focus list is smaller than all", #focusList < #allList, string.format("%d vs %d", #focusList, #allList))
+local function listedPath(list, fragment)
+	for _, e in ipairs(list) do if has(e.path, fragment) then return true end end
+	return false
+end
+check("focus keeps boss hit remotes", listedPath(focusList, "RE/BossEvent/BlackHoleHit"))
+check("focus keeps ragdoll + anchor + rig remotes",
+	listedPath(focusList, "RE/Limpness/WriteLimpness")
+	and listedPath(focusList, "RE/ZoneProbe/AnchorForZone")
+	and listedPath(focusList, "RE/RigSync/CorrectionBegan"))
+check("focus drops unrelated remotes", not listedPath(focusList, "RE/Treadmill/SpeedGained"))
+API.setMode("all")
+check("all mode picks up the treadmill remote", listedPath(allList, "RE/Treadmill/SpeedGained"))
+
+--=================== D. listening ===================
+local baselineConns = M.aliveConnections()
+API.setMode("focus")
+local focused = API.watch(true)
+check("watch turns on", focused == true and API.status().watching == true)
+check("watch button reflects state", watchBtn.Text == "WATCH: ON", watchBtn.Text)
+check("watch connected to signals", M.aliveConnections() > baselineConns,
+	string.format("%d vs %d", M.aliveConnections(), baselineConns))
+check("watch log line names the count", has(journalText(), "listening on ") and has(journalText(), "read-only"))
+
+local target = F.watchTargets[1]        -- RE/BossEvent/BlackHoleHit
+local mark = #API.journal()
+M.fireRemote(target, { userId = 42, power = 1.5 })
+M.pump(0.1)
+local reLine = findInJournal("RE/BossEvent/BlackHoleHit", mark)
+check("remote event is logged", reLine ~= nil, journalText():sub(-300))
+check("payload is serialized", reLine ~= nil and has(reLine.line, "userId=42") and has(reLine.line, "power=1.5"),
+	reLine and reLine.line)
+
+M.fireRemote(F.watchTargets[4], "hello", 7, true)   -- HealthShifted
+M.pump(0.1)
+local multi = findInJournal("RE/BossEvent/HealthShifted", mark)
+check("multiple args serialized", multi ~= nil and has(multi.line, "\"hello\"") and has(multi.line, "7")
+	and has(multi.line, "true"), multi and multi.line)
+
+-- unfocused remote should NOT be logged while in focus mode
+local noise = F.watchTargets[15]        -- RE/Treadmill/SpeedGained
+local noiseMark = #API.journal()
+M.fireRemote(noise, 1, 2)
+M.pump(0.1)
+check("focus mode ignores unrelated remotes", findInJournal("Treadmill/SpeedGained", noiseMark) == nil)
+
+API.watch(false)
+check("watch turns off", API.status().watching == false)
+local offMark = #API.journal()
+M.fireRemote(target, { userId = 42 })
+M.pump(0.1)
+check("no logging after watch OFF", findInJournal("BlackHoleHit", offMark) == nil)
+check("listeners disconnected", M.aliveConnections() <= baselineConns + 6,
+	string.format("%d vs baseline %d", M.aliveConnections(), baselineConns))
+
+--=================== E. HIT detection + attribution ===================
+API.watch(true)
+API.clear()
+M.pump(0.3)
+M.fireRemote(F.watchTargets[2], { source = "boss" })    -- RE/BossEvent/HazardHit just before the launch
+M.drive(function() F.humanoid._props._State = M.enumItem("HumanoidStateType", "Physics") end)
+M.setVelocity(-450, 13, -3)
+M.pump(0.2)
+local hitLine = findInJournal("HIT")
+check("HIT row is produced on a physics launch", hitLine ~= nil, journalText():sub(-400))
+check("HIT row reports the velocity delta", hitLine ~= nil and has(hitLine.line, "dv="),
+	hitLine and hitLine.line)
+check("HIT row reports the launch velocity", hitLine ~= nil and has(hitLine.line, "-450.0"),
+	hitLine and hitLine.line)
+check("HIT row names the remote that fired first (attribution)",
+	hitLine ~= nil and has(hitLine.line, "HazardHit"), hitLine and hitLine.line)
+check("HIT row carries the ragdoll window", hitLine ~= nil and has(hitLine.line, "RagdollEndTime="),
+	hitLine and hitLine.line)
+check("HIT counter increments", API.status().hits == 1, API.status().hits)
+
+-- debounce: another huge delta immediately must not spam
+M.setVelocity(-1500, 0, 0)
+M.pump(0.2)
+check("second launch inside the debounce is not double-logged", API.status().hits == 1, API.status().hits)
+-- after the debounce window a new hit logs again
+M.pump(1.2)                       -- let the debounce window expire first
+M.setVelocity(900, 0, 900)
+M.pump(0.2)
+check("later launch is logged again", API.status().hits == 2, API.status().hits)
+
+--=================== F. attributes + signals ===================
+local attrMark = #API.journal()
+M.setAttribute(F.player, "RagdollEndTime", M.serverNow() + 5)
+M.pump(0.1)
+local attrLine = findInJournal("RagdollEndTime ->", attrMark)
+check("RagdollEndTime change logged", attrLine ~= nil, attrLine and attrLine.line)
+check("RagdollEndTime change shows remaining seconds",
+	attrLine ~= nil and (has(attrLine.line, "+5.0") or has(attrLine.line, "+4.9")), attrLine and attrLine.line)
+check("status reports the live countdown",
+	(function()
+		local left = API.status().ragdollRemaining
+		return left ~= nil and left > 3 and left <= 5
+	end)(), tostring(API.status().ragdollRemaining))
+
+M.setAttribute(F.player, "AreaId", "Cosmic")
+M.pump(0.1)
+check("AreaId change logged", findInJournal("AreaId -> Cosmic", attrMark) ~= nil)
+
+M.setHealth(F.humanoid, 40)
+M.pump(0.1)
+local hpLine = findInJournal("HEALTH", attrMark)
+check("health change logged with delta", hpLine ~= nil and has(hpLine.line, "-60.0"), hpLine and hpLine.line)
+
+M.drive(function() F.humanoid:ChangeState(M.enumItem("HumanoidStateType", "Running")) end)
+M.pump(0.1)
+M.setWalkSpeed(F.humanoid, 500)
+M.pump(0.1)
+local wsLine = findInJournal("WALKSPEED", attrMark)
+check("forced WalkSpeed logged", wsLine ~= nil, wsLine and wsLine.line)
+check("forced WalkSpeed flagged as script-driven", wsLine ~= nil and has(wsLine.line, "script-driven"),
+	wsLine and wsLine.line)
+
+M.drive(function() F.humanoid:ChangeState(M.enumItem("HumanoidStateType", "GettingUp")) end)
+M.pump(0.1)
+check("humanoid state change logged", findInJournal("-> GettingUp", attrMark) ~= nil,
+	findInJournal("STATE", attrMark) and findInJournal("STATE", attrMark).line)
+
+M.setProp(F.humanoid, "PlatformStand", true)
+M.pump(0.1)
+check("PlatformStand flip logged", findInJournal("PlatformStand = true", attrMark) ~= nil)
+M.setProp(F.root, "Anchored", true)
+M.pump(0.1)
+check("Anchored flip logged", findInJournal("Anchored = true", attrMark) ~= nil)
+
+local egg = M.new("Tool", "Egg", nil, {})
+M.addChild(F.character, egg)
+M.pump(0.1)
+check("carry Tool add logged", findInJournal("+ Egg", attrMark) ~= nil)
+M.removeChild(F.character, egg)
+M.pump(0.1)
+check("carry Tool remove logged", findInJournal("- Egg", attrMark) ~= nil)
+
+--=================== G. rate limiting + caps ===================
+local rateMark = #API.journal()
+for _ = 1, 45 do M.fireRemote(F.watchTargets[2], { i = 1 }) end
+M.pump(0.2)
+check("flood produces a RATE row", findInJournal("flood:", rateMark) ~= nil,
+	findInJournal("flood:", rateMark) and findInJournal("flood:", rateMark).line)
+check("suppressed count is tracked", API.stats().suppressed > 0, API.stats().suppressed)
+check("events counter accumulates", API.stats().events >= 45, API.stats().events)
+check("per-minute rate computed", API.stats().perMinute > 0, API.stats().perMinute)
+check("journal stays under the cap", #API.journal() <= 4000, #API.journal())
+
+--=================== H. export / copy / destroy ===================
+local ok, exported = API.copy()
+check("copy() reports success", ok == true)
+check("clipboard received the export", M.clipboard ~= nil and #M.clipboard > 500,
+	M.clipboard and #M.clipboard)
+check("export has the v3 header", has(M.clipboard, "ADVANCED SCANNER v3 (listener)"))
+check("export has the watch stats line", has(M.clipboard, "watch=ON"))
+check("export contains a HIT row", has(M.clipboard, "HIT"))
+check("export contains remote rows", has(M.clipboard, "RE/BossEvent/HazardHit"))
+check("export equals API.export()", exported == API.export())
+
+check("read-only: zero outgoing calls all session", #M.outgoingCalls == 0 and #M.remoteCalls == 0,
+	string.format("fires=%d invokes=%d", #M.outgoingCalls, #M.remoteCalls))
+check("read-only: zero writes to game instances all session", #M.violations == 0,
+	tostring(M.violations[1] and (M.violations[1].kind .. " " .. tostring(M.violations[1].key))))
+
+local closeBtn = M.findDescendantByName(gui, "Btn_CLOSE")
+closeBtn.MouseButton1Click:Fire()
+M.pump(0.3)
+check("close removes the GUI", F.playerGui:FindFirstChild("AdvancedScanner_v3") == nil)
+check("close clears the global", _G.ADVANCED_SCANNER_V3 == nil)
+check("close leaves no listeners", M.aliveConnections() == 0, M.aliveConnections())
+
+local errors = #M.errors
+M.pump(0.5)
+check("no uncaught runtime errors", errors == 0, M.errors[1])
+
+print(string.format("RESULT checks=%d passed=%d failed=%d", total, passed, total - passed))
