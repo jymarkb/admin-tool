@@ -1,138 +1,105 @@
-# Log analysis — run `01:33:38` (scanner v3.1b, 8 s window)
+# Boss-hit log analysis — 01:33:38 and 01:43:13 (scanner v3.1b)
 
-Source log saved verbatim as `01-33-38-run-v3.1b.log`. Compared against the two reference runs that use the
-**same scanner version** and the same post-pickup stage: `normal-run-log-no-script.log` (11:42) and
-`other-script.log` (09:30).
+**Attribution: both runs are boss hits (confirmed by the user).** That corrects the earlier reading of run 1: the
+impulse at 01:33:42 was not the game's normal carry transport, it was a boss knockback. Raw logs are saved as
+`01-33-38-run-v3.1b.log` and `01-43-13-run-v3.1b.log`; the reference runs from `main`
+(`normal-run-log-no-script.log`, `other-script.log`) use the same scanner and are quoted for contrast.
 
-## Bottom line
+## Boss-hit signature (reproduced twice, 10 minutes apart)
 
-1. **The egg pickup was at the far end of the map, not at the forest.** `EGG_STATE EMPTY → HOLDING` fires at
-   **(5660.0, 70.7, −332.8)** — 5,048 studs from the forest slot (612, 70, −325) that both reference runs pick up at.
-2. **4 s later the character is launched and ragdolled in one shot**: `Running → Physics` at
-   (5246.6, 71.1, −344.3) with an instantaneous velocity of **(−495, +71, −26)** studs/s.
-3. **Nothing re-wrote the velocity after that impulse.** The vertical component decays at **−194 studs/s²**
-   (Roblox gravity is 196.2), and once the character touches down the horizontal speed decays at
-   **−55.6 studs/s²** (Plastic friction 0.3 × gravity = 58.9). Both are textbook free physics — a scripted
-   flight re-writes `AssemblyLinearVelocity` every frame, so it would show neither.
-4. **No position/CFrame movement at all**: 0 `CFRAME_BURST`, 0 `ZERO_HORIZ`, 0 `HARD_SNAP`, and `Anch=false`
-   on every row. This is a pure velocity+gravity event, not a teleport/glide.
-5. **Travel: 1,594 studs in the −X direction** (ΔX = −1,593, ΔZ = −62) from the pickup point, ending at
-   (4051.5, 70.1, −395.4) — **36 studs from the exact spot where the unscripted runs get anchored + ragdolled**
-   ((4016.0, 70.5, −391.4) and (3980.8, 70.7, −387.7)).
-6. **The egg survived** — `Egg=YES` on every row, no second `EGG_STATE`, no drop.
-7. **Recovery happened at the end**: `Physics → GettingUp → Running` in the same second (01:33:44). The
-   unscripted run shows the identical transition (without any script), so **this log does not prove your
-   recovery pulse fired** — the scanner doesn't log Motor6D / `SetStateEnabled` activity.
-8. **The log was cut 2 s after landing.** In both reference runs the interesting part (anchor flip, ragdoll,
-   and the zero-velocity glide back to the forest slot) happens *after* this point.
-
-## Timeline
-
-| time | event | what it means |
+| | RUN 1 — 01:33:38 | RUN 2 — 01:43:13 |
 |---|---|---|
-| 01:33:38 | `START`, `EGG_STATE EMPTY→HOLDING`, `ZONE none→EGG_AREA` at (5660, 70.7, −333) | pickup already happened at the far end (X > 4500 = the scanner's hard-coded `EGG_AREA` rule) |
-| 01:33:38–40 | `ANIM_START` idle + run tracks, Core Spd 12.1 | humanoid alive and running (reference runs show 6.5 / 7.7 at the same point) |
-| 01:33:42 | `HUM_STATE Running → Physics` at (5246.6, 71.1, −344.3) | ragdoll starts, velocity already ≈ 500 horizontal + 71 up |
-| 01:33:42–43 | 15 `LARGE_MOVE` rows, Y 71→86→68, vy +71→−78 | single ballistic arc: launch, apex, fall — gravity only |
-| 01:33:43 | Y settles at 68.0–68.6, clearance H 0.3–0.9; `ZONE EGG_AREA → TRANSIT` at X=4497.9 | touching the ground, sliding; the zone flip is only the scanner's `pos.X > 4500` rule (not a game event) |
-| 01:33:44 | `Physics → GettingUp` at (4066.8, 69.9, −394.4), then `GettingUp → Running` at (4051.5, 70.1, −395.4) | ragdoll over after ~2.4 s, humanoid back in control, still holding the egg |
-| 01:33:44–46 | anim tracks stop/restart, `COPY` | recording stopped 2 s after landing |
+| pickup position | (5660.0, 70.7, −332.8) | (5666.4, 70.7, −332.7) |
+| pre-hit travel (4 s, no state change logged) | 414 studs ≈ 103 studs/s | 277 studs ≈ 69 studs/s |
+| hit: `Running → Physics` | 01:33:42 (5246.6, 71.1, −344.3) | 01:43:17 (5389.2, 70.4, −332.8) |
+| launch velocity | (−494.8, **+70.9**, −26.4) = **501** studs/s | (−449.5, **+13.3**, −3.5) = **450** studs/s |
+| apex | Y 86.1 = **+15.0** above launch | Y 79.7 = **+9.3** above launch |
+| airborne (launch → first ground contact) | 0.73 s | ~0.99 s |
+| ground skid | 1.58 s, Horiz 500 → 410 | 1.14 s, Horiz 476 → 411 |
+| skid deceleration | **−57 studs/s²** | **−57 studs/s²** |
+| **ragdoll total (launch → control)** | **2.46 s** | **~2.4 s** |
+| recovery (`Physics → GettingUp → Running`) | 01:33:44 at (4051.5, 70.1, −395.4) | 01:43:20 at (4454.1, 69.6, −321.7) |
+| knockback distance (launch → recovery) | **1,196 studs** (ΔX −1195, ΔZ −51) | **935 studs** (ΔX −935, ΔZ +11) |
+| pickup → recovery | 1,610 studs | 1,212 studs |
+| distance from recovery point to forest egg slot (612.2, 70.7, −325.0) | 3,440 studs | 3,842 studs |
+| egg held throughout | yes (`Egg=YES` every row) | yes (`Egg=YES` every row) |
+| `CFRAME_BURST` / `ZERO_HORIZ` / `HARD_SNAP` / `ANCHOR_FLIP` | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| `Plat` / `Anch` / `Net` | false / false / nil on every row | false / false / nil on every row |
 
-Per-second digest (Horiz = horizontal component of `AssemblyLinearVelocity`):
+Same event class, same direction (almost pure −X: away from the far egg area, toward the forest side of the map),
+same friction-limited skid, same ~2.4–2.5 s limp window. Run 1 was the stronger hit (bigger launch vector, higher
+apex, longer skid).
 
-```
-+0s  START,EGG_STATE,ZONE,ANIM    pos=(  5660, 70.7,  -333)
-+2s  ANIM only                    (no movement logged)
-+4s  HUM_STATE(→Physics),MOVE     pos=(  4865, 73.5,  -362)   Horiz 496-535   vy  -69.5..+70.9  (15 rows)
-+5s  MOVE,ZONE                    pos=(  4498, 68.0,  -377)   Horiz 470-530   vy  -78.5.. +4.1  (13 rows)
-+6s  MOVE,HUM_STATE(→Running)     pos=(  4052, 70.1,  -395)   Horiz 410-443   vy   -8.0.. -0.5  ( 8 rows)
-+7s  ANIM only
-+8s  COPY
-```
+## Run 2 timeline
 
-## Ragdoll duration
+| time | row | event |
+|---|---|---|
+| 01:43:13 | #0002–#0003 | `EGG_STATE EMPTY → HOLDING`, `ZONE none → EGG_AREA` at (5666.4, 70.7, −332.7) |
+| 01:43:14–16 | #0004–#0009 | idle + run tracks, Core Spd 1.0 → 15.7; no humanoid state change |
+| 01:43:17 | #0010–#0012 | run track restarts, `HUM_STATE Running → Physics` at (5389.2, 70.4, −332.8), velocity already (−449.5, +13.3, −3.5) |
+| 01:43:17–18 | #0013–#0021 | ballistic rise to Y 79.7 (apex), horizontal steady 497–509 |
+| 01:43:18 | #0022–#0026 | descent to ground; the two largest logging gaps of the run sit here (dt 0.248 s and 0.280 s) |
+| 01:43:18–19 | #0027–#0047 | ground skid at Y 68.0–68.8, clearance 0.4–1.2 studs, Horiz 476 → 411 |
+| 01:43:20 | #0048–#0050 | `ZONE EGG_AREA → TRANSIT` (scanner rule: `pos.X > 4500`), then `Physics → GettingUp → Running` |
+| 01:43:20–21 | #0051–#0055 | run tracks stop; **recording ends 1 s after control returns, no COPY row** |
 
-`Running → Physics` at 01:33:42, back under control (`GettingUp → Running`) at 01:33:44.
+## Ragdoll duration (the number you asked for)
 
-| measure | value |
+| | measured |
 |---|---|
-| Physics (limp) state, from accumulated frame intervals | **2.46 s** |
-| — launch → touchdown (airborne) | 0.86 s |
-| — touchdown → get-up (ground skim) | 1.60 s |
-| — get-up itself (`GettingUp → Running`) | < 0.1 s |
-| log clock (1 s resolution) | 01:33:42 → 01:33:44, i.e. strictly between 1.0 s and 3.0 s |
+| RUN 1 | **2.46 s** (tiled from the scanner's own `dt` across rows #0011→#0049; clock 01:33:42 → 01:33:44) |
+| RUN 2 | **≈ 2.4 s** (tiled 2.19 s across rows #0012→#0047 plus 0.22 s of remaining travel to the `GettingUp` point; clock 01:43:17 → 01:43:20) |
+| both, split | ~0.7–1.0 s airborne + ~1.1–1.6 s skidding on the ground + <0.1 s getting up |
 
-The 2.46 s figure comes from the scanner's own `dt` field on the `LARGE_MOVE` rows: it is the time since the
-previous logged row, so it accumulates correctly across frames that were below the 12-stud logging threshold
-(the span #0011→#0049 sums to 2.46 s, including the two big gaps of 0.440 s and 0.328 s while skidding).
+Note the clock resolution: 1 s timestamps mean run 2's clock span reads "3 s", but the frame-level tiling and the
+kinematics (476 → 411 studs/s at −57 studs/s² = 1.14 s) both say ~2.4 s. The two runs agree.
 
-For comparison, the **game's own** ragdoll events in the unscripted run are all sub-second (11:43:10, 11:43:16,
-11:43:38 — `Physics → GettingUp` within the same second each time, 2–6 state rows apart). This run's limp window
-is therefore ~3–5× longer than the game's normal one, and longer than the 1.6 s flight duration.
+For contrast, the **game's own transport ragdoll** in the unscripted run is sub-second
+(`Physics → GettingUp` inside the same second at 11:43:10, 11:43:16, 11:43:38) and always comes with an
+`ANCHOR_FLIP`. So: *sub-second ragdoll + anchor flip = transport; ≥2.4 s ragdoll, no anchor flip = boss hit.*
 
-## The physics fit (the important part)
+## What wrote the velocity: nothing after the hit
 
-| phase | measurement | expected from plain physics |
-|---|---|---|
-| airborne, frames #0011→#0026 (0.725 s) | vy `+70.9 → −69.5` = **−194 studs/s²** | Roblox gravity **−196.2** |
-| ground contact, frames #0028→#0049 (1.603 s) | Horiz `500 → 410` = **−55.6 studs/s²** | Plastic friction μ=0.3 × 196.2 = **−58.9** |
+- **Airborne (run 1)**: vy `+70.9 → −69.5` = −198 then −188 studs/s². Roblox gravity is −196.2 → plain ballistics.
+- **Airborne (run 2)**: vy fits come out at only −80 and −57 studs/s² (≈ ⅓ gravity), and the two biggest logging
+  gaps of the whole session (0.248 s, 0.280 s) fall exactly in that window. Frames that long mean the frame rate
+  collapsed during the hit burst, so those two rows are the least trustworthy in the file. Apex height is the more
+  robust strength measure: **15.0 studs (run 1) vs 9.3 studs (run 2)**.
+- **Ground skid (both runs)**: −57 studs/s² — matches Plastic friction μ 0.3 × 196.2 = **−58.9**. Identical in
+  both runs, which is strong evidence the skid is friction-limited rather than script-driven.
+- There is no constant-speed phase, no position/CFrame motion, no anchor flip, no network-owner change anywhere in
+  either run. Nothing in this repo (grok-v3 waypoint chase, the auto-calc `distance/remaining` versions, the
+  straight-line version in `simple_recovery_ui.lua`) writes velocity this way — so **neither run is evidence that
+  your flight script ran**, in either direction. They are pure boss-knockback recordings.
 
-Both phases match free physics within ~1–6 %. That is only possible if **no script was writing velocity during
-the window**: the launch was a one-shot impulse, after which gravity (in the air) and ground friction (after
-touchdown) did all the work. Every flight implementation in this repo re-asserts velocity each frame
-(grok-v3 waypoint chase with its 1125 clamp; the auto-calc `distance/remaining` versions; the straight-line
-version in `simple_recovery_ui.lua`), so none of them produced this motion.
+## Why boss hits are the interesting case for your pipeline
 
-Also absent: `PlatformStand` never flipped, `Anchored` never flipped, no network-owner change was observed
-(`Net=nil` on every row — the scanner's `GetNetworkOwner` pcall returns nothing client-side, so this field is
-inconclusive rather than evidence of anything).
+1. **They happen while you are carrying** — `Egg=YES` on every row of both runs; the egg survives the hit.
+2. **They land ~4 s after the pickup** in both runs, at the far end of the map (X ≈ 5.4–5.7 k), moving toward −X.
+3. **They cost 2.4–2.5 s of control** — the game itself does not restore control before that. A recovery pulse
+   firing at a few Hz (as `test-ragdoll-good-recovery.lua` does) would be in a position to cut that window short,
+   unless the server re-asserts the ragdoll (the audit found the server window is what it is; that part is
+   unproven either way).
+4. **The knockback moves you 935–1,196 studs** and leaves you 1.2–1.6 k studs from the pickup point and
+   3.4–3.8 k studs from the forest egg slot. That is the distance a post-hit flight has to cover:
+   3.4–3.8 k studs in 1.6 s ⇒ 2,150–2,400 studs/s average. The current clamp
+   (`max(1125, distance/1.6 × 1.5)`) yields 3,230–3,600 studs/s for that distance, so it clears it.
+5. The boss hit is a *few hundred ms* event; a flight that re-asserts velocity every frame will simply overwrite
+   the knockback. Nothing in the physics above suggests the knockback can out-write a per-frame controller.
 
-## Compared to the two reference runs (same scanner)
+## Still unknown / what to log next
 
-| signature | 01:33 run (this log) | `normal-run-log-no-script.log` | `other-script.log` |
-|---|---|---|---|
-| horizontal speed | **496–535 studs/s** (≈2×) | 232.6 / 250 studs/s | 0 / 223.3 / 232.6 studs/s |
-| movement type | one ballistic impulse, Physics for 2.4 s | hop-flap: 146 `HUM_STATE` rows, `Running→Jumping→Freefall→Landed` (~1 s cycle) | 77 `ZERO_HORIZ` + 82 `CFRAME_BURST` (position-driven glide, Horiz = 0) |
-| anchor flips | 0 | 6 (`ANCHOR_FLIP true` + Physics→GettingUp→Running) | 0 |
-| `HARD_SNAP` / teleports | 0 | 0 | 0 |
-| `HEIGHT_UNSTABLE` / `HEIGHT_JUMP` | 0 / 0 | 0 / 0 | 58 / 7 |
-| `FLIGHT_START`/`END` | 0 (see below) | 0 | 6 |
+1. **What happens in the 30–60 s after control returns.** Both recordings stop within 1–2 s of the get-up; the
+   unscripted runs show `ANCHOR_FLIP` + a `Horiz=0` CFrame glide (up to ~4,400 studs/s) that returns the player to
+   the forest slot (612.2, 70.7, −325.0). If the game does that after a boss hit too, it will fight your flight.
+2. **`Humanoid.Health`** — damage on impact is the definitive boss-hit fingerprint and would timestamp the exact
+   hit frame (the scanner currently has no health column).
+3. **`Humanoid.WalkSpeed` and `MoveDirection`** — the pre-hit motion (69–103 studs/s for 4 s with no state change)
+   can't be attributed without them; WalkSpeed also identifies *which* script is forcing movement.
+4. **Orientation (`RootPart.CFrame.UpVector.Y`)** — the only way to actually prove/disprove rollover.
+5. **Millisecond timestamps** — 1 s resolution cannot resolve a 1.6 s flight.
+6. **A hit detector**: `state == Physics` + one-frame |Δv| > 400 studs/s + no anchor flip. That would fire
+   `HIT` rows automatically in the next capture.
 
-So the game itself moves a carrying player around at **~233–250 studs/s** (velocity-driven, hopping) or by
-**position/CFrame glide** (`Horiz=0`, CF up to 4,400 studs/s — that is the "snap-back" family, and it lands
-exactly on the forest slot (612.2, 70.7, −325.0)). The 01:33 event is neither: it is **2× faster, arc-shaped,
-and ragdolled**, which makes it a hit/launch rather than the normal carry transport.
-
-## What this log canNOT tell you (scanner blind spots)
-
-1. **`FLIGHT_START`/`FLIGHT_END` never fire here** because the detector needs `Horiz < 2.5` for 4 samples
-   (`FLIGHT_DETECT_STREAK`) — it was written for the *zero-velocity CFrame glide*, not for a velocity-driven
-   flight. A horizontal flight at 500 studs/s is invisible to it (the 09:30 run did trigger it, and those rows
-   are the glide).
-2. **No `WalkSpeed`, no `MoveDirection`, no orientation** in the log. WalkSpeed alone would identify the writer
-   (500 = `simple_recovery_ui.lua`'s flight, a grok-style run speed = grok's, etc.), and orientation is the only
-   way to prove/disprove **rollover**.
-3. **Second-resolution timestamps** — a 1.6 s flight cannot be measured to better than ±1 s from this log.
-4. **`LARGE_MOVE` has a 12-stud threshold**, so it logs only part of the trajectory: the 36 rows cover 591 studs
-   of the 1,181-stud displacement (the rest was moved in sub-12-stud frames). Counts of "how far" from
-   `LARGE_MOVE` rows alone under-report.
-5. `dt=0.000` on row #0011 is an artifact (first `LARGE_MOVE` in the session), not a zero-length frame.
-6. `ZONE EGG_AREA → TRANSIT` is the scanner's `pos.X > 4500` rule — no game-side transition happened.
-
-## Suggested next measurements
-
-- **Keep the recording running 30–60 s past the landing.** Both reference runs anchor/ragdoll the character
-  around X≈4000, Z≈−390 and then glide it home with `Horiz=0`; this log stopped 2 s after arriving there.
-- **Add three columns** to a *new* scanner file (I won't touch your v3.1/2.8 files): `Humanoid.WalkSpeed`,
-  `Humanoid.MoveDirection`, and `RootPart.CFrame.UpVector.Y` (rollover), plus millisecond timestamps and a
-  horizontal-flight detector (`Horiz > 200 && moved > 12`).
-- **Run the flight script's own log next to the scanner** so the two can be lined up by second — that is the
-  only way to attribute a ~500 studs/s launch to a script instead of to a server event.
-
-## Practical read for your goal ("on hit → fly straight to the biome egg")
-
-In this window the client flight did not win and probably never ran: the character was ragdolled and carried
-1.6 k studs **away** from the egg area by a single impulse, with no velocity re-assertion anywhere in the 8 s,
-and the only recovery visible is the same `Physics → GettingUp → Running` the unscripted run performs on its
-own. If the pulse/flight did fire, it fired outside this window — and the next data point to capture is the
-30 s *after* the landing, where the anchor-flip + glide sequence lives.
+I will not modify `scanner_v3.1.lua` or `scanner-2.8.lua`; if you want these fields, they go into a new separate
+scanner file.

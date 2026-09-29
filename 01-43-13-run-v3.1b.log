@@ -1,0 +1,55 @@
+01:43:13 #0001 START              v3.1b failure-focused (auto-flight) recording
+01:43:13 #0002 EGG_STATE          EMPTY -> HOLDING | Pos=(5666.4, 70.7, -332.7) | Zone=EGG_AREA
+01:43:13 #0003 ZONE               none -> EGG_AREA | Pos=(5666.4, 70.7, -332.7) | Holding=true
+01:43:14 #0004 ANIM_START         rbxassetid://14366558676  | Idle Spd:1.0
+01:43:14 #0005 ANIM_START         http://www.roblox.com/asset/?id=10921258489 | Core Spd:1.0
+01:43:16 #0006 ANIM_START         http://www.roblox.com/asset/?id=10921269718 | Core Spd:15.7
+01:43:16 #0007 ANIM_START         http://www.roblox.com/asset/?id=10921261968 | Core Spd:15.7
+01:43:16 #0008 ANIM_START         rbxassetid://102039335618606 | Movement Spd:1.0
+01:43:16 #0009 ANIM_STOP          http://www.roblox.com/asset/?id=10921258489
+01:43:17 #0010 ANIM_START         http://www.roblox.com/asset/?id=10921259953 | Core Spd:1.0
+01:43:17 #0011 HUM_STATE          Running -> Physics | Pos=(5389.2, 70.4, -332.8)
+01:43:17 #0012 LARGE_MOVE         17.9 studs | CF=710 Phys=450 Horiz=449.5 | Pos=(5389.2, 70.4, -332.8) | Y=70.4 H=2.8 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-449.5, 13.3, -3.5) | dt=0.000 | hVar=0.1
+01:43:17 #0013 LARGE_MOVE         22.5 studs | CF=425 Phys=490 Horiz=488.8 | Pos=(5358.4, 75.1, -332.2) | Y=75.1 H=7.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-488.8, 29.8, 2.5) | dt=0.074 | hVar=0.8
+01:43:17 #0014 LARGE_MOVE         16.5 studs | CF=610 Phys=506 Horiz=505.6 | Pos=(5342.0, 77.2, -332.1) | Y=77.2 H=9.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-505.6, 29.7, -2.2) | dt=0.028 | hVar=1.4
+01:43:17 #0015 LARGE_MOVE         12.7 studs | CF=518 Phys=507 Horiz=506.4 | Pos=(5329.4, 77.9, -332.2) | Y=77.9 H=10.3 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-506.4, 27.3, -2.2) | dt=0.024 | hVar=1.8
+01:43:17 #0016 LARGE_MOVE         12.6 studs | CF=571 Phys=507 Horiz=507.3 | Pos=(5295.7, 79.2, -332.2) | Y=79.2 H=11.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-507.3, 13.0, 2.2) | dt=0.067 | hVar=2.9
+01:43:18 #0017 LARGE_MOVE         12.7 studs | CF=514 Phys=509 Horiz=508.6 | Pos=(5272.4, 79.7, -332.0) | Y=79.7 H=12.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-508.6, 5.5, 6.5) | dt=0.047 | hVar=3.4
+01:43:18 #0018 LARGE_MOVE         12.7 studs | CF=449 Phys=509 Horiz=508.7 | Pos=(5259.7, 79.7, -331.8) | Y=79.7 H=12.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-508.7, 1.0, 8.6) | dt=0.028 | hVar=3.6
+01:43:18 #0019 LARGE_MOVE         12.7 studs | CF=548 Phys=505 Horiz=504.7 | Pos=(5247.0, 79.7, -331.6) | Y=79.7 H=12.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-504.6, -3.3, 9.8) | dt=0.024 | hVar=3.8
+01:43:18 #0020 LARGE_MOVE         14.6 studs | CF=505 Phys=501 Horiz=500.8 | Pos=(5232.4, 79.5, -331.4) | Y=79.5 H=11.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-500.7, -8.7, 8.1) | dt=0.031 | hVar=3.9
+01:43:18 #0021 LARGE_MOVE         18.8 studs | CF=459 Phys=499 Horiz=498.9 | Pos=(5213.7, 79.1, -331.0) | Y=79.1 H=11.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-498.8, -15.5, 9.0) | dt=0.038 | hVar=4.0
+01:43:18 #0022 LARGE_MOVE         33.2 studs | CF=136 Phys=498 Horiz=497.3 | Pos=(5180.5, 77.6, -330.4) | Y=77.6 H=10.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-497.2, -28.4, 10.0) | dt=0.248 | hVar=4.0
+01:43:18 #0023 LARGE_MOVE         33.2 studs | CF=120 Phys=499 Horiz=496.9 | Pos=(5147.4, 75.2, -329.7) | Y=75.2 H=7.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-496.8, -42.6, 10.1) | dt=0.280 | hVar=3.9
+01:43:18 #0024 LARGE_MOVE         29.1 studs | CF=602 Phys=499 Horiz=496.3 | Pos=(5118.4, 72.3, -329.2) | Y=72.3 H=4.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-496.2, -55.3, 8.6) | dt=0.042 | hVar=3.9
+01:43:18 #0025 LARGE_MOVE         14.6 studs | CF=484 Phys=500 Horiz=496.0 | Pos=(5104.0, 70.6, -328.9) | Y=70.6 H=3.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-495.9, -61.7, 8.1) | dt=0.030 | hVar=3.9
+01:43:18 #0026 LARGE_MOVE         16.5 studs | CF=532 Phys=496 Horiz=493.1 | Pos=(5087.5, 68.9, -328.6) | Y=68.9 H=1.3 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-493.0, -51.2, 10.1) | dt=0.031 | hVar=4.0
+01:43:18 #0027 LARGE_MOVE         15.9 studs | CF=474 Phys=476 Horiz=475.6 | Pos=(5059.6, 68.6, -329.1) | Y=68.6 H=1.0 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-475.5, 5.8, -8.3) | dt=0.058 | hVar=4.1
+01:43:18 #0028 LARGE_MOVE         25.8 studs | CF=432 Phys=476 Horiz=475.6 | Pos=(5033.8, 68.7, -329.2) | Y=68.7 H=1.1 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-475.6, -2.8, 0.2) | dt=0.060 | hVar=4.2
+01:43:18 #0029 LARGE_MOVE         17.8 studs | CF=492 Phys=472 Horiz=472.5 | Pos=(5016.0, 68.8, -328.9) | Y=68.8 H=1.2 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-472.4, 2.8, 9.3) | dt=0.035 | hVar=4.3
+01:43:18 #0030 LARGE_MOVE         17.6 studs | CF=461 Phys=468 Horiz=468.1 | Pos=(4998.4, 68.8, -328.7) | Y=68.8 H=1.2 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-468.1, -3.3, 6.3) | dt=0.038 | hVar=4.3
+01:43:18 #0031 LARGE_MOVE         13.7 studs | CF=580 Phys=468 Horiz=468.3 | Pos=(4984.8, 68.8, -328.5) | Y=68.8 H=1.2 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-468.2, -2.2, 7.8) | dt=0.023 | hVar=4.4
+01:43:19 #0032 LARGE_MOVE         13.6 studs | CF=529 Phys=466 Horiz=465.5 | Pos=(4959.5, 68.6, -328.1) | Y=68.6 H=0.9 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-465.4, -7.9, 7.2) | dt=0.052 | hVar=4.5
+01:43:19 #0033 LARGE_MOVE         13.5 studs | CF=459 Phys=462 Horiz=462.0 | Pos=(4934.3, 68.3, -327.7) | Y=68.3 H=0.7 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-462.0, -9.7, 8.2) | dt=0.058 | hVar=4.7
+01:43:19 #0034 LARGE_MOVE         13.2 studs | CF=422 Phys=451 Horiz=451.1 | Pos=(4898.2, 68.1, -327.1) | Y=68.1 H=0.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-451.0, 5.3, 8.6) | dt=0.079 | hVar=4.9
+01:43:19 #0035 LARGE_MOVE         15.0 studs | CF=465 Phys=450 Horiz=450.0 | Pos=(4871.8, 68.2, -326.5) | Y=68.2 H=0.6 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-449.9, -7.6, 9.4) | dt=0.057 | hVar=5.0
+01:43:19 #0036 LARGE_MOVE         13.0 studs | CF=433 Phys=446 Horiz=446.0 | Pos=(4847.6, 68.1, -325.9) | Y=68.1 H=0.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-445.8, -0.5, 11.7) | dt=0.055 | hVar=4.9
+01:43:19 #0037 LARGE_MOVE         13.0 studs | CF=433 Phys=444 Horiz=444.2 | Pos=(4812.2, 68.0, -325.4) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-444.2, -0.5, 6.3) | dt=0.080 | hVar=4.4
+01:43:19 #0038 LARGE_MOVE         12.9 studs | CF=500 Phys=443 Horiz=443.3 | Pos=(4799.3, 68.0, -325.2) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-443.3, -1.0, 5.5) | dt=0.034 | hVar=4.1
+01:43:19 #0039 LARGE_MOVE         16.6 studs | CF=399 Phys=441 Horiz=440.6 | Pos=(4782.7, 68.0, -325.0) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-440.5, 0.9, 5.8) | dt=0.034 | hVar=3.7
+01:43:19 #0040 LARGE_MOVE         12.8 studs | CF=457 Phys=439 Horiz=439.3 | Pos=(4769.9, 68.0, -324.9) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-439.2, -0.5, 5.6) | dt=0.028 | hVar=3.3
+01:43:19 #0041 LARGE_MOVE         14.6 studs | CF=478 Phys=437 Horiz=437.5 | Pos=(4755.3, 68.0, -324.7) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-437.5, -1.2, 5.2) | dt=0.031 | hVar=2.8
+01:43:19 #0042 LARGE_MOVE         12.7 studs | CF=522 Phys=434 Horiz=434.2 | Pos=(4731.7, 68.0, -324.4) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-434.1, -0.3, 4.9) | dt=0.051 | hVar=1.5
+01:43:19 #0043 LARGE_MOVE         12.5 studs | CF=430 Phys=426 Horiz=426.2 | Pos=(4669.0, 68.0, -323.7) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-426.2, -1.3, 4.2) | dt=0.149 | hVar=0.3
+01:43:19 #0044 LARGE_MOVE         12.4 studs | CF=413 Phys=423 Horiz=423.4 | Pos=(4646.0, 68.0, -323.5) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-423.4, -1.7, 3.7) | dt=0.057 | hVar=0.2
+01:43:19 #0045 LARGE_MOVE         12.3 studs | CF=464 Phys=421 Horiz=421.3 | Pos=(4633.6, 68.0, -323.4) | Y=68.0 H=0.4 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-421.3, 0.3, 3.7) | dt=0.026 | hVar=0.2
+01:43:19 #0046 LARGE_MOVE         22.5 studs | CF=402 Phys=413 Horiz=413.3 | Pos=(4569.3, 68.1, -322.8) | Y=68.1 H=0.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-413.3, -0.7, 4.2) | dt=0.155 | hVar=0.1
+01:43:19 #0047 LARGE_MOVE         12.0 studs | CF=366 Phys=411 Horiz=411.3 | Pos=(4557.3, 68.1, -322.7) | Y=68.1 H=0.5 | Plat=false Anch=false Net=nil | Egg=YES Zone=EGG_AREA | Vel=(-411.3, -1.3, 3.9) | dt=0.034 | hVar=0.1
+01:43:20 #0048 ZONE               EGG_AREA -> TRANSIT | Pos=(4499.7, 68.1, -322.1) | Holding=true
+01:43:20 #0049 HUM_STATE          Physics -> GettingUp | Pos=(4468.3, 68.6, -321.7)
+01:43:20 #0050 HUM_STATE          GettingUp -> Running | Pos=(4454.1, 69.6, -321.7)
+01:43:20 #0051 ANIM_STOP          rbxassetid://102039335618606
+01:43:20 #0052 ANIM_STOP          http://www.roblox.com/asset/?id=10921259953
+01:43:20 #0053 ANIM_START         http://www.roblox.com/asset/?id=10921258489 | Core Spd:1.0
+01:43:21 #0054 ANIM_STOP          http://www.roblox.com/asset/?id=10921261968
+01:43:21 #0055 ANIM_STOP          http://www.roblox.com/asset/?id=10921269718
