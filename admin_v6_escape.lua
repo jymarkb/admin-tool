@@ -1,15 +1,17 @@
 --[[=========================================================================
-	STEAL AN EGG — VELOCITY ESCAPE v6.3
-	+ Ground approach → confirmed target carry → velocity-driven return
-	+ World-space LinearVelocity controls ascent, cruise, braking and descent
-	+ No character CFrame/Position/PivotTo writes, including landing/cleanup
-	+ Keep collisions and PlatformStand unchanged; require ground contact
-	+ Copyable diagnostics retain measured velocity versus commanded velocity
+	SNOW → FOREST RAGDOLL ARC TEST v6.4
+	+ Snow only: ground approach → bait carry → server ragdoll → drop bait
+	+ AssemblyLinearVelocity arc to Forest; no CFrame/Position/PivotTo writes
+	+ Planned travel <=1.5s, travel cutoff 1.9s; no false arrival on timeout
+	+ Guard wait and post-arrival ragdoll stabilization are separate timings
+	+ No forced humanoid states, joint edits, anchoring or PlatformStand writes
 
-	The reference scanner logs show repeated position resets during the old
-	CFrame return. This version changes the movement method, not a proven cause
-	of those resets. Physics-driven flight has real nonzero horizontal velocity
-	and will not reproduce the scanner's ZERO_HORIZ auto-flight signature.
+	Reference: origin/main grok-v3-target-fix.lua (a7b5ecd), read-only.
+	Uses its server-ragdoll/velocity-arc pattern in the reverse direction.
+	Its 750 studs/s is a baseline, not a sub-two-second guarantee: derive the
+	command speed from route length and the capped duration for this test.
+	This is a movement test, not egg delivery: bait is dropped before launch.
+	Runtime game corrections can still prevent arrival; copy diagnostics.
 =========================================================================]]
 
 local Players                = game:GetService("Players")
@@ -30,28 +32,21 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 -- CONFIG
 ----------------------------------------------------------------
 
-local TARGET_BIOMES = { "Light Dark", "Snow", "Jungle", "Desert", "Ocean", "Volcano", "Abyss Ocean", "Prehistoric", "Cosmic", "Cherry Blossom", "Titan", "Forest" }
-local selectedBiomeIndex = 1
-local selectedBiome = TARGET_BIOMES[selectedBiomeIndex]
-
+local selectedBiome       = "Snow" -- deliberately locked for this test
 local dynamicBaseWalkSpeed = 16.0
-local FOREST_WALK_SPEED    = 16.0
-
-local SAFE_ZONE_POSITION  = Vector3.new(427.6, 70.7, -423.4)
 local FOREST_LANDING      = Vector3.new(612.2, 70.7, -325.0)
 
-local CRUISE_Y            = 112.5
-local FLIGHT_SPEED        = 180 -- actual studs/s, not studs per frame
-local ASCENT_SPEED        = 60
-local DESCENT_SPEED       = 28
-local FLIGHT_ACCEL        = 240 -- command acceleration/braking, studs/s²
-local DESCENT_RADIUS     = 40
-local MIN_FLIGHT_S        = 12
-local MAX_FLIGHT_S        = 90 -- whole-flight hard cap; no teleport on timeout
-local FLIGHT_STALL_S      = 4
-local ARRIVAL_RADIUS     = 5.5
-local CARRY_TIMEOUT_S    = 3
-local REMOTE_TIMEOUT_S   = 3
+local AERIAL_BASE_SPEED   = 750
+local MIN_ARC_DURATION    = 0.35
+local MAX_ARC_DURATION    = 1.5
+local FLIGHT_CUTOFF_S     = 1.9 -- travel only, never extended by corrections
+local STRIKE_TIMEOUT_S    = 15
+local MIN_HOLD_S          = 0.85
+local MAX_HOLD_S          = 3.5
+local HOLD_MAX_SPEED      = 30
+local ARRIVAL_RADIUS      = 5.5
+local CARRY_TIMEOUT_S     = 3
+local REMOTE_TIMEOUT_S    = 3
 local FLIGHT_ANIM_ID      = "rbxassetid://102039335618606"
 
 local GUI_NAME            = "GrokEscapeFlightV6"
@@ -63,9 +58,9 @@ local cachedSnapshot      = nil
 local snapshotTried       = false
 local runCharacter        = nil
 local flightTrack         = nil
-local flightVelocity      = nil
-local flightAttachment    = nil
 local flightRoot          = nil
+local originalPhysicalProperties = {}
+local zeroFriction = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 
 ----------------------------------------------------------------
 -- HELPERS
@@ -115,7 +110,7 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[Steal-Pipeline v6.3] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[Steal-Pipeline v6.4] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
@@ -135,24 +130,30 @@ local function sampleFlight(phase, dt, root, hum, commandedVelocity)
 end
 
 local function getDiagnosticsText()
-	return table.concat(diagnosticLines, "\n") .. "\n\nLAST VELOCITY FLIGHT OBSERVATIONS:\n"
+	return table.concat(diagnosticLines, "\n") .. "\n\nLAST SNOW → FOREST ARC OBSERVATIONS:\n"
 		.. table.concat(flightSamples, "\n")
 end
 
 ----------------------------------------------------------------
--- FLIGHT ACTUATOR CLEANUP (character part physics are not modified)
+-- REVERSIBLE FLIGHT FRICTION / CLEANUP
 ----------------------------------------------------------------
 
-local function cleanupRun()
-	-- Remove only the actuator/attachment owned by this run. Never reposition
-	-- the character, and never leave a velocity constraint running after Stop.
-	if flightVelocity then
-		pcall(function() flightVelocity:Destroy() end)
-		flightVelocity = nil
+local function applyFlightFriction()
+	for _, part in ipairs(runCharacter:GetDescendants()) do
+		if part:IsA("BasePart") then
+			if originalPhysicalProperties[part] == nil then
+				-- A wrapper preserves nil/default material properties correctly.
+				originalPhysicalProperties[part] = { value = part.CustomPhysicalProperties }
+			end
+			part.CustomPhysicalProperties = zeroFriction
+		end
 	end
-	if flightAttachment then
-		pcall(function() flightAttachment:Destroy() end)
-		flightAttachment = nil
+end
+
+local function cleanupRun()
+	for part, original in pairs(originalPhysicalProperties) do
+		pcall(function() part.CustomPhysicalProperties = original.value end)
+		originalPhysicalProperties[part] = nil
 	end
 	if flightRoot then
 		pcall(function()
@@ -407,43 +408,65 @@ local function walkToTargetOnGround(targetPos, myToken)
 end
 
 ----------------------------------------------------------------
--- VELOCITY FLIGHT — real physics motion, never position/CFrame stepping
+-- SERVER RAGDOLL DETECTION / PURE ASSEMBLY VELOCITY ARC
 ----------------------------------------------------------------
+
+local function serverNow()
+	local ok, value = pcall(function() return Workspace:GetServerTimeNow() end)
+	return ok and value or os.time()
+end
+
+local function ragdollActive(hum, withExpiryMargin)
+	local endTime = LocalPlayer:GetAttribute("RagdollEndTime")
+	if typeof(endTime) == "number" and endTime > 0
+		and serverNow() < endTime + (withExpiryMargin and 0.15 or 0) then
+		return true, "RagdollEndTime"
+	end
+	local state = hum:GetState()
+	if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Ragdoll
+		or state == Enum.HumanoidStateType.FallingDown then
+		return true, state.Name
+	end
+	local disabled = 0
+	for _, item in ipairs(runCharacter:GetDescendants()) do
+		if item:IsA("Motor6D") and not item.Enabled then disabled += 1 end
+	end
+	if disabled >= 2 then return true, "MotorsDisabled" end
+	return false, "none"
+end
+
+local function waitForServerRagdoll(myToken)
+	local startedAt = os.clock()
+	while os.clock() - startedAt < STRIKE_TIMEOUT_S do
+		local root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		local active, source = ragdollActive(hum, false)
+		if active then
+			traceRun("RAGDOLL_READY", string.format("source=%s wait=%.3fs", source, os.clock() - startedAt))
+			return true
+		end
+		-- Stop walking, but do not suppress incoming knockback or create a
+		-- ragdoll locally. Only the server's state/attribute/joints qualify.
+		hum:Move(Vector3.zero)
+		hum:MoveTo(root.Position)
+		RunService.Heartbeat:Wait()
+	end
+	return false, "Server ragdoll not detected at Snow (15s timeout)"
+end
 
 local function executeEscapeFlightToForest(myToken)
 	local root, hum, reason = getRunRig(myToken)
 	if not root then return false, reason end
 	if root.Anchored then return false, "Character is anchored" end
-	if horizontalDistance(root.Position, FOREST_LANDING) <= ARRIVAL_RADIUS
-		and math.abs(root.Position.Y - FOREST_LANDING.Y) <= 3
-		and hum.FloorMaterial ~= Enum.Material.Air then
-		return true
-	end
+	if not ragdollActive(hum, false) then return false, "Ragdoll expired before launch; test aborted" end
 
 	isFlying = true
 	flightRoot = root
+	applyFlightFriction()
 	hum:Move(Vector3.zero)
 	hum:MoveTo(root.Position)
-	hum.WalkSpeed = 0 -- restored on landing, Stop, error and respawn
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
-
-	-- LinearVelocity supplies the force needed to maintain world-space velocity
-	-- between Heartbeats (including gravity compensation). Keep body collisions
-	-- enabled as originally configured: landing is physical, not a Y-position snap.
-	flightAttachment = Instance.new("Attachment")
-	flightAttachment.Name = "EscapeFlightVelocityAttachment"
-	flightAttachment.Parent = root
-	flightVelocity = Instance.new("LinearVelocity")
-	flightVelocity.Name = "EscapeFlightVelocity"
-	flightVelocity.Attachment0 = flightAttachment
-	flightVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
-	flightVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-	flightVelocity.ForceLimitsEnabled = true
-	flightVelocity.ForceLimitMode = Enum.ForceLimitMode.Magnitude
-	flightVelocity.MaxForce = math.max(root.AssemblyMass, 1) * (Workspace.Gravity + FLIGHT_ACCEL * 2)
-	flightVelocity.VectorVelocity = Vector3.zero
-	flightVelocity.Parent = root
 
 	pcall(function()
 		local animator = hum:FindFirstChildOfClass("Animator") or hum
@@ -459,91 +482,76 @@ local function executeEscapeFlightToForest(myToken)
 	end)
 
 	table.clear(flightSamples)
-	local startPos = root.Position
-	local totalDist = horizontalDistance(startPos, FOREST_LANDING)
+	local launchFrom = root.Position
+	local distance = horizontalDistance(launchFrom, FOREST_LANDING)
+	local duration = math.clamp(distance / AERIAL_BASE_SPEED, MIN_ARC_DURATION, MAX_ARC_DURATION)
+	local speedLimit = math.max(AERIAL_BASE_SPEED, (FOREST_LANDING - launchFrom).Magnitude / duration) * 1.5
+	local peakArc = math.clamp(distance * 0.035, 8, 26)
 	local startedAt = os.clock()
-	local timeout = math.clamp(totalDist / FLIGHT_SPEED * 1.75
-		+ math.abs(CRUISE_Y - startPos.Y) / ASCENT_SPEED + 10, MIN_FLIGHT_S, MAX_FLIGHT_S)
-	local deadline = startedAt + timeout
 	local command = Vector3.zero
-	local phase = "ASCENT"
-	local bestMetric = math.huge
-	local lastProgressAt = startedAt
-	traceRun("FLIGHT_START", string.format("mode=VELOCITY pos=(%.1f,%.1f,%.1f) distance=%.1f speed=%.1f timeout=%.1fs",
-		startPos.X, startPos.Y, startPos.Z, totalDist, FLIGHT_SPEED, timeout))
+	traceRun("FLIGHT_START", string.format("route=Snow→Forest mode=ASSEMBLY_ARC distance=%.1f planned=%.3fs cutoff=%.2fs speedCap=%.1f",
+		distance, duration, FLIGHT_CUTOFF_S, speedLimit))
 
 	while true do
 		local dt = RunService.Heartbeat:Wait()
 		root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
-		sampleFlight(phase, dt, root, hum, command)
-		if os.clock() >= deadline then return false, "Velocity flight timed out; no landing teleport" end
-		if root.Anchored then return false, "Character anchored during velocity flight" end
-		if not flightVelocity or flightVelocity.Parent ~= root
-			or not flightAttachment or flightAttachment.Parent ~= root then
-			return false, "Velocity actuator removed during flight"
+		local elapsed = os.clock() - startedAt
+		sampleFlight("ARC", dt, root, hum, command)
+		if root.Anchored then return false, "Character anchored during arc" end
+		-- Do not mistake scheduled progress=1 for arrival. A late frame or
+		-- position reset fails the timing test instead of extending the flight.
+		if elapsed >= FLIGHT_CUTOFF_S then
+			return false, "Sub-2s arc missed Forest; no teleport fallback"
 		end
-		local state = hum:GetState()
-		if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Ragdoll
-			or state == Enum.HumanoidStateType.FallingDown then
-			return false, "Velocity flight interrupted by humanoid state " .. state.Name
-		end
-
-		local pos = root.Position
-		local offset = Vector3.new(FOREST_LANDING.X - pos.X, 0, FOREST_LANDING.Z - pos.Z)
-		local remaining = offset.Magnitude
-		local nextPhase = remaining <= DESCENT_RADIUS and "DESCENT"
-			or (math.abs(CRUISE_Y - pos.Y) > 3 and "ASCENT" or "CRUISE")
-		if nextPhase ~= phase then
-			phase = nextPhase
-			bestMetric, lastProgressAt = math.huge, os.clock()
-			traceRun("FLIGHT_PHASE", phase)
-		end
-
-		local velocity = root.AssemblyLinearVelocity
-		local horizontalSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
-		if phase == "DESCENT" and remaining <= ARRIVAL_RADIUS
-			and math.abs(pos.Y - FOREST_LANDING.Y) <= 8
-			and hum.FloorMaterial ~= Enum.Material.Air
-			and horizontalSpeed <= 8 and math.abs(velocity.Y) <= 8 then
-			traceRun("FLIGHT_LANDED", string.format("mode=VELOCITY elapsed=%.3fs pos=(%.1f,%.1f,%.1f)",
-				os.clock() - startedAt, pos.X, pos.Y, pos.Z))
-			cleanupRun()
+		if (FOREST_LANDING - root.Position).Magnitude <= ARRIVAL_RADIUS and elapsed >= 0.25 then
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			traceRun("FLIGHT_ARRIVED", string.format("travel=%.3fs error=%.2f; stabilization begins separately",
+				elapsed, (FOREST_LANDING - root.Position).Magnitude))
 			return true
 		end
-		if phase == "DESCENT" and pos.Y < FOREST_LANDING.Y - 8 then
-			return false, "Landing ground not detected; velocity flight stopped"
-		end
 
-		local altitudeError = phase == "DESCENT" and math.max(0, pos.Y - FOREST_LANDING.Y)
-			or math.abs(CRUISE_Y - pos.Y)
-		local metric = remaining + altitudeError
-		if metric < bestMetric - 1 then
-			bestMetric, lastProgressAt = metric, os.clock()
-		elseif os.clock() - lastProgressAt >= FLIGHT_STALL_S then
-			return false, "Velocity flight stalled (collision or repeated reset); no teleport fallback"
-		end
-
-		-- Proportional approach plus a braking-distance cap avoids full-speed
-		-- overshoot near Forest. Directions come from observed position only.
-		local speed = math.min(FLIGHT_SPEED, remaining * 2, math.sqrt(2 * FLIGHT_ACCEL * remaining))
-		local horizontal = remaining > 0.001 and offset.Unit * speed or Vector3.zero
-		local vertical
-		if phase == "DESCENT" then
-			-- Keep a small downward velocity until actual floor contact. A hover
-			-- at the reference Y alone is not evidence of a successful landing.
-			vertical = -math.clamp((pos.Y - FOREST_LANDING.Y) * 2, 4, DESCENT_SPEED)
-		else
-			vertical = math.clamp((CRUISE_Y - pos.Y) * 3, -DESCENT_SPEED, ASCENT_SPEED)
-		end
-		local desired = horizontal + Vector3.new(0, vertical, 0)
-		local change = desired - command
-		local maxChange = FLIGHT_ACCEL * math.clamp(dt, 0, 0.1)
-		command = change.Magnitude > maxChange and command + change.Unit * maxChange or desired
-		hum:Move(Vector3.zero)
-		flightVelocity.MaxForce = math.max(root.AssemblyMass, 1) * (Workspace.Gravity + FLIGHT_ACCEL * 2)
-		flightVelocity.VectorVelocity = command
+		applyFlightFriction()
+		-- Mirror the reference's next-frame sine arc, but use a capped travel
+		-- duration rather than a fixed slow speed. These are velocity writes;
+		-- the physics engine, not the script, changes the character transform.
+		local stepDt = math.clamp(dt, 1 / 240, 0.1)
+		local nextProgress = math.clamp((elapsed + stepDt) / duration, 0, 1)
+		local waypoint = launchFrom:Lerp(FOREST_LANDING, nextProgress)
+			+ Vector3.new(0, peakArc * math.sin(nextProgress * math.pi), 0)
+		command = (waypoint - root.Position) / stepDt
+			+ Vector3.new(0, Workspace.Gravity * stepDt * 0.5, 0)
+		if command.Magnitude > speedLimit then command = command.Unit * speedLimit end
+		root.AssemblyLinearVelocity = command
+		root.AssemblyAngularVelocity = Vector3.zero
+		-- Physics/Ragdoll/FallingDown are allowed throughout. Never ChangeState,
+		-- toggle PlatformStand or edit motors/constraints to force recovery.
 	end
+end
+
+local function stabilizeAtForest(myToken)
+	local startedAt = os.clock()
+	local command = Vector3.zero
+	while os.clock() - startedAt < MAX_HOLD_S do
+		local dt = RunService.Heartbeat:Wait()
+		local root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		sampleFlight("STABILIZE", dt, root, hum, command)
+		if root.Anchored then return false, "Character anchored during stabilization" end
+		local delta = FOREST_LANDING - root.Position
+		if delta.Magnitude > 15 then return false, "Displaced from Forest during stabilization" end
+		if os.clock() - startedAt >= MIN_HOLD_S and not ragdollActive(hum, true)
+			and delta.Magnitude <= ARRIVAL_RADIUS then
+			traceRun("STABILIZED", string.format("hold=%.3fs; server ragdoll recovered", os.clock() - startedAt))
+			return true
+		end
+		command = delta * 4 + Vector3.new(0, Workspace.Gravity * math.clamp(dt, 0, 0.1) * 0.5, 0)
+		if command.Magnitude > HOLD_MAX_SPEED then command = command.Unit * HOLD_MAX_SPEED end
+		root.AssemblyLinearVelocity = command
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+	return false, "Forest reached, but server ragdoll did not stabilize within 3.5s"
 end
 
 ----------------------------------------------------------------
@@ -559,8 +567,8 @@ local function executeTeleportPipeline(statusLabel)
 	captureBaseSpeed()
 	table.clear(diagnosticLines)
 	table.clear(flightSamples)
-	traceRun("RUN_START", string.format("biome=%s walkSpeed=%.1f mode=VELOCITY cruiseY=%.1f flightSpeed=%.1f maxSeconds=%.1f",
-		selectedBiome, dynamicBaseWalkSpeed, CRUISE_Y, FLIGHT_SPEED, MAX_FLIGHT_S))
+	traceRun("RUN_START", string.format("test=Snow→Forest mode=ASSEMBLY_ARC plannedMax=%.2fs cutoff=%.2fs; wait/hold excluded",
+		MAX_ARC_DURATION, FLIGHT_CUTOFF_S))
 
 	local function updateStatus(text, color)
 		if currentToken ~= myToken then return end
@@ -575,37 +583,37 @@ local function executeTeleportPipeline(statusLabel)
 		local ok, completed, reason = xpcall(function()
 			local root, _, rigError = getRunRig(myToken)
 			if not root then return false, rigError end
-			updateStatus("[1/5] Scanning egg in " .. selectedBiome .. "...", Color3.fromRGB(255, 200, 80))
+			updateStatus("[1/6] Scanning egg in " .. selectedBiome .. "...", Color3.fromRGB(255, 200, 80))
 			local targetEgg = getTargetEgg(selectedBiome, true, myToken)
 			if not getRunRig(myToken) then return false, "Cancelled" end
 			if not targetEgg then return false, "No available egg found" end
 
 			traceRun("TARGET", string.format("uid=%s biome=%s pos=(%.1f,%.1f,%.1f)",
 				targetEgg.Uid, targetEgg.AreaId, targetEgg.Position.X, targetEgg.Position.Y, targetEgg.Position.Z))
-			updateStatus("[2/5] Walking to " .. targetEgg.AreaId .. "...", Color3.fromRGB(80, 210, 255))
+			updateStatus("[2/6] Walking to " .. targetEgg.AreaId .. "...", Color3.fromRGB(80, 210, 255))
 			local reached, walkError = walkToTargetOnGround(targetEgg.Position, myToken)
 			if not reached then return false, walkError end
 			traceRun("GROUND_ARRIVED", "Target approach finished")
 
-			updateStatus("[3/5] Confirming target carry...", Color3.fromRGB(255, 160, 80))
+			updateStatus("[3/6] Confirming target carry...", Color3.fromRGB(255, 160, 80))
 			local carryStartedAt = os.clock()
 			if not carryEggRemote(targetEgg.Uid, myToken) then return false, "Carry request failed or timed out" end
 			if not confirmCarry(targetEgg.Uid, myToken) then return false, "Target carry not confirmed" end
 			traceRun("CARRY_READY", string.format("uid=%s elapsed=%.3fs", targetEgg.Uid, os.clock() - carryStartedAt))
 
-			updateStatus("[4/5] VELOCITY FLIGHT → Forest...", Color3.fromRGB(255, 180, 100))
+			updateStatus("[4/6] Snow bait: waiting for server ragdoll...", Color3.fromRGB(255, 180, 100))
+			local struck, strikeError = waitForServerRagdoll(myToken)
+			if not struck then return false, strikeError end
+
+			updateStatus("[5/6] Drop bait → fast Snow-to-Forest arc...", Color3.fromRGB(255, 180, 100))
+			local dropped, dropResult = invokeRemote("RF/EggWorld/AskFieldEggDrop", nil, myToken)
+			if not dropped or dropResult == false then return false, "Bait drop failed or timed out; no launch" end
 			local arrived, flightError = executeEscapeFlightToForest(myToken)
 			if not arrived then return false, flightError end
-			local _, hum, forestError = getRunRig(myToken)
-			if not hum then return false, forestError end
-			hum.WalkSpeed = FOREST_WALK_SPEED
 
-			-- The logs do not establish a need for drop/re-carry. Keep the egg
-			-- attached instead of racing drop against background carry requests.
-			if not confirmCarry(targetEgg.Uid, myToken) then return false, "Carry lost during escape" end
-			updateStatus("[5/5] Forest → Safe Zone...", Color3.fromRGB(100, 255, 170))
-			local safe, safeError = walkToTargetOnGround(SAFE_ZONE_POSITION, myToken)
-			if not safe then return false, safeError end
+			updateStatus("[6/6] Forest reached; waiting for server recovery...", Color3.fromRGB(100, 255, 170))
+			local stable, holdError = stabilizeAtForest(myToken)
+			if not stable then return false, holdError end
 			return true
 		end, debug.traceback)
 
@@ -616,13 +624,12 @@ local function executeTeleportPipeline(statusLabel)
 		runCharacter = nil
 		if not ok then
 			traceRun("ERROR_DETAIL", tostring(completed))
-			warn("[Steal-Pipeline v6.3] " .. tostring(completed))
+			warn("[Steal-Pipeline v6.4] " .. tostring(completed))
 			updateStatus("ERROR: Flight stopped; controls restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
 		else
-			-- No delivery acknowledgement is present in either reference log.
-			updateStatus("Safe Zone reached. Verify egg delivery in-game.", Color3.fromRGB(100, 255, 170))
+			updateStatus("TEST COMPLETE: Snow → Forest. Bait dropped; no delivery.", Color3.fromRGB(100, 255, 170))
 		end
 	end)
 end
@@ -661,7 +668,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "STEAL AN EGG: VELOCITY FLIGHT v6.3"
+title.Text = "SNOW → FOREST: RAGDOLL ARC TEST v6.4"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -714,7 +721,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 0, 38)
 statusLabel.Position = UDim2.new(0, 8, 0, 5)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Ready. Walk → Confirm carry → Velocity flight → Safe Zone."
+statusLabel.Text = "Snow-only test. Bait → Server ragdoll → Drop → Forest arc."
 statusLabel.TextColor3 = Color3.fromRGB(180, 220, 255)
 statusLabel.TextSize = 10
 statusLabel.Font = Enum.Font.Code
@@ -727,7 +734,7 @@ local biomeBtn = Instance.new("TextButton")
 biomeBtn.Size = UDim2.new(1, -20, 0, 26)
 biomeBtn.Position = UDim2.new(0, 10, 0, 92)
 biomeBtn.BackgroundColor3 = Color3.fromRGB(36, 56, 96)
-biomeBtn.Text = "TARGET BIOME: [" .. selectedBiome .. "] (Click to switch)"
+biomeBtn.Text = "TEST ROUTE: SNOW → FOREST (locked)"
 biomeBtn.TextColor3 = Color3.fromRGB(220, 240, 255)
 biomeBtn.TextSize = 10
 biomeBtn.Font = Enum.Font.GothamBold
@@ -749,7 +756,7 @@ local stealBtn = Instance.new("TextButton")
 stealBtn.Size = UDim2.new(1, -20, 0, 36)
 stealBtn.Position = UDim2.new(0, 10, 0, 154)
 stealBtn.BackgroundColor3 = Color3.fromRGB(30, 130, 75)
-stealBtn.Text = "STEAL EGG → VELOCITY FLIGHT"
+stealBtn.Text = "TEST SNOW → FOREST (<2s TRAVEL)"
 stealBtn.TextColor3 = Color3.new(1,1,1)
 stealBtn.TextSize = 11
 stealBtn.Font = Enum.Font.GothamBold
@@ -782,7 +789,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.3: Velocity flight, no CFrame moves | 180 studs/s\nIf interrupted, use Copy run diagnostics."
+footer.Text = "v6.4: Snow only | Arc target ≤1.5s, cutoff 1.9s\nGuard wait/hold are separate. Bait dropped; no Safe Zone leg."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -896,13 +903,9 @@ local function updateTargetDisplay()
 	if targetLabel.Parent then targetLabel.Text = targetText end
 end
 
-biomeBtn.MouseButton1Click:Connect(function()
-	if isRunning then return end
-	selectedBiomeIndex = (selectedBiomeIndex % #TARGET_BIOMES) + 1
-	selectedBiome = TARGET_BIOMES[selectedBiomeIndex]
-	biomeBtn.Text = "TARGET BIOME: [" .. selectedBiome .. "] (Click to switch)"
-	updateTargetDisplay()
-end)
+-- Test scope is intentionally fixed; no biome cycling until this route works.
+biomeBtn.AutoButtonColor = false
+biomeBtn.Active = false
 
 refreshBtn.MouseButton1Click:Connect(function()
 	if isRunning then return end
@@ -926,7 +929,7 @@ end)
 
 stopBtn.MouseButton1Click:Connect(function()
 	stopRun()
-	statusLabel.Text = "Stopped. Velocity cleared; egg not dropped."
+	statusLabel.Text = "Stopped. Velocity cleared; no additional drop sent."
 	statusLabel.TextColor3 = Color3.fromRGB(255, 140, 140)
 end)
 
@@ -954,4 +957,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-traceRun("READY", "Velocity flight ready: no CFrame movement. Walk→Grab→Forest→Safe.")
+traceRun("READY", "Snow→Forest ragdoll arc test ready. Travel target ≤1.5s; no CFrame movement.")
