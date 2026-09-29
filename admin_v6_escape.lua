@@ -1,5 +1,5 @@
 --[[=========================================================================
-	SNOW → FOREST IMMEDIATE ARC TEST v6.4.1
+	SNOW → FOREST IMMEDIATE ARC TEST v6.5
 	+ Snow only: ground approach → confirmed egg carry → immediate Forest flight
 	+ AssemblyLinearVelocity arc to Forest; no CFrame/Position/PivotTo writes
 	+ Planned travel <=1.5s, travel cutoff 1.9s; no false arrival on timeout
@@ -7,7 +7,11 @@
 	+ No forced humanoid states, joint edits, anchoring or PlatformStand writes
 
 	Reference: origin/main grok-v3-target-fix.lua (a7b5ecd), read-only.
-	Uses its velocity arc in reverse; ragdoll is supported, never required.
+	Ports its next-frame sine arc, 500 WalkSpeed enforcement, carried-part
+	neutralization, zero-friction, dead-zone hold and final velocity settle.
+	Ragdoll is supported, never required. Boss wait and bait drop are omitted.
+	Retains explicit arrival/cutoff checks instead of assuming progress=1 means
+	arrival. This port does not establish that server corrections are resolved.
 	Its 750 studs/s is a baseline, not a sub-two-second guarantee: derive the
 	command speed from route length and the capped duration for this test.
 	The egg is kept carried; reaching Forest is not a delivery acknowledgement.
@@ -36,13 +40,15 @@ local selectedBiome       = "Snow" -- deliberately locked for this test
 local dynamicBaseWalkSpeed = 16.0
 local FOREST_LANDING      = Vector3.new(612.2, 70.7, -325.0)
 
+local RUN_WALKSPEED       = 500 -- reference flight/hold speed enforcer, not approach
 local AERIAL_BASE_SPEED   = 750
 local MIN_ARC_DURATION    = 0.35
 local MAX_ARC_DURATION    = 1.5
 local FLIGHT_CUTOFF_S     = 1.9 -- travel only, never extended by corrections
 local MIN_HOLD_S          = 0.85
 local MAX_HOLD_S          = 3.5
-local HOLD_MAX_SPEED      = 30
+local HOLD_DEAD_ZONE      = 1.2
+local FINAL_SETTLE_S      = 0.20
 local ARRIVAL_RADIUS      = 5.5
 local CARRY_TIMEOUT_S     = 3
 local REMOTE_TIMEOUT_S    = 3
@@ -59,6 +65,10 @@ local runCharacter        = nil
 local flightTrack         = nil
 local flightRoot          = nil
 local originalPhysicalProperties = {}
+local originalCarriedProperties = {}
+local flightSpeedConnection = nil
+local flightSpeedChangedConnection = nil
+local updatingFlightSpeed = false
 local zeroFriction = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 
 ----------------------------------------------------------------
@@ -109,7 +119,7 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[Steal-Pipeline v6.4.1] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[Steal-Pipeline v6.5] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
@@ -149,7 +159,65 @@ local function applyFlightFriction()
 	end
 end
 
+-- Port of neutraliseEggPhysics from the reference. Record every touched part
+-- so default values, false collision flags and reparented eggs restore exactly.
+local function neutraliseEggPhysics(char)
+	local function neutralise(part)
+		if originalCarriedProperties[part] == nil then
+			originalCarriedProperties[part] = { massless = part.Massless, collide = part.CanCollide }
+		end
+		part.Massless = true
+		part.CanCollide = false
+	end
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Parent ~= char then
+			neutralise(part)
+		end
+	end
+	local assets = Workspace:FindFirstChild("ClientRenderedAssets")
+	if assets then
+		local ownerToken = "%f[%d]" .. tostring(LocalPlayer.UserId) .. "%f[%D]"
+		for _, model in ipairs(assets:GetChildren()) do
+			-- Same player-named rendered assets as the reference, but match a
+			-- complete numeric ID rather than a substring of another player's ID.
+			if model.Name:find(ownerToken) then
+				for _, part in ipairs(model:GetDescendants()) do
+					if part:IsA("BasePart") then neutralise(part) end
+				end
+			end
+		end
+	end
+end
+
+local function enforceFlightSpeed(myToken)
+	local _, hum = getRunRig(myToken)
+	if hum and not updatingFlightSpeed and math.abs(hum.WalkSpeed - RUN_WALKSPEED) > 0.1 then
+		updatingFlightSpeed = true
+		local ok, err = pcall(function() hum.WalkSpeed = RUN_WALKSPEED end)
+		updatingFlightSpeed = false
+		if not ok then error(err) end
+	end
+end
+
+local function startFlightSpeedEnforcer(myToken, hum)
+	flightSpeedChangedConnection = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+		enforceFlightSpeed(myToken)
+	end)
+	flightSpeedConnection = RunService.Heartbeat:Connect(function()
+		enforceFlightSpeed(myToken)
+	end)
+	enforceFlightSpeed(myToken)
+end
+
 local function cleanupRun()
+	-- Disconnect first, otherwise restoration would trigger the enforcer.
+	if flightSpeedChangedConnection then flightSpeedChangedConnection:Disconnect(); flightSpeedChangedConnection = nil end
+	if flightSpeedConnection then flightSpeedConnection:Disconnect(); flightSpeedConnection = nil end
+	updatingFlightSpeed = false
+	for part, original in pairs(originalCarriedProperties) do
+		pcall(function() part.Massless = original.massless; part.CanCollide = original.collide end)
+		originalCarriedProperties[part] = nil
+	end
 	for part, original in pairs(originalPhysicalProperties) do
 		pcall(function() part.CustomPhysicalProperties = original.value end)
 		originalPhysicalProperties[part] = nil
@@ -415,23 +483,9 @@ local function serverNow()
 	return ok and value or os.time()
 end
 
-local function ragdollActive(hum, withExpiryMargin)
+local function ragdollTimerExpired()
 	local endTime = LocalPlayer:GetAttribute("RagdollEndTime")
-	if typeof(endTime) == "number" and endTime > 0
-		and serverNow() < endTime + (withExpiryMargin and 0.15 or 0) then
-		return true, "RagdollEndTime"
-	end
-	local state = hum:GetState()
-	if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Ragdoll
-		or state == Enum.HumanoidStateType.FallingDown then
-		return true, state.Name
-	end
-	local disabled = 0
-	for _, item in ipairs(runCharacter:GetDescendants()) do
-		if item:IsA("Motor6D") and not item.Enabled then disabled += 1 end
-	end
-	if disabled >= 2 then return true, "MotorsDisabled" end
-	return false, "none"
+	return typeof(endTime) ~= "number" or endTime <= 0 or serverNow() >= endTime + 0.15
 end
 
 local function executeEscapeFlightToForest(myToken)
@@ -442,6 +496,8 @@ local function executeEscapeFlightToForest(myToken)
 	isFlying = true
 	flightRoot = root
 	applyFlightFriction()
+	neutraliseEggPhysics(runCharacter)
+	startFlightSpeedEnforcer(myToken, hum)
 	hum:Move(Vector3.zero)
 	hum:MoveTo(root.Position)
 	root.AssemblyLinearVelocity = Vector3.zero
@@ -468,7 +524,9 @@ local function executeEscapeFlightToForest(myToken)
 	local peakArc = math.clamp(distance * 0.035, 8, 26)
 	local startedAt = os.clock()
 	local command = Vector3.zero
-	traceRun("FLIGHT_START", string.format("route=Snow→Forest mode=ASSEMBLY_ARC distance=%.1f planned=%.3fs cutoff=%.2fs speedCap=%.1f",
+	local peakObservedY = launchFrom.Y
+	local nextProgressLog = 0
+	traceRun("FLIGHT_START", string.format("route=Snow→Forest mode=GROK_V3_ARC distance=%.1f planned=%.3fs cutoff=%.2fs speedCap=%.1f",
 		distance, duration, FLIGHT_CUTOFF_S, speedLimit))
 
 	while true do
@@ -476,7 +534,13 @@ local function executeEscapeFlightToForest(myToken)
 		root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
 		local elapsed = os.clock() - startedAt
+		peakObservedY = math.max(peakObservedY, root.Position.Y)
 		sampleFlight("ARC", dt, root, hum, command)
+		if elapsed >= nextProgressLog then
+			nextProgressLog = elapsed + 0.25
+			traceRun("ARC_PROGRESS", string.format("elapsed=%.3fs remaining=%.1f y=%.1f peakY=%.1f walkSpeed=%.1f",
+				elapsed, horizontalDistance(root.Position, FOREST_LANDING), root.Position.Y, peakObservedY, hum.WalkSpeed))
+		end
 		if root.Anchored then return false, "Character anchored during arc" end
 		-- Do not mistake scheduled progress=1 for arrival. A late frame or
 		-- position reset fails the timing test instead of extending the flight.
@@ -486,21 +550,21 @@ local function executeEscapeFlightToForest(myToken)
 		if (FOREST_LANDING - root.Position).Magnitude <= ARRIVAL_RADIUS and elapsed >= 0.25 then
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.AssemblyAngularVelocity = Vector3.zero
-			traceRun("FLIGHT_ARRIVED", string.format("travel=%.3fs error=%.2f; stabilization begins separately",
-				elapsed, (FOREST_LANDING - root.Position).Magnitude))
+			traceRun("FLIGHT_ARRIVED", string.format("travel=%.3fs error=%.2f rise=%.1f; stabilization begins separately",
+				elapsed, (FOREST_LANDING - root.Position).Magnitude, peakObservedY - launchFrom.Y))
 			return true
 		end
 
 		applyFlightFriction()
-		-- Mirror the reference's next-frame sine arc, but use a capped travel
-		-- duration rather than a fixed slow speed. These are velocity writes;
-		-- the physics engine, not the script, changes the character transform.
-		local stepDt = math.clamp(dt, 1 / 240, 0.1)
-		local nextProgress = math.clamp((elapsed + stepDt) / duration, 0, 1)
-		local waypoint = launchFrom:Lerp(FOREST_LANDING, nextProgress)
-			+ Vector3.new(0, peakArc * math.sin(nextProgress * math.pi), 0)
-		command = (waypoint - root.Position) / stepDt
-			+ Vector3.new(0, Workspace.Gravity * stepDt * 0.5, 0)
+		neutraliseEggPhysics(runCharacter)
+		enforceFlightSpeed(myToken)
+		-- Direct port of grok-v3-target-fix.lua's flight calculation: its
+		-- look-ahead floor and velocity divisor are deliberately different.
+		-- No added gravity term or 0.1s dt clamp from the previous adaptation.
+		local nextProgress = math.clamp((elapsed + math.max(dt, 0.016)) / duration, 0, 1)
+		local arcY = peakArc * math.sin(nextProgress * math.pi)
+		local targetWaypoint = launchFrom:Lerp(FOREST_LANDING, nextProgress) + Vector3.new(0, arcY, 0)
+		command = (targetWaypoint - root.Position) / math.max(dt, 0.001)
 		if command.Magnitude > speedLimit then command = command.Unit * speedLimit end
 		root.AssemblyLinearVelocity = command
 		root.AssemblyAngularVelocity = Vector3.zero
@@ -512,6 +576,7 @@ end
 local function stabilizeAtForest(myToken)
 	local startedAt = os.clock()
 	local command = Vector3.zero
+	local settled = false
 	while os.clock() - startedAt < MAX_HOLD_S do
 		local dt = RunService.Heartbeat:Wait()
 		local root, hum, reason = getRunRig(myToken)
@@ -519,18 +584,41 @@ local function stabilizeAtForest(myToken)
 		sampleFlight("STABILIZE", dt, root, hum, command)
 		if root.Anchored then return false, "Character anchored during stabilization" end
 		local delta = FOREST_LANDING - root.Position
+		-- Do not turn the reference's delta*4 hold into an unbounded second
+		-- flight when the game resets the character all the way back to Snow.
 		if delta.Magnitude > 15 then return false, "Displaced from Forest during stabilization" end
-		if os.clock() - startedAt >= MIN_HOLD_S and not ragdollActive(hum, true)
-			and delta.Magnitude <= ARRIVAL_RADIUS then
-			traceRun("STABILIZED", string.format("hold=%.3fs; no active ragdoll", os.clock() - startedAt))
-			return true
-		end
-		command = delta * 4 + Vector3.new(0, Workspace.Gravity * math.clamp(dt, 0, 0.1) * 0.5, 0)
-		if command.Magnitude > HOLD_MAX_SPEED then command = command.Unit * HOLD_MAX_SPEED end
+		neutraliseEggPhysics(runCharacter)
+		enforceFlightSpeed(myToken)
+		command = delta.Magnitude > HOLD_DEAD_ZONE and delta * 4 or Vector3.zero
 		root.AssemblyLinearVelocity = command
 		root.AssemblyAngularVelocity = Vector3.zero
+		if os.clock() - startedAt >= MIN_HOLD_S and ragdollTimerExpired()
+			and delta.Magnitude <= ARRIVAL_RADIUS then
+			settled = true
+			break
+		end
 	end
-	return false, "Forest reached, but stabilization did not finish within 3.5s"
+	if not settled then return false, "Forest reached, but stabilization did not finish within 3.5s" end
+
+	-- Reference final settle: zero velocities for 0.20s without editing state,
+	-- joints, CFrame or position. Check cancellation after every yield.
+	local settleStartedAt = os.clock()
+	while os.clock() - settleStartedAt < FINAL_SETTLE_S do
+		local dt = RunService.Heartbeat:Wait()
+		local root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		sampleFlight("FINAL_SETTLE", dt, root, hum, Vector3.zero)
+		if root.Anchored then return false, "Character anchored during final settle" end
+		if (FOREST_LANDING - root.Position).Magnitude > ARRIVAL_RADIUS then
+			return false, "Forest arrival lost during final settle"
+		end
+		if not ragdollTimerExpired() then return false, "Ragdoll timer restarted during final settle" end
+		enforceFlightSpeed(myToken)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+	traceRun("STABILIZED", string.format("hold=%.3fs; reference dead-zone hold and final settle complete", os.clock() - startedAt))
+	return true
 end
 
 ----------------------------------------------------------------
@@ -546,7 +634,7 @@ local function executeTeleportPipeline(statusLabel)
 	captureBaseSpeed()
 	table.clear(diagnosticLines)
 	table.clear(flightSamples)
-	traceRun("RUN_START", string.format("test=Snow→Forest mode=ASSEMBLY_ARC plannedMax=%.2fs cutoff=%.2fs; immediate pickup escape, no drop; post-arrival hold separate",
+	traceRun("RUN_START", string.format("test=Snow→Forest mode=GROK_V3_ARC plannedMax=%.2fs cutoff=%.2fs; immediate pickup escape, no drop; post-arrival hold separate",
 		MAX_ARC_DURATION, FLIGHT_CUTOFF_S))
 
 	local function updateStatus(text, color)
@@ -599,7 +687,7 @@ local function executeTeleportPipeline(statusLabel)
 		runCharacter = nil
 		if not ok then
 			traceRun("ERROR_DETAIL", tostring(completed))
-			warn("[Steal-Pipeline v6.4.1] " .. tostring(completed))
+			warn("[Steal-Pipeline v6.5] " .. tostring(completed))
 			updateStatus("ERROR: Flight stopped; controls restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
@@ -643,7 +731,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "SNOW → FOREST: IMMEDIATE ARC TEST v6.4.1"
+title.Text = "SNOW → FOREST: GROK-V3 FLIGHT v6.5"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -764,7 +852,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.4.1: Snow only | Arc target ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
+footer.Text = "v6.5: Grok-v3 flight port | Arc ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -932,4 +1020,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-traceRun("READY", "Snow→Forest immediate arc ready. No boss wait/drop; travel target ≤1.5s; no CFrame movement.")
+traceRun("READY", "Snow→Forest Grok-v3 flight port ready. No boss wait/drop; travel target ≤1.5s; no CFrame movement.")
