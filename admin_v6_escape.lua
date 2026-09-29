@@ -1,5 +1,5 @@
 --[[=========================================================================
-	STEAL AN EGG — ESCAPE FLIGHT v6.2
+	STEAL AN EGG — ESCAPE FLIGHT v6.2.1
 	+ Ground approach → confirmed target carry → immediate escape (no boss wait)
 	+ Heading to Forest | Y=112.5 | zero horizontal physics velocity
 	+ Bounded live-position steps; limited correction recovery, no landing snap
@@ -16,6 +16,9 @@
 	  to takeoff. v6.1 would abort here; the later Physics impulse is not proof of
 	  the rollback's cause. Retry only limited corrections, never catch up by
 	  teleporting along the old path. Log recovery/abort reasons explicitly.
+	- Follow-up 12:45:55 reaches cruise, then rolls back repeatedly. A mocked
+	  single-rollback recovery is not an in-game fix for that. v6.2.1 keeps
+	  movement limits unchanged and captures the missing run/abort evidence.
 =========================================================================]]
 
 local Players                = game:GetService("Players")
@@ -114,8 +117,39 @@ local function hasTargetEggAttribute(uid)
 	return carriedUid ~= nil and tostring(carriedUid) == tostring(uid)
 end
 
+-- Separate the small, high-level run log from a rolling flight-frame tail so
+-- high FPS cannot evict the target, carry timing or final abort explanation.
+local diagnosticLines = {}
+local flightSamples = {}
+local MAX_DIAGNOSTIC_LINES = 200
+local MAX_FLIGHT_SAMPLES = 24
+
 local function traceRun(tag, message)
-	print(string.format("[Steal-Pipeline v6.2] t=%.3f %s | %s", os.clock(), tag, message))
+	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
+	local line = string.format("[Steal-Pipeline v6.2.1] %s t=%.3f run=%d %s | %s",
+		wallTime, os.clock(), currentToken, tag, message)
+	table.insert(diagnosticLines, line)
+	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
+	print(line)
+end
+
+local function sampleFlight(phase, dt, root, hum, expectedPos)
+	-- Observe before issuing this frame's CFrame write. In particular, retain
+	-- the actual rollback even if the scanner next samples our recovery step.
+	local pos, vel = root.Position, root.AssemblyLinearVelocity
+	local state = hum:GetState()
+	local line = string.format(
+		"t=%.3f %s dt=%.4f pos=(%.1f,%.1f,%.1f) expected=(%.1f,%.1f,%.1f) errorXZ=%.1f errorY=%.1f state=%s anchored=%s platform=%s vel=(%.1f,%.1f,%.1f)",
+		os.clock(), phase, dt, pos.X, pos.Y, pos.Z, expectedPos.X, expectedPos.Y, expectedPos.Z,
+		horizontalDistance(pos, expectedPos), pos.Y - expectedPos.Y, state.Name,
+		tostring(root.Anchored), tostring(hum.PlatformStand), vel.X, vel.Y, vel.Z)
+	table.insert(flightSamples, line)
+	if #flightSamples > MAX_FLIGHT_SAMPLES then table.remove(flightSamples, 1) end
+end
+
+local function getDiagnosticsText()
+	return table.concat(diagnosticLines, "\n") .. "\n\nLAST FLIGHT OBSERVATIONS (before script writes):\n"
+		.. table.concat(flightSamples, "\n")
 end
 
 ----------------------------------------------------------------
@@ -195,7 +229,8 @@ local function cleanupRun()
 	end
 end
 
-local function stopRun()
+local function stopRun(reason)
+	if isRunning then traceRun("STOP", reason or "Emergency Stop") end
 	currentToken += 1
 	isRunning = false
 	cleanupRun()
@@ -215,10 +250,21 @@ end
 -- outstanding request per remote; late responses never change run state.
 local pendingRemotes = {}
 local function invokeRemote(subPath, payload, myToken, confirmedWhileWaiting)
+	local startedAt = os.clock()
+	local function report(outcome)
+		if myToken and currentToken == myToken and isRunning then
+			traceRun("REMOTE", string.format("%s %s elapsed=%.3fs", subPath, outcome, os.clock() - startedAt))
+		end
+	end
 	local rf = getRemote(subPath)
-	if not rf or (myToken and not getRunRig(myToken)) then return false, nil end
+	if not rf then report("missing"); return false, nil end
+	if myToken and not getRunRig(myToken) then return false, nil end
 	local request = pendingRemotes[subPath]
-	if request and subPath ~= "RF/EggWorld/AskFieldEggSnapshot" then return false, nil end
+	if request and subPath ~= "RF/EggWorld/AskFieldEggSnapshot" then
+		report("already pending")
+		return false, nil
+	end
+	report(request and "waiting on pending request" or "request started")
 	if not request then
 		request = { done = false }
 		pendingRemotes[subPath] = request
@@ -238,11 +284,16 @@ local function invokeRemote(subPath, payload, myToken, confirmedWhileWaiting)
 		if myToken and not getRunRig(myToken) then return false, nil end
 		-- A replicated target UID can arrive before InvokeServer returns. Do not
 		-- hold the character at the egg solely to wait for that late response.
-		if confirmedWhileWaiting and confirmedWhileWaiting() then return true, nil end
-		if os.clock() >= deadline then return false, nil end
+		if confirmedWhileWaiting and confirmedWhileWaiting() then
+			report("target UID replicated before response")
+			return true, nil
+		end
+		if os.clock() >= deadline then report("timed out"); return false, nil end
 		RunService.Heartbeat:Wait()
 	end
 	if myToken and not getRunRig(myToken) then return false, nil end
+	report(request.ok and ("response type=" .. typeof(request.result) .. (request.result == false and " (false)" or ""))
+		or "invocation failed")
 	return request.ok, request.result
 end
 
@@ -443,6 +494,7 @@ local function executeEscapeFlightToForest(myToken)
 		end
 	end)
 
+	table.clear(flightSamples)
 	local startPos = root.Position
 	local totalDist = horizontalDistance(startPos, FOREST_LANDING)
 	local expectedPos = startPos
@@ -458,6 +510,7 @@ local function executeEscapeFlightToForest(myToken)
 		local dt = RunService.Heartbeat:Wait()
 		root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
+		sampleFlight("CRUISE", dt, root, hum, expectedPos)
 		if os.clock() >= deadline then return false, "Flight timed out; no landing snap" end
 		if root.Anchored then return false, "Character anchored during flight" end
 		local state = hum:GetState()
@@ -504,9 +557,10 @@ local function executeEscapeFlightToForest(myToken)
 
 	-- Descent is vertical only, and is permitted only after actual X/Z arrival.
 	while true do
-		RunService.Heartbeat:Wait()
+		local dt = RunService.Heartbeat:Wait()
 		root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
+		sampleFlight("LANDING", dt, root, hum, expectedPos)
 		if root.Anchored then return false, "Character anchored during landing" end
 		if os.clock() >= deadline then return false, "Landing timed out" end
 		if horizontalDistance(root.Position, FOREST_LANDING) > ARRIVAL_RADIUS then
@@ -518,6 +572,7 @@ local function executeEscapeFlightToForest(myToken)
 		root.CFrame = CFrame.new(nextPos, nextPos + heading)
 		root.AssemblyLinearVelocity = Vector3.zero
 		root.AssemblyAngularVelocity = Vector3.zero
+		expectedPos = nextPos
 		if math.abs(dy) <= VERTICAL_STEP then break end
 	end
 	traceRun("FLIGHT_LANDED", string.format("elapsed=%.3fs corrections=%d pos=(%.1f,%.1f,%.1f)",
@@ -537,6 +592,10 @@ local function executeTeleportPipeline(statusLabel)
 	isRunning = true
 	runCharacter = LocalPlayer.Character
 	captureBaseSpeed()
+	table.clear(diagnosticLines)
+	table.clear(flightSamples)
+	traceRun("RUN_START", string.format("biome=%s speed=%.1f cruise=%.1f step=%.1f maxSeconds=%.1f maxCorrections=%d",
+		selectedBiome, dynamicBaseWalkSpeed, CRUISE_Y, STEP_SIZE, MAX_FLIGHT_S, MAX_CORRECTIONS))
 
 	local function updateStatus(text, color)
 		if currentToken ~= myToken then return end
@@ -561,6 +620,7 @@ local function executeTeleportPipeline(statusLabel)
 			updateStatus("[2/5] Walking to " .. targetEgg.AreaId .. "...", Color3.fromRGB(80, 210, 255))
 			local reached, walkError = walkToTargetOnGround(targetEgg.Position, myToken)
 			if not reached then return false, walkError end
+			traceRun("GROUND_ARRIVED", "Target approach finished")
 
 			updateStatus("[3/5] Confirming target carry...", Color3.fromRGB(255, 160, 80))
 			local carryStartedAt = os.clock()
@@ -590,7 +650,8 @@ local function executeTeleportPipeline(statusLabel)
 		isRunning = false
 		runCharacter = nil
 		if not ok then
-			warn("[Steal-Pipeline v6.2] " .. tostring(completed))
+			traceRun("ERROR_DETAIL", tostring(completed))
+			warn("[Steal-Pipeline v6.2.1] " .. tostring(completed))
 			updateStatus("ERROR: Run stopped; physics restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
@@ -635,7 +696,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "STEAL AN EGG: ESCAPE FLIGHT v6.2"
+title.Text = "STEAL AN EGG: ESCAPE FLIGHT v6.2.1"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -753,15 +814,107 @@ stopBtn.Parent = main
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 5)
 
 local footer = Instance.new("TextLabel")
-footer.Size = UDim2.new(1, -20, 0, 50)
+footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.2: Walk → Confirm carry → Escape (Y=112.5 Horiz=0)\nNo boss wait | Forest land → Safe Zone walk"
+footer.Text = "v6.2.1 diagnostics: after a failed run, use Copy run diagnostics.\nMovement limits unchanged; repeated resets need runtime evidence."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
 footer.TextWrapped = true
 footer.Parent = main
+
+-- Both buttons work independently of the scanner. Clipboard is optional;
+-- the selectable snapshot is the fallback when the executor has no clipboard.
+local copyDiagnosticsBtn = Instance.new("TextButton")
+copyDiagnosticsBtn.Size = UDim2.new(0.5, -15, 0, 26)
+copyDiagnosticsBtn.Position = UDim2.new(0, 10, 0, 268)
+copyDiagnosticsBtn.BackgroundColor3 = Color3.fromRGB(50, 80, 130)
+copyDiagnosticsBtn.Text = "Copy run diagnostics"
+copyDiagnosticsBtn.TextColor3 = Color3.new(1, 1, 1)
+copyDiagnosticsBtn.TextSize = 10
+copyDiagnosticsBtn.Font = Enum.Font.GothamBold
+copyDiagnosticsBtn.Parent = main
+
+local viewDiagnosticsBtn = copyDiagnosticsBtn:Clone()
+viewDiagnosticsBtn.Position = UDim2.new(0.5, 5, 0, 268)
+viewDiagnosticsBtn.Text = "View diagnostics"
+viewDiagnosticsBtn.Parent = main
+
+local diagnosticsPanel = Instance.new("Frame")
+diagnosticsPanel.Size = UDim2.new(1, -12, 1, -40)
+diagnosticsPanel.Position = UDim2.new(0, 6, 0, 34)
+diagnosticsPanel.BackgroundColor3 = Color3.fromRGB(10, 14, 22)
+diagnosticsPanel.ZIndex = 20
+diagnosticsPanel.Visible = false
+diagnosticsPanel.Parent = main
+
+local diagnosticsTitle = Instance.new("TextLabel")
+diagnosticsTitle.Size = UDim2.new(1, -12, 0, 24)
+diagnosticsTitle.Position = UDim2.fromOffset(6, 0)
+diagnosticsTitle.BackgroundTransparency = 1
+diagnosticsTitle.Text = "Diagnostics snapshot — select text to copy manually"
+diagnosticsTitle.TextColor3 = Color3.fromRGB(180, 220, 255)
+diagnosticsTitle.TextSize = 10
+diagnosticsTitle.Font = Enum.Font.Code
+diagnosticsTitle.ZIndex = 21
+diagnosticsTitle.Parent = diagnosticsPanel
+
+local diagnosticsScroll = Instance.new("ScrollingFrame")
+diagnosticsScroll.Size = UDim2.new(1, -12, 1, -60)
+diagnosticsScroll.Position = UDim2.fromOffset(6, 26)
+diagnosticsScroll.BackgroundTransparency = 1
+diagnosticsScroll.CanvasSize = UDim2.fromOffset(0, 0)
+diagnosticsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+diagnosticsScroll.ScrollBarThickness = 6
+diagnosticsScroll.ZIndex = 21
+diagnosticsScroll.Parent = diagnosticsPanel
+
+local diagnosticsText = Instance.new("TextBox")
+diagnosticsText.Size = UDim2.new(1, -10, 0, 0)
+diagnosticsText.AutomaticSize = Enum.AutomaticSize.Y
+diagnosticsText.BackgroundTransparency = 1
+diagnosticsText.ClearTextOnFocus = false
+diagnosticsText.MultiLine = true
+diagnosticsText.TextWrapped = true
+diagnosticsText.TextXAlignment = Enum.TextXAlignment.Left
+diagnosticsText.TextYAlignment = Enum.TextYAlignment.Top
+diagnosticsText.TextColor3 = Color3.fromRGB(210, 225, 240)
+diagnosticsText.TextSize = 10
+diagnosticsText.Font = Enum.Font.Code
+diagnosticsText.ZIndex = 22
+diagnosticsText.Parent = diagnosticsScroll
+
+local function showDiagnostics()
+	-- Do not stream updates into a focused TextBox and erase the selection.
+	diagnosticsText.Text = getDiagnosticsText()
+	diagnosticsPanel.Visible = true
+end
+
+local refreshDiagnosticsBtn = copyDiagnosticsBtn:Clone()
+refreshDiagnosticsBtn.Position = UDim2.new(0, 6, 1, -30)
+refreshDiagnosticsBtn.Text = "Refresh snapshot"
+refreshDiagnosticsBtn.ZIndex = 21
+refreshDiagnosticsBtn.Parent = diagnosticsPanel
+refreshDiagnosticsBtn.Activated:Connect(showDiagnostics)
+
+local closeDiagnosticsBtn = refreshDiagnosticsBtn:Clone()
+closeDiagnosticsBtn.Position = UDim2.new(0.5, 5, 1, -30)
+closeDiagnosticsBtn.Text = "Back to controls"
+closeDiagnosticsBtn.Parent = diagnosticsPanel
+closeDiagnosticsBtn.Activated:Connect(function() diagnosticsPanel.Visible = false end)
+viewDiagnosticsBtn.Activated:Connect(showDiagnostics)
+copyDiagnosticsBtn.Activated:Connect(function()
+	local clipboardWriter = setclipboard or toclipboard
+	if typeof(clipboardWriter) == "function" then
+		local ok, result = pcall(clipboardWriter, getDiagnosticsText())
+		if ok and result ~= false then
+			copyDiagnosticsBtn.Text = "Copied diagnostics"
+			return
+		end
+	end
+	showDiagnostics()
+end)
 
 ----------------------------------------------------------------
 -- BINDINGS
@@ -815,14 +968,14 @@ end)
 local isGuiClosed = false
 local characterRemovingConnection = LocalPlayer.CharacterRemoving:Connect(function(char)
 	if char == runCharacter then
-		stopRun()
+		stopRun("Character removed")
 		statusLabel.Text = "Stopped: character removed."
 	end
 end)
 local function handleClose()
 	if isGuiClosed then return end
 	isGuiClosed = true
-	stopRun()
+	stopRun("GUI closed")
 	characterRemovingConnection:Disconnect()
 	gui:Destroy()
 end
@@ -836,4 +989,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-print("[Steal-Pipeline v6.2] Escape flight ready. Walk→Grab→Forest→Safe.")
+traceRun("READY", "Diagnostics build; movement limits unchanged. Walk→Grab→Forest→Safe.")
