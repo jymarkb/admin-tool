@@ -1,15 +1,20 @@
 --[[=========================================================================
-	STEAL AN EGG — ESCAPE FLIGHT v6.0
-	+ Walk to egg on ground only
-	+ Instant grab → immediate escape (NO boss wait)
-	+ Locked dir → Forest | Y=112.5 | Horiz vel = 0
-	+ Large steps ~78 | finish ≤ 2.5s
-	+ PlatformStand left FALSE
-	+ Drop + re-carry near Forest then walk to Safe Zone
+	STEAL AN EGG — ESCAPE FLIGHT v6.1
+	+ Ground approach → confirmed target carry → immediate escape (no boss wait)
+	+ Locked heading to Forest | Y=112.5 | zero horizontal physics velocity
+	+ Bounded, time-scaled steps; timeout/cancellation never force a landing
+	+ Preserve PlatformStand and original part physics; walk to Safe Zone
+
+	Log audit (scanner_v3.1.lua, other-script.log, normal-run-log-no-script.log):
+	- Scripted returns cruise near Y=112.2–112.7, land near (612.2,70.7,-325).
+	- Neither capture has a HOLDING → EMPTY transition. The scanner's broad
+	  tool/name/rendered-asset heuristic cannot confirm pickup or delivery.
+	- FLIGHT_START is delayed four samples; FLIGHT_END can split one flight.
+	- LARGE_MOVE dt can be zero because ZERO_HORIZ updates its shared timer;
+	  height variance includes takeoff/landing. Neither is a tuning target.
 =========================================================================]]
 
 local Players                = game:GetService("Players")
-local Workspace              = game:GetService("Workspace")
 local RunService             = game:GetService("RunService")
 local ReplicatedStorage      = game:GetService("ReplicatedStorage")
 local UserInputService       = game:GetService("UserInputService")
@@ -34,11 +39,16 @@ local dynamicBaseWalkSpeed = 16.0
 local FOREST_WALK_SPEED    = 16.0
 
 local SAFE_ZONE_POSITION  = Vector3.new(427.6, 70.7, -423.4)
-local FOREST_LANDING      = Vector3.new(612.0, 71.0, -325.0)
+local FOREST_LANDING      = Vector3.new(612.2, 70.7, -325.0)
 
 local CRUISE_Y            = 112.5
 local STEP_SIZE           = 78
 local MAX_FLIGHT_S        = 2.5
+local FLIGHT_SPEED        = STEP_SIZE * 60 -- studs/s, capped at STEP_SIZE per frame
+local VERTICAL_STEP      = 12
+local ARRIVAL_RADIUS     = 5.5
+local CARRY_TIMEOUT_S    = 3
+local REMOTE_TIMEOUT_S   = 3
 local FLIGHT_ANIM_ID      = "rbxassetid://102039335618606"
 
 local GUI_NAME            = "GrokEscapeFlightV6"
@@ -48,10 +58,13 @@ local isRunning           = false
 local isFlying            = false
 local cachedSnapshot      = nil
 local snapshotTried       = false
+local runCharacter        = nil
+local flightTrack         = nil
 
 local zeroFriction = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 local originalPhysicalProperties = {}
 local savedCollisions = {}
+local savedMassless = {}
 
 ----------------------------------------------------------------
 -- HELPERS
@@ -63,93 +76,112 @@ end
 
 local function captureBaseSpeed()
 	local char = LocalPlayer.Character
-	local hum  = char and char:FindFirstChildOfClass("Humanoid")
-	if hum and hum.Health > 0 then
-		dynamicBaseWalkSpeed = hum.WalkSpeed
-	end
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.Health > 0 then dynamicBaseWalkSpeed = hum.WalkSpeed end
 	return dynamicBaseWalkSpeed
 end
 
 local function restoreBaseSpeed()
+	local hum = runCharacter and runCharacter:FindFirstChildOfClass("Humanoid")
+	if hum then pcall(function() hum.WalkSpeed = dynamicBaseWalkSpeed end) end
+end
+
+local function getRunRig(myToken)
+	if not isRunning or currentToken ~= myToken then return nil, nil, "Cancelled" end
 	local char = LocalPlayer.Character
-	local hum  = char and char:FindFirstChildOfClass("Humanoid")
-	if hum and hum.Health > 0 then
-		pcall(function() hum.WalkSpeed = dynamicBaseWalkSpeed end)
-	end
+	if not char or char ~= runCharacter then return nil, nil, "Character changed" end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not root or not hum or hum.Health <= 0 then return nil, nil, "Character not ready" end
+	return root, hum
+end
+
+local function horizontalDistance(a, b)
+	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
 end
 
 ----------------------------------------------------------------
--- FRICTION / COLLISION / EGG
+-- REVERSIBLE FRICTION / COLLISION / EGG PHYSICS
 ----------------------------------------------------------------
 
 local function setCharacterCollisions(enable)
-	local char = LocalPlayer.Character
+	if enable then
+		for part, original in pairs(savedCollisions) do
+			pcall(function() part.CanCollide = original end)
+			savedCollisions[part] = nil
+		end
+		return
+	end
+	local char = runCharacter
 	if not char then return end
-	for _, desc in ipairs(char:GetDescendants()) do
-		if desc:IsA("BasePart") then
-			if not enable then
-				if savedCollisions[desc] == nil then
-					savedCollisions[desc] = desc.CanCollide
-				end
-				desc.CanCollide = false
-			else
-				if savedCollisions[desc] ~= nil then
-					desc.CanCollide = savedCollisions[desc]
-					savedCollisions[desc] = nil
-				else
-					desc.CanCollide = true
-				end
-			end
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			if savedCollisions[part] == nil then savedCollisions[part] = part.CanCollide end
+			part.CanCollide = false
 		end
 	end
 end
 
 local function setFrictionless(enable)
-	local char = LocalPlayer.Character
+	if not enable then
+		for part, original in pairs(originalPhysicalProperties) do
+			pcall(function() part.CustomPhysicalProperties = original.value end)
+			originalPhysicalProperties[part] = nil
+		end
+		for part, original in pairs(savedMassless) do
+			pcall(function() part.Massless = original end)
+			savedMassless[part] = nil
+		end
+		setCharacterCollisions(true)
+		return
+	end
+	local char = runCharacter
 	if not char then return end
-	for _, desc in ipairs(char:GetDescendants()) do
-		if desc:IsA("BasePart") then
-			if enable then
-				if originalPhysicalProperties[desc] == nil then
-					originalPhysicalProperties[desc] = desc.CustomPhysicalProperties
-				end
-				pcall(function() desc.CustomPhysicalProperties = zeroFriction end)
-			else
-				local original = originalPhysicalProperties[desc]
-				pcall(function() desc.CustomPhysicalProperties = original end)
-				originalPhysicalProperties[desc] = nil
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			-- A wrapper preserves nil (Roblox's default material properties).
+			if originalPhysicalProperties[part] == nil then
+				originalPhysicalProperties[part] = { value = part.CustomPhysicalProperties }
 			end
+			part.CustomPhysicalProperties = zeroFriction
 		end
 	end
-	setCharacterCollisions(not enable)
+	setCharacterCollisions(false)
 end
 
 local function neutraliseEggPhysics(char)
-	char = char or LocalPlayer.Character
-	if not char then return end
-	for _, desc in ipairs(char:GetDescendants()) do
-		if desc:IsA("BasePart") and desc.Name ~= "HumanoidRootPart" and desc.Parent ~= char then
-			pcall(function()
-				desc.Massless = true
-				desc.CanCollide = false
-			end)
+	-- Only attached character parts, not unrelated models whose name happens
+	-- to contain the user ID. Every change is reversible, even after reparenting.
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Parent ~= char then
+			if savedMassless[part] == nil then savedMassless[part] = part.Massless end
+			if savedCollisions[part] == nil then savedCollisions[part] = part.CanCollide end
+			part.Massless = true
+			part.CanCollide = false
 		end
 	end
-	local cra = Workspace:FindFirstChild("ClientRenderedAssets")
-	if cra then
-		for _, model in ipairs(cra:GetChildren()) do
-			if string.find(model.Name, tostring(LocalPlayer.UserId)) then
-				for _, part in ipairs(model:GetDescendants()) do
-					if part:IsA("BasePart") then
-						pcall(function()
-							part.Massless = true
-							part.CanCollide = false
-						end)
-					end
-				end
-			end
-		end
+end
+
+local function cleanupRun()
+	if flightTrack then
+		pcall(function() flightTrack:Stop(0.1); flightTrack:Destroy() end)
+		flightTrack = nil
 	end
+	isFlying = false
+	setFrictionless(false)
+	restoreBaseSpeed()
+	local hum = runCharacter and runCharacter:FindFirstChildOfClass("Humanoid")
+	local root = runCharacter and runCharacter:FindFirstChild("HumanoidRootPart")
+	if hum and root then
+		pcall(function() hum:Move(Vector3.zero); hum:MoveTo(root.Position) end)
+	end
+end
+
+local function stopRun()
+	currentToken += 1
+	isRunning = false
+	cleanupRun()
+	runCharacter = nil
 end
 
 ----------------------------------------------------------------
@@ -161,16 +193,42 @@ local function getRemote(subPath)
 	return ok and rem or nil
 end
 
-local function carryEggRemote(uid)
-	local rf = getRemote("RF/EggWorld/AskFieldEggCarry")
-	if not rf or not uid then return false end
-	task.spawn(function() pcall(function() rf:InvokeServer({ Uid = tostring(uid) }) end) end)
-	return true
+-- InvokeServer can yield indefinitely. Bound the wait and allow at most one
+-- outstanding request per remote; late responses never change run state.
+local pendingRemotes = {}
+local function invokeRemote(subPath, payload, myToken)
+	local rf = getRemote(subPath)
+	if not rf or (myToken and not getRunRig(myToken)) then return false, nil end
+	local request = pendingRemotes[subPath]
+	if request and subPath ~= "RF/EggWorld/AskFieldEggSnapshot" then return false, nil end
+	if not request then
+		request = { done = false }
+		pendingRemotes[subPath] = request
+		task.spawn(function()
+			if not myToken or getRunRig(myToken) then
+				request.ok, request.result = pcall(function()
+					if payload == nil then return rf:InvokeServer() end
+					return rf:InvokeServer(payload)
+				end)
+			end
+			request.done = true
+			if pendingRemotes[subPath] == request then pendingRemotes[subPath] = nil end
+		end)
+	end
+	local deadline = os.clock() + REMOTE_TIMEOUT_S
+	while not request.done do
+		if myToken and not getRunRig(myToken) then return false, nil end
+		if os.clock() >= deadline then return false, nil end
+		RunService.Heartbeat:Wait()
+	end
+	if myToken and not getRunRig(myToken) then return false, nil end
+	return request.ok, request.result
 end
 
-local function dropEggRemote()
-	local rf = getRemote("RF/EggWorld/AskFieldEggDrop")
-	if rf then pcall(function() rf:InvokeServer() end) end
+local function carryEggRemote(uid, myToken)
+	if not uid or not getRunRig(myToken) then return false end
+	local ok, result = invokeRemote("RF/EggWorld/AskFieldEggCarry", { Uid = tostring(uid) }, myToken)
+	return ok and result ~= false
 end
 
 local function extractTargetPosition(record)
@@ -208,11 +266,9 @@ local function parseSnapshotEggs(raw)
 	return records
 end
 
-local function fetchSnapshot(forceRefresh)
+local function fetchSnapshot(forceRefresh, myToken)
 	if not forceRefresh and cachedSnapshot and #cachedSnapshot > 0 then return cachedSnapshot end
-	local rf = getRemote("RF/EggWorld/AskFieldEggSnapshot")
-	if not rf then return {} end
-	local ok, res = pcall(function() return rf:InvokeServer() end)
+	local ok, res = invokeRemote("RF/EggWorld/AskFieldEggSnapshot", nil, myToken)
 	if ok and typeof(res) == "table" then
 		cachedSnapshot = parseSnapshotEggs(res)
 		return cachedSnapshot
@@ -226,70 +282,28 @@ local function requestSnapshotAsync()
 	task.spawn(function() fetchSnapshot() end)
 end
 
-local function triggerEggPrompts()
-	pcall(function()
-		local char = LocalPlayer.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		if not root then return end
-		local pPos = root.Position
-		for _, desc in ipairs(Workspace:GetDescendants()) do
-			if desc:IsA("ProximityPrompt") then
-				local part = desc.Parent
-				if part and part:IsA("BasePart") and (part.Position - pPos).Magnitude <= 20 then
-					pcall(function() fireproximityprompt(desc, 0) end)
-				end
-			end
+local function isHoldingEgg(uid, myToken)
+	if not getRunRig(myToken) then return false end
+	local carriedUid = LocalPlayer:GetAttribute("EggUid")
+	if carriedUid ~= nil and tostring(carriedUid) == tostring(uid) then return true end
+	-- Generic Tools, IsCarrying and rendered model names do not identify the
+	-- selected egg. Fall back to fresh, target-specific ownership evidence.
+	for _, egg in ipairs(fetchSnapshot(true, myToken)) do
+		if egg.Uid == tostring(uid) then
+			return tonumber(egg.CarrierUserId) == LocalPlayer.UserId
 		end
-	end)
+	end
+	return false
 end
 
-local function touchEggHitbox(uid)
-	pcall(function()
-		local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-		if not root or typeof(firetouchinterest) ~= "function" then return end
-		local area = Workspace:FindFirstChild("AreaEggSlotsClient")
-		if area and uid then
-			local eggModel = area:FindFirstChild(uid) or area:FindFirstChild(tostring(uid))
-			if eggModel then
-				local hb = eggModel:FindFirstChild("Hitbox") or eggModel:FindFirstChildWhichIsA("BasePart")
-				if hb then
-					firetouchinterest(root, hb, 0)
-					task.defer(function() pcall(function() firetouchinterest(root, hb, 1) end) end)
-				end
-			end
-		end
-	end)
-end
-
-local function isHoldingEgg()
-	local char = LocalPlayer.Character
-	if char then
-		for _, child in ipairs(char:GetChildren()) do
-			local cName = string.lower(child.Name)
-			if child:IsA("Tool") and not string.find(cName, "trap") then return true end
-			if string.find(cName, "egg") or string.find(cName, "carried") then return true end
-		end
-		for _, desc in ipairs(char:GetDescendants()) do
-			if desc:IsA("JointInstance") then
-				local p1, p2 = desc.Part0, desc.Part1
-				if p1 and p2 then
-					local n1, n2 = string.lower(p1.Name), string.lower(p2.Name)
-					if string.find(n1, "egg") or string.find(n2, "egg") then return true end
-				end
-			end
-		end
-	end
-	if LocalPlayer:GetAttribute("IsCarrying") == true
-		or LocalPlayer:GetAttribute("Carrying") == true
-		or LocalPlayer:GetAttribute("EggUid") ~= nil then
-		return true
-	end
-	local cra = Workspace:FindFirstChild("ClientRenderedAssets")
-	if cra then
-		for _, model in ipairs(cra:GetChildren()) do
-			if string.find(model.Name, tostring(LocalPlayer.UserId)) then return true end
-		end
-	end
+local function confirmCarry(uid, myToken)
+	local deadline = os.clock() + CARRY_TIMEOUT_S
+	repeat
+		if not getRunRig(myToken) then return false end
+		if isHoldingEgg(uid, myToken) then return true end
+		if os.clock() >= deadline then break end
+		task.wait(0.15)
+	until false
 	return false
 end
 
@@ -300,11 +314,11 @@ end
 local function isEggAvailable(e)
 	if typeof(e) ~= "table" then return false end
 	local carrier = e.CarrierUserId
-	return carrier == nil or carrier == 0 or carrier == "" or carrier == false
+	return carrier == nil or carrier == 0 or carrier == "0" or carrier == "" or carrier == false
 end
 
-local function getTargetEgg(biome, forceRefresh)
-	local eggs = fetchSnapshot(forceRefresh)
+local function getTargetEgg(biome, forceRefresh, myToken)
+	local eggs = fetchSnapshot(forceRefresh, myToken)
 	local cleanTarget = cleanString(biome)
 	if cleanTarget ~= "any" and cleanTarget ~= "" then
 		for _, e in ipairs(eggs) do
@@ -326,226 +340,123 @@ end
 ----------------------------------------------------------------
 
 local function walkToTargetOnGround(targetPos, myToken)
-	local char = LocalPlayer.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	local startPos = root and root.Position or targetPos
-	local totalDist = (targetPos - startPos).Magnitude
+	local root, hum, reason = getRunRig(myToken)
+	if not root then return false, reason end
+	local distance = horizontalDistance(targetPos, root.Position)
+	local timeoutS = math.clamp(distance / math.max(hum.WalkSpeed, 1) * 2 + 10, 25, 180)
+	local t0, lastMoveToTime, lastProgressTime = os.clock(), 0, os.clock()
+	local lastPosCheck = root.Position
 
-	local timeoutS = math.clamp(totalDist / 10, 25.0, 120.0)
-	local t0 = os.clock()
-	local lastMoveToTime = 0
-	local stuckCounter = 0
-	local lastPosCheck = startPos
-
-	while isRunning and currentToken == myToken and (os.clock() - t0 < timeoutS) do
+	while os.clock() - t0 < timeoutS do
 		RunService.Heartbeat:Wait()
-		local c = LocalPlayer.Character
-		local r = c and c:FindFirstChild("HumanoidRootPart")
-		local hum = c and c:FindFirstChildOfClass("Humanoid")
-		if not r or not hum or hum.Health <= 0 then break end
-
-		local distH = math.sqrt((targetPos.X - r.Position.X)^2 + (targetPos.Z - r.Position.Z)^2)
-		if distH <= 5.5 then
-			hum:MoveTo(r.Position)
-			break
+		root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		if horizontalDistance(targetPos, root.Position) <= ARRIVAL_RADIUS
+			and math.abs(targetPos.Y - root.Position.Y) <= 8
+			and hum.FloorMaterial ~= Enum.Material.Air then
+			hum:MoveTo(root.Position)
+			return true
 		end
-
-		if (r.Position - lastPosCheck).Magnitude < 1.0 and distH > 10 then
-			stuckCounter += 1
-			if stuckCounter > 12 then
-				hum.Jump = true
-				stuckCounter = 0
-			end
-		else
-			stuckCounter = 0
+		-- Measure progress over time, not <1 stud per frame (normal at 16 speed).
+		if horizontalDistance(root.Position, lastPosCheck) >= 1 then
+			lastPosCheck, lastProgressTime = root.Position, os.clock()
+		elseif os.clock() - lastProgressTime >= 1 then
+			if not root.Anchored and hum.FloorMaterial ~= Enum.Material.Air then hum.Jump = true end
+			lastProgressTime = os.clock()
 		end
-		lastPosCheck = r.Position
-
-		if os.clock() - lastMoveToTime > 0.11 then
+		if not root.Anchored and os.clock() - lastMoveToTime >= 0.11 then
 			lastMoveToTime = os.clock()
-			hum:MoveTo(Vector3.new(targetPos.X, r.Position.Y, targetPos.Z))
+			hum:MoveTo(Vector3.new(targetPos.X, root.Position.Y, targetPos.Z))
 		end
 	end
+	return false, "Ground approach timed out"
 end
 
 ----------------------------------------------------------------
--- ESCAPE FLIGHT v6 — Grab → immediate return to Forest
--- Locked dir | Y=112.5 | Horiz vel = 0 | large steps | ≤2.5s
+-- ESCAPE FLIGHT — bounded steps; never land from a timeout/failed approach
 ----------------------------------------------------------------
 
 local function executeEscapeFlightToForest(myToken)
-	setFrictionless(true)
-	isFlying = true
-
-	local char = LocalPlayer.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	local hum  = char and char:FindFirstChildOfClass("Humanoid")
-	if not root or not hum or hum.Health <= 0 then
-		isFlying = false
-		return
+	local root, hum, reason = getRunRig(myToken)
+	if not root then return false, reason end
+	if root.Anchored then return false, "Character is anchored" end
+	if horizontalDistance(root.Position, FOREST_LANDING) <= ARRIVAL_RADIUS
+		and math.abs(root.Position.Y - FOREST_LANDING.Y) <= 3
+		and hum.FloorMaterial ~= Enum.Material.Air then
+		return true
 	end
-
+	isFlying = true
+	setFrictionless(true)
+	hum:Move(Vector3.zero)
 	hum:MoveTo(root.Position)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
 
-	local animTrack = nil
 	pcall(function()
 		local animator = hum:FindFirstChildOfClass("Animator") or hum
 		local anim = Instance.new("Animation")
 		anim.AnimationId = FLIGHT_ANIM_ID
-		animTrack = animator:LoadAnimation(anim)
-		animTrack.Priority = Enum.AnimationPriority.Movement
-		animTrack:Play()
+		local ok, track = pcall(function() return animator:LoadAnimation(anim) end)
+		anim:Destroy()
+		if ok then
+			flightTrack = track
+			track.Priority = Enum.AnimationPriority.Movement
+			track:Play()
+		end
 	end)
 
-	-- Capture start AFTER stopping any residual walk velocity
-	root.AssemblyLinearVelocity = Vector3.zero
-	root.AssemblyAngularVelocity = Vector3.zero
-	task.wait()  -- one frame settle so position is stable
-
 	local startPos = root.Position
-	-- Force direction: always decrease X toward Forest from egg area
-	local lockedDir = Vector3.new(-1, 0, 0)
-	if startPos.X < FOREST_LANDING.X then
-		-- already west of Forest — aim at it
-		local to = Vector3.new(FOREST_LANDING.X - startPos.X, 0, FOREST_LANDING.Z - startPos.Z)
-		if to.Magnitude > 1 then lockedDir = to.Unit end
-	else
-		-- from egg: go west, slight Z correction
-		local dz = FOREST_LANDING.Z - startPos.Z
-		local len = math.sqrt(1 + (dz / math.max(startPos.X - FOREST_LANDING.X, 1))^2)
-		lockedDir = Vector3.new(-1 / len, 0, (dz / math.max(startPos.X - FOREST_LANDING.X, 1)) / len)
+	local offset = Vector3.new(FOREST_LANDING.X - startPos.X, 0, FOREST_LANDING.Z - startPos.Z)
+	local totalDist = offset.Magnitude
+	local lockedDir = totalDist > 0.001 and offset.Unit or Vector3.new(-1, 0, 0)
+	local traveled, expectedPos = 0, startPos
+	local deadline = os.clock() + MAX_FLIGHT_S
+
+	while traveled < totalDist or math.abs(root.Position.Y - CRUISE_Y) > 0.5 do
+		local dt = RunService.Heartbeat:Wait()
+		root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		if os.clock() >= deadline then return false, "Flight timed out; no landing snap" end
+		if root.Anchored then return false, "Character anchored during flight" end
+		-- Do not fight a large external correction with a larger scripted jump.
+		if horizontalDistance(root.Position, expectedPos) > STEP_SIZE then
+			return false, "Flight interrupted by position correction"
+		end
+		setFrictionless(true) -- includes newly attached carried parts
+		neutraliseEggPhysics(runCharacter)
+		traveled = math.min(totalDist, traveled + math.min(STEP_SIZE, FLIGHT_SPEED * dt))
+		local xz = startPos + lockedDir * traveled
+		local dy = math.clamp(CRUISE_Y - root.Position.Y, -VERTICAL_STEP, VERTICAL_STEP)
+		local nextPos = Vector3.new(xz.X, root.Position.Y + dy, xz.Z)
+		if horizontalDistance(root.Position, nextPos) > STEP_SIZE + 0.01 then
+			return false, "Flight step blocked by position correction"
+		end
+		root.CFrame = CFrame.new(nextPos, nextPos + lockedDir)
+		root.AssemblyLinearVelocity = Vector3.new(0, -8, 0)
+		root.AssemblyAngularVelocity = Vector3.zero
+		expectedPos = nextPos
 	end
 
-	local totalDist = (Vector3.new(FOREST_LANDING.X, 0, FOREST_LANDING.Z)
-		- Vector3.new(startPos.X, 0, startPos.Z)).Magnitude
-	if totalDist < 10 then
-		-- already close: soft drop only
-		root.CFrame = CFrame.new(startPos.X, FOREST_LANDING.Y + 3, startPos.Z)
+	-- Descent is vertical only, and is permitted only after actual X/Z arrival.
+	while true do
+		RunService.Heartbeat:Wait()
+		root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		if root.Anchored then return false, "Character anchored during landing" end
+		if os.clock() >= deadline then return false, "Landing timed out" end
+		if horizontalDistance(root.Position, FOREST_LANDING) > ARRIVAL_RADIUS then
+			return false, "Forest arrival not confirmed"
+		end
+		local dy = FOREST_LANDING.Y - root.Position.Y
+		local y = root.Position.Y + math.clamp(dy, -VERTICAL_STEP, VERTICAL_STEP)
+		local nextPos = Vector3.new(root.Position.X, y, root.Position.Z)
+		root.CFrame = CFrame.new(nextPos, nextPos + lockedDir)
 		root.AssemblyLinearVelocity = Vector3.zero
-		isFlying = false
-		return
+		root.AssemblyAngularVelocity = Vector3.zero
+		if math.abs(dy) <= VERTICAL_STEP then break end
 	end
-
-	local traveled = 0
-	local t0 = os.clock()
-
-	-- Ramp to cruise (no wrong-way first step)
-	for i = 1, 5 do
-		if not isRunning or currentToken ~= myToken then break end
-		if os.clock() - t0 > MAX_FLIGHT_S then break end
-		RunService.Heartbeat:Wait()
-
-		local r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-		if not r then break end
-		neutraliseEggPhysics(LocalPlayer.Character)
-
-		local alpha = i / 5
-		traveled = math.min(traveled + STEP_SIZE, totalDist)
-		local xz = startPos + lockedDir * traveled
-		-- never increase X when leaving egg area
-		if startPos.X > 2000 then
-			xz = Vector3.new(math.min(xz.X, startPos.X - 1), xz.Y, xz.Z)
-		end
-		local y = startPos.Y + (CRUISE_Y - startPos.Y) * alpha
-		local nextPos = Vector3.new(xz.X, y, xz.Z)
-
-		r.CFrame = CFrame.new(nextPos, nextPos + lockedDir)
-		r.AssemblyLinearVelocity = Vector3.new(0, -8, 0)
-		r.AssemblyAngularVelocity = Vector3.zero
-	end
-
-	-- Main cruise — stop when near Forest, NO big final teleport
-	while isRunning and currentToken == myToken do
-		if os.clock() - t0 > MAX_FLIGHT_S then break end
-		RunService.Heartbeat:Wait()
-
-		local c = LocalPlayer.Character
-		local r = c and c:FindFirstChild("HumanoidRootPart")
-		local h = c and c:FindFirstChildOfClass("Humanoid")
-		if not r or not h or h.Health <= 0 then break end
-
-		neutraliseEggPhysics(c)
-
-		local cur = r.Position
-		local remain = (Vector3.new(FOREST_LANDING.X, 0, FOREST_LANDING.Z)
-			- Vector3.new(cur.X, 0, cur.Z)).Magnitude
-
-		-- Arrive at Forest still at cruise height
-		if remain <= 25 or cur.X <= (FOREST_LANDING.X + 30) then
-			break
-		end
-
-		local step = STEP_SIZE
-		if remain < 120 then
-			step = math.clamp(remain * 0.5, 28, STEP_SIZE)
-		end
-
-		traveled = traveled + step
-		if traveled > totalDist + 40 then break end
-
-		local xz = startPos + lockedDir * traveled
-		if startPos.X > 2000 then
-			xz = Vector3.new(math.min(xz.X, cur.X - 1), xz.Y, xz.Z)
-		end
-		local nextPos = Vector3.new(xz.X, CRUISE_Y, xz.Z)
-
-		r.CFrame = CFrame.new(nextPos, nextPos + lockedDir)
-		r.AssemblyLinearVelocity = Vector3.new(0, -10, 0)
-		r.AssemblyAngularVelocity = Vector3.zero
-	end
-
-	-- Soft descent at Forest (no 2000+ stud snap)
-	do
-		local r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-		if r then
-			local cur = r.Position
-			-- step down in 3 frames instead of one big drop
-			for i = 1, 3 do
-				if not isRunning or currentToken ~= myToken then break end
-				RunService.Heartbeat:Wait()
-				r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-				if not r then break end
-				local alpha = i / 3
-				local y = CRUISE_Y + (FOREST_LANDING.Y + 3 - CRUISE_Y) * alpha
-				local x = cur.X + (FOREST_LANDING.X - cur.X) * alpha
-				local z = cur.Z + (FOREST_LANDING.Z - cur.Z) * alpha
-				r.CFrame = CFrame.new(x, y, z)
-				r.AssemblyLinearVelocity = Vector3.new(0, -12, 0)
-				r.AssemblyAngularVelocity = Vector3.zero
-			end
-			r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-			if r then
-				r.CFrame = CFrame.new(FOREST_LANDING + Vector3.new(0, 3, 0))
-				r.AssemblyLinearVelocity = Vector3.zero
-				r.AssemblyAngularVelocity = Vector3.zero
-			end
-		end
-	end
-
-	if animTrack and animTrack.IsPlaying then
-		pcall(function() animTrack:Stop(0.1) end)
-	end
-
-	isFlying = false
-end
-
-----------------------------------------------------------------
--- RIG RECOVERY
-----------------------------------------------------------------
-
-local function recoverCharacterRig(char)
-	char = char or LocalPlayer.Character
-	if not char then return end
-	setCharacterCollisions(true)
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	if hum and hum.Health > 0 then
-		pcall(function()
-			hum.PlatformStand = false
-			hum.Sit = false
-			hum.AutoRotate = true
-			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-		end)
-	end
+	cleanupRun()
+	return true
 end
 
 ----------------------------------------------------------------
@@ -553,115 +464,67 @@ end
 ----------------------------------------------------------------
 
 local function executeTeleportPipeline(statusLabel)
-	currentToken = currentToken + 1
+	if isRunning then return end
+	currentToken += 1
 	local myToken = currentToken
 	isRunning = true
+	runCharacter = LocalPlayer.Character
+	captureBaseSpeed()
 
 	local function updateStatus(text, color)
-		if statusLabel then
+		if currentToken == myToken and statusLabel and statusLabel.Parent then
 			statusLabel.Text = text
-			if color then statusLabel.TextColor3 = color end
+			statusLabel.TextColor3 = color
 		end
 	end
 
 	task.spawn(function()
-		local char = LocalPlayer.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		local hum  = char and char:FindFirstChildOfClass("Humanoid")
+		local ok, completed, reason = xpcall(function()
+			local root, _, rigError = getRunRig(myToken)
+			if not root then return false, rigError end
+			updateStatus("[1/5] Scanning egg in " .. selectedBiome .. "...", Color3.fromRGB(255, 200, 80))
+			local targetEgg = getTargetEgg(selectedBiome, true, myToken)
+			if not getRunRig(myToken) then return false, "Cancelled" end
+			if not targetEgg then return false, "No available egg found" end
 
-		if not char or not root or not hum or hum.Health <= 0 then
-			updateStatus("ERROR: Character not ready!", Color3.fromRGB(255, 80, 80))
-			isRunning = false
-			return
-		end
+			updateStatus("[2/5] Walking to " .. targetEgg.AreaId .. "...", Color3.fromRGB(80, 210, 255))
+			local reached, walkError = walkToTargetOnGround(targetEgg.Position, myToken)
+			if not reached then return false, walkError end
 
-		captureBaseSpeed()
-		requestSnapshotAsync()
+			updateStatus("[3/5] Confirming target carry...", Color3.fromRGB(255, 160, 80))
+			if not carryEggRemote(targetEgg.Uid, myToken) then return false, "Carry request failed or timed out" end
+			if not confirmCarry(targetEgg.Uid, myToken) then return false, "Target carry not confirmed" end
 
-		-- 1. Find egg
-		updateStatus("[1/5] Scanning egg in " .. selectedBiome .. "...", Color3.fromRGB(255, 200, 80))
-		local targetEgg = getTargetEgg(selectedBiome, true)
-		if not targetEgg then
-			updateStatus("ABORTED: No egg found!", Color3.fromRGB(255, 80, 80))
-			isRunning = false
-			return
-		end
+			updateStatus("[4/5] ESCAPE FLIGHT → Forest...", Color3.fromRGB(255, 180, 100))
+			local arrived, flightError = executeEscapeFlightToForest(myToken)
+			if not arrived then return false, flightError end
+			local _, hum, forestError = getRunRig(myToken)
+			if not hum then return false, forestError end
+			hum.WalkSpeed = FOREST_WALK_SPEED
 
-		local targetPos = targetEgg.Position
-		local targetName = string.format("%s (%s)", tostring(targetEgg.AreaId or selectedBiome), tostring(targetEgg.AssetCategory or "Egg"))
+			-- The logs do not establish a need for drop/re-carry. Keep the egg
+			-- attached instead of racing drop against background carry requests.
+			if not confirmCarry(targetEgg.Uid, myToken) then return false, "Carry lost during escape" end
+			updateStatus("[5/5] Forest → Safe Zone...", Color3.fromRGB(100, 255, 170))
+			local safe, safeError = walkToTargetOnGround(SAFE_ZONE_POSITION, myToken)
+			if not safe then return false, safeError end
+			return true
+		end, debug.traceback)
 
-		-- 2. Walk to egg (ground only)
-		updateStatus(string.format("[2/5] Moving to %s...", targetName), Color3.fromRGB(80, 210, 255))
-		walkToTargetOnGround(targetPos, myToken)
-
-		if not isRunning or currentToken ~= myToken then
-			isRunning = false
-			return
-		end
-
-		-- 3. Instant grab + immediate escape (NO boss wait)
-		updateStatus("[3/5] Grab + ESCAPE...", Color3.fromRGB(255, 160, 80))
-
-		local c = LocalPlayer.Character
-		local r = c and c:FindFirstChild("HumanoidRootPart")
-		if r then
-			setFrictionless(true)
-			neutraliseEggPhysics(c)
-			r.AssemblyLinearVelocity = Vector3.zero
-			r.AssemblyAngularVelocity = Vector3.zero
-		end
-
-		for i = 1, 8 do
-			carryEggRemote(targetEgg.Uid)
-			triggerEggPrompts()
-			touchEggHitbox(targetEgg.Uid)
-			task.wait(0.03)
-		end
-
-		-- Background carry while flying
-		task.spawn(function()
-			local t0 = os.clock()
-			while isRunning and currentToken == myToken and (os.clock() - t0 < 6) do
-				carryEggRemote(targetEgg.Uid)
-				task.wait(0.1)
-			end
-		end)
-
-		-- 4. Escape flight → Forest (immediate)
-		updateStatus("[4/5] ESCAPE FLIGHT → Forest...", Color3.fromRGB(255, 180, 100))
-		executeEscapeFlightToForest(myToken)
-
-		-- Soft land
-		setFrictionless(false)
-		hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-		if hum and hum.Health > 0 then
-			pcall(function()
-				hum.PlatformStand = false
-				hum.WalkSpeed = FOREST_WALK_SPEED
-				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-			end)
-		end
-		task.wait(0.15)
-
-		-- Drop + quick re-carry
-		dropEggRemote()
-		task.wait(0.12)
-		for i = 1, 6 do
-			carryEggRemote(targetEgg.Uid)
-			task.wait(0.06)
-		end
-
-		-- 5. Ground walk Forest → Safe Zone
-		updateStatus("[5/5] Forest → Safe Zone...", Color3.fromRGB(100, 255, 170))
-		walkToTargetOnGround(SAFE_ZONE_POSITION, myToken)
-
-		task.wait(0.12)
-		dropEggRemote()
-		restoreBaseSpeed()
-
-		updateStatus("COMPLETED!", Color3.fromRGB(100, 255, 170))
-		print("[Steal-Pipeline v6.0] Escape flight completed.")
+		-- A stopped/older coroutine must not clean up or overwrite a newer run.
+		if currentToken ~= myToken then return end
+		cleanupRun()
 		isRunning = false
+		runCharacter = nil
+		if not ok then
+			warn("[Steal-Pipeline v6.1] " .. tostring(completed))
+			updateStatus("ERROR: Run stopped; physics restored.", Color3.fromRGB(255, 80, 80))
+		elseif not completed then
+			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
+		else
+			-- No delivery acknowledgement is present in either reference log.
+			updateStatus("Safe Zone reached. Verify egg delivery in-game.", Color3.fromRGB(100, 255, 170))
+		end
 	end)
 end
 
@@ -699,7 +562,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "STEAL AN EGG: ESCAPE FLIGHT v6.0"
+title.Text = "STEAL AN EGG: ESCAPE FLIGHT v6.1"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -752,7 +615,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 0, 38)
 statusLabel.Position = UDim2.new(0, 8, 0, 5)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Ready. Walk→Grab→Escape (Y=112.5, Horiz=0). No boss wait."
+statusLabel.Text = "Ready. Walk → Confirm carry → Escape → Safe Zone."
 statusLabel.TextColor3 = Color3.fromRGB(180, 220, 255)
 statusLabel.TextSize = 10
 statusLabel.Font = Enum.Font.Code
@@ -820,7 +683,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 50)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.0: Walk to egg → Grab → Escape (Y=112.5 Horiz=0)\nNo boss wait | Forest land → Safe Zone walk"
+footer.Text = "v6.1: Walk → Confirm carry → Escape (Y=112.5 Horiz=0)\nNo boss wait | Forest land → Safe Zone walk"
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -839,7 +702,7 @@ local function updateTargetDisplay()
 			tostring(targetEgg.AssetCategory or "Egg"),
 			targetEgg.Position.X, targetEgg.Position.Y, targetEgg.Position.Z)
 		or string.format("Target [%s]: NONE FOUND", selectedBiome)
-	targetLabel.Text = targetText
+	if targetLabel.Parent then targetLabel.Text = targetText end
 end
 
 biomeBtn.MouseButton1Click:Connect(function()
@@ -855,10 +718,13 @@ refreshBtn.MouseButton1Click:Connect(function()
 	statusLabel.Text = "Refreshing..."
 	cachedSnapshot = nil
 	snapshotTried = false
+	local refreshToken = currentToken
 	task.spawn(function()
 		fetchSnapshot()
 		updateTargetDisplay()
-		statusLabel.Text = "Snapshot refreshed."
+		if currentToken == refreshToken and not isRunning and statusLabel.Parent then
+			statusLabel.Text = "Snapshot refreshed."
+		end
 	end)
 end)
 
@@ -868,34 +734,27 @@ stealBtn.MouseButton1Click:Connect(function()
 end)
 
 stopBtn.MouseButton1Click:Connect(function()
-	currentToken = currentToken + 1
-	isRunning = false
-	isFlying = false
-	setFrictionless(false)
-	dropEggRemote()
-	restoreBaseSpeed()
-	recoverCharacterRig(LocalPlayer.Character)
-	statusLabel.Text = "Stopped."
+	stopRun()
+	statusLabel.Text = "Stopped. Physics restored; egg not dropped."
 	statusLabel.TextColor3 = Color3.fromRGB(255, 140, 140)
 end)
 
 local isGuiClosed = false
+local characterRemovingConnection = LocalPlayer.CharacterRemoving:Connect(function(char)
+	if char == runCharacter then
+		stopRun()
+		statusLabel.Text = "Stopped: character removed."
+	end
+end)
 local function handleClose()
 	if isGuiClosed then return end
 	isGuiClosed = true
-	currentToken = currentToken + 1
-	isRunning = false
-	isFlying = false
-	pcall(function() gui:Destroy() end)
-	task.spawn(function()
-		setFrictionless(false)
-		dropEggRemote()
-		restoreBaseSpeed()
-		recoverCharacterRig(LocalPlayer.Character)
-	end)
+	stopRun()
+	characterRemovingConnection:Disconnect()
+	gui:Destroy()
 end
 closeBtn.Activated:Connect(handleClose)
-closeBtn.MouseButton1Click:Connect(handleClose)
+gui.Destroying:Connect(handleClose)
 
 captureBaseSpeed()
 requestSnapshotAsync()
@@ -904,4 +763,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-print("[Steal-Pipeline v6.0] Escape flight ready. Walk→Grab→Forest→Safe.")
+print("[Steal-Pipeline v6.1] Escape flight ready. Walk→Grab→Forest→Safe.")
