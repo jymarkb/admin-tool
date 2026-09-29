@@ -437,6 +437,58 @@ M.setVelocity(v0.X - 200, v0.Y, v0.Z)
 M.pump(0.05)
 check("no duplicate HIT from a static frame", API.status().hits == hitsAfterJolt, API.status().hits)
 
+--=================== G3. GUI buttons: the real click path ===================
+-- Everything above tested API.setMode/API.watch directly, which hid the fact that the button closures
+-- could not see applyMode (a local created after the GUI) or setWatch (shadowed by a second
+-- `local function`). A live run showed both as "attempt to call a nil value" ERROR rows. Click them.
+local errsBefore = countInJournal("ERROR")
+local clearBtn = M.findDescendantByName(gui, "Btn_CLEAR")
+
+modeBtn.MouseButton1Click:Fire()
+M.pump(0.2)
+check("MODE button switches to all mode",
+	API.status().mode == "all" and API.status().watched == allPlan,
+	string.format("mode=%s watched=%d plan=%d", API.status().mode, API.status().watched, allPlan))
+check("MODE button does not error", countInJournal("ERROR") == errsBefore, journalText():sub(-300))
+modeBtn.MouseButton1Click:Fire()
+M.pump(0.2)
+check("MODE button switches back to focus",
+	API.status().mode == "focus" and API.status().watched == focusPlan,
+	string.format("mode=%s watched=%d plan=%d", API.status().mode, API.status().watched, focusPlan))
+
+watchBtn.MouseButton1Click:Fire()
+M.pump(0.2)
+check("WATCH button turns the listener off", API.status().watching == false, tostring(API.status().watching))
+check("WATCH button flips its label", watchBtn.Text == "WATCH: OFF", watchBtn.Text)
+watchBtn.MouseButton1Click:Fire()
+M.pump(0.2)
+check("WATCH button turns the listener back on",
+	API.status().watching == true and API.status().watched == focusPlan,
+	string.format("watching=%s watched=%d", tostring(API.status().watching), API.status().watched))
+M.fireRemote(F.watchTargets[2], { after = "button reconnect" })
+M.pump(0.1)
+check("listener captures after a button-driven reconnect", findInJournal("HazardHit") ~= nil)
+
+scanBtn.MouseButton1Click:Fire()
+check("FULL SCAN button runs a scan", waitFor(function() return countInJournal("SCAN COMPLETE") > 0 end))
+local firstError = nil
+for _, e in ipairs(API.journal()) do
+	if e.tag == "ERROR" then firstError = e.line break end
+end
+check("no button has raised an ERROR row", countInJournal("ERROR") == errsBefore, firstError)
+
+clearBtn.MouseButton1Click:Fire()
+M.pump(0.1)
+check("CLEAR button clears the journal",
+	countInJournal("SCAN COMPLETE") == 0 and findInJournal("journal cleared") ~= nil)
+check("CLEAR button keeps the listener", API.status().watching == true and API.status().watched == focusPlan,
+	string.format("watching=%s watched=%d", tostring(API.status().watching), API.status().watched))
+copyBtn.MouseButton1Click:Fire()
+M.pump(0.1)
+check("COPY button copies the live capture",
+	M.clipboard ~= nil and has(M.clipboard, "ADVANCED SCANNER v3 (listener)"))
+check("no ERROR after CLEAR/COPY", countInJournal("ERROR") == 0)
+
 --=================== H. export / copy / destroy ===================
 API.scan()                                   -- put a FULL SCAN block in the journal so the export scope is testable
 M.pump(0.4)

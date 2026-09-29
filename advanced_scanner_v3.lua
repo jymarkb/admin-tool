@@ -8,6 +8,8 @@
 	              the export header reports userId (one line said "hired" before)
 	  (build r3)  mode changes are atomic (connect the new set, then drop the old, roll back on failure);
 	              any internal error lands in the log as an ERROR row; STATUS prints watched/plan/events/quiet
+	  (build r5)  the GUI buttons call the same code as the API (they were calling a local that did not
+	              exist yet, so MODE and WATCH clicks only produced an ERROR row — found by r3's error rows)
 	  (build r4)  COPY exports the LIVE capture (the FULL SCAN dump is left out; .export(true) keeps it) and
 	              starts with a HIT SUMMARY block, so a hit is never buried under the inventory listing.
 	              Hit detection no longer depends on seeing the velocity spike: a RagdollEndTime window
@@ -118,7 +120,8 @@ local simulate = { connectFailure = false }   -- diagnostics hook: lets the offl
 
 local watchedRemoteNames = {}
 local API
-local countWatched, matchesFocus, watchList, planOf, rememberPlan, doScan, doCopy, doExport, setWatch, destroy
+local countWatched, matchesFocus, watchList, planOf, rememberPlan, doScan, doCopy, doExport,
+	applyMode, setWatch, destroy
 local connectWatch, disconnectWatch
 local lastVelocity, lastWalkSpeed, lastHealth, lastState = nil, nil, nil, nil
 local lastFastMove, fastMoveStreak = 0, 0
@@ -1070,7 +1073,7 @@ heartbeatBody = function()
 	end
 end
 
-local function applyMode(mode)
+applyMode = function(mode)
 	mode = (mode == "all") and "all" or "focus"
 	if modeButton then modeButton.Text = "MODE: " .. string.upper(mode) end
 	if mode == watchMode and watching then return watchMode end
@@ -1090,7 +1093,7 @@ local function applyMode(mode)
 	return watchMode
 end
 
-local function setWatch(on)
+setWatch = function(on)
 	if on and not watching then
 		watching = true
 		local connected, failure, planned = connectWatch(watchMode)
