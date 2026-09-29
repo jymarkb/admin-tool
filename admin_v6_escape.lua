@@ -1,5 +1,5 @@
 --[[=========================================================================
-	SNOW ESCAPE + MANUAL CHUNKED CFRAME TEST v6.6
+	SNOW ESCAPE + MANUAL CFRAME CONTROLS v6.7
 	+ Snow only: ground approach → confirmed egg carry → immediate Forest flight
 	+ Snow flight stays velocity-only; separate manual test uses chunked CFrame
 	+ Planned travel <=1.5s, travel cutoff 1.9s; no false arrival on timeout
@@ -18,7 +18,11 @@
 	Runtime game corrections can still prevent arrival; copy diagnostics.
 	Manual snap defaults: 10 studs/chunk, 1000 studs total, 0.05s interval.
 	Forward means the horizontal character-facing direction captured at Start.
-	Each write is at most one chunk; no giant final snap or rollback catch-up.
+	Each manual-forward write is at most one chunk; no rollback catch-up.
+	Separate Old CFrame → Forest control ports main's v6.0 profile: 78-stud
+	steps, five-frame rise to Y=112.5, three-frame descent to (612,74,-325).
+	Both manual controls skip egg pickup and share Emergency Stop. Legacy
+	timeout/cancellation never performs the old unconditional final teleport.
 =========================================================================]]
 
 local Players                = game:GetService("Players")
@@ -57,6 +61,10 @@ local CARRY_TIMEOUT_S     = 3
 local REMOTE_TIMEOUT_S    = 3
 local FLIGHT_ANIM_ID      = "rbxassetid://102039335618606"
 
+local LEGACY_STEP_SIZE    = 78
+local LEGACY_CRUISE_Y     = 112.5
+local LEGACY_TIMEOUT_S    = 2.5
+local LEGACY_LANDING      = Vector3.new(612, 74, -325) -- main: FOREST_LANDING.Y + 3
 local SNAP_MAX_STEPS      = 10000
 local SNAP_TIMEOUT_S      = 300
 local GUI_NAME            = "GrokEscapeFlightV6"
@@ -71,6 +79,7 @@ local flightTrack         = nil
 local flightRoot          = nil
 local originalPhysicalProperties = {}
 local originalCarriedProperties = {}
+local legacyCollisions = {}
 local flightSpeedConnection = nil
 local flightSpeedChangedConnection = nil
 local updatingFlightSpeed = false
@@ -124,7 +133,7 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[Steal-Pipeline v6.6] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[Steal-Pipeline v6.7] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
@@ -222,6 +231,12 @@ local function cleanupRun()
 	for part, original in pairs(originalCarriedProperties) do
 		pcall(function() part.Massless = original.massless; part.CanCollide = original.collide end)
 		originalCarriedProperties[part] = nil
+	end
+	-- Legacy noclip is applied before carried-part neutralization, so restore
+	-- its original collision values last (including false/noncolliding roots).
+	for part, original in pairs(legacyCollisions) do
+		pcall(function() part.CanCollide = original end)
+		legacyCollisions[part] = nil
 	end
 	for part, original in pairs(originalPhysicalProperties) do
 		pcall(function() part.CustomPhysicalProperties = original.value end)
@@ -692,7 +707,7 @@ local function executeTeleportPipeline(statusLabel)
 		runCharacter = nil
 		if not ok then
 			traceRun("ERROR_DETAIL", tostring(completed))
-			warn("[Steal-Pipeline v6.6] " .. tostring(completed))
+			warn("[Steal-Pipeline v6.7] " .. tostring(completed))
 			updateStatus("ERROR: Flight stopped; controls restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
@@ -835,6 +850,154 @@ local function executeChunkedSnap(chunkText, distanceText, delayText, statusLabe
 end
 
 ----------------------------------------------------------------
+-- MANUAL OLD CFRAME → FOREST (main's v6.0 movement profile)
+----------------------------------------------------------------
+
+local function applyLegacyPhysics()
+	applyFlightFriction()
+	for _, part in ipairs(runCharacter:GetDescendants()) do
+		if part:IsA("BasePart") then
+			if legacyCollisions[part] == nil then legacyCollisions[part] = part.CanCollide end
+			part.CanCollide = false
+		end
+	end
+	neutraliseEggPhysics(runCharacter)
+end
+
+local function runLegacyCFrame(myToken)
+	local root, hum, reason = getRunRig(myToken)
+	if not root then return false, reason end
+	if root.Anchored then return false, "Character is anchored" end
+	isFlying = true
+	flightRoot = root
+	applyLegacyPhysics()
+	hum:Move(Vector3.zero)
+	hum:MoveTo(root.Position)
+	hum.WalkSpeed = 0
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	pcall(function()
+		local animation = Instance.new("Animation")
+		animation.AnimationId = FLIGHT_ANIM_ID
+		local animator = hum:FindFirstChildOfClass("Animator") or hum
+		local ok, track = pcall(function() return animator:LoadAnimation(animation) end)
+		animation:Destroy()
+		if ok then
+			flightTrack = track
+			track.Priority = Enum.AnimationPriority.Movement
+			track:Play()
+		end
+	end)
+
+	local startedAt = os.clock()
+	local expected = root.Position
+	local function nextFrame()
+		RunService.Heartbeat:Wait()
+		root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		if root.Anchored then return false, "Character anchored during old CFrame flight" end
+		if os.clock() - startedAt >= LEGACY_TIMEOUT_S then
+			return false, "Old CFrame timed out; no forced Forest teleport"
+		end
+		if horizontalDistance(root.Position, expected) > 3 then
+			return false, "Old CFrame interrupted by external movement; no catch-up teleport"
+		end
+		applyLegacyPhysics()
+		return true
+	end
+
+	-- Settle one frame as in the original, but revalidate before every write.
+	local ready, frameError = nextFrame()
+	if not ready then return false, frameError end
+	local startPos = root.Position
+	local offset = Vector3.new(LEGACY_LANDING.X - startPos.X, 0, LEGACY_LANDING.Z - startPos.Z)
+	local totalDist = offset.Magnitude
+	local direction = totalDist > 0.001 and offset.Unit or Vector3.new(-1, 0, 0)
+	local traveled = 0
+	traceRun("LEGACY_START", string.format("source=main/v6.0 distance=%.1f step=78 cruiseY=112.5 timeout=2.5s", totalDist))
+
+	local function moveTo(pos, verticalVelocity)
+		root.CFrame = CFrame.new(pos, pos + direction)
+		root.AssemblyLinearVelocity = Vector3.new(0, verticalVelocity, 0)
+		root.AssemblyAngularVelocity = Vector3.zero
+		expected = pos
+	end
+
+	if totalDist >= 10 then
+		for i = 1, 5 do
+			ready, frameError = nextFrame()
+			if not ready then return false, frameError end
+			traveled = math.min(traveled + LEGACY_STEP_SIZE, totalDist)
+			local xz = startPos + direction * traveled
+			moveTo(Vector3.new(xz.X, startPos.Y + (LEGACY_CRUISE_Y - startPos.Y) * (i / 5), xz.Z), -8)
+		end
+		traceRun("LEGACY_CRUISE", "Locked Forest heading; zero horizontal velocity")
+		while horizontalDistance(root.Position, LEGACY_LANDING) > 25 do
+			ready, frameError = nextFrame()
+			if not ready then return false, frameError end
+			local remaining = horizontalDistance(root.Position, LEGACY_LANDING)
+			local step = remaining < 120 and math.clamp(remaining * 0.5, 28, LEGACY_STEP_SIZE) or LEGACY_STEP_SIZE
+			traveled = math.min(traveled + step, totalDist)
+			local xz = startPos + direction * traveled
+			moveTo(Vector3.new(xz.X, LEGACY_CRUISE_Y, xz.Z), -10)
+		end
+	end
+
+	-- Only descend after actual proximity, not after a timeout, X-only exit,
+	-- or cancellation. Preserve main's three-frame descent and landing height.
+	if horizontalDistance(root.Position, LEGACY_LANDING) > 25 then
+		return false, "Old CFrame did not reach Forest; descent skipped"
+	end
+	traceRun("LEGACY_DESCENT", "Three-frame descent to (612,74,-325)")
+	local descentStart = root.Position
+	for i = 1, 3 do
+		ready, frameError = nextFrame()
+		if not ready then return false, frameError end
+		moveTo(descentStart:Lerp(LEGACY_LANDING, i / 3), i == 3 and 0 or -12)
+	end
+	ready, frameError = nextFrame()
+	if not ready then return false, frameError end
+	if (root.Position - LEGACY_LANDING).Magnitude > ARRIVAL_RADIUS then
+		return false, "Old CFrame arrival was displaced"
+	end
+	traceRun("LEGACY_COMPLETE", string.format("Forest reached locally in %.3fs", os.clock() - startedAt))
+	return true
+end
+
+local function executeLegacyCFrame(statusLabel)
+	if isRunning then return end
+	currentToken += 1
+	local myToken = currentToken
+	isRunning = true
+	runCharacter = LocalPlayer.Character
+	captureBaseSpeed()
+	table.clear(diagnosticLines)
+	table.clear(flightSamples)
+	if statusLabel and statusLabel.Parent then
+		statusLabel.Text = "Manual old CFrame → Forest | 78-stud steps, Y=112.5"
+		statusLabel.TextColor3 = Color3.fromRGB(255, 190, 100)
+	end
+	task.spawn(function()
+		local ok, completed, reason = xpcall(function() return runLegacyCFrame(myToken) end, debug.traceback)
+		if currentToken ~= myToken then return end
+		cleanupRun()
+		isRunning = false
+		runCharacter = nil
+		local text
+		if not ok or not completed then
+			text = "OLD CFRAME STOPPED: " .. tostring(ok and reason or completed)
+			traceRun("LEGACY_ABORTED", text)
+		else
+			text = "Old CFrame complete: Forest reached locally."
+		end
+		if statusLabel and statusLabel.Parent then
+			statusLabel.Text = text
+			statusLabel.TextColor3 = ok and completed and Color3.fromRGB(100, 255, 170) or Color3.fromRGB(255, 100, 100)
+		end
+	end)
+end
+
+----------------------------------------------------------------
 -- GUI
 ----------------------------------------------------------------
 
@@ -847,8 +1010,8 @@ gui.ResetOnSpawn = false
 gui.Parent = PlayerGui
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 460, 0, 446)
-main.Position = UDim2.new(0.03, 0, 0.20, 0)
+main.Size = UDim2.new(0, 460, 0, 538)
+main.Position = UDim2.new(0.03, 0, 0.12, 0)
 main.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
 main.BorderSizePixel = 0
 main.Active = true
@@ -868,7 +1031,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "SNOW ESCAPE + CHUNKED CFRAME v6.6"
+title.Text = "SNOW ESCAPE + MANUAL CFRAME v6.7"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -921,7 +1084,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 0, 38)
 statusLabel.Position = UDim2.new(0, 8, 0, 5)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Snow flight above; independent forward CFrame test below. Stop cancels either."
+statusLabel.Text = "Choose Snow flight, chunked forward snap, or old CFrame → Forest. Stop cancels the active mode."
 statusLabel.TextColor3 = Color3.fromRGB(180, 220, 255)
 statusLabel.TextSize = 10
 statusLabel.Font = Enum.Font.Code
@@ -989,7 +1152,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.6: Grok-v3 flight port | Arc ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
+footer.Text = "v6.7: Grok-v3 flight port | Arc ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -1058,6 +1221,38 @@ snapHint.TextColor3 = Color3.fromRGB(150, 170, 200)
 snapHint.TextSize = 9
 snapHint.Font = Enum.Font.Code
 snapHint.Parent = main
+
+local legacyHeading = Instance.new("TextLabel")
+legacyHeading.Size = UDim2.new(1, -20, 0, 18)
+legacyHeading.Position = UDim2.fromOffset(10, 448)
+legacyHeading.BackgroundTransparency = 1
+legacyHeading.Text = "OLD CFRAME FROM MAIN — Forest, Y=112.5, 78-stud steps"
+legacyHeading.TextColor3 = Color3.fromRGB(255, 200, 120)
+legacyHeading.TextSize = 10
+legacyHeading.Font = Enum.Font.GothamBold
+legacyHeading.Parent = main
+
+local legacyStartBtn = Instance.new("TextButton")
+legacyStartBtn.Size = UDim2.new(1, -20, 0, 32)
+legacyStartBtn.Position = UDim2.fromOffset(10, 470)
+legacyStartBtn.BackgroundColor3 = Color3.fromRGB(145, 85, 35)
+legacyStartBtn.Text = "OLD CFRAME → FOREST (MANUAL)"
+legacyStartBtn.TextColor3 = Color3.new(1, 1, 1)
+legacyStartBtn.TextSize = 11
+legacyStartBtn.Font = Enum.Font.GothamBold
+legacyStartBtn.Parent = main
+Instance.new("UICorner", legacyStartBtn).CornerRadius = UDim.new(0, 5)
+legacyStartBtn.Activated:Connect(function() executeLegacyCFrame(statusLabel) end)
+
+local legacyHint = Instance.new("TextLabel")
+legacyHint.Size = UDim2.new(1, -20, 0, 26)
+legacyHint.Position = UDim2.fromOffset(10, 506)
+legacyHint.BackgroundTransparency = 1
+legacyHint.Text = "Starts at your current position; no egg pickup or drop.\nSeparate from forward-snap inputs. Emergency Stop cancels any mode."
+legacyHint.TextColor3 = Color3.fromRGB(150, 170, 200)
+legacyHint.TextSize = 9
+legacyHint.Font = Enum.Font.Code
+legacyHint.Parent = main
 
 -- Both buttons work independently of the scanner. Clipboard is optional;
 -- the selectable snapshot is the fallback when the executor has no clipboard.
@@ -1220,4 +1415,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-traceRun("READY", "Snow velocity flight + separate manual chunked-CFrame test ready. Default snap: 10 × 100 = 1000 studs.")
+traceRun("READY", "Ready: Snow velocity flight, manual chunked forward snap, and manual old CFrame → Forest. Only one mode runs at a time.")
