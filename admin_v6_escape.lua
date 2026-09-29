@@ -1,6 +1,8 @@
 --[[=========================================================================
-	SNOW ESCAPE + MANUAL CFRAME CONTROLS v6.7
-	+ Snow only: ground approach → confirmed egg carry → immediate Forest flight
+	GROK-V3 FORWARD FLIGHT + OPTIONAL TEST CONTROLS v6.8
+	+ Simple button: fly 1000 studs forward using Grok-v3 AssemblyLinearVelocity
+	+ New forward flight is independent of eggs, biomes, boss hits and ragdoll
+	+ Existing Snow/legacy CFrame tests remain available under Other controls
 	+ Snow flight stays velocity-only; separate manual test uses chunked CFrame
 	+ Planned travel <=1.5s, travel cutoff 1.9s; no false arrival on timeout
 	+ No boss wait, no ragdoll prerequisite and no automatic egg drop
@@ -61,6 +63,7 @@ local CARRY_TIMEOUT_S     = 3
 local REMOTE_TIMEOUT_S    = 3
 local FLIGHT_ANIM_ID      = "rbxassetid://102039335618606"
 
+local MANUAL_FLIGHT_DISTANCE = 1000
 local LEGACY_STEP_SIZE    = 78
 local LEGACY_CRUISE_Y     = 112.5
 local LEGACY_TIMEOUT_S    = 2.5
@@ -73,7 +76,6 @@ local currentToken        = 0
 local isRunning           = false
 local isFlying            = false
 local cachedSnapshot      = nil
-local snapshotTried       = false
 local runCharacter        = nil
 local flightTrack         = nil
 local flightRoot          = nil
@@ -133,19 +135,19 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[Steal-Pipeline v6.7] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[Steal-Pipeline v6.8] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
 	print(line)
 end
 
-local function sampleFlight(phase, dt, root, hum, commandedVelocity)
+local function sampleFlight(phase, dt, root, hum, commandedVelocity, destination)
 	local pos, vel = root.Position, root.AssemblyLinearVelocity
 	local state = hum:GetState()
 	local line = string.format(
 		"t=%.3f %s dt=%.4f pos=(%.1f,%.1f,%.1f) remaining=%.1f state=%s floor=%s anchored=%s platform=%s vel=(%.1f,%.1f,%.1f) command=(%.1f,%.1f,%.1f)",
-		os.clock(), phase, dt, pos.X, pos.Y, pos.Z, horizontalDistance(pos, FOREST_LANDING), state.Name,
+		os.clock(), phase, dt, pos.X, pos.Y, pos.Z, horizontalDistance(pos, destination or FOREST_LANDING), state.Name,
 		tostring(hum.FloorMaterial), tostring(root.Anchored), tostring(hum.PlatformStand), vel.X, vel.Y, vel.Z,
 		commandedVelocity.X, commandedVelocity.Y, commandedVelocity.Z)
 	table.insert(flightSamples, line)
@@ -153,7 +155,7 @@ local function sampleFlight(phase, dt, root, hum, commandedVelocity)
 end
 
 local function getDiagnosticsText()
-	return table.concat(diagnosticLines, "\n") .. "\n\nLAST SNOW → FOREST ARC OBSERVATIONS:\n"
+	return table.concat(diagnosticLines, "\n") .. "\n\nLAST VELOCITY FLIGHT OBSERVATIONS:\n"
 		.. table.concat(flightSamples, "\n")
 end
 
@@ -383,12 +385,6 @@ local function fetchSnapshot(forceRefresh, myToken)
 	return {}
 end
 
-local function requestSnapshotAsync()
-	if snapshotTried then return end
-	snapshotTried = true
-	task.spawn(function() fetchSnapshot() end)
-end
-
 local function isHoldingEgg(uid, myToken)
 	if not getRunRig(myToken) then return false end
 	if hasTargetEggAttribute(uid) then return true end
@@ -508,7 +504,7 @@ local function ragdollTimerExpired()
 	return typeof(endTime) ~= "number" or endTime <= 0 or serverNow() >= endTime + 0.15
 end
 
-local function executeEscapeFlightToForest(myToken)
+local function executeReferenceVelocityFlight(myToken, landingPos, routeName)
 	local root, hum, reason = getRunRig(myToken)
 	if not root then return false, reason end
 	if root.Anchored then return false, "Character is anchored" end
@@ -538,16 +534,16 @@ local function executeEscapeFlightToForest(myToken)
 
 	table.clear(flightSamples)
 	local launchFrom = root.Position
-	local distance = horizontalDistance(launchFrom, FOREST_LANDING)
+	local distance = horizontalDistance(launchFrom, landingPos)
 	local duration = math.clamp(distance / AERIAL_BASE_SPEED, MIN_ARC_DURATION, MAX_ARC_DURATION)
-	local speedLimit = math.max(AERIAL_BASE_SPEED, (FOREST_LANDING - launchFrom).Magnitude / duration) * 1.5
+	local speedLimit = math.max(AERIAL_BASE_SPEED, (landingPos - launchFrom).Magnitude / duration) * 1.5
 	local peakArc = math.clamp(distance * 0.035, 8, 26)
 	local startedAt = os.clock()
 	local command = Vector3.zero
 	local peakObservedY = launchFrom.Y
 	local nextProgressLog = 0
-	traceRun("FLIGHT_START", string.format("route=Snow→Forest mode=GROK_V3_ARC distance=%.1f planned=%.3fs cutoff=%.2fs speedCap=%.1f",
-		distance, duration, FLIGHT_CUTOFF_S, speedLimit))
+	traceRun("FLIGHT_START", string.format("route=%s mode=GROK_V3_ARC distance=%.1f planned=%.3fs cutoff=%.2fs speedCap=%.1f",
+		routeName, distance, duration, FLIGHT_CUTOFF_S, speedLimit))
 
 	while true do
 		local dt = RunService.Heartbeat:Wait()
@@ -555,23 +551,23 @@ local function executeEscapeFlightToForest(myToken)
 		if not root then return false, reason end
 		local elapsed = os.clock() - startedAt
 		peakObservedY = math.max(peakObservedY, root.Position.Y)
-		sampleFlight("ARC", dt, root, hum, command)
+		sampleFlight("ARC", dt, root, hum, command, landingPos)
 		if elapsed >= nextProgressLog then
 			nextProgressLog = elapsed + 0.25
 			traceRun("ARC_PROGRESS", string.format("elapsed=%.3fs remaining=%.1f y=%.1f peakY=%.1f walkSpeed=%.1f",
-				elapsed, horizontalDistance(root.Position, FOREST_LANDING), root.Position.Y, peakObservedY, hum.WalkSpeed))
+				elapsed, horizontalDistance(root.Position, landingPos), root.Position.Y, peakObservedY, hum.WalkSpeed))
 		end
 		if root.Anchored then return false, "Character anchored during arc" end
 		-- Do not mistake scheduled progress=1 for arrival. A late frame or
 		-- position reset fails the timing test instead of extending the flight.
 		if elapsed >= FLIGHT_CUTOFF_S then
-			return false, "Sub-2s arc missed Forest; no teleport fallback"
+			return false, "Sub-2s arc missed destination; no teleport fallback"
 		end
-		if (FOREST_LANDING - root.Position).Magnitude <= ARRIVAL_RADIUS and elapsed >= 0.25 then
+		if (landingPos - root.Position).Magnitude <= ARRIVAL_RADIUS and elapsed >= 0.25 then
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.AssemblyAngularVelocity = Vector3.zero
 			traceRun("FLIGHT_ARRIVED", string.format("travel=%.3fs error=%.2f rise=%.1f; stabilization begins separately",
-				elapsed, (FOREST_LANDING - root.Position).Magnitude, peakObservedY - launchFrom.Y))
+				elapsed, (landingPos - root.Position).Magnitude, peakObservedY - launchFrom.Y))
 			return true
 		end
 
@@ -583,7 +579,7 @@ local function executeEscapeFlightToForest(myToken)
 		-- No added gravity term or 0.1s dt clamp from the previous adaptation.
 		local nextProgress = math.clamp((elapsed + math.max(dt, 0.016)) / duration, 0, 1)
 		local arcY = peakArc * math.sin(nextProgress * math.pi)
-		local targetWaypoint = launchFrom:Lerp(FOREST_LANDING, nextProgress) + Vector3.new(0, arcY, 0)
+		local targetWaypoint = launchFrom:Lerp(landingPos, nextProgress) + Vector3.new(0, arcY, 0)
 		command = (targetWaypoint - root.Position) / math.max(dt, 0.001)
 		if command.Magnitude > speedLimit then command = command.Unit * speedLimit end
 		root.AssemblyLinearVelocity = command
@@ -593,7 +589,11 @@ local function executeEscapeFlightToForest(myToken)
 	end
 end
 
-local function stabilizeAtForest(myToken)
+local function executeEscapeFlightToForest(myToken)
+	return executeReferenceVelocityFlight(myToken, FOREST_LANDING, "Snow→Forest")
+end
+
+local function stabilizeVelocityFlight(myToken, landingPos, destinationName)
 	local startedAt = os.clock()
 	local command = Vector3.zero
 	local settled = false
@@ -601,12 +601,12 @@ local function stabilizeAtForest(myToken)
 		local dt = RunService.Heartbeat:Wait()
 		local root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
-		sampleFlight("STABILIZE", dt, root, hum, command)
+		sampleFlight("STABILIZE", dt, root, hum, command, landingPos)
 		if root.Anchored then return false, "Character anchored during stabilization" end
-		local delta = FOREST_LANDING - root.Position
+		local delta = landingPos - root.Position
 		-- Do not turn the reference's delta*4 hold into an unbounded second
 		-- flight when the game resets the character all the way back to Snow.
-		if delta.Magnitude > 15 then return false, "Displaced from Forest during stabilization" end
+		if delta.Magnitude > 15 then return false, "Displaced from " .. destinationName .. " during stabilization" end
 		neutraliseEggPhysics(runCharacter)
 		enforceFlightSpeed(myToken)
 		command = delta.Magnitude > HOLD_DEAD_ZONE and delta * 4 or Vector3.zero
@@ -618,7 +618,7 @@ local function stabilizeAtForest(myToken)
 			break
 		end
 	end
-	if not settled then return false, "Forest reached, but stabilization did not finish within 3.5s" end
+	if not settled then return false, destinationName .. " reached, but stabilization did not finish within 3.5s" end
 
 	-- Reference final settle: zero velocities for 0.20s without editing state,
 	-- joints, CFrame or position. Check cancellation after every yield.
@@ -627,10 +627,10 @@ local function stabilizeAtForest(myToken)
 		local dt = RunService.Heartbeat:Wait()
 		local root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
-		sampleFlight("FINAL_SETTLE", dt, root, hum, Vector3.zero)
+		sampleFlight("FINAL_SETTLE", dt, root, hum, Vector3.zero, landingPos)
 		if root.Anchored then return false, "Character anchored during final settle" end
-		if (FOREST_LANDING - root.Position).Magnitude > ARRIVAL_RADIUS then
-			return false, "Forest arrival lost during final settle"
+		if (landingPos - root.Position).Magnitude > ARRIVAL_RADIUS then
+			return false, destinationName .. " arrival lost during final settle"
 		end
 		if not ragdollTimerExpired() then return false, "Ragdoll timer restarted during final settle" end
 		enforceFlightSpeed(myToken)
@@ -639,6 +639,72 @@ local function stabilizeAtForest(myToken)
 	end
 	traceRun("STABILIZED", string.format("hold=%.3fs; reference dead-zone hold and final settle complete", os.clock() - startedAt))
 	return true
+end
+
+local function stabilizeAtForest(myToken)
+	return stabilizeVelocityFlight(myToken, FOREST_LANDING, "Forest")
+end
+
+----------------------------------------------------------------
+-- SIMPLE MANUAL GROK-V3 FLIGHT: 1000 STUDS FORWARD PER CLICK
+----------------------------------------------------------------
+
+local function executeForwardVelocityFlight(statusLabel)
+	if isRunning then
+		if statusLabel and statusLabel.Parent then
+			statusLabel.Text = "Movement already running. Stop it first; clicks are not queued."
+		end
+		return
+	end
+	currentToken += 1
+	local myToken = currentToken
+	isRunning = true
+	runCharacter = LocalPlayer.Character
+	captureBaseSpeed()
+	table.clear(diagnosticLines)
+	table.clear(flightSamples)
+	local function status(text, color)
+		if currentToken == myToken and statusLabel and statusLabel.Parent then
+			statusLabel.Text = text
+			statusLabel.TextColor3 = color
+		end
+	end
+
+	task.spawn(function()
+		local ok, completed, reason = xpcall(function()
+			local root, _, rigError = getRunRig(myToken)
+			if not root then return false, rigError end
+			if root.Anchored then return false, "Character is anchored" end
+			-- Reading facing is not CFrame movement. Freeze a world-space target
+			-- for THIS click; do not follow later camera/character turns.
+			local look = root.CFrame.LookVector
+			local forward = Vector3.new(look.X, 0, look.Z)
+			if forward.Magnitude < 0.001 then return false, "Face horizontally before clicking Fly" end
+			local origin = root.Position
+			local destination = origin + forward.Unit * MANUAL_FLIGHT_DISTANCE
+			traceRun("FORWARD_TARGET", string.format("distance=1000 origin=(%.1f,%.1f,%.1f) target=(%.1f,%.1f,%.1f)",
+				origin.X, origin.Y, origin.Z, destination.X, destination.Y, destination.Z))
+			status("Flying 1000 studs forward — Grok-v3 velocity arc...", Color3.fromRGB(80, 210, 255))
+			-- Exactly the same controller as the Snow return; no CFrame fallback,
+			-- carry/snapshot remote, boss wait, drop, or forced ragdoll in this mode.
+			local arrived, flightError = executeReferenceVelocityFlight(myToken, destination, "Manual forward 1000")
+			if not arrived then return false, flightError end
+			status("Destination reached; settling velocity...", Color3.fromRGB(255, 200, 120))
+			return stabilizeVelocityFlight(myToken, destination, "Forward destination")
+		end, debug.traceback)
+		if currentToken ~= myToken then return end
+		cleanupRun()
+		isRunning = false
+		runCharacter = nil
+		if not ok or not completed then
+			local message = tostring(ok and reason or completed)
+			traceRun("FORWARD_ABORTED", message)
+			status("Stopped: " .. message, Color3.fromRGB(255, 100, 100))
+		else
+			traceRun("FORWARD_COMPLETE", "1000-stud forward target reached locally; ready for next click")
+			status("Flight complete. Click again for another 1000 studs.", Color3.fromRGB(100, 255, 170))
+		end
+	end)
 end
 
 ----------------------------------------------------------------
@@ -707,7 +773,7 @@ local function executeTeleportPipeline(statusLabel)
 		runCharacter = nil
 		if not ok then
 			traceRun("ERROR_DETAIL", tostring(completed))
-			warn("[Steal-Pipeline v6.7] " .. tostring(completed))
+			warn("[Steal-Pipeline v6.8] " .. tostring(completed))
 			updateStatus("ERROR: Flight stopped; controls restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
@@ -1011,6 +1077,7 @@ gui.Parent = PlayerGui
 
 local main = Instance.new("Frame")
 main.Size = UDim2.new(0, 460, 0, 538)
+main.Visible = false -- compact forward-flight panel is the default UI
 main.Position = UDim2.new(0.03, 0, 0.12, 0)
 main.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
 main.BorderSizePixel = 0
@@ -1031,7 +1098,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "SNOW ESCAPE + MANUAL CFRAME v6.7"
+title.Text = "SNOW ESCAPE + MANUAL CFRAME v6.8"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -1152,7 +1219,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.7: Grok-v3 flight port | Arc ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
+footer.Text = "v6.8: Grok-v3 flight port | Arc ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -1253,6 +1320,82 @@ legacyHint.TextColor3 = Color3.fromRGB(150, 170, 200)
 legacyHint.TextSize = 9
 legacyHint.Font = Enum.Font.Code
 legacyHint.Parent = main
+
+-- Small independent panel: the new flight button never invokes a CFrame mode.
+local forwardFlightPanel = Instance.new("Frame")
+forwardFlightPanel.Name = "SimpleForwardVelocityFlight"
+forwardFlightPanel.Size = UDim2.fromOffset(300, 172)
+forwardFlightPanel.Position = UDim2.new(1, -310, 0.12, 0)
+forwardFlightPanel.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
+forwardFlightPanel.BorderSizePixel = 0
+forwardFlightPanel.Parent = gui
+Instance.new("UICorner", forwardFlightPanel).CornerRadius = UDim.new(0, 8)
+
+local forwardFlightTitle = Instance.new("TextLabel")
+forwardFlightTitle.Size = UDim2.new(1, -42, 0, 24)
+forwardFlightTitle.Position = UDim2.fromOffset(10, 6)
+forwardFlightTitle.BackgroundTransparency = 1
+forwardFlightTitle.Text = "GROK-V3 · VELOCITY FLIGHT"
+forwardFlightTitle.TextColor3 = Color3.fromRGB(120, 220, 255)
+forwardFlightTitle.TextSize = 11
+forwardFlightTitle.Font = Enum.Font.GothamBold
+forwardFlightTitle.Parent = forwardFlightPanel
+
+local forwardFlightCloseBtn = Instance.new("TextButton")
+forwardFlightCloseBtn.Size = UDim2.fromOffset(22, 22)
+forwardFlightCloseBtn.Position = UDim2.new(1, -28, 0, 6)
+forwardFlightCloseBtn.BackgroundColor3 = Color3.fromRGB(140, 45, 45)
+forwardFlightCloseBtn.Text = "X"
+forwardFlightCloseBtn.TextColor3 = Color3.new(1, 1, 1)
+forwardFlightCloseBtn.Parent = forwardFlightPanel
+
+local forwardFlightBtn = Instance.new("TextButton")
+forwardFlightBtn.Size = UDim2.new(1, -20, 0, 40)
+forwardFlightBtn.Position = UDim2.fromOffset(10, 38)
+forwardFlightBtn.BackgroundColor3 = Color3.fromRGB(35, 120, 170)
+forwardFlightBtn.Text = "FLY FORWARD 1000 STUDS"
+forwardFlightBtn.TextColor3 = Color3.new(1, 1, 1)
+forwardFlightBtn.TextSize = 13
+forwardFlightBtn.Font = Enum.Font.GothamBold
+forwardFlightBtn.Parent = forwardFlightPanel
+Instance.new("UICorner", forwardFlightBtn).CornerRadius = UDim.new(0, 6)
+
+local forwardFlightStatus = Instance.new("TextLabel")
+forwardFlightStatus.Size = UDim2.new(1, -20, 0, 44)
+forwardFlightStatus.Position = UDim2.fromOffset(10, 84)
+forwardFlightStatus.BackgroundTransparency = 1
+forwardFlightStatus.Text = "Face a direction, then click. No egg needed.\nPure velocity; no CFrame movement or boss wait."
+forwardFlightStatus.TextColor3 = Color3.fromRGB(180, 210, 235)
+forwardFlightStatus.TextSize = 10
+forwardFlightStatus.TextWrapped = true
+forwardFlightStatus.Font = Enum.Font.Code
+forwardFlightStatus.Parent = forwardFlightPanel
+forwardFlightBtn.Activated:Connect(function() executeForwardVelocityFlight(forwardFlightStatus) end)
+
+local forwardFlightStopBtn = Instance.new("TextButton")
+forwardFlightStopBtn.Size = UDim2.new(0.35, -10, 0, 26)
+forwardFlightStopBtn.Position = UDim2.fromOffset(10, 136)
+forwardFlightStopBtn.BackgroundColor3 = Color3.fromRGB(130, 45, 45)
+forwardFlightStopBtn.Text = "Stop"
+forwardFlightStopBtn.TextColor3 = Color3.new(1, 1, 1)
+forwardFlightStopBtn.TextSize = 11
+forwardFlightStopBtn.Font = Enum.Font.GothamBold
+forwardFlightStopBtn.Parent = forwardFlightPanel
+forwardFlightStopBtn.Activated:Connect(function()
+	stopRun("Manual flight Stop")
+	forwardFlightStatus.Text = "Stopped. Ready for another click."
+	statusLabel.Text = "Stopped. Velocity cleared."
+end)
+
+local otherControlsBtn = Instance.new("TextButton")
+otherControlsBtn.Size = UDim2.new(0.65, -20, 0, 26)
+otherControlsBtn.Position = UDim2.new(0.35, 10, 0, 136)
+otherControlsBtn.BackgroundColor3 = Color3.fromRGB(50, 65, 90)
+otherControlsBtn.Text = "Other controls / logs"
+otherControlsBtn.TextColor3 = Color3.new(1, 1, 1)
+otherControlsBtn.TextSize = 10
+otherControlsBtn.Font = Enum.Font.GothamBold
+otherControlsBtn.Parent = forwardFlightPanel
 
 -- Both buttons work independently of the scanner. Clipboard is optional;
 -- the selectable snapshot is the fallback when the executor has no clipboard.
@@ -1361,6 +1504,12 @@ local function updateTargetDisplay()
 	if targetLabel.Parent then targetLabel.Text = targetText end
 end
 
+-- No egg/network scanning is needed for the simple forward-flight panel.
+otherControlsBtn.Activated:Connect(function()
+	main.Visible = not main.Visible
+	if main.Visible and not isRunning then task.spawn(updateTargetDisplay) end
+end)
+
 -- Test scope is intentionally fixed; no biome cycling until this route works.
 biomeBtn.AutoButtonColor = false
 biomeBtn.Active = false
@@ -1369,7 +1518,6 @@ refreshBtn.MouseButton1Click:Connect(function()
 	if isRunning then return end
 	statusLabel.Text = "Refreshing..."
 	cachedSnapshot = nil
-	snapshotTried = false
 	local refreshToken = currentToken
 	task.spawn(function()
 		fetchSnapshot()
@@ -1388,6 +1536,7 @@ end)
 stopBtn.MouseButton1Click:Connect(function()
 	stopRun()
 	statusLabel.Text = "Stopped. Velocity cleared; no additional drop sent."
+	forwardFlightStatus.Text = "Stopped. Ready for another click."
 	statusLabel.TextColor3 = Color3.fromRGB(255, 140, 140)
 end)
 
@@ -1396,6 +1545,7 @@ local characterRemovingConnection = LocalPlayer.CharacterRemoving:Connect(functi
 	if char == runCharacter then
 		stopRun("Character removed")
 		statusLabel.Text = "Stopped: character removed."
+		forwardFlightStatus.Text = "Stopped: character removed. Click after respawning."
 	end
 end)
 local function handleClose()
@@ -1406,13 +1556,9 @@ local function handleClose()
 	gui:Destroy()
 end
 closeBtn.Activated:Connect(handleClose)
+forwardFlightCloseBtn.Activated:Connect(handleClose)
 gui.Destroying:Connect(handleClose)
 
 captureBaseSpeed()
-requestSnapshotAsync()
-task.defer(function()
-	task.wait(0.2)
-	updateTargetDisplay()
-end)
 
-traceRun("READY", "Ready: Snow velocity flight, manual chunked forward snap, and manual old CFrame → Forest. Only one mode runs at a time.")
+traceRun("READY", "Ready: simple Grok-v3 velocity button flies 1000 studs forward per click. Other tests are optional; one mode at a time.")
