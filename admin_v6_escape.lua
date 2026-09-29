@@ -1,8 +1,8 @@
 --[[=========================================================================
-	STEAL AN EGG — ESCAPE FLIGHT v6.1
+	STEAL AN EGG — ESCAPE FLIGHT v6.2
 	+ Ground approach → confirmed target carry → immediate escape (no boss wait)
-	+ Locked heading to Forest | Y=112.5 | zero horizontal physics velocity
-	+ Bounded, time-scaled steps; timeout/cancellation never force a landing
+	+ Heading to Forest | Y=112.5 | zero horizontal physics velocity
+	+ Bounded live-position steps; limited correction recovery, no landing snap
 	+ Preserve PlatformStand and original part physics; walk to Safe Zone
 
 	Log audit (scanner_v3.1.lua, other-script.log, normal-run-log-no-script.log):
@@ -12,6 +12,10 @@
 	- FLIGHT_START is delayed four samples; FLIGHT_END can split one flight.
 	- LARGE_MOVE dt can be zero because ZERO_HORIZ updates its shared timer;
 	  height variance includes takeoff/landing. Neither is a tuning target.
+	- Follow-up 12:35:37: three 78-stud steps, then a 234-stud X/Z rollback
+	  to takeoff. v6.1 would abort here; the later Physics impulse is not proof of
+	  the rollback's cause. Retry only limited corrections, never catch up by
+	  teleporting along the old path. Log recovery/abort reasons explicitly.
 =========================================================================]]
 
 local Players                = game:GetService("Players")
@@ -43,7 +47,12 @@ local FOREST_LANDING      = Vector3.new(612.2, 70.7, -325.0)
 
 local CRUISE_Y            = 112.5
 local STEP_SIZE           = 78
-local MAX_FLIGHT_S        = 2.5
+local MIN_FLIGHT_S        = 2.5
+local MAX_FLIGHT_S        = 6.0 -- absolute cap, including recovery and descent
+local LANDING_BUDGET_S    = 0.5
+local MAX_CORRECTIONS     = 2
+local CORRECTION_DISTANCE = 8
+local MAX_CORRECTION_DIST = STEP_SIZE * 4
 local FLIGHT_SPEED        = STEP_SIZE * 60 -- studs/s, capped at STEP_SIZE per frame
 local VERTICAL_STEP      = 12
 local ARRIVAL_RADIUS     = 5.5
@@ -98,6 +107,15 @@ end
 
 local function horizontalDistance(a, b)
 	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+local function hasTargetEggAttribute(uid)
+	local carriedUid = LocalPlayer:GetAttribute("EggUid")
+	return carriedUid ~= nil and tostring(carriedUid) == tostring(uid)
+end
+
+local function traceRun(tag, message)
+	print(string.format("[Steal-Pipeline v6.2] t=%.3f %s | %s", os.clock(), tag, message))
 end
 
 ----------------------------------------------------------------
@@ -196,7 +214,7 @@ end
 -- InvokeServer can yield indefinitely. Bound the wait and allow at most one
 -- outstanding request per remote; late responses never change run state.
 local pendingRemotes = {}
-local function invokeRemote(subPath, payload, myToken)
+local function invokeRemote(subPath, payload, myToken, confirmedWhileWaiting)
 	local rf = getRemote(subPath)
 	if not rf or (myToken and not getRunRig(myToken)) then return false, nil end
 	local request = pendingRemotes[subPath]
@@ -218,6 +236,9 @@ local function invokeRemote(subPath, payload, myToken)
 	local deadline = os.clock() + REMOTE_TIMEOUT_S
 	while not request.done do
 		if myToken and not getRunRig(myToken) then return false, nil end
+		-- A replicated target UID can arrive before InvokeServer returns. Do not
+		-- hold the character at the egg solely to wait for that late response.
+		if confirmedWhileWaiting and confirmedWhileWaiting() then return true, nil end
 		if os.clock() >= deadline then return false, nil end
 		RunService.Heartbeat:Wait()
 	end
@@ -227,7 +248,9 @@ end
 
 local function carryEggRemote(uid, myToken)
 	if not uid or not getRunRig(myToken) then return false end
-	local ok, result = invokeRemote("RF/EggWorld/AskFieldEggCarry", { Uid = tostring(uid) }, myToken)
+	if hasTargetEggAttribute(uid) then return true end
+	local ok, result = invokeRemote("RF/EggWorld/AskFieldEggCarry", { Uid = tostring(uid) }, myToken,
+		function() return hasTargetEggAttribute(uid) end)
 	return ok and result ~= false
 end
 
@@ -284,8 +307,7 @@ end
 
 local function isHoldingEgg(uid, myToken)
 	if not getRunRig(myToken) then return false end
-	local carriedUid = LocalPlayer:GetAttribute("EggUid")
-	if carriedUid ~= nil and tostring(carriedUid) == tostring(uid) then return true end
+	if hasTargetEggAttribute(uid) then return true end
 	-- Generic Tools, IsCarrying and rendered model names do not identify the
 	-- selected egg. Fall back to fresh, target-specific ownership evidence.
 	for _, egg in ipairs(fetchSnapshot(true, myToken)) do
@@ -298,12 +320,28 @@ end
 
 local function confirmCarry(uid, myToken)
 	local deadline = os.clock() + CARRY_TIMEOUT_S
-	repeat
-		if not getRunRig(myToken) then return false end
-		if isHoldingEgg(uid, myToken) then return true end
+	local probe = nil
+	local nextProbeAt = 0
+	while getRunRig(myToken) do
+		-- Keep watching local replication while a snapshot is in flight instead
+		-- of serially adding a full remote timeout to the pickup delay.
+		if hasTargetEggAttribute(uid) then return true end
 		if os.clock() >= deadline then break end
-		task.wait(0.15)
-	until false
+		if probe and probe.done then
+			if probe.holding then return true end
+			probe = nil
+			nextProbeAt = os.clock() + 0.15
+		end
+		if not probe and os.clock() >= nextProbeAt then
+			local request = { done = false }
+			probe = request
+			task.spawn(function()
+				request.holding = isHoldingEgg(uid, myToken)
+				request.done = true
+			end)
+		end
+		RunService.Heartbeat:Wait()
+	end
 	return false
 end
 
@@ -406,32 +444,59 @@ local function executeEscapeFlightToForest(myToken)
 	end)
 
 	local startPos = root.Position
-	local offset = Vector3.new(FOREST_LANDING.X - startPos.X, 0, FOREST_LANDING.Z - startPos.Z)
-	local totalDist = offset.Magnitude
-	local lockedDir = totalDist > 0.001 and offset.Unit or Vector3.new(-1, 0, 0)
-	local traveled, expectedPos = 0, startPos
-	local deadline = os.clock() + MAX_FLIGHT_S
+	local totalDist = horizontalDistance(startPos, FOREST_LANDING)
+	local expectedPos = startPos
+	local heading = Vector3.new(-1, 0, 0)
+	local corrections = 0
+	local startedAt = os.clock()
+	local hardDeadline = startedAt + MAX_FLIGHT_S
+	local deadline = startedAt + MIN_FLIGHT_S
+	traceRun("FLIGHT_START", string.format("pos=(%.1f,%.1f,%.1f) distance=%.1f",
+		startPos.X, startPos.Y, startPos.Z, totalDist))
 
-	while traveled < totalDist or math.abs(root.Position.Y - CRUISE_Y) > 0.5 do
+	while true do
 		local dt = RunService.Heartbeat:Wait()
 		root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
 		if os.clock() >= deadline then return false, "Flight timed out; no landing snap" end
 		if root.Anchored then return false, "Character anchored during flight" end
-		-- Do not fight a large external correction with a larger scripted jump.
-		if horizontalDistance(root.Position, expectedPos) > STEP_SIZE then
-			return false, "Flight interrupted by position correction"
+		local state = hum:GetState()
+		if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Ragdoll
+			or state == Enum.HumanoidStateType.FallingDown then
+			return false, "Flight interrupted by humanoid state " .. state.Name
 		end
-		setFrictionless(true) -- includes newly attached carried parts
+
+		local currentPos = root.Position
+		local correction = horizontalDistance(currentPos, expectedPos)
+		local verticalCorrection = math.abs(currentPos.Y - expectedPos.Y)
+		if correction > CORRECTION_DISTANCE or verticalCorrection > VERTICAL_STEP * 2 then
+			corrections += 1
+			traceRun("FLIGHT_CORRECTION", string.format("attempt=%d/%d xz=%.1f dy=%.1f pos=(%.1f,%.1f,%.1f)",
+				corrections, MAX_CORRECTIONS, correction, verticalCorrection, currentPos.X, currentPos.Y, currentPos.Z))
+			if corrections > MAX_CORRECTIONS or math.max(correction, verticalCorrection) > MAX_CORRECTION_DIST + 0.01 then
+				return false, "Repeated/large position corrections; flight stopped"
+			end
+			-- Rebase this step on the observed position, not the old traveled
+			-- distance. A 234-stud rollback must not cause a 312-stud catch-up.
+		end
+
+		local offset = Vector3.new(FOREST_LANDING.X - currentPos.X, 0, FOREST_LANDING.Z - currentPos.Z)
+		local remaining = offset.Magnitude
+		-- The 78-stud cap reduces effective speed below 60 FPS. Budget for the
+		-- remaining distance at that rate; recovery never resets the hard cap.
+		local effectiveSpeed = math.min(FLIGHT_SPEED, STEP_SIZE / math.max(dt, 1 / 60))
+		deadline = math.min(hardDeadline, math.max(deadline,
+			os.clock() + remaining / effectiveSpeed + LANDING_BUDGET_S))
+		if remaining <= 0.5 and math.abs(currentPos.Y - CRUISE_Y) <= 0.5 then break end
+
+		setFrictionless(true)
 		neutraliseEggPhysics(runCharacter)
-		traveled = math.min(totalDist, traveled + math.min(STEP_SIZE, FLIGHT_SPEED * dt))
-		local xz = startPos + lockedDir * traveled
-		local dy = math.clamp(CRUISE_Y - root.Position.Y, -VERTICAL_STEP, VERTICAL_STEP)
-		local nextPos = Vector3.new(xz.X, root.Position.Y + dy, xz.Z)
-		if horizontalDistance(root.Position, nextPos) > STEP_SIZE + 0.01 then
-			return false, "Flight step blocked by position correction"
-		end
-		root.CFrame = CFrame.new(nextPos, nextPos + lockedDir)
+		if remaining > 0.001 then heading = offset.Unit end
+		local step = math.min(remaining, STEP_SIZE, FLIGHT_SPEED * math.max(dt, 0))
+		local xz = currentPos + heading * step
+		local dy = math.clamp(CRUISE_Y - currentPos.Y, -VERTICAL_STEP, VERTICAL_STEP)
+		local nextPos = Vector3.new(xz.X, currentPos.Y + dy, xz.Z)
+		root.CFrame = CFrame.new(nextPos, nextPos + heading)
 		root.AssemblyLinearVelocity = Vector3.new(0, -8, 0)
 		root.AssemblyAngularVelocity = Vector3.zero
 		expectedPos = nextPos
@@ -450,11 +515,13 @@ local function executeEscapeFlightToForest(myToken)
 		local dy = FOREST_LANDING.Y - root.Position.Y
 		local y = root.Position.Y + math.clamp(dy, -VERTICAL_STEP, VERTICAL_STEP)
 		local nextPos = Vector3.new(root.Position.X, y, root.Position.Z)
-		root.CFrame = CFrame.new(nextPos, nextPos + lockedDir)
+		root.CFrame = CFrame.new(nextPos, nextPos + heading)
 		root.AssemblyLinearVelocity = Vector3.zero
 		root.AssemblyAngularVelocity = Vector3.zero
 		if math.abs(dy) <= VERTICAL_STEP then break end
 	end
+	traceRun("FLIGHT_LANDED", string.format("elapsed=%.3fs corrections=%d pos=(%.1f,%.1f,%.1f)",
+		os.clock() - startedAt, corrections, root.Position.X, root.Position.Y, root.Position.Z))
 	cleanupRun()
 	return true
 end
@@ -472,7 +539,9 @@ local function executeTeleportPipeline(statusLabel)
 	captureBaseSpeed()
 
 	local function updateStatus(text, color)
-		if currentToken == myToken and statusLabel and statusLabel.Parent then
+		if currentToken ~= myToken then return end
+		traceRun("STATUS", text)
+		if statusLabel and statusLabel.Parent then
 			statusLabel.Text = text
 			statusLabel.TextColor3 = color
 		end
@@ -487,13 +556,17 @@ local function executeTeleportPipeline(statusLabel)
 			if not getRunRig(myToken) then return false, "Cancelled" end
 			if not targetEgg then return false, "No available egg found" end
 
+			traceRun("TARGET", string.format("uid=%s biome=%s pos=(%.1f,%.1f,%.1f)",
+				targetEgg.Uid, targetEgg.AreaId, targetEgg.Position.X, targetEgg.Position.Y, targetEgg.Position.Z))
 			updateStatus("[2/5] Walking to " .. targetEgg.AreaId .. "...", Color3.fromRGB(80, 210, 255))
 			local reached, walkError = walkToTargetOnGround(targetEgg.Position, myToken)
 			if not reached then return false, walkError end
 
 			updateStatus("[3/5] Confirming target carry...", Color3.fromRGB(255, 160, 80))
+			local carryStartedAt = os.clock()
 			if not carryEggRemote(targetEgg.Uid, myToken) then return false, "Carry request failed or timed out" end
 			if not confirmCarry(targetEgg.Uid, myToken) then return false, "Target carry not confirmed" end
+			traceRun("CARRY_READY", string.format("uid=%s elapsed=%.3fs", targetEgg.Uid, os.clock() - carryStartedAt))
 
 			updateStatus("[4/5] ESCAPE FLIGHT → Forest...", Color3.fromRGB(255, 180, 100))
 			local arrived, flightError = executeEscapeFlightToForest(myToken)
@@ -517,7 +590,7 @@ local function executeTeleportPipeline(statusLabel)
 		isRunning = false
 		runCharacter = nil
 		if not ok then
-			warn("[Steal-Pipeline v6.1] " .. tostring(completed))
+			warn("[Steal-Pipeline v6.2] " .. tostring(completed))
 			updateStatus("ERROR: Run stopped; physics restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
@@ -562,7 +635,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "STEAL AN EGG: ESCAPE FLIGHT v6.1"
+title.Text = "STEAL AN EGG: ESCAPE FLIGHT v6.2"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -683,7 +756,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 50)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.1: Walk → Confirm carry → Escape (Y=112.5 Horiz=0)\nNo boss wait | Forest land → Safe Zone walk"
+footer.Text = "v6.2: Walk → Confirm carry → Escape (Y=112.5 Horiz=0)\nNo boss wait | Forest land → Safe Zone walk"
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -763,4 +836,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-print("[Steal-Pipeline v6.1] Escape flight ready. Walk→Grab→Forest→Safe.")
+print("[Steal-Pipeline v6.2] Escape flight ready. Walk→Grab→Forest→Safe.")
