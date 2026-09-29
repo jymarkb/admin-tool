@@ -50,6 +50,26 @@ Per-second digest (Horiz = horizontal component of `AssemblyLinearVelocity`):
 +8s  COPY
 ```
 
+## Ragdoll duration
+
+`Running → Physics` at 01:33:42, back under control (`GettingUp → Running`) at 01:33:44.
+
+| measure | value |
+|---|---|
+| Physics (limp) state, from accumulated frame intervals | **2.46 s** |
+| — launch → touchdown (airborne) | 0.86 s |
+| — touchdown → get-up (ground skim) | 1.60 s |
+| — get-up itself (`GettingUp → Running`) | < 0.1 s |
+| log clock (1 s resolution) | 01:33:42 → 01:33:44, i.e. strictly between 1.0 s and 3.0 s |
+
+The 2.46 s figure comes from the scanner's own `dt` field on the `LARGE_MOVE` rows: it is the time since the
+previous logged row, so it accumulates correctly across frames that were below the 12-stud logging threshold
+(the span #0011→#0049 sums to 2.46 s, including the two big gaps of 0.440 s and 0.328 s while skidding).
+
+For comparison, the **game's own** ragdoll events in the unscripted run are all sub-second (11:43:10, 11:43:16,
+11:43:38 — `Physics → GettingUp` within the same second each time, 2–6 state rows apart). This run's limp window
+is therefore ~3–5× longer than the game's normal one, and longer than the 1.6 s flight duration.
+
 ## The physics fit (the important part)
 
 | phase | measurement | expected from plain physics |
