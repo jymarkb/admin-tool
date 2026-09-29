@@ -1,16 +1,16 @@
 --[[=========================================================================
-	SNOW → FOREST RAGDOLL ARC TEST v6.4
-	+ Snow only: ground approach → bait carry → server ragdoll → drop bait
+	SNOW → FOREST IMMEDIATE ARC TEST v6.4.1
+	+ Snow only: ground approach → confirmed egg carry → immediate Forest flight
 	+ AssemblyLinearVelocity arc to Forest; no CFrame/Position/PivotTo writes
 	+ Planned travel <=1.5s, travel cutoff 1.9s; no false arrival on timeout
-	+ Guard wait and post-arrival ragdoll stabilization are separate timings
+	+ No boss wait, no ragdoll prerequisite and no automatic egg drop
 	+ No forced humanoid states, joint edits, anchoring or PlatformStand writes
 
 	Reference: origin/main grok-v3-target-fix.lua (a7b5ecd), read-only.
-	Uses its server-ragdoll/velocity-arc pattern in the reverse direction.
+	Uses its velocity arc in reverse; ragdoll is supported, never required.
 	Its 750 studs/s is a baseline, not a sub-two-second guarantee: derive the
 	command speed from route length and the capped duration for this test.
-	This is a movement test, not egg delivery: bait is dropped before launch.
+	The egg is kept carried; reaching Forest is not a delivery acknowledgement.
 	Runtime game corrections can still prevent arrival; copy diagnostics.
 =========================================================================]]
 
@@ -40,7 +40,6 @@ local AERIAL_BASE_SPEED   = 750
 local MIN_ARC_DURATION    = 0.35
 local MAX_ARC_DURATION    = 1.5
 local FLIGHT_CUTOFF_S     = 1.9 -- travel only, never extended by corrections
-local STRIKE_TIMEOUT_S    = 15
 local MIN_HOLD_S          = 0.85
 local MAX_HOLD_S          = 3.5
 local HOLD_MAX_SPEED      = 30
@@ -110,7 +109,7 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[Steal-Pipeline v6.4] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[Steal-Pipeline v6.4.1] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
@@ -408,7 +407,7 @@ local function walkToTargetOnGround(targetPos, myToken)
 end
 
 ----------------------------------------------------------------
--- SERVER RAGDOLL DETECTION / PURE ASSEMBLY VELOCITY ARC
+-- OPTIONAL POST-ARRIVAL RAGDOLL CHECK / PURE ASSEMBLY VELOCITY ARC
 ----------------------------------------------------------------
 
 local function serverNow()
@@ -435,30 +434,10 @@ local function ragdollActive(hum, withExpiryMargin)
 	return false, "none"
 end
 
-local function waitForServerRagdoll(myToken)
-	local startedAt = os.clock()
-	while os.clock() - startedAt < STRIKE_TIMEOUT_S do
-		local root, hum, reason = getRunRig(myToken)
-		if not root then return false, reason end
-		local active, source = ragdollActive(hum, false)
-		if active then
-			traceRun("RAGDOLL_READY", string.format("source=%s wait=%.3fs", source, os.clock() - startedAt))
-			return true
-		end
-		-- Stop walking, but do not suppress incoming knockback or create a
-		-- ragdoll locally. Only the server's state/attribute/joints qualify.
-		hum:Move(Vector3.zero)
-		hum:MoveTo(root.Position)
-		RunService.Heartbeat:Wait()
-	end
-	return false, "Server ragdoll not detected at Snow (15s timeout)"
-end
-
 local function executeEscapeFlightToForest(myToken)
 	local root, hum, reason = getRunRig(myToken)
 	if not root then return false, reason end
 	if root.Anchored then return false, "Character is anchored" end
-	if not ragdollActive(hum, false) then return false, "Ragdoll expired before launch; test aborted" end
 
 	isFlying = true
 	flightRoot = root
@@ -543,7 +522,7 @@ local function stabilizeAtForest(myToken)
 		if delta.Magnitude > 15 then return false, "Displaced from Forest during stabilization" end
 		if os.clock() - startedAt >= MIN_HOLD_S and not ragdollActive(hum, true)
 			and delta.Magnitude <= ARRIVAL_RADIUS then
-			traceRun("STABILIZED", string.format("hold=%.3fs; server ragdoll recovered", os.clock() - startedAt))
+			traceRun("STABILIZED", string.format("hold=%.3fs; no active ragdoll", os.clock() - startedAt))
 			return true
 		end
 		command = delta * 4 + Vector3.new(0, Workspace.Gravity * math.clamp(dt, 0, 0.1) * 0.5, 0)
@@ -551,7 +530,7 @@ local function stabilizeAtForest(myToken)
 		root.AssemblyLinearVelocity = command
 		root.AssemblyAngularVelocity = Vector3.zero
 	end
-	return false, "Forest reached, but server ragdoll did not stabilize within 3.5s"
+	return false, "Forest reached, but stabilization did not finish within 3.5s"
 end
 
 ----------------------------------------------------------------
@@ -567,7 +546,7 @@ local function executeTeleportPipeline(statusLabel)
 	captureBaseSpeed()
 	table.clear(diagnosticLines)
 	table.clear(flightSamples)
-	traceRun("RUN_START", string.format("test=Snow→Forest mode=ASSEMBLY_ARC plannedMax=%.2fs cutoff=%.2fs; wait/hold excluded",
+	traceRun("RUN_START", string.format("test=Snow→Forest mode=ASSEMBLY_ARC plannedMax=%.2fs cutoff=%.2fs; immediate pickup escape, no drop; post-arrival hold separate",
 		MAX_ARC_DURATION, FLIGHT_CUTOFF_S))
 
 	local function updateStatus(text, color)
@@ -583,35 +562,31 @@ local function executeTeleportPipeline(statusLabel)
 		local ok, completed, reason = xpcall(function()
 			local root, _, rigError = getRunRig(myToken)
 			if not root then return false, rigError end
-			updateStatus("[1/6] Scanning egg in " .. selectedBiome .. "...", Color3.fromRGB(255, 200, 80))
+			updateStatus("[1/5] Scanning egg in " .. selectedBiome .. "...", Color3.fromRGB(255, 200, 80))
 			local targetEgg = getTargetEgg(selectedBiome, true, myToken)
 			if not getRunRig(myToken) then return false, "Cancelled" end
 			if not targetEgg then return false, "No available egg found" end
 
 			traceRun("TARGET", string.format("uid=%s biome=%s pos=(%.1f,%.1f,%.1f)",
 				targetEgg.Uid, targetEgg.AreaId, targetEgg.Position.X, targetEgg.Position.Y, targetEgg.Position.Z))
-			updateStatus("[2/6] Walking to " .. targetEgg.AreaId .. "...", Color3.fromRGB(80, 210, 255))
+			updateStatus("[2/5] Walking to " .. targetEgg.AreaId .. "...", Color3.fromRGB(80, 210, 255))
 			local reached, walkError = walkToTargetOnGround(targetEgg.Position, myToken)
 			if not reached then return false, walkError end
 			traceRun("GROUND_ARRIVED", "Target approach finished")
 
-			updateStatus("[3/6] Confirming target carry...", Color3.fromRGB(255, 160, 80))
+			updateStatus("[3/5] Confirming target carry...", Color3.fromRGB(255, 160, 80))
 			local carryStartedAt = os.clock()
 			if not carryEggRemote(targetEgg.Uid, myToken) then return false, "Carry request failed or timed out" end
 			if not confirmCarry(targetEgg.Uid, myToken) then return false, "Target carry not confirmed" end
 			traceRun("CARRY_READY", string.format("uid=%s elapsed=%.3fs", targetEgg.Uid, os.clock() - carryStartedAt))
 
-			updateStatus("[4/6] Snow bait: waiting for server ragdoll...", Color3.fromRGB(255, 180, 100))
-			local struck, strikeError = waitForServerRagdoll(myToken)
-			if not struck then return false, strikeError end
-
-			updateStatus("[5/6] Drop bait → fast Snow-to-Forest arc...", Color3.fromRGB(255, 180, 100))
-			local dropped, dropResult = invokeRemote("RF/EggWorld/AskFieldEggDrop", nil, myToken)
-			if not dropped or dropResult == false then return false, "Bait drop failed or timed out; no launch" end
+			-- Launch straight after target-specific carry confirmation. Do not
+			-- wait for a guard strike/ragdoll and do not release the carried egg.
+			updateStatus("[4/5] Egg secured → immediate Forest flight...", Color3.fromRGB(255, 180, 100))
 			local arrived, flightError = executeEscapeFlightToForest(myToken)
 			if not arrived then return false, flightError end
 
-			updateStatus("[6/6] Forest reached; waiting for server recovery...", Color3.fromRGB(100, 255, 170))
+			updateStatus("[5/5] Forest reached; stabilizing...", Color3.fromRGB(100, 255, 170))
 			local stable, holdError = stabilizeAtForest(myToken)
 			if not stable then return false, holdError end
 			return true
@@ -624,12 +599,12 @@ local function executeTeleportPipeline(statusLabel)
 		runCharacter = nil
 		if not ok then
 			traceRun("ERROR_DETAIL", tostring(completed))
-			warn("[Steal-Pipeline v6.4] " .. tostring(completed))
+			warn("[Steal-Pipeline v6.4.1] " .. tostring(completed))
 			updateStatus("ERROR: Flight stopped; controls restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
 		else
-			updateStatus("TEST COMPLETE: Snow → Forest. Bait dropped; no delivery.", Color3.fromRGB(100, 255, 170))
+			updateStatus("Forest reached. No drop requested; verify egg in-game.", Color3.fromRGB(100, 255, 170))
 		end
 	end)
 end
@@ -668,7 +643,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "SNOW → FOREST: RAGDOLL ARC TEST v6.4"
+title.Text = "SNOW → FOREST: IMMEDIATE ARC TEST v6.4.1"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -721,7 +696,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 0, 38)
 statusLabel.Position = UDim2.new(0, 8, 0, 5)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Snow-only test. Bait → Server ragdoll → Drop → Forest arc."
+statusLabel.Text = "Snow only: Get egg → Immediate Forest flight. No boss wait."
 statusLabel.TextColor3 = Color3.fromRGB(180, 220, 255)
 statusLabel.TextSize = 10
 statusLabel.Font = Enum.Font.Code
@@ -789,7 +764,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.4: Snow only | Arc target ≤1.5s, cutoff 1.9s\nGuard wait/hold are separate. Bait dropped; no Safe Zone leg."
+footer.Text = "v6.4.1: Snow only | Arc target ≤1.5s, cutoff 1.9s\nNo boss wait or egg drop. Post-arrival hold is separate."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -957,4 +932,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-traceRun("READY", "Snow→Forest ragdoll arc test ready. Travel target ≤1.5s; no CFrame movement.")
+traceRun("READY", "Snow→Forest immediate arc ready. No boss wait/drop; travel target ≤1.5s; no CFrame movement.")
