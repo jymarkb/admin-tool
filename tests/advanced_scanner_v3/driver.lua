@@ -386,7 +386,60 @@ check("events counter accumulates", API.stats().events >= 45, API.stats().events
 check("per-minute rate computed", API.stats().perMinute > 0, API.stats().perMinute)
 check("journal stays under the cap", #API.journal() <= 4000, #API.journal())
 
+--=================== G2. build r4: cached plan, ragdoll-triggered hit, JOLT ===================
+check("cached plan equals the live focus plan", API._internals.planOf("focus") == focusPlan,
+	string.format("cache=%d live=%d", API._internals.planOf("focus"), focusPlan))
+check("cached plan equals the live all plan", API._internals.planOf("all") == allPlan,
+	string.format("cache=%d live=%d", API._internals.planOf("all"), allPlan))
+check("first remote of a fresh listener is announced", findInJournal("first remote event received") ~= nil)
+
+check("STATUS row reports the plan size", statusLine ~= nil and has(statusLine.line, "plan "), statusLine and statusLine.line)
+check("STATUS row reports the hit count", statusLine ~= nil and has(statusLine.line, "hits="), statusLine and statusLine.line)
+check("STATUS row names the last remote that fired",
+	statusLine ~= nil and has(statusLine.line, "last=") and not has(statusLine.line, "last=none"),
+	statusLine and statusLine.line)
+check("hit log matches the hit counter", #API._internals.hitLog() == API.status().hits and API.status().hits >= 1,
+	string.format("log=%d hits=%d", #API._internals.hitLog(), API.status().hits))
+check("the hit row says where the hit came from", hitLine ~= nil and has(hitLine.line, "via="),
+	hitLine and hitLine.line)
+
+-- A RagdollEndTime window with no visible velocity spike is still a hit: the client can read the root
+-- after the server already corrected it, so physics alone can miss the hit instant.
+M.pump(1.2)                                  -- clear the hit debounce
+local ragMark, hitsBefore = #API.journal(), API.status().hits
+M.setAttribute(F.player, "RagdollEndTime", M.serverNow() + 3)
+M.pump(0.05)
+local ragLine = findInJournal("window opened", ragMark)
+check("a future RagdollEndTime stamp opens a hit window", ragLine ~= nil, journalText():sub(-300))
+check("the window row decodes the stamp", ragLine ~= nil and has(ragLine.line, "+3.0s"), ragLine and ragLine.line)
+M.pump(0.7)
+local ragHit = findInJournal("via=ragdoll stamp", ragMark)
+check("a ragdoll window with no velocity spike is reported as a HIT", ragHit ~= nil, journalText():sub(-300))
+check("the ragdoll hit is counted once", API.status().hits == hitsBefore + 1, API.status().hits)
+
+-- a shove under the hit threshold is a JOLT, not silence
+M.pump(1.2)
+M.setAttribute(F.player, "RagdollEndTime", M.serverNow() - 30)   -- no window in play
+API.clear()
+M.pump(0.3)
+local joltMark = #API.journal()
+local v0 = F.root._props.AssemblyLinearVelocity
+M.setVelocity(v0.X - 200, v0.Y, v0.Z)        -- exactly 200 studs/s: over JOLT_DV, under HIT_DV
+M.pump(0.05)
+local joltLine = findInJournal("JOLT", joltMark)
+check("a 200 studs/s shove logs JOLT, not a HIT", joltLine ~= nil, journalText():sub(-300))
+check("JOLT row says why it is not a hit", joltLine ~= nil and has(joltLine.line, "under the 400 hit threshold"),
+	joltLine and joltLine.line)
+check("JOLT row names the last remote", joltLine ~= nil and has(joltLine.line, "last remote:"),
+	joltLine and joltLine.line)
+local hitsAfterJolt = API.status().hits
+M.setVelocity(v0.X - 200, v0.Y, v0.Z)
+M.pump(0.05)
+check("no duplicate HIT from a static frame", API.status().hits == hitsAfterJolt, API.status().hits)
+
 --=================== H. export / copy / destroy ===================
+API.scan()                                   -- put a FULL SCAN block in the journal so the export scope is testable
+M.pump(0.4)
 local ok, exported = API.copy()
 check("copy() reports success", ok == true)
 check("clipboard received the export", M.clipboard ~= nil and #M.clipboard > 500,
@@ -397,6 +450,15 @@ check("export has the watch stats line", has(M.clipboard, "watch=ON"))
 check("export contains a HIT row", has(M.clipboard, "HIT"))
 check("export contains remote rows", has(M.clipboard, "RE/BossEvent/HazardHit"))
 check("export equals API.export()", exported == API.export())
+check("export is scoped to the live capture", has(M.clipboard, "scope=live capture"))
+check("export omits the FULL SCAN dump but says how many lines were left out",
+	not has(M.clipboard, "===== LEADERSTATS =====") and has(M.clipboard, "FULL SCAN line(s) omitted"),
+	(M.clipboard or ""):sub(1, 300))
+check("export keeps the scan available on request", has(API.export(true), "===== LEADERSTATS ====="))
+check("export leads with a HIT SUMMARY block",
+	has(M.clipboard, "HIT SUMMARY") and (M.clipboard or ""):find("HIT SUMMARY") < (M.clipboard or ""):find("] #"),
+	(M.clipboard or ""):sub(1, 240))
+check("hit summary carries the hit detail", has(M.clipboard, "via="))
 
 check("read-only: zero outgoing calls all session", #M.outgoingCalls == 0 and #M.remoteCalls == 0,
 	string.format("fires=%d invokes=%d", #M.outgoingCalls, #M.remoteCalls))

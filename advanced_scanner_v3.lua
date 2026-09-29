@@ -6,6 +6,12 @@
 
 	  (build r2)  AUTO_WATCH starts the listener at load; repeat FULL SCANs print inventory diffs only;
 	              the export header reports userId (one line said "hired" before)
+	  (build r3)  mode changes are atomic (connect the new set, then drop the old, roll back on failure);
+	              any internal error lands in the log as an ERROR row; STATUS prints watched/plan/events/quiet
+	  (build r4)  COPY exports the LIVE capture (the FULL SCAN dump is left out; .export(true) keeps it) and
+	              starts with a HIT SUMMARY block, so a hit is never buried under the inventory listing.
+	              Hit detection no longer depends on seeing the velocity spike: a RagdollEndTime window
+	              opening in the future is a hit too, and JOLT rows show the shoves under the threshold
 	  FULL SCAN   leaderstats, player + character attributes, humanoid/movement snapshot,
 	              remote inventory (RemoteEvent + RemoteFunction, grouped by family),
 	              token-matched object search (word matching — "Trunk" no longer matches "run")
@@ -17,6 +23,10 @@
 	              on the Player (and the Character if present)
 	  SIGNALS     Health / WalkSpeed / Humanoid state / PlatformStand / Anchored / NetworkOwner /
 	              Tool add-remove (carry), CharacterAdded
+	  RAGDOLL     a RagdollEndTime stamp in the future = the server put you in a ragdoll window: that is the
+	              hit instant. Reported even when the client never sees the velocity spike (the correction
+	              is applied before the root is read), so a hit cannot be missed by watching physics alone.
+	  JOLT        |dv| between 150 and 400 studs/s — something shoved you but under the hit threshold
 	  HIT         flags the first frame where |dv| > 400 studs/s (state is reported, not required), and
 	              after each hit it re-arms only once the debounce window has passed — a second launch
 	              inside the window is intentionally not logged, and prints the
@@ -37,7 +47,7 @@
 
 	API
 	  _G.ADVANCED_SCANNER_V3.scan() / .watch(true|false) / .setMode("all"|"focus") / .clear()
-	  .copy() / .status() / .journal() / .stats() / .destroy()
+	  .copy() / .export([true]) / .hits() / .status() / .journal() / .stats() / .destroy()
 	  ._internals exposes tokens(), decodeRagdoll(), serialize(), watchList() for offline tests.
 ]]
 
@@ -64,6 +74,9 @@ local CONFIG = {
 	RENDER_HZ          = 8,
 	HIT_DV             = 400,    -- studs/s velocity change in one frame that counts as a hit
 	HIT_DEBOUNCE       = 1.0,
+	JOLT_DV            = 150,    -- studs/s change worth a softer JOLT row (something shoved me, under HIT_DV)
+	HIT_SUMMARY        = 40,     -- hits kept in the export's summary block (survives CLEAR and rollover)
+	RAGDOLL_WAIT       = 0.5,    -- ragdoll window with no velocity spike is still reported after this long
 	ATTRIB_WINDOW      = 0.25,   -- seconds of preceding remote events attached to a HIT row
 	FASTMOVE_SPEED     = 200,    -- studs/s that counts as "something is driving me fast"
 	FASTMOVE_STREAK    = 3,      -- frames in a row
@@ -92,6 +105,11 @@ local watching, watchMode = false, "focus"
 local watchConns, extraConns = {}, {}
 local remoteStats, recentEvents = {}, {}
 local hits, lastHitT = 0, -1
+local hitLog = {}                       -- every hit, kept in the export summary
+local lastJoltT = 0
+local lastRemoteName = nil              -- most recent remote that actually fired (proof the listener lives)
+local rxFirst = true
+local pendingRag = nil                  -- ragdoll window waiting for its velocity spike
 local firstScanDone = false
 local lastInventory = {}
 local lastEventT = 0
@@ -100,7 +118,7 @@ local simulate = { connectFailure = false }   -- diagnostics hook: lets the offl
 
 local watchedRemoteNames = {}
 local API
-local countWatched, matchesFocus, watchList, doScan, doCopy, doExport, setWatch, destroy
+local countWatched, matchesFocus, watchList, planOf, rememberPlan, doScan, doCopy, doExport, setWatch, destroy
 local connectWatch, disconnectWatch
 local lastVelocity, lastWalkSpeed, lastHealth, lastState = nil, nil, nil, nil
 local lastFastMove, fastMoveStreak = 0, 0
@@ -643,7 +661,8 @@ local function scanRemotes()
 	end
 	lastInventory = {}
 	for name, g in pairs(groups) do lastInventory[name] = { re = g.re, rf = g.rf } end
-	local planned = #watchList(watchMode)
+	rememberPlan()
+	local planned = planOf(watchMode)
 	say("REMOTES", string.format("watching now: %d | %s mode selects %d of %d remote events%s",
 		countWatched(), watchMode, planned, total, watching and "" or " (WATCH is OFF)"))
 end
@@ -672,6 +691,29 @@ countWatched = function()
 	local n = 0
 	for _ in pairs(watchedRemoteNames) do n = n + 1 end
 	return n
+end
+
+local watchPlan = { focus = 0, all = 0 }
+local watchPlanReady = false
+
+-- Counts both modes in one pass. Every call is a full ReplicatedStorage walk (~0.2s live), so this is
+-- only done on demand / after a FULL SCAN, never from a button press or the HUD refresh.
+rememberPlan = function()
+	local f, a = 0, 0
+	for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+		if obj:IsA("BaseRemoteEvent") or obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
+			a = a + 1
+			local path = tostring(obj:GetFullName()):gsub("^game%.", ""):gsub("^ReplicatedStorage%.", "")
+			if matchesFocus(path) then f = f + 1 end
+		end
+	end
+	watchPlan.focus, watchPlan.all, watchPlanReady = f, a, true
+	return a
+end
+
+planOf = function(mode)
+	if not watchPlanReady then rememberPlan() end
+	return (mode == "all") and watchPlan.all or watchPlan.focus
 end
 
 matchesFocus = function(path)
@@ -724,6 +766,11 @@ end
 local function onRemoteFired(path, ...)
 	local t = now()
 	lastEventT = t
+	lastRemoteName = path
+	if rxFirst then
+		rxFirst = false
+		say("INFO", "first remote event received on this listener — " .. path .. " (the capture is live)")
+	end
 	local okArgs, payload = pcall(serializeArgs, ...)
 	if not okArgs then payload = "<payload could not be serialized: " .. tostring(payload) .. ">" end
 	local st = remoteStat(path)
@@ -787,6 +834,7 @@ connectWatch = function(mode)
 		say("WARN", string.format("%d of %d remotes could not be hooked in %s mode",
 			planned - connected, planned, mode))
 	end
+	rxFirst = true   -- announce the first event of every fresh listener, so a dead hook is obvious
 	return connected, nil, planned
 end
 
@@ -810,7 +858,7 @@ local function describeRagdollForHit()
 		tostring(localPlayer:GetAttribute("AreaId") or "?"))
 end
 
-local function hitReport(dv, vel, root, hum)
+local function hitReport(dv, vel, root, hum, why)
 	local t = now()
 	local recent = {}
 	for i = #recentEvents, 1, -1 do
@@ -828,15 +876,29 @@ local function hitReport(dv, vel, root, hum)
 		attribution = table.concat(parts, "  ||  ")
 	end
 	hits = hits + 1
-	say("HIT", string.format("#%d dv=%.0f studs/s | vel=%s (%.0f) | pos=%s | %s | %s",
-		hits, dv, fmtVec(vel), math.sqrt(vel.X * vel.X + vel.Y * vel.Y + vel.Z * vel.Z),
-		fmtVec(root.Position), describeRagdollForHit(), attribution))
+	local detail = string.format("#%d dv=%.0f studs/s via=%s | vel=%s (%.0f) | pos=%s | %s | %s",
+		hits, dv, why or "dv", fmtVec(vel), math.sqrt(vel.X * vel.X + vel.Y * vel.Y + vel.Z * vel.Z),
+		fmtVec(root.Position), describeRagdollForHit(), attribution)
+	say("HIT", detail)
+	hitLog[#hitLog + 1] = { n = hits, t = elapsed(), detail = detail }
+	if #hitLog > CONFIG.HIT_SUMMARY then table.remove(hitLog, 1) end
+	pcall(function() print("[scanner v3] HIT " .. detail) end)   -- also in the console, HUD or not
+	return detail
 end
 
 local function onAttribute(name, value)
 	if name == "RagdollEndTime" then
 		local d = decodeRagdoll(value)
 		say("ATTR", string.format("RagdollEndTime -> %s", d.text))
+		-- A stamp in the future means the server just put this player in a ragdoll window. That is a hit
+		-- even when the client never sees the velocity spike (the correction lands before we read the
+		-- root), so arm a pending hit and let the heartbeat confirm or report it on its own.
+		local left = (type(value) == "number") and (value - serverNow()) or 0
+		if left > 1 and (now() - lastHitT) >= CONFIG.HIT_DEBOUNCE and not pendingRag then
+			pendingRag = { t = now(), left = left }
+			say("RAGDOLL", string.format("window opened — %s (+%.1fs) — a stun/hit landed here; anything the driver was doing did not cause it",
+				clockOf(value), left))
+		end
 	elseif name == "AreaId" then
 		say("ATTR", string.format("AreaId -> %s", tostring(value)))
 	elseif string.find(name:lower(), "ragdoll", 1, true) or string.find(name:lower(), "carry", 1, true)
@@ -943,7 +1005,28 @@ heartbeatBody = function()
 			local t = now()
 			if (t - lastHitT) >= CONFIG.HIT_DEBOUNCE then
 				lastHitT = t
-				hitReport(dv, vel, root, hum)
+				local why = "dv"
+				if pendingRag then why = "dv + ragdoll stamp" pendingRag = nil end
+				hitReport(dv, vel, root, hum, why)
+			end
+		elseif dv > CONFIG.JOLT_DV then
+			local t = now()
+			if (t - lastJoltT) >= 1 then
+				lastJoltT = t
+				say("JOLT", string.format("dv=%.0f studs/s (under the %d hit threshold) state=%s ws=%.0f | last remote: %s",
+					dv, CONFIG.HIT_DV, tostring(hum:GetState()):gsub("Enum.HumanoidStateType.", ""),
+					hum.WalkSpeed, lastRemoteName or "none"))
+			end
+		end
+		-- ragdoll window that never produced a velocity spike is still a hit
+		if pendingRag and (now() - pendingRag.t) > CONFIG.RAGDOLL_WAIT then
+			local t = now()
+			local why = string.format("ragdoll stamp (+%.1fs window, no single-frame dv over %d)",
+				pendingRag.left, CONFIG.HIT_DV)
+			pendingRag = nil
+			if (t - lastHitT) >= CONFIG.HIT_DEBOUNCE then
+				lastHitT = t
+				hitReport(dv, vel, root, hum, why)
 			end
 		end
 		-- script-driven fast movement (not ragdolled, not a hit)
@@ -969,12 +1052,13 @@ heartbeatBody = function()
 		local left = ragdollRemaining()
 		local st = statsSnapshot()
 		say("STATUS", string.format(
-			"state=%s hp=%.0f ws=%.0f speed=%.0f ragdoll=%s area=%s | watched=%d/%s | events=%d quiet=%s%s",
+			"state=%s hp=%.0f ws=%.0f speed=%.0f ragdoll=%s area=%s | watched=%d/%s (plan %d) | events=%d quiet=%s hits=%d last=%s%s",
 			tostring(hum:GetState()):gsub("Enum.HumanoidStateType.", ""), hum.Health, hum.WalkSpeed, speed,
 			left and string.format("%.1fs", left) or "-",
 			tostring(localPlayer:GetAttribute("AreaId") or "?"),
-			countWatched(), watchMode, st.events,
+			countWatched(), watchMode, planOf(watchMode), st.events,
 			st.quiet and string.format("%.0fs", st.quiet) or "-",
+			hits, lastRemoteName or "none",
 			(#recentEvents > 0) and "" or " | (no remote has fired yet)"))
 	end
 
@@ -993,7 +1077,7 @@ local function applyMode(mode)
 	if not watching then
 		watchMode = mode
 		say("INFO", string.format("mode = %s | %d remote event(s) will be watched when WATCH turns on",
-			mode, #watchList(mode)))
+			mode, planOf(mode)))
 		return watchMode
 	end
 	local connected, failure, planned = connectWatch(mode)
@@ -1045,16 +1129,38 @@ doCopy = function(button)
 	return ok, text
 end
 
-doExport = function()
+doExport = function(includeScan)
 	local lines = {
 		"===== ADVANCED SCANNER v3 (listener) =====",
-		string.format("exported at t+%.3fs | entries=%d dropped=%d | watch=%s mode=%s | watched=%d",
-			elapsed(), #journal, dropped, watching and "ON" or "OFF", watchMode, countWatched()),
+		string.format("exported at t+%.3fs | entries=%d dropped=%d | watch=%s mode=%s | watched=%d (plan %d)",
+			elapsed(), #journal, dropped, watching and "ON" or "OFF", watchMode, countWatched(), planOf(watchMode)),
 		string.format("player=%s | userId=%s", localPlayer.Name, tostring(localPlayer.UserId)),
+		includeScan and "scope=everything (FULL SCAN block included)"
+			or "scope=live capture — the FULL SCAN dump is omitted so the hits are readable; API.export(true) adds it",
 		"",
 	}
+	if #hitLog > 0 then
+		lines[#lines + 1] = string.format("----- HIT SUMMARY (%d, oldest first) -----", #hitLog)
+		for _, h in ipairs(hitLog) do
+			lines[#lines + 1] = string.format("t+%.3fs  %s", h.t, h.detail)
+		end
+		lines[#lines + 1] = ""
+	end
+	local omitted, inScan = 0, false
 	for _, entry in ipairs(journal) do
-		lines[#lines + 1] = entry.line
+		if not includeScan and entry.tag == "----" and string.find(entry.text, "FULL SCAN", 1, true) then
+			inScan = true
+		end
+		if inScan then
+			omitted = omitted + 1
+			if entry.tag == "----" and string.find(entry.text, "SCAN COMPLETE", 1, true) then inScan = false end
+		else
+			lines[#lines + 1] = entry.line
+		end
+	end
+	if omitted > 0 then
+		lines[#lines + 1] = string.format("(%d FULL SCAN line(s) omitted — paste this and the hits are at the top)",
+			omitted)
 	end
 	return table.concat(lines, "\n")
 end
@@ -1084,7 +1190,8 @@ API.clear = function()
 	say("INFO", snapshot)
 end
 API.copy = function() return doCopy(nil) end
-API.export = doExport
+API.export = doExport                 -- .export() = live capture, .export(true) = full journal
+API.hits = function() return hitLog end
 API.status = function()
 	return { watching = watching, mode = watchMode, watched = countWatched(),
 		ragdollRemaining = ragdollRemaining(), hits = hits,
@@ -1100,6 +1207,7 @@ API.destroy = destroy
 API._internals = {
 	tokens = tokens, hasToken = hasToken, decodeRagdoll = decodeRagdoll, serializeValue = serializeValue,
 	serializeArgs = serializeArgs, watchList = watchList, matchesFocus = matchesFocus,
+	planOf = planOf, rememberPlan = rememberPlan, hitLog = function() return hitLog end,
 	recentEvents = function() return recentEvents end, conns = function() return extraConns end,
 	simulate = simulate,
 }
@@ -1110,7 +1218,7 @@ local guiOk = buildGui()
 if guiOk then
 	refreshStatus()
 	sep("READY")
-	say("INFO", "v3 listener ready. FULL SCAN = inventory, WATCH ON = live capture, COPY RESULTS = paste here.")
+	say("INFO", "v3 listener ready. FULL SCAN = inventory, WATCH ON = live capture, COPY RESULTS = paste the hits (the scan dump is left out of the copy).")
 else
 	say("INFO", "GUI could not be parented (no PlayerGui) — API still available")
 end
