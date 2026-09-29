@@ -4,7 +4,9 @@ local API = _G.ADVANCED_SCANNER_V3
 M.reset()
 
 -- scenario: carrying an egg in the far egg area, boss hazard fires, physics launch (like the 01:33 log)
-M.setAttribute(F.player, "AreaId", "Jungle")
+M.setAttribute(F.player, "AreaId", "Forest")
+M.drive(function() F.humanoid._props.WalkSpeed = 234.1 end)          -- the game's own speed stat
+M.setAttribute(F.player, "RagdollEndTime", M.serverNow() - 215.5)    -- live log had the stamp in the past
 API.watch(true)
 M.pump(0.1)
 

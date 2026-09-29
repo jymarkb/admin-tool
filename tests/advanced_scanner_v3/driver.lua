@@ -63,12 +63,12 @@ check("leaderstats value read", has(text, "Money/s = 18108437162"), text:sub(1, 
 check("player attributes section present", has(text, "PLAYER ATTRIBUTES"))
 check("AreaId surfaced as the biome", has(text, "AreaId = Jungle   <- current biome"))
 local rdLine = findInJournal("RagdollEndTime = ")
-local rdLeft = rdLine and tonumber(string.match(rdLine.line, "%+(%d+%.%d)s"))
+local rdLeft = rdLine and tonumber(string.match(rdLine.line, "(%d+%.%d)s left"))
 check("RagdollEndTime decoded to clock + remaining", rdLine ~= nil and has(rdLine.line, "->")
-	and rdLeft ~= nil and rdLeft > 2.0 and rdLeft <= 3.05, rdLine and rdLine.line)
+	and has(rdLine.line, "left") and rdLeft ~= nil and rdLeft > 2.0 and rdLeft <= 3.05, rdLine and rdLine.line)
 check("JoinTick decoded to a clock time", has(text, "JoinTick = ") and has(text, "-> "))
-check("ragdoll remaining reported", has(text, "ragdoll remaining now = 3.") or has(text, "ragdoll remaining now = 2."),
-	findInJournal("ragdoll remaining now") and findInJournal("ragdoll remaining now").line)
+check("active ragdoll window reported explicitly", findInJournal("RAGDOLL ACTIVE") ~= nil,
+	findInJournal("RAGDOLL ACTIVE") and findInJournal("RAGDOLL ACTIVE").line)
 check("movement snapshot present", has(text, "MOVEMENT SNAPSHOT") and has(text, "state=Running hp=100.0/100.0"))
 check("carry snapshot present", has(text, "CARRY") and has(text, "IsCarrying=nil"))
 check("remote inventory totals", has(text, "total=") and has(text, "RemoteFunction="))
@@ -83,10 +83,34 @@ check("object search found the running sound (real token match)", has(text, "Run
 check("'Trunk' no longer matches 'run' (v2 bug fixed)", not has(text, "Trunk"),
 	findInJournal("Trunk") and findInJournal("Trunk").line)
 check("scan summary line present", has(text, "read-only: no remote calls made"))
+check("header shows userId (not 'hired')", has(text, "userId=42") and not has(text, "hired="))
+local clockLine = findInJournal("server clock ")
+check("server clock is a real time, not '?'", clockLine ~= nil and not has(clockLine.line, "clock ?"),
+	clockLine and clockLine.line)
+check("server time row printed with a clock", findInJournal("server time now = ") ~= nil,
+	findInJournal("server time now = ") and findInJournal("server time now = ").line)
+check("object search no longer drags in plot noise", not has(text, "PlotSign"))
+check("object search is labelled with its tokens", has(text, "token-matched: run / running / treadmill / belt"))
+local planned = findInJournal("mode selects ")
+check("watch plan is reported even while WATCH is OFF",
+	planned ~= nil and has(planned.line, "WATCH is OFF") and has(planned.line, "remote events"),
+	planned and planned.line)
+check("network owner read failure is labelled, not '?'",
+	has(text, "net=client-side read blocked") or has(text, "net=nil") or has(text, "net="))
 check("scan made no outgoing calls", #M.outgoingCalls == 0, string.format("%d", #M.outgoingCalls))
 check("scan wrote nothing to the game", #M.violations == 0, tostring(M.violations[1] and M.violations[1].kind))
 
 --=================== C. watch list / modes ===================
+-- expired RagdollEndTime (the live log had one 215s in the past) must read as "ended ... ago"
+local expiredMark = #API.journal()
+M.setAttribute(F.player, "RagdollEndTime", M.serverNow() - 215.5)
+M.pump(0.1)
+local pastLine = findInJournal("RagdollEndTime ->", expiredMark)
+check("expired ragdoll stamp is described as ended, not negative",
+	pastLine ~= nil and has(pastLine.line, "ago"), pastLine and pastLine.line)
+check("expired stamp does not read as an active ragdoll", API.status().ragdollRemaining == 0,
+	tostring(API.status().ragdollRemaining))
+
 API.setMode("focus")
 local focusList = API._internals.watchList("focus")
 local allList = API._internals.watchList("all")
@@ -183,7 +207,8 @@ M.pump(0.1)
 local attrLine = findInJournal("RagdollEndTime ->", attrMark)
 check("RagdollEndTime change logged", attrLine ~= nil, attrLine and attrLine.line)
 check("RagdollEndTime change shows remaining seconds",
-	attrLine ~= nil and (has(attrLine.line, "+5.0") or has(attrLine.line, "+4.9")), attrLine and attrLine.line)
+	attrLine ~= nil and (has(attrLine.line, "5.0s left") or has(attrLine.line, "4.9s left")),
+	attrLine and attrLine.line)
 check("status reports the live countdown",
 	(function()
 		local left = API.status().ragdollRemaining
@@ -201,12 +226,19 @@ check("health change logged with delta", hpLine ~= nil and has(hpLine.line, "-60
 
 M.drive(function() F.humanoid:ChangeState(M.enumItem("HumanoidStateType", "Running")) end)
 M.pump(0.1)
+M.setWalkSpeed(F.humanoid, 234.1)
+M.pump(0.1)
+local wsGame = findInJournal("WALKSPEED", attrMark)
+check("game's own high WalkSpeed logged", wsGame ~= nil, wsGame and wsGame.line)
+check("game's own 234 is NOT claimed as script-driven",
+	wsGame ~= nil and not has(wsGame.line, "script") and has(wsGame.line, "high"),
+	wsGame and wsGame.line)
+local wsMark = #API.journal()
 M.setWalkSpeed(F.humanoid, 500)
 M.pump(0.1)
-local wsLine = findInJournal("WALKSPEED", attrMark)
-check("forced WalkSpeed logged", wsLine ~= nil, wsLine and wsLine.line)
-check("forced WalkSpeed flagged as script-driven", wsLine ~= nil and has(wsLine.line, "script-driven"),
-	wsLine and wsLine.line)
+local wsFlight = findInJournal("WALKSPEED", wsMark)
+check("flight constant 500 flagged as the flight script",
+	wsFlight ~= nil and has(wsFlight.line, "flight script constant"), wsFlight and wsFlight.line)
 
 M.drive(function() F.humanoid:ChangeState(M.enumItem("HumanoidStateType", "GettingUp")) end)
 M.pump(0.1)

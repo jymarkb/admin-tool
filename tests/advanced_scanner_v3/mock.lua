@@ -76,8 +76,15 @@ local function clockString(epoch)
 	return string.format("%02d:%02d:%02d", math.floor(secs/3600), math.floor(secs%3600/60), secs%60)
 end
 DateTime = {
+	-- Roblox: Format() takes a strftime pattern; anything without '%' raises.
 	fromUnixTimestamp = function(t)
-		return { Format = function(_, fmt) return clockString(t) end }
+		return { Format = function(_, fmt)
+			if type(fmt) ~= "string" or not string.find(fmt, "%%", 1) then
+				error("invalid format string (expected strftime, e.g. %H:%M:%S)")
+			end
+			local h, m, sec = math.floor(t/3600) % 24, math.floor(t/60) % 60, math.floor(t) % 60
+			return string.format(fmt:gsub("%%%%H", "%02d"):gsub("%%%%M", "%02d"):gsub("%%%%S", "%02d"), h, m, sec)
+		end }
 	end,
 	now = function() return { Format = function(_, fmt) return clockString(M.serverOffset + M.vclock) end } end,
 }

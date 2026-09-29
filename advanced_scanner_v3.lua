@@ -90,7 +90,7 @@ local remoteStats, recentEvents = {}, {}
 local hits, lastHitT = 0, -1
 local watchedRemoteNames = {}
 local API
-local countWatched, matchesFocus, doScan, doCopy, doExport, setWatch, destroy
+local countWatched, matchesFocus, watchList, doScan, doCopy, doExport, setWatch, destroy
 local connectWatch, disconnectWatch
 local lastVelocity, lastWalkSpeed, lastHealth, lastState = nil, nil, nil, nil
 local lastFastMove, fastMoveStreak = 0, 0
@@ -216,10 +216,13 @@ local function serverNow()
 end
 
 local function clockOf(epoch)
+	if type(epoch) ~= "number" or epoch <= 0 then return "?" end
 	local ok, s = pcall(function()
-		return DateTime.fromUnixTimestamp(math.floor(epoch)):Format("HH:mm:ss")
+		return DateTime.fromUnixTimestamp(math.floor(epoch)):Format("%H:%M:%S")
 	end)
-	return ok and s or "?"
+	if ok and s then return s end
+	local ok2, s2 = pcall(function() return os.date("%H:%M:%S", math.floor(epoch)) end)
+	return ok2 and s2 or "?"
 end
 
 local function decodeRagdoll(value)
@@ -227,8 +230,11 @@ local function decodeRagdoll(value)
 		return { raw = value, valid = false, remaining = nil, clock = "?", text = tostring(value) }
 	end
 	local remaining = value - serverNow()
+	local when = (remaining >= 0)
+		and string.format("%.1fs left", remaining)
+		or string.format("ended %.1fs ago", -remaining)
 	return { raw = value, valid = true, remaining = remaining, clock = clockOf(value),
-		text = string.format("%.2f (%s | %+.1fs)", value, clockOf(value), remaining) }
+		text = string.format("%.2f (%s | %s)", value, clockOf(value), when) }
 end
 
 local function ragdollRemaining()
@@ -445,7 +451,17 @@ local function scanPlayerAttributes()
 		end
 	end
 	local left = ragdollRemaining()
-	say("ATTR", "ragdoll remaining now = " .. (left and string.format("%.2fs", left) or "(expired / none)"))
+	local raw = localPlayer:GetAttribute("RagdollEndTime")
+	if left and left > 0 then
+		say("ATTR", string.format("RAGDOLL ACTIVE — %.2fs left (server window)", left))
+	elseif type(raw) == "number" and raw > 0 then
+		say("ATTR", string.format(
+			"no ragdoll now — RagdollEndTime is a stamp of the LAST one (ended %.1fs ago); a hit only counts while it is in the future",
+			serverNow() - raw))
+	else
+		say("ATTR", "no ragdoll now — RagdollEndTime not set this session")
+	end
+	say("ATTR", string.format("server time now = %.3f (%s)", serverNow(), clockOf(serverNow())))
 end
 
 local function scanCharacter()
@@ -487,11 +503,12 @@ local function scanHumanoid()
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	if not hum or not root then say("INFO", "(no humanoid/root)") return end
 	local okState, state = pcall(function() return hum:GetState() end)
-	local netOwner = "?"
-	pcall(function()
+	local netOwner = "n/a on client"
+	local okOwner = pcall(function()
 		local o = root:GetNetworkOwner()
 		netOwner = o and o.Name or "nil"
 	end)
+	if not okOwner then netOwner = "client-side read blocked" end
 	say("MOVE", string.format(
 		"state=%s hp=%.1f/%.1f ws=%.1f pos=%s vel=%s (%.0f studs/s) plat=%s anch=%s net=%s",
 		okState and tostring(state):gsub("Enum.HumanoidStateType.", "") or "?", hum.Health, hum.MaxHealth,
@@ -500,8 +517,8 @@ local function scanHumanoid()
 end
 
 local function scanObjects()
-	sep("OBJECT SEARCH (token-matched: run / treadmill / plot)")
-	local wanted = { run = true, running = true, treadmill = true, belt = true, plot = true }
+	sep("OBJECT SEARCH (token-matched: run / running / treadmill / belt — 'plot' noise removed)")
+	local wanted = { run = true, running = true, treadmill = true, belt = true }
 	local matches, checked = {}, 0
 	for _, obj in ipairs(Workspace:GetDescendants()) do
 		checked = checked + 1
@@ -569,13 +586,15 @@ local function scanRemotes()
 		for _, n in ipairs(g.names) do say("REMOTES", "      " .. n) end
 		if (g.re + g.rf) > #g.names then say("REMOTES", string.format("      … %d more", (g.re + g.rf) - #g.names)) end
 	end
-	say("REMOTES", string.format("watched right now: %d remote event(s) in %s mode", countWatched(), watchMode))
+	local planned = #watchList(watchMode)
+	say("REMOTES", string.format("watching now: %d | %s mode selects %d of %d remote events%s",
+		countWatched(), watchMode, planned, total, watching and "" or " (WATCH is OFF)"))
 end
 
 doScan = function()
 	sep("FULL SCAN")
-	say("INFO", string.format("player=%s userId=%d | mode=%s | clock %s",
-		localPlayer.Name, localPlayer.UserId or 0, watchMode, clockOf(os.time())))
+	say("INFO", string.format("player=%s userId=%d | mode=%s | server clock %s",
+		localPlayer.Name, localPlayer.UserId or 0, watchMode, clockOf(serverNow())))
 	scanLeaderstats()
 	scanPlayerAttributes()
 	scanCharacter()
@@ -602,7 +621,7 @@ matchesFocus = function(path)
 	return false
 end
 
-local function watchList(mode)
+watchList = function(mode)
 	mode = mode or watchMode
 	local list = {}
 	for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
@@ -768,10 +787,13 @@ local function connectSignals()
 			if prop == "WalkSpeed" then
 				local ws = hum.WalkSpeed
 				if lastWalkSpeed and math.abs(ws - lastWalkSpeed) >= CONFIG.WALKSPEED_JOLT then
-					local state = hum:GetState()
-					local scriptish = ws >= 100 and state ~= Enum.HumanoidStateType.Physics
-					say("WALKSPEED", string.format("%.0f -> %.0f%s", lastWalkSpeed, ws,
-						scriptish and "   <-- forced (script-driven movement)" or ""))
+					local note = ""
+					if math.abs(ws - 500) <= 2 then
+						note = "   <-- matches the flight script constant (500)"
+					elseif ws >= 100 then
+						note = "   <-- high (game speed stat / unknown writer)"
+					end
+					say("WALKSPEED", string.format("%.0f -> %.0f%s", lastWalkSpeed, ws, note))
 				end
 				lastWalkSpeed = ws
 			elseif prop == "PlatformStand" then
