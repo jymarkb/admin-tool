@@ -33,6 +33,22 @@
    a row - each one is visible there so you can see exactly when the game
    let go.
 
+   4. STRAIGHT FLIGHT      - the flight mechanics from
+                             "grok-v3-target-fix.lua" (velocity-only
+                             airborne travel, WalkSpeed enforcer, egg-mass
+                             neutralisation, arrival check), but the path is
+                             a straight line instead of a parabolic arc.
+
+                             It starts as soon as a pulse has restored
+                             control - no ragdoll rollover, no post-landing
+                             freeze hold. While flying, the joints and the
+                             Running state are re-asserted every frame so the
+                             character cannot roll over or ragdoll out of it.
+
+                             1.6 s is the only fixed number: speed is
+                             auto-calculated as remaining distance /
+                             remaining time.
+
  TRIGGERS (same checks as the recovery script)
    * LocalPlayer attribute RagdollEndTime is in the server's future
    * Humanoid state Physics / FallingDown
@@ -101,6 +117,22 @@ local CONFIG = {
 	PULSE_COOLDOWN = 0.20,      -- seconds between pulses (as in the original)
 	PULSE_SETTLE = 0.05,        -- settle wait at the end of a pulse
 	PULSE_AUTO_ARM = true,      -- arm the pulse when a pickup is triggered
+
+	-- flight: mechanics from grok-v3-target-fix.lua, but STRAIGHT (no arc)
+	-- and started the moment the pulse has restored control, so there is no
+	-- ragdoll rollover and no post-landing hold.
+	FLIGHT_BIOME = "Snow",      -- destination biome egg
+	FLIGHT_DURATION = 1.6,      -- TOTAL flight time (the only constant)
+	REACH_FACTOR = 3.0,         -- catch-up ceiling as a MULTIPLE of the
+	                            -- planned average speed (auto, not fixed)
+	SPEED_LIMIT = nil,          -- optional absolute cap in studs/s
+	TARGET_Y_OFFSET = 3.0,
+	ARRIVE_TOLERANCE = 5.0,
+	FLY_RUN_WALKSPEED = 500.0,  -- grok-v3 forces this while flying
+	NEUTRALISE_PARTS = true,    -- grok-v3 egg-mass neutralisation, restored
+	                            -- again when the flight ends
+	FLY_AFTER_PULSE = true,     -- pulse -> straight flight automatically
+	FLIGHT_COOLDOWN = 2.0,      -- min seconds between automatic flights
 }
 
 local REMOTE_CARRY = "RF/EggWorld/AskFieldEggCarry"
@@ -121,8 +153,21 @@ local pickupCount = 0
 local savedWalkSpeed = nil
 local log = {}
 
+-- flight state (grok-v3 mechanics)
+local isFlying = false
+local flightToken = 0
+local lastFlightTime = -math.huge
+local flyAfterPulse = CONFIG.FLY_AFTER_PULSE
+local flightData = nil
+local savedFlyWalkSpeed = nil
+local originalPartPhysics = {}
+
 local gui, statusLabel, logLabel, walkButton, pickupButton, autoButton
-local pulseButton, speedBox
+local pulseButton, speedBox, biomeButton, flyAfterButton
+
+-- forward declarations (used by functions defined further down)
+local flyAfterPulseIfReady
+local startFlight
 
 --==================================================
 -- HELPERS
@@ -555,11 +600,467 @@ local function recoveryPulse(humanoid, character)
 	task.wait(CONFIG.PULSE_SETTLE)
 
 	pulseActive = false
+
+	-- 7. Straight flight from the restored stance (no rollover, no ragdoll)
+	flyAfterPulseIfReady()
 end
+
+--==================================================
+-- FLIGHT (mechanics from grok-v3-target-fix.lua, straight line)
+--==================================================
+
+-- grok-v3's neutraliseEggPhysics: carried parts stop pushing the character
+-- around. Here the originals are stored and put back when the flight ends.
+local function neutraliseParts(enable)
+
+	if not CONFIG.NEUTRALISE_PARTS then
+		return
+	end
+
+	local character = getCharacter()
+
+	if not character then
+		return
+	end
+
+	local okDesc, descendants = safe(function()
+		return character:GetDescendants()
+	end)
+
+	if not okDesc or type(descendants) ~= "table" then
+		return
+	end
+
+	for _, descendant in ipairs(descendants) do
+
+		local okPart, isPart = safe(function()
+			return descendant:IsA("BasePart")
+		end)
+
+		if okPart and isPart and descendant.Name ~= "HumanoidRootPart" then
+
+			if enable then
+
+				if originalPartPhysics[descendant] == nil then
+
+					originalPartPhysics[descendant] = {
+						massless = descendant.Massless,
+						collide = descendant.CanCollide,
+					}
+				end
+
+				safe(function()
+					descendant.Massless = true
+					descendant.CanCollide = false
+				end)
+
+			else
+
+				local original = originalPartPhysics[descendant]
+
+				if original then
+
+					safe(function()
+						descendant.Massless = original.massless
+						descendant.CanCollide = original.collide
+					end)
+
+					originalPartPhysics[descendant] = nil
+				end
+			end
+		end
+	end
+end
+
+-- grok-v3's speed enforcer, used only while the flight is active.
+local function enforceFlyWalkSpeed()
+
+	local humanoid = getHumanoid()
+
+	if not humanoid then
+		return
+	end
+
+	if savedFlyWalkSpeed == nil then
+
+		local ok, value = safe(function()
+			return humanoid.WalkSpeed
+		end)
+
+		savedFlyWalkSpeed = ok and value or nil
+	end
+
+	safe(function()
+		humanoid.WalkSpeed = CONFIG.FLY_RUN_WALKSPEED
+	end)
+end
+
+local function restoreFlyWalkSpeed()
+
+	local humanoid = getHumanoid()
+
+	if humanoid and savedFlyWalkSpeed ~= nil then
+
+		safe(function()
+			humanoid.WalkSpeed = savedFlyWalkSpeed
+		end)
+	end
+
+	savedFlyWalkSpeed = nil
+end
+
+-- Keeps the character on its feet for the whole flight: joints on, state
+-- Running, no rollover. This is the pulse's steps 2-5 re-applied per frame.
+local function keepOnFeet()
+
+	local humanoid = getHumanoid()
+	local character = getCharacter()
+
+	if not humanoid or not character then
+		return
+	end
+
+	local okDesc, descendants = safe(function()
+		return character:GetDescendants()
+	end)
+
+	if okDesc and type(descendants) == "table" then
+
+		for _, object in ipairs(descendants) do
+
+			local okMotor, isMotor = safe(function()
+				return object:IsA("Motor6D")
+			end)
+
+			if okMotor and isMotor then
+
+				local okEnabled, enabled = safe(function()
+					return object.Enabled
+				end)
+
+				if okEnabled and not enabled then
+
+					safe(function()
+						object.Enabled = true
+					end)
+				end
+			end
+		end
+	end
+
+	safe(function()
+		humanoid.PlatformStand = false
+	end)
+
+	safe(function()
+		humanoid.AutoRotate = true
+	end)
+
+	local okState, state = safe(function()
+		return humanoid:GetState()
+	end)
+
+	if okState and (state == Enum.HumanoidStateType.Physics
+		or state == Enum.HumanoidStateType.FallingDown
+		or state == Enum.HumanoidStateType.GettingUp
+		or state == Enum.HumanoidStateType.Ragdoll) then
+
+		safe(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end)
+
+		safe(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.Running)
+		end)
+	end
+end
+
+local function getBiomeEgg(biome)
+
+	local workspaceEgg = getWorkspaceEgg(biome)
+
+	if workspaceEgg then
+		return workspaceEgg
+	end
+
+	-- read-only snapshot fallback
+	local remote = getRemote("RF/EggWorld/AskFieldEggSnapshot")
+
+	if not remote then
+		return nil
+	end
+
+	local ok, result = safe(function()
+		return remote:InvokeServer()
+	end)
+
+	if not ok or type(result) ~= "table" then
+		return nil
+	end
+
+	local records = result.Records or result.records
+
+	if type(records) ~= "table" then
+		return nil
+	end
+
+	local wanted = string.lower(tostring(biome or ""))
+
+	for _, record in pairs(records) do
+
+		if type(record) == "table" then
+
+			local area = string.lower(tostring(
+				record.AreaId or record.areaId or record.Area
+					or record.Biome or record.biome or ""
+			))
+
+			local carrier = record.CarrierUserId or record.carrierUserId
+			local bounds = record.BoundsCFrame or record.BottomCFrame
+			local position = nil
+
+			if typeof(bounds) == "CFrame" then
+				position = bounds.Position
+			elseif type(bounds) == "table" and bounds.Position then
+				position = bounds.Position
+			end
+
+			if not position then
+
+				local p = record.Position or record.Pos
+
+				if typeof(p) == "Vector3" then
+					position = p
+				elseif type(p) == "table" and p.X and p.Y and p.Z then
+					position = Vector3.new(p.X, p.Y, p.Z)
+				end
+			end
+
+			if area == wanted and position
+				and (carrier == nil or carrier == 0 or carrier == "") then
+
+				return {
+					Uid = tostring(record.Uid or record.uid or ""),
+					Position = position,
+					Source = "server snapshot",
+				}
+			end
+		end
+	end
+
+	return nil
+end
+
+local function endFlight(reason)
+
+	if not isFlying then
+		return
+	end
+
+	local flight = flightData
+	local root = getRoot()
+
+	isFlying = false
+	flightData = nil
+	lastFlightTime = os.clock()
+
+	local travelled = 0
+	local remaining = 0
+
+	if root and flight then
+
+		travelled = (root.Position - flight.origin).Magnitude
+		remaining = (flight.target - root.Position).Magnitude
+
+		safe(function()
+			root.AssemblyLinearVelocity = Vector3.zero
+		end)
+
+		safe(function()
+			root.AssemblyAngularVelocity = Vector3.zero
+		end)
+	end
+
+	restoreFlyWalkSpeed()
+	neutraliseParts(false)
+
+	local elapsed = flight and (os.clock() - flight.t0) or 0
+	local average = elapsed > 0 and (travelled / elapsed) or 0
+
+	note(string.format(
+		"flight %s | flew %.0f studs in %.2fs (avg %.0f studs/s) | gap %.0f",
+		reason or "ended",
+		travelled,
+		elapsed,
+		average,
+		remaining
+	))
+
+	setStatus(string.format(
+		"%s | flew %.0f studs of %.0f in %.1fs | gap %.0f studs",
+		(remaining <= CONFIG.ARRIVE_TOLERANCE) and "ARRIVED" or "TIME UP",
+		travelled,
+		flight and flight.distance or 0,
+		CONFIG.FLIGHT_DURATION,
+		remaining
+	))
+end
+
+-- NOTE: assigned (not re-declared) so the forward declaration above stays
+-- the single visible local; otherwise the pulse would call a nil value.
+startFlight = function(reason)
+
+	if isFlying or not scriptAlive then
+		return false
+	end
+
+	local root = getRoot()
+	local humanoid = getHumanoid()
+
+	if not root or not humanoid then
+
+		setStatus("No character to fly with.")
+
+		return false
+	end
+
+	local okHealth, health = safe(function()
+		return humanoid.Health
+	end)
+
+	if okHealth and health <= 0 then
+
+		setStatus("Character is dead; not flying.")
+
+		return false
+	end
+
+	local target = getBiomeEgg(CONFIG.FLIGHT_BIOME)
+
+	if not target then
+
+		setStatus("No " .. tostring(CONFIG.FLIGHT_BIOME)
+			.. " egg target found for the flight.")
+
+		return false
+	end
+
+	local targetPosition =
+		target.Position + Vector3.new(0, CONFIG.TARGET_Y_OFFSET, 0)
+
+	local started = os.clock()
+	local distance = (targetPosition - root.Position).Magnitude
+
+	isFlying = true
+	flightToken = flightToken + 1
+
+	flightData = {
+		token = flightToken,
+		target = targetPosition,
+		origin = root.Position,
+		t0 = started,
+		distance = distance,
+		plannedAverage = distance / CONFIG.FLIGHT_DURATION,
+		source = target.Source,
+	}
+
+	-- the pulse steps first, then straight flight
+	keepOnFeet()
+	enforceFlyWalkSpeed()
+	neutraliseParts(true)
+
+	note(string.format(
+		"flight started to %s (%s) | %.0f studs | auto speed for %.1fs | %s",
+		tostring(CONFIG.FLIGHT_BIOME),
+		tostring(target.Source),
+		distance,
+		CONFIG.FLIGHT_DURATION,
+		tostring(reason or "manual")
+	))
+
+	setStatus(string.format(
+		"FLYING straight to %s | %.0f studs | 1.6s (auto speed)",
+		tostring(CONFIG.FLIGHT_BIOME),
+		distance
+	))
+
+	return true
+end
+
+-- One frame of the straight flight. Velocity only: the direction is the
+-- remaining distance, the magnitude is remaining distance / remaining time.
+local function flightStep()
+
+	if not isFlying or not flightData then
+		return
+	end
+
+	local flight = flightData
+	local root = getRoot()
+	local humanoid = getHumanoid()
+
+	if not root or not humanoid then
+		endFlight("character lost")
+		return
+	end
+
+	local okHealth, health = safe(function()
+		return humanoid.Health
+	end)
+
+	if okHealth and health <= 0 then
+		endFlight("died")
+		return
+	end
+
+	-- no rollover, no ragdoll: stay on the feet for the whole flight
+	keepOnFeet()
+	enforceFlyWalkSpeed()
+
+	local elapsed = os.clock() - flight.t0
+	local remainingTime = math.max(CONFIG.FLIGHT_DURATION - elapsed, 0.02)
+	local delta = flight.target - root.Position
+
+	local desired = delta / remainingTime
+	local ceiling = flight.plannedAverage * CONFIG.REACH_FACTOR
+
+	if desired.Magnitude > ceiling then
+		desired = desired.Unit * ceiling
+	end
+
+	if CONFIG.SPEED_LIMIT and desired.Magnitude > CONFIG.SPEED_LIMIT then
+		desired = desired.Unit * CONFIG.SPEED_LIMIT
+	end
+
+	safe(function()
+		root.AssemblyLinearVelocity = desired
+	end)
+
+	safe(function()
+		root.AssemblyAngularVelocity = Vector3.zero
+	end)
+
+	if elapsed >= CONFIG.FLIGHT_DURATION then
+		endFlight("1.6s elapsed")
+	end
+end
+
+--==================================================
+-- HEARTBEAT: flight first, then the recovery pulse
+--==================================================
 
 connect(game:GetService("RunService").Heartbeat, function()
 
-	if not scriptAlive or not pulseEnabled then
+	if not scriptAlive then
+		return
+	end
+
+	if isFlying then
+		flightStep()
+		return
+	end
+
+	if not pulseEnabled then
 		return
 	end
 
@@ -574,6 +1075,20 @@ connect(game:GetService("RunService").Heartbeat, function()
 		recoveryPulse(humanoid, character)
 	end
 end)
+
+-- Starts the flight once a pulse has finished restoring control.
+flyAfterPulseIfReady = function()
+
+	if not flyAfterPulse or isFlying or not scriptAlive then
+		return false
+	end
+
+	if os.clock() - lastFlightTime < CONFIG.FLIGHT_COOLDOWN then
+		return false
+	end
+
+	return startFlight("after pulse")
+end
 
 --==================================================
 -- WALK TO THE EGG
@@ -792,12 +1307,20 @@ local function isHoldingEgg()
 				return child:IsA("Tool")
 			end)
 
-			if ((okTool and isTool) or string.find(name, "egg", 1, true))
+			-- Only real Tools count. Matching on the word "egg" alone made
+			-- decorative parts that merely have "egg" in the name look like a
+			-- carried egg.
+			if okTool and isTool
 				and not string.find(name, "trap", 1, true) then
 
 				return true
 			end
 		end
+	end
+
+	-- the game's own flag, when it publishes one
+	if LocalPlayer:GetAttribute("IsCarrying") == true then
+		return true
 	end
 
 	return false
@@ -1050,6 +1573,8 @@ local function buildGui()
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Parent = frame
 
+	frame.Size = UDim2.new(0, 430, 0, 300)
+
 	walkButton = makeButton(frame, "WALK TO FOREST EGG", 6, 30, 200, 26)
 	pickupButton = makeButton(frame, "PICK UP EGG", 212, 30, 120, 26)
 	pickupButton.BackgroundColor3 = Color3.fromRGB(32, 74, 116)
@@ -1085,11 +1610,20 @@ local function buildGui()
 	local closeButton = makeButton(frame, "CLOSE", 350, 62, 74, 26)
 	closeButton.BackgroundColor3 = Color3.fromRGB(96, 40, 44)
 
+	-- flight row
+	biomeButton = makeButton(frame, "TARGET BIOME: [Snow]", 6, 94, 200, 26)
+
+	local flyButton = makeButton(frame, "FLY NOW (1.6s)", 212, 94, 120, 26)
+	flyButton.BackgroundColor3 = Color3.fromRGB(32, 74, 116)
+
+	flyAfterButton = makeButton(frame, "AUTO FLY: ON", 338, 94, 86, 26)
+	flyAfterButton.TextSize = 11
+
 	statusLabel = Instance.new("TextLabel")
 	statusLabel.Name = "Status"
 	statusLabel.Text = "Ready. Walk to the forest egg, then pick it up."
 	statusLabel.Size = UDim2.new(1, -12, 0, 34)
-	statusLabel.Position = UDim2.new(0, 6, 0, 94)
+	statusLabel.Position = UDim2.new(0, 6, 0, 126)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.TextColor3 = Color3.fromRGB(150, 210, 170)
 	statusLabel.TextSize = 12
@@ -1103,7 +1637,7 @@ local function buildGui()
 	logLabel.Name = "Log"
 	logLabel.Text = ""
 	logLabel.Size = UDim2.new(1, -12, 0, 130)
-	logLabel.Position = UDim2.new(0, 6, 0, 132)
+	logLabel.Position = UDim2.new(0, 6, 0, 164)
 	logLabel.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
 	logLabel.TextColor3 = Color3.fromRGB(200, 208, 220)
 	logLabel.TextSize = 11
@@ -1205,6 +1739,51 @@ local function buildGui()
 		note("recovery pulse " .. (pulseEnabled and "ON" or "OFF"))
 	end)
 
+	connect(biomeButton.MouseButton1Click, function()
+
+		local biomes = {
+			"Snow", "Jungle", "Desert", "Ocean", "Volcano", "Abyss Ocean",
+			"Prehistoric", "Cosmic", "Cherry Blossom", "Titan", "Light Dark",
+		}
+
+		local index = 1
+
+		for position, name in ipairs(biomes) do
+
+			if name == CONFIG.FLIGHT_BIOME then
+				index = position
+				break
+			end
+		end
+
+		CONFIG.FLIGHT_BIOME = biomes[(index % #biomes) + 1]
+		biomeButton.Text = "TARGET BIOME: [" .. CONFIG.FLIGHT_BIOME .. "]"
+	end)
+
+	connect(flyButton.MouseButton1Click, function()
+
+		if isFlying then
+			setStatus("Already flying.")
+		else
+			startFlight("manual")
+		end
+	end)
+
+	connect(flyAfterButton.MouseButton1Click, function()
+
+		flyAfterPulse = not flyAfterPulse
+
+		flyAfterButton.Text = flyAfterPulse and "AUTO FLY: ON" or "AUTO FLY: OFF"
+		flyAfterButton.BackgroundColor3 = flyAfterPulse
+			and Color3.fromRGB(40, 84, 56)
+			or Color3.fromRGB(38, 48, 66)
+	end)
+
+	flyAfterButton.Text = flyAfterPulse and "AUTO FLY: ON" or "AUTO FLY: OFF"
+	flyAfterButton.BackgroundColor3 = flyAfterPulse
+		and Color3.fromRGB(40, 84, 56)
+		or Color3.fromRGB(38, 48, 66)
+
 	connect(closeButton.MouseButton1Click, function()
 		stopEverything("closed by user")
 	end)
@@ -1242,6 +1821,28 @@ function stopEverything(reason)
 	walkToken = walkToken + 1
 	pulseEnabled = false
 	pulseActive = false
+
+	if isFlying then
+
+		isFlying = false
+		flightData = nil
+
+		local root = getRoot()
+
+		if root then
+
+			safe(function()
+				root.AssemblyLinearVelocity = Vector3.zero
+			end)
+
+			safe(function()
+				root.AssemblyAngularVelocity = Vector3.zero
+			end)
+		end
+
+		restoreFlyWalkSpeed()
+		neutraliseParts(false)
+	end
 
 	local humanoid = getHumanoid()
 
@@ -1324,6 +1925,33 @@ _G.SIMPLE_RECOVERY_UI = {
 			recoveryPulse(humanoid, character)
 		end
 	end,
+	fly = startFlight,
+	setFlyAfterPulse = function(enabled)
+
+		flyAfterPulse = enabled and true or false
+
+		if flyAfterButton then
+			flyAfterButton.Text = flyAfterPulse and "AUTO FLY: ON" or "AUTO FLY: OFF"
+		end
+	end,
+	setBiome = function(name)
+
+		CONFIG.FLIGHT_BIOME = tostring(name)
+
+		if biomeButton then
+			biomeButton.Text = "TARGET BIOME: [" .. CONFIG.FLIGHT_BIOME .. "]"
+		end
+	end,
+	flight = function()
+
+		return {
+			flying = isFlying,
+			autoFly = flyAfterPulse,
+			biome = CONFIG.FLIGHT_BIOME,
+			duration = CONFIG.FLIGHT_DURATION,
+			count = flightToken,
+		}
+	end,
 	status = function()
 		return statusLabel and statusLabel.Text or ""
 	end,
@@ -1336,6 +1964,10 @@ _G.SIMPLE_RECOVERY_UI = {
 		end
 
 		return table.concat(lines, "\n")
+	end,
+	-- raw entries ({ t = os.clock(), text = ... }) for timing checks
+	log = function()
+		return log
 	end,
 	state = function()
 
