@@ -174,6 +174,55 @@ check("focus drops unrelated remotes", not listedPath(focusList, "RE/Treadmill/S
 API.setMode("all")
 check("all mode picks up the treadmill remote", listedPath(allList, "RE/Treadmill/SpeedGained"))
 
+--=================== C2. mode switching: atomic, verified, rolled back on failure ===================
+API.setMode("focus")
+local focusPlan = #API._internals.watchList("focus")
+local allPlan = #API._internals.watchList("all")
+local modeMark = #API.journal()
+API.setMode("all")
+M.pump(0.2)
+check("mode switch reconnects to the full plan", API.status().watched == allPlan,
+	string.format("watched=%d plan=%d", API.status().watched, allPlan))
+check("mode switch reports the reconnect count", (function()
+	local entries = API.journal()
+	for i = modeMark + 1, #entries do
+		if has(entries[i].line, "reconnected " .. allPlan .. " of " .. allPlan) then return true end
+	end
+	return false
+end)())
+M.fireRemote(F.watchTargets[15], 1)
+M.pump(0.1)
+check("an all-mode-only remote is captured after the switch", (function()
+	for _, e in ipairs(API.journal()) do if has(e.line, "SpeedGained") then return true end end
+	return false
+end)())
+
+API._internals.simulate.connectFailure = true
+local watchedBefore, modeBefore = API.status().watched, API.status().mode
+local failMark = #API.journal()
+API.setMode("focus")
+M.pump(0.2)
+check("failed mode switch keeps the previous connection set",
+	API.status().watched == watchedBefore and API.status().mode == modeBefore,
+	string.format("watched %d->%d mode %s->%s", watchedBefore, API.status().watched, modeBefore, API.status().mode))
+check("failed mode switch surfaces an ERROR row", (function()
+	local entries = API.journal()
+	for i = failMark + 1, #entries do
+		if has(entries[i].line, "ERROR") and has(entries[i].line, "mode change") then return true end
+	end
+	return false
+end)())
+API._internals.simulate.connectFailure = false
+API.setMode("focus")
+M.pump(0.2)
+check("mode comes back to focus at the plan size", API.status().watched == focusPlan, API.status().watched)
+M.fireRemote(F.watchTargets[2], { after = "rollback" })
+M.pump(0.1)
+check("listener still captures after a failed switch", (function()
+	for _, e in ipairs(API.journal()) do if has(e.line, "HazardHit") then return true end end
+	return false
+end)())
+
 --=================== D. listening ===================
 API.setMode("focus")
 API.watch(false)                     -- clean baseline: AUTO_WATCH already connected at load
@@ -184,6 +233,26 @@ check("watch button reflects state", watchBtn.Text == "WATCH: ON", watchBtn.Text
 check("watch connected to signals", M.aliveConnections() > baselineConns,
 	string.format("%d vs %d", M.aliveConnections(), baselineConns))
 check("watch log line names the count", has(journalText(), "listening on ") and has(journalText(), "read-only"))
+check("watch log line states connected-of-plan", has(journalText(), "of " .. focusPlan .. " remote event(s)"))
+
+API.clear()          -- CLEAR resets the journal, so search the fresh journal from the top
+M.pump(0.1)
+local kept = findInJournal("journal cleared — state kept")
+check("CLEAR logs the kept listener state", kept ~= nil, kept and kept.line)
+check("CLEAR keeps watching", API.status().watching == true)
+check("CLEAR keeps the connections", API.status().watched == focusPlan, API.status().watched)
+M.fireRemote(F.watchTargets[2], { after = "clear" })
+M.pump(0.1)
+check("listener still captures after CLEAR", findInJournal("HazardHit") ~= nil)
+
+M.pump(1.2)          -- STATUS rows are emitted once a second
+local statusLine
+for _, e in ipairs(API.journal()) do if e.tag == "STATUS" then statusLine = e end end
+check("STATUS row reports watched/mode", statusLine ~= nil and has(statusLine.line, "watched=")
+	and has(statusLine.line, "focus"), statusLine and statusLine.line)
+check("STATUS row reports real event count and quiet time",
+	statusLine ~= nil and has(statusLine.line, "events=") and has(statusLine.line, "quiet="),
+	statusLine and statusLine.line)
 
 local target = F.watchTargets[1]        -- RE/BossEvent/BlackHoleHit
 local mark = #API.journal()

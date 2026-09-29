@@ -94,6 +94,10 @@ local remoteStats, recentEvents = {}, {}
 local hits, lastHitT = 0, -1
 local firstScanDone = false
 local lastInventory = {}
+local lastEventT = 0
+local lastErrorT = 0
+local simulate = { connectFailure = false }   -- diagnostics hook: lets the offline suite prove rollback works
+
 local watchedRemoteNames = {}
 local API
 local countWatched, matchesFocus, watchList, doScan, doCopy, doExport, setWatch, destroy
@@ -126,6 +130,14 @@ local function say(tag, text)
 	end
 	dirty = true
 	return entry
+end
+
+local function reportError(what, err)
+	local t = now()
+	-- never let a repeating error flood the journal, but the FIRST one must always be visible
+	if lastErrorT > 0 and (t - lastErrorT) < 1 then return end
+	lastErrorT = t
+	say("ERROR", what .. ": " .. tostring(err))
 end
 
 local function sep(title)
@@ -328,22 +340,20 @@ local function buildGui()
 		TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0 }, main)
 	if clearBtn then
 		track(clearBtn.MouseButton1Click:Connect(function()
-			table.clear(journal)
-			journalCount, dropped = 0, 0
-			dirty = true
-			say("INFO", "journal cleared")
+			local ok, err = pcall(API.clear)
+			if not ok then reportError("CLEAR failed", err) end
 		end))
 	end
 	track(modeButton.MouseButton1Click:Connect(function()
-		watchMode = (watchMode == "focus") and "all" or "focus"
-		modeButton.Text = "MODE: " .. string.upper(watchMode)
-		say("INFO", "watch mode = " .. watchMode)
-		if watching then
-			disconnectWatch()
-			connectWatch()
-		end
+		local ok, err = pcall(function()
+			applyMode((watchMode == "focus") and "all" or "focus")
+		end)
+		if not ok then reportError("MODE button failed", err) end
 	end))
-	track(watchButton.MouseButton1Click:Connect(function() setWatch(not watching) end))
+	track(watchButton.MouseButton1Click:Connect(function()
+		local ok, err = pcall(function() setWatch(not watching) end)
+		if not ok then reportError("WATCH button failed", err) end
+	end))
 
 	-- drag
 	local dragging, dragStart, startPos = false, nil, nil
@@ -687,6 +697,21 @@ watchList = function(mode)
 	return list
 end
 
+local function statsSnapshot()
+	local events, suppressed, lastSecond = 0, 0, 0
+	local t = now()
+	for _, st in pairs(remoteStats) do
+		events = events + st.count
+		suppressed = suppressed + st.suppressed
+		if t - st.last <= 1 then lastSecond = lastSecond + st.inWindow end
+	end
+	local run = math.max(elapsed(), 0.001)
+	return { events = events, suppressed = suppressed, perMinute = math.floor(events / run * 60),
+		recentPerSecond = lastSecond, outgoingCalls = 0, entries = #journal, dropped = dropped,
+		connections = connectionCount, remoteStats = remoteStats,
+		quiet = (lastEventT > 0) and (t - lastEventT) or nil }
+end
+
 local function remoteStat(path)
 	local st = remoteStats[path]
 	if not st then
@@ -698,6 +723,9 @@ end
 
 local function onRemoteFired(path, ...)
 	local t = now()
+	lastEventT = t
+	local okArgs, payload = pcall(serializeArgs, ...)
+	if not okArgs then payload = "<payload could not be serialized: " .. tostring(payload) .. ">" end
 	local st = remoteStat(path)
 	st.count = st.count + 1
 	st.last = t
@@ -706,7 +734,7 @@ local function onRemoteFired(path, ...)
 		st.inWindow = 0
 	end
 	-- remember for HIT attribution regardless of rate limiting
-	recentEvents[#recentEvents + 1] = { t = t, path = path, args = serializeArgs(...) }
+	recentEvents[#recentEvents + 1] = { t = t, path = path, args = payload }
 	while #recentEvents > CONFIG.RECENT_EVENTS do table.remove(recentEvents, 1) end
 
 	st.inWindow = st.inWindow + 1
@@ -719,35 +747,53 @@ local function onRemoteFired(path, ...)
 		end
 		return
 	end
-	local payload = serializeArgs(...)
 	say("RE", path .. (payload ~= "" and ("  |  " .. payload) or ""))
 end
 
-connectWatch = function()
-	local list = watchList(watchMode)
-	table.clear(watchedRemoteNames)
-	local connected = 0
-	for _, entry in ipairs(list) do
-		watchedRemoteNames[entry.instance] = true
-		local ok = pcall(function()
-			local conn = entry.instance.OnClientEvent:Connect(function(...)
-				onRemoteFired(entry.path, ...)
+-- Connects the requested mode's remotes into a fresh set and only then swaps out the old ones, so a
+-- failure can never leave the scanner silently dead (a live run showed mode=all with a stale watched=65
+-- and zero events received — that state is impossible now).
+connectWatch = function(mode)
+	mode = mode or watchMode
+	local newConns, newNames, connected, planned = {}, {}, 0, 0
+	local ok, err = pcall(function()
+		if simulate.connectFailure then error("simulated connect failure (diagnostic hook)") end
+		local list = watchList(mode)
+		planned = #list
+		for _, entry in ipairs(list) do
+			newNames[entry.instance] = true
+			local cok = pcall(function()
+				local conn = entry.instance.OnClientEvent:Connect(function(...)
+					onRemoteFired(entry.path, ...)
+				end)
+				newConns[#newConns + 1] = conn
+				extraConns[#extraConns + 1] = conn
+				connectionCount = connectionCount + 1
 			end)
-			watchConns[#watchConns + 1] = conn
-			extraConns[#extraConns + 1] = conn
-			connectionCount = connectionCount + 1
-			connected = connected + 1
-		end)
-		if not ok then watchedRemoteNames[entry.instance] = nil end
+			if cok then connected = connected + 1 else newNames[entry.instance] = nil end
+		end
+	end)
+	if not ok then
+		for _, conn in ipairs(newConns) do pcall(function() conn:Disconnect() end) end
+		return 0, tostring(err), planned
 	end
-	say("WATCH", string.format("listening on %d remote event(s) — %s mode (read-only, OnClientEvent only)",
-		connected, watchMode))
-	return connected
+	for _, conn in ipairs(watchConns) do pcall(function() conn:Disconnect() end) end
+	watchConns = newConns
+	watchedRemoteNames = newNames
+	watchMode = mode
+	say("WATCH", string.format("listening on %d of %d remote event(s) — %s mode (read-only, OnClientEvent only)",
+		connected, planned, mode))
+	if connected < planned then
+		say("WARN", string.format("%d of %d remotes could not be hooked in %s mode",
+			planned - connected, planned, mode))
+	end
+	return connected, nil, planned
 end
 
 disconnectWatch = function()
 	for _, conn in ipairs(watchConns) do pcall(function() conn:Disconnect() end) end
 	table.clear(watchConns)
+	watchedRemoteNames = {}
 	local kept = {}
 	for _, conn in ipairs(extraConns) do
 		if not conn.disconnected then kept[#kept + 1] = conn end
@@ -876,7 +922,14 @@ local function connectSignals()
 	end))
 end
 
+local heartbeatBody
+
 local function heartbeat()
+	local ok, err = pcall(heartbeatBody)
+	if not ok then reportError("heartbeat error (detection is affected)", err) end
+end
+
+heartbeatBody = function()
 	local char = localPlayer.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -914,10 +967,15 @@ local function heartbeat()
 		lastStatus = t
 		statusRows = statusRows + 1
 		local left = ragdollRemaining()
-		say("STATUS", string.format("state=%s hp=%.0f ws=%.0f speed=%.0f ragdoll=%s area=%s events=%d",
+		local st = statsSnapshot()
+		say("STATUS", string.format(
+			"state=%s hp=%.0f ws=%.0f speed=%.0f ragdoll=%s area=%s | watched=%d/%s | events=%d quiet=%s%s",
 			tostring(hum:GetState()):gsub("Enum.HumanoidStateType.", ""), hum.Health, hum.WalkSpeed, speed,
 			left and string.format("%.1fs", left) or "-",
-			tostring(localPlayer:GetAttribute("AreaId") or "?"), countWatched()))
+			tostring(localPlayer:GetAttribute("AreaId") or "?"),
+			countWatched(), watchMode, st.events,
+			st.quiet and string.format("%.0fs", st.quiet) or "-",
+			(#recentEvents > 0) and "" or " | (no remote has fired yet)"))
 	end
 
 	local world = now()
@@ -928,10 +986,39 @@ local function heartbeat()
 	end
 end
 
+local function applyMode(mode)
+	mode = (mode == "all") and "all" or "focus"
+	if modeButton then modeButton.Text = "MODE: " .. string.upper(mode) end
+	if mode == watchMode and watching then return watchMode end
+	if not watching then
+		watchMode = mode
+		say("INFO", string.format("mode = %s | %d remote event(s) will be watched when WATCH turns on",
+			mode, #watchList(mode)))
+		return watchMode
+	end
+	local connected, failure, planned = connectWatch(mode)
+	if failure then
+		reportError("mode change to " .. mode .. " failed (previous listener kept)", failure)
+		if modeButton then modeButton.Text = "MODE: " .. string.upper(watchMode) end
+		return watchMode
+	end
+	say("INFO", string.format("mode = %s | reconnected %d of %d remote event(s)", mode, connected, planned))
+	return watchMode
+end
+
 local function setWatch(on)
 	if on and not watching then
 		watching = true
-		connectWatch()
+		local connected, failure, planned = connectWatch(watchMode)
+		if failure then
+			watching = false
+			reportError("WATCH could not start", failure)
+		elseif connected == 0 then
+			watching = false
+			reportError("WATCH could not start", "no remotes could be hooked")
+		else
+			say("WATCH", string.format("watching %d remote(s) in %s mode", connected, watchMode))
+		end
 		if watchButton then watchButton.Text = "WATCH: ON" end
 		say("WATCH", "watching ON — play now; a hit will produce a HIT row with the remote that caused it")
 		local left = ragdollRemaining()
@@ -986,13 +1073,16 @@ end
 API = {}
 API.scan = function() task.spawn(doScan) return true end
 API.watch = setWatch
-API.setMode = function(mode)
-	watchMode = (mode == "all") and "all" or "focus"
-	if modeButton then modeButton.Text = "MODE: " .. string.upper(watchMode) end
-	if watching then disconnectWatch() connectWatch() end
-	return watchMode
+API.setMode = function(mode) return applyMode(mode) end
+API.clear = function()
+	local st = statsSnapshot()
+	local snapshot = string.format("journal cleared — state kept: watch=%s mode=%s watched=%d (pre-clear events=%d)",
+		watching and "ON" or "OFF", watchMode, countWatched(), st.events)
+	table.clear(journal)
+	journalCount, dropped = 0, 0
+	dirty = true
+	say("INFO", snapshot)
 end
-API.clear = function() table.clear(journal) journalCount, dropped = 0, 0 dirty = true say("INFO", "journal cleared") end
 API.copy = function() return doCopy(nil) end
 API.export = doExport
 API.status = function()
@@ -1005,27 +1095,13 @@ API.journal = function()
 	for i, e in ipairs(journal) do out[i] = { n = e.n, t = e.t, tag = e.tag, text = e.text, line = e.line } end
 	return out
 end
-API.stats = function()
-	local events, lastSecond = 0, 0
-	local t = now()
-	for _, st in pairs(remoteStats) do
-		events = events + st.count
-		if t - st.last <= 1 then lastSecond = lastSecond + st.inWindow end
-	end
-	local run = math.max(elapsed(), 0.001)
-	return { events = events, suppressed = (function()
-		local n = 0
-		for _, st in pairs(remoteStats) do n = n + st.suppressed end
-		return n
-	end)(), perMinute = math.floor(events / run * 60), recentPerSecond = lastSecond,
-		outgoingCalls = 0, entries = #journal, dropped = dropped, connections = connectionCount,
-		remoteStats = remoteStats }
-end
+API.stats = function() return statsSnapshot() end
 API.destroy = destroy
 API._internals = {
 	tokens = tokens, hasToken = hasToken, decodeRagdoll = decodeRagdoll, serializeValue = serializeValue,
 	serializeArgs = serializeArgs, watchList = watchList, matchesFocus = matchesFocus,
 	recentEvents = function() return recentEvents end, conns = function() return extraConns end,
+	simulate = simulate,
 }
 
 _G.ADVANCED_SCANNER_V3 = API
