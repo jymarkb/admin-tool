@@ -1,0 +1,826 @@
+==================================================
+STEAL A EGG - TARGETED DISCOVERY SCANNER
+MODE: READ-ONLY
+NO REMOTES INVOKED
+==================================================
+
+===== LOCAL PLAYER =====
+Player: mackyhohohoho
+UserId: 9521640019
+Character: mackyhohohoho
+
+===== PLAYER ATTRIBUTES =====
+__UG = true
+FriendsInServer = 0
+MonetizationAvatarMarketplaceValue = 0
+AreaId = Forest
+RagdollEndTime = 1790253584.088331
+MonetizationRobuxSpentTotal = 0
+JoinTick = 1790253349.216731
+MonetizationLuckyGamepassOwned = false
+ProfileReady = true
+MonetizationX2MoneyGamepassOwned = false
+__UG_NEW = false
+
+===== CHARACTER =====
+Character: Workspace.mackyhohohoho
+Character attributes: (none)
+
+===== LEADERSTATS =====
+Money/s = 996901484 [NumberValue]
+Speed = 609088134 [NumberValue]
+
+===== IMPORTANT PLAYER VALUES =====
+Players.mackyhohohoho.leaderstats.Money/s = 996901484
+Players.mackyhohohoho.leaderstats.Speed = 609088134
+
+===== CURRENT STATE =====
+AreaId = Forest
+ProfileReady = true
+IsOnTreadmill not found
+
+===== NETWORKING OVERVIEW =====
+RE/LimitedTimePopups/ShowLimitedTimePopup [RemoteEvent]
+RE/Voting/Vote [RemoteEvent]
+RE/Leaderboards/Updated [RemoteEvent]
+RF/Leaderboards/Fetch [RemoteFunction]
+RF/BossMastery/AskUseMutationConsumable [RemoteFunction]
+RF/BossMastery/AskClaimMilestone [RemoteFunction]
+RF/BossMastery/AskBuyShopItem [RemoteFunction]
+RE/BossEvent/Vfx [RemoteEvent]
+RE/BossEvent/StateShifted [RemoteEvent]
+RE/BossEvent/HealthShifted [RemoteEvent]
+RE/BossEvent/HazardHit [RemoteEvent]
+RE/BossEvent/BossDamaged [RemoteEvent]
+RE/BossEvent/BlackHoleHit [RemoteEvent]
+RF/BossEvent/AskSnapshot [RemoteFunction]
+RF/BossEvent/AskEnter [RemoteFunction]
+RF/OnboardingQuestline/AskClaim [RemoteFunction]
+RF/OnboardingQuestline/AskAcknowledge [RemoteFunction]
+RE/RewardScreen/Show [RemoteEvent]
+RE/Rift/BannerRotated [RemoteEvent]
+RF/Rift/AskFinishReveal [RemoteFunction]
+RF/Rift/AskRefresh [RemoteFunction]
+RF/Rift/AskTradeIn [RemoteFunction]
+RF/Rift/AskState [RemoteFunction]
+RE/ShrineFusion/Ritual [RemoteEvent]
+RE/ShrineFusion/StateChanged [RemoteEvent]
+RE/ShrineFusion/Feedback [RemoteEvent]
+RF/ShrineFusion/AskSubmit [RemoteFunction]
+RF/ShrineFusion/AskState [RemoteFunction]
+RE/MonsterEvent/PlaySFX [RemoteEvent]
+RF/MonsterEvent/RequestTeleport [RemoteFunction]
+RE/MonsterEvent/WinPartsUpdated [RemoteEvent]
+RF/MonsterEvent/GetWinParts [RemoteFunction]
+RE/MonsterEvent/WinsUpdated [RemoteEvent]
+RF/MonsterEvent/GetWins [RemoteFunction]
+RE/ZoneProbe/AnchorForZone [RemoteEvent]
+RE/Treadmill/ViewStateShifted [RemoteEvent]
+RE/Treadmill/SubmitClipView [RemoteEvent]
+RE/Treadmill/SpeedGained [RemoteEvent]
+RE/Treadmill/RenderStateShifted [RemoteEvent]
+RE/Treadmill/RefreshClipCursor [RemoteEvent]
+RE/Treadmill/OverlaySnapshot [RemoteEvent]
+RF/Treadmill/GaugeClipLength [RemoteFunction]
+RE/Treadmill/AssignedBeltShifted [RemoteEvent]
+RF/Treadmill/AskWearStill [RemoteFunction]
+RF/Treadmill/AskTierRaise [RemoteFunction]
+RF/Treadmill/AskSlowToggleSet [RemoteFunction]
+RF/Treadmill/AskSlowToggle [RemoteFunction]
+RF/Treadmill/AskReplyPage [RemoteFunction]
+RF/Treadmill/AskReplyFavour [RemoteFunction]
+RF/Treadmill/AskReplyCounts [RemoteFunction]
+RF/Treadmill/AskRenderSnapshot [RemoteFunction]
+RF/Treadmill/AskPostReply [RemoteFunction]
+RF/Treadmill/AskFriendFavourSnapshot [RemoteFunction]
+RF/Treadmill/AskFavourSnapshot [RemoteFunction]
+RF/Treadmill/AskDoff [RemoteFunction]
+RF/Treadmill/AskClipFavour [RemoteFunction]
+RE/GravityDisruptor/Burst [RemoteEvent]
+RE/GravityDisruptor/AskPlace [RemoteEvent]
+RE/TrapPlacement/AskPlace [RemoteEvent]
+RE/Trailwear/WornTrailShifted [RemoteEvent]
+RF/Trailwear/AskWornSnapshot [RemoteFunction]
+RF/Trailwear/AskPurchase [RemoteFunction]
+RF/Trailwear/AskDoff [RemoteFunction]
+RF/Trailwear/AskChoose [RemoteFunction]
+RE/ToolTrigger/Trigger [RemoteEvent]
+RE/Lifecycle/BeginShutdown [RemoteEvent]
+RE/MineTrap/TrapSet [RemoteEvent]
+RE/MineTrap/AttachOutline [RemoteEvent]
+RE/MineTrap/AskPlace [RemoteEvent]
+RE/Preferences/PreferenceShifted [RemoteEvent]
+RF/Preferences/AskWrite [RemoteFunction]
+RE/LuckWindow/StateRefreshed [RemoteEvent]
+RF/LuckWindow/FetchState [RemoteFunction]
+RE/Bloomery/PetalsGathered [RemoteEvent]
+RE/Bloomery/CutsceneOpened [RemoteEvent]
+RF/Storefront/AllowPurchase [RemoteFunction]
+RF/Storefront/AskPurchaseOffer [RemoteFunction]
+RF/Storefront/AskServerProbe [RemoteFunction]
+RE/Storefront/Awarded [RemoteEvent]
+RE/Storefront/PurchaseRejected [RemoteEvent]
+RE/Storefront/PurchaseSettled [RemoteEvent]
+RE/Storefront/ReceiptCleared [RemoteEvent]
+RE/Limpness/WriteLimpness [RemoteEvent]
+RF/ProfileMirror/FetchProfile [RemoteFunction]
+RE/ProfileMirror/ProfileDelta [RemoteEvent]
+RE/SharedFx/JoltOnce [RemoteEvent]
+RF/Bloomery/AskBriefingConfirm [RemoteFunction]
+RF/Bloomery/AskCraneReturn [RemoteFunction]
+RF/Bloomery/AskEjectEgg [RemoteFunction]
+RF/Bloomery/AskGatherPetal [RemoteFunction]
+RF/Bloomery/AskHandoff [RemoteFunction]
+RF/Bloomery/AskLoadEgg [RemoteFunction]
+RF/Bloomery/AskMutate [RemoteFunction]
+RE/Bloomery/AskStrikeTree [RemoteEvent]
+RE/Scramble/Drones [RemoteEvent]
+RF/Scramble/Request [RemoteFunction]
+RE/Scramble/Collect [RemoteEvent]
+RE/Scramble/State [RemoteEvent]
+RE/Scramble/Drops [RemoteEvent]
+RE/Scramble/RemoveDrops [RemoteEvent]
+RE/Scramble/Effect [RemoteEvent]
+RF/PenRoster/AskDoff [RemoteFunction]
+RF/PenRoster/AskLiveSnapshot [RemoteFunction]
+RF/PenRoster/AskSale [RemoteFunction]
+RF/PenRoster/AskWear [RemoteFunction]
+RF/PenRoster/AskWearLimit [RemoteFunction]
+RE/PenRoster/CoinsGathered [RemoteEvent]
+RF/PenRoster/ConfirmEquipBestBadge [RemoteFunction]
+RF/PenRoster/ConfirmPetsBadge [RemoteFunction]
+RE/PenRoster/OwnerDropped [RemoteEvent]
+RE/PenRoster/OwnerShifted [RemoteEvent]
+RE/LiveEvents/Began [RemoteEvent]
+RE/LiveEvents/Ended [RemoteEvent]
+RF/LiveEvents/FetchCatalogue [RemoteFunction]
+RF/LiveEvents/FetchRecurringEta [RemoteFunction]
+RF/LiveEvents/FetchRunning [RemoteFunction]
+RF/LiveEvents/FetchScheduled [RemoteFunction]
+RE/LightVsDarkness/AskClaimMilestone [RemoteEvent]
+RE/LightVsDarkness/AskCollectPowerUp [RemoteEvent]
+RE/LightVsDarkness/AskCollectRing [RemoteEvent]
+RE/LightVsDarkness/AskSelectTeam [RemoteEvent]
+RF/LightVsDarkness/FetchPowerUps [RemoteFunction]
+RF/LightVsDarkness/FetchRings [RemoteFunction]
+RF/LightVsDarkness/FetchScore [RemoteFunction]
+RE/LightVsDarkness/PowerUpCollected [RemoteEvent]
+RE/LightVsDarkness/PowerUpsCleared [RemoteEvent]
+RE/LightVsDarkness/PowerUpsDropped [RemoteEvent]
+RE/LightVsDarkness/PowerUpsSky [RemoteEvent]
+RE/LightVsDarkness/RingCollected [RemoteEvent]
+RE/LightVsDarkness/RingRespawned [RemoteEvent]
+RE/LightVsDarkness/RingsCleared [RemoteEvent]
+RE/LightVsDarkness/RingsSpawned [RemoteEvent]
+RE/LightVsDarkness/ScoreChanged [RemoteEvent]
+RE/LightVsDarkness/Struck [RemoteEvent]
+RE/SammyEvent/AskCollectPickup [RemoteEvent]
+RF/SammyEvent/FetchPickups [RemoteFunction]
+RE/SammyEvent/PickupCollected [RemoteEvent]
+RE/SammyEvent/PickupRespawned [RemoteEvent]
+RE/SammyEvent/PickupsCleared [RemoteEvent]
+RE/SammyEvent/PickupsSpawned [RemoteEvent]
+RE/SammyEvent/BomberRow [RemoteEvent]
+RE/SammyEvent/ElephantCharge [RemoteEvent]
+RE/Broadcasts/RaiseNotice [RemoteEvent]
+RE/StaffConsole/GrantSelfEgg [RemoteEvent]
+RE/StaffConsole/GrantSelfPet [RemoteEvent]
+RE/StaffConsole/GrantVerdict [RemoteEvent]
+RE/StaffConsole/ProbeStaffStatus [RemoteEvent]
+RE/StaffConsole/SpeedPowerVerdict [RemoteEvent]
+RE/StaffConsole/StaffVerdict [RemoteEvent]
+RE/StaffConsole/WipeSelfProfile [RemoteEvent]
+RE/StaffConsole/WipeVerdict [RemoteEvent]
+RE/StaffConsole/WriteSpeedPower [RemoteEvent]
+RE/StaffConsole/WriteWalkSpeed [RemoteEvent]
+RF/Telemetry/AskIdleHopFlush [RemoteFunction]
+RF/Telemetry/SubmitIdleHop [RemoteFunction]
+RE/Telemetry/SubmitIdleState [RemoteEvent]
+RE/PetSatchel/SellEveryPet [RemoteEvent]
+RE/PetSatchel/SellSelection [RemoteEvent]
+RE/PetSatchel/SellPet [RemoteEvent]
+RE/PetSatchel/WriteFavourite [RemoteEvent]
+RE/SoundBus/EmitSound [RemoteEvent]
+RF/Haul/FetchAutoSell [RemoteFunction]
+RF/Haul/FetchWearBestStatus [RemoteFunction]
+RF/Haul/OfferFullSatchelSale [RemoteFunction]
+RF/Haul/WearBest [RemoteFunction]
+RF/Haul/WriteAutoSell [RemoteFunction]
+RE/BatSwing/Trigger [RemoteEvent]
+RE/SwapGadget/AskSwap [RemoteEvent]
+RE/SwapGadget/EmitFx [RemoteEvent]
+RE/SwapGadget/EmitSfx [RemoteEvent]
+RE/DanceGadget/AskDance [RemoteEvent]
+RE/DanceGadget/AttachEffect [RemoteEvent]
+RE/DanceGadget/DetachEffect [RemoteEvent]
+RE/DanceGadget/EmitSfx [RemoteEvent]
+RE/ChatFeed/Post [RemoteEvent]
+RE/RigSync/AskRigWipe [RemoteEvent]
+RE/RigSync/CorrectionBegan [RemoteEvent]
+RE/RigSync/Primed [RemoteEvent]
+RE/RigSync/ProbeSatchel [RemoteEvent]
+RF/RigSync/Reconcile [RemoteFunction]
+RE/RigSync/Refresh [RemoteEvent]
+RE/RigSync/SeedSatchel [RemoteEvent]
+RE/Toasts/Line [RemoteEvent]
+RE/Payouts/Shower [RemoteEvent]
+RF/EggWorld/AskDoffTool [RemoteFunction]
+RF/EggWorld/AskEggRecord [RemoteFunction]
+RF/EggWorld/AskFieldEggCarry [RemoteFunction]
+RF/EggWorld/AskFieldEggDrop [RemoteFunction]
+RF/EggWorld/AskFieldEggRarityShows [RemoteFunction]
+RF/EggWorld/AskFieldEggSnapshot [RemoteFunction]
+RF/EggWorld/AskFinishHatch [RemoteFunction]
+RF/EggWorld/AskHatch [RemoteFunction]
+RF/EggWorld/AskLiveSnapshot [RemoteFunction]
+RF/EggWorld/AskPlaceEgg [RemoteFunction]
+RF/EggWorld/AskSkipGrowth [RemoteFunction]
+RF/EggWorld/AskWearTool [RemoteFunction]
+RE/EggWorld/FieldEggBatchShifted [RemoteEvent]
+RE/EggWorld/FieldEggCarry [RemoteEvent]
+RE/EggWorld/FieldEggCycleCountdown [RemoteEvent]
+RE/EggWorld/FieldEggGone [RemoteEvent]
+RE/EggWorld/FieldEggRaritiesShown [RemoteEvent]
+RE/EggWorld/FieldEggRedeemVerdict [RemoteEvent]
+RE/EggWorld/FieldEggShifted [RemoteEvent]
+RE/EggWorld/OwnerDropped [RemoteEvent]
+RE/EggWorld/OwnerShifted [RemoteEvent]
+RE/EggCapture/CutsceneBegan [RemoteEvent]
+RE/EggCapture/StandingsRefreshed [RemoteEvent]
+RE/IdleRescue/AskRescueHop [RemoteEvent]
+RE/IdleRescue/SubmitIdleFlag [RemoteEvent]
+RF/MonsterParasite/AskChestClaim [RemoteFunction]
+RF/MonsterParasite/AskChestRevealComplete [RemoteFunction]
+RF/MonsterParasite/AskChestTake [RemoteFunction]
+RF/MonsterParasite/AskFeed [RemoteFunction]
+RE/MonsterParasite/AskFullChargeReset [RemoteEvent]
+RE/MonsterParasite/AskGrowthSwap [RemoteEvent]
+RF/MonsterParasite/AskSnapshot [RemoteFunction]
+RE/MonsterParasite/ChestOpened [RemoteEvent]
+RE/MonsterParasite/EventStateShifted [RemoteEvent]
+RE/MonsterParasite/FeedSettled [RemoteEvent]
+RE/MonsterParasite/StateShifted [RemoteEvent]
+RF/SeasonBanner/FetchState [RemoteFunction]
+RF/SeasonBanner/FlagSeen [RemoteFunction]
+RF/ShopCta/FetchState [RemoteFunction]
+RF/ShopCta/FlagSeen [RemoteFunction]
+RF/Trials/Fetch [RemoteFunction]
+RE/Trials/Refresh [RemoteEvent]
+RE/FuseBiome/PortalTransition [RemoteEvent]
+RF/Fusery/BeginFuse [RemoteFunction]
+RF/Fusery/ConfirmBriefing [RemoteFunction]
+RF/Fusery/EjectPet [RemoteFunction]
+RF/Fusery/FinishReveal [RemoteFunction]
+RF/Fusery/LoadPet [RemoteFunction]
+RE/PassGrants/Awarded [RemoteEvent]
+RE/GearSatchel/Gained [RemoteEvent]
+RE/GearSatchel/Lost [RemoteEvent]
+RF/GroupPerk/RedeemPerk [RemoteFunction]
+RF/GuardOnboarding/AskLiveState [RemoteFunction]
+RF/GuardOnboarding/AskProgressSync [RemoteFunction]
+RE/GuardOnboarding/LiveStateShifted [RemoteEvent]
+RF/GuardPatrol/AskEnabled [RemoteFunction]
+RE/GuardPatrol/EnabledShifted [RemoteEvent]
+RE/GuardPatrol/ForestHandoff [RemoteEvent]
+RE/GuardPatrol/ForestStrike [RemoteEvent]
+RE/GuardPatrol/Rouse [RemoteEvent]
+RE/GuardPatrol/SpeedTollOffer [RemoteEvent]
+RE/GuardPatrol/SpeedTollWarning [RemoteEvent]
+RE/GunGadget/AskDischarge [RemoteEvent]
+RE/GunGadget/DropCaster [RemoteEvent]
+RF/Codex/AskRedeem [RemoteFunction]
+RF/Codex/AskRedeemAll [RemoteFunction]
+RF/Codex/AskRedeemLimitedEgg [RemoteFunction]
+RF/Codex/AskWearFieldBat [RemoteFunction]
+RE/Referrals/InviteLanded [RemoteEvent]
+RE/LaserGadget/AskDischarge [RemoteEvent]
+RE/LaserGadget/EmitBeam [RemoteEvent]
+RE/LaserGadget/EmitSfx [RemoteEvent]
+RE/MagnetGadget/AskTug [RemoteEvent]
+RE/MagnetGadget/EmitBeam [RemoteEvent]
+RE/MagnetGadget/EmitTargetFx [RemoteEvent]
+RE/MagnetGadget/HaltBeam [RemoteEvent]
+RE/MagnetGadget/HaltTargetFx [RemoteEvent]
+RE/MegaphoneGadget/CloseEffectWindow [RemoteEvent]
+RE/MegaphoneGadget/EmitFx [RemoteEvent]
+RE/MegaphoneGadget/EmitSfx [RemoteEvent]
+RE/MegaphoneGadget/OpenEffectWindow [RemoteEvent]
+RE/MegaphoneGadget/Rouse [RemoteEvent]
+RE/Whodunnit/RoundShifted [RemoteEvent]
+RE/Alerts/Raise [RemoteEvent]
+RE/RollbackRewards/ShowNotice [RemoteEvent]
+RF/AwayEarnings/AskCollect [RemoteFunction]
+RF/AwayEarnings/FetchSummary [RemoteFunction]
+RF/AwayEarnings/PendingCheck [RemoteFunction]
+RE/AwayEarnings/Redeemed [RemoteEvent]
+RE/AwayEarnings/SummaryRefreshed [RemoteEvent]
+RE/Homestead/AskBaseTierRaise [RemoteEvent]
+RE/Homestead/AskLobbyHop [RemoteEvent]
+RE/Homestead/AskNearbyPurchase [RemoteEvent]
+RF/Homestead/AskState [RemoteFunction]
+RE/Homestead/BaseTierRaised [RemoteEvent]
+RE/Homestead/DimBaseOutline [RemoteEvent]
+RE/Homestead/LitBaseOutline [RemoteEvent]
+RE/Homestead/StateShifted [RemoteEvent]
+RE/Gifting/Received [RemoteEvent]
+RE/Gifting/PromptFinished [RemoteEvent]
+RF/Gifting/AskGift [RemoteFunction]
+RE/Gifting/Completed [RemoteEvent]
+
+===== EGGWORLD NETWORKING =====
+Packages found: ReplicatedStorage.Packages
+Networking found: ReplicatedStorage.Packages.Networking
+RE: nil
+RF: nil
+
+===== EGGWORLD RE =====
+EggWorld RE folder not found
+
+===== EGGWORLD RF =====
+EggWorld RF folder not found
+
+===== BOSS EVENT NETWORKING =====
+
+===== BOSSEVENT RE =====
+BossEvent RE folder not found
+
+===== BOSSEVENT RF =====
+BossEvent RF folder not found
+
+===== BOSS MASTERY RF =====
+BossMastery RF folder not found
+
+===== KNOWN EGG ROOTS =====
+[FOUND] ReplicatedStorage.Assets -> Folder
+    Extra [Folder]
+    ToolEffects [Folder]
+    SpawnLock [Model]
+    VFX [Folder]
+    Billboards [Folder]
+    SubBiomeBuilds [Folder]
+    SammyEventVisuals [Folder]
+    Trails [Folder]
+    ToolSounds [Folder]
+    MoneyChange [Frame]
+    UI [Folder]
+    Models [Folder]
+    Particles [Folder]
+    Sounds [Folder]
+    EggPoof [Part]
+    Orb [Part]
+    ScrambleCurrency [Part]
+[FOUND] ReplicatedStorage.Assets.Models -> Folder
+    Pointers [Folder]
+    Sakura [Folder]
+    Orbs [Folder]
+    Treadmills [Folder]
+    MonsterParasite [Folder]
+    BuckPiles [Folder]
+    Rings [Folder]
+    PowerUps [Folder]
+    Eggs [Folder]
+    Scramble [Folder]
+    ClaimArea [Part]
+    EMPCoin [MeshPart]
+    EMPCoinOld [MeshPart]
+[FOUND] ReplicatedStorage.Assets.Models.Eggs -> Folder
+    Kraken [Model]
+    Ascended Vermilion Phoenix [Model]
+    Bronto [Model]
+    Trulimero Trulicina [Model]
+    Parrotfish [Model]
+    Polar Bear [Model]
+    Lava frog [Model]
+    Walrus [Model]
+    Crocodile [Model]
+    Basilisk [Model]
+    Orca [Model]
+    Eternal Lunar Dragon [Model]
+    Whale Shark [Model]
+    Chillin Chilli [Model]
+    Sabertooth Tiger [Model]
+    Toucan [Model]
+    Tralaledon [Model]
+    Sand Spider [Model]
+    Mammoth [Model]
+    Tob Tobi Tob Tob [Model]
+    Triceratops [Model]
+    Flaming Bull [Model]
+    Penguin [Model]
+    Alabaster Whale [Model]
+    Dragon [Model]
+    Raccoon [Model]
+    DeathstalkerScorpion [Model]
+    Skeleton Horse [Model]
+    El Maja [Model]
+    Rattlesnake [Model]
+    Dodo [Model]
+    Swan [Model]
+    Cerberus [Model]
+    Dream Axolotl [Model]
+    Ankylosaurus [Model]
+    Irihorus [Model]
+    Chicken [Model]
+    Galaxy Gecko [Model]
+    FennecFox [Model]
+    Frog [Model]
+    Bear [Model]
+    Turtle [Model]
+    Duckling [Model]
+    Ash Gecko [Model]
+    Burrowing Owl [Model]
+    La Vacca Saturno Saturnita [Model]
+    Jerboa [Model]
+    Chimpanzee [Model]
+    DesertLark [Model]
+    Tiger [Model]
+    Camel [Model]
+    Spider [Model]
+    Orangutini Ananassini [Model]
+    Colossal Mammoth [Model]
+    Lava Iguana [Model]
+    Catfish [Model]
+    Brr Brr Patapim [Model]
+    Mire Fox [Model]
+    Yeti [Model]
+    Strawberry Elephant [Model]
+    Mangolini Parrochini [Model]
+    Bomboclat Crocolat [Model]
+    Belula Beluga [Model]
+    Bananita Dolphinita [Model]
+    Ringlord [Model]
+    Balrog [Model]
+    Demon Imp [Model]
+    Hellhound [Model]
+    Archdemon Dragon [Model]
+    Depths Reroll Egg [Model]
+    Baby Aurora Dragon [Model]
+    Shadow Dragon [Model]
+    Void Dragon [Model]
+    ScorchedDragon [Model]
+    Ember Dragon [Model]
+    Crane [Model]
+    Kitsune [Model]
+    Koi [Model]
+    Oni Tiger [Model]
+    Red Panda [Model]
+    Salamander [Model]
+    Snowy Owl [Model]
+    Stag [Model]
+    Unicorn [Model]
+    Cyclops Gorilla [Model]
+    TyrannosaurusRex [Model]
+    Gorilla [Model]
+    Ice Dragon [Model]
+    Dog [Model]
+    Centapede [Model]
+    Finned Thresher [Model]
+    Cave Dragon [Model]
+    Alien Skeleton Boss [Model]
+    Warden [Model]
+    Mosasaurus [Model]
+    Pterodactyl [Model]
+    Monster Egg [Model]
+    Drill Monster [Model]
+    King Kong [Model]
+    Crab [Model]
+    Rhino [Model]
+    Mantis [Model]
+    Kaiju Spider [Model]
+    Shark [Model]
+    Blade Head [Model]
+    Godzilla [Model]
+    Mecha Egg [Model]
+    Monstrous Egg [Model]
+    Boss Egg [Model]
+    Crystal Egg [Model]
+    Abyss Overlord [Model]
+    Riftborn Egg [Model]
+    Shattered Rift Egg [Model]
+    Riftbeasts Egg [Model]
+    Demon Hound [Model]
+    Dove [Model]
+    Lamb [Model]
+    Moth [Model]
+    Peacock [Model]
+    Jellyfish [Model]
+    Pegasus [Model]
+    ArchAngel [Model]
+    Imp [Model]
+    Toro [Model]
+    ToSwap [Folder]
+    Flame Sprite [Model]
+    Ring Guard [Model]
+    Aetheron [Model]
+    RazorFang [Model]
+    Dark Gargoyle [Model]
+    Equinox [Model]
+    Depths Egg [Model]
+    Centaur [Model]
+    World Burner [Model]
+    Tung Tung Sahur [Model]
+    LimitedExperimentEgg [Model]
+    Nibbles #013 [Model]
+    LimitedTimeExperimentPet [Model]
+    67 [Model]
+    67 OP [Model]
+    Swordfish [Model]
+[FOUND] ReplicatedStorage.Packages -> Folder
+    Networking [ModuleScript]
+    CameraShaker [ModuleScript]
+    Streamable [ModuleScript]
+    Input [ModuleScript]
+    InstanceCache [ModuleScript]
+    TableUtil [ModuleScript]
+    Log [ModuleScript]
+    t [ModuleScript]
+    Signal [ModuleScript]
+    Timer [ModuleScript]
+    WaitFor [ModuleScript]
+    TestEz [ModuleScript]
+    Promise [ModuleScript]
+    Trove [ModuleScript]
+    TopBarPlus [ModuleScript]
+    Shake [ModuleScript]
+    Spring [ModuleScript]
+    Configs [Folder]
+    FormatNumber [Folder]
+    _Index [Folder]
+
+===== WORKSPACE TARGETED ROOTS =====
+[FOUND] Workspace.Plots [Folder]
+    6 [Model]
+    7 [Model]
+    5 [Model]
+    1 [Model]
+    4 [Model]
+    3 [Model]
+    2 [Model]
+[FOUND] Workspace.Eggs [Folder]
+[FOUND] Workspace.Map [Folder]
+    Decal [Decal]
+[FOUND] Workspace.__ClientTreadmillRenders [Folder]
+    TreadmillRender_2 [Tool]
+    TreadmillRender_7 [Tool]
+    TreadmillRender_3 [Tool]
+    TreadmillRender_1 [Tool]
+
+===== EGG OBJECT DISCOVERY =====
+Scanning root: Workspace
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.002
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.003
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.004
+[Part] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.038
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cylinder.012
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.017
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Forest.ForestGuardAuthored.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Forest.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Lake.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Snow.Guard.EggPoint
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Guard.EggPoint
+[Folder] Workspace.World.Areas.EggCarryBounds
+[Part] Workspace.World.Areas.CaptureTheEggSpawn
+[Part] Workspace.World.Areas.AdminAbuseEggSpawn
+[Folder] Workspace.Eggs
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.039
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.039.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.049
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.049.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.049.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.014
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.054
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.054.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.020
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.009
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.009.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.010.Models for egg.020
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.010.Models for egg.009
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.041
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.041.Models for egg.043
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.041.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.022
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.004
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.048.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.046
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.046.Models for egg.024
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.046.Models for egg.045
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.051
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.051.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.005
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.017
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.043
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.043.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.043.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.008
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.005
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.050
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.004
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.041
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.034
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.001
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.035
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.003.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.038.Models for egg.012
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.038.Models for egg.040
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.034
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.001
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.019
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.047.Models for egg.049
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.047.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.055.Models for egg.021
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.055.Models for egg.054
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.008
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.008.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.008.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.024
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.050
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.050.Models for egg.015
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.050.Models for egg.052
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.040
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.040.Models for egg.019
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.040.Models for egg.039
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.036.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.031
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Root.Models for egg.003
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.052
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.052.Models for egg.022
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.052.Models for egg.051
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.045
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.045.Models for egg.031
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.044.Models for egg.017
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.044.Models for egg.046
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.037
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.037.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.037.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.042.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.035
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.035.Models for egg.037
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.035.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.015
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.021
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.053.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.9521640019_9223adbd5de04db49b4cf735b6fea550.Model.Models for egg.053.Models for egg.014
+Scanning root: ReplicatedStorage
+Egg/Boss matching objects: 250
+Result limit reached: 250
+
+==================================================
+SCAN COMPLETE
+==================================================
