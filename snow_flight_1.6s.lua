@@ -18,12 +18,16 @@
    There is NO bait egg, NO guard wait, NO parabolic arc and NO
    post-landing freeze hold. Straight line, 1.6 s.
 
- SPEED
-   1.6 s is the total flight duration, so the speed is derived from the
-   distance:  speed = distance / 1.6.
-   MAX_SPEED (default 3000 studs/s) is a safety clamp. If the target is
-   far enough that the required speed would exceed it, the status line
-   says so and the flight will stop short instead of exceeding the cap.
+ SPEED - AUTO CALCULATED
+   1.6 s is the ONLY fixed number. Every frame the speed is derived from
+   the live distance still to cover and the time still left:
+       velocity = remaining distance / remaining time
+   so a nearby egg is slow and a distant egg is fast - nothing pre-set.
+
+   REACH_FACTOR (default 3x the planned average) only limits how hard it
+   may correct when something pushes you off line, and it scales with the
+   distance, so it is not a fixed speed either. Set CONFIG.SPEED_LIMIT if
+   you want a hard ceiling (nil = none by default).
 
  WHAT IT CHANGES WHILE RUNNING (all restored afterwards)
    * HumanoidRootPart.AssemblyLinearVelocity / AssemblyAngularVelocity
@@ -90,12 +94,13 @@ end
 --==================================================
 
 local CONFIG = {
-	FLIGHT_DURATION = 1.6,   -- total flight time in seconds
+	FLIGHT_DURATION = 1.6,   -- total flight time in seconds (the ONLY constant)
 	RUN_WALKSPEED = 500.0,   -- forced while flying (same as grok-v3)
-	MAX_SPEED = 3000.0,      -- velocity clamp; distance/1.6 above this stops short
-	TARGET_Y_OFFSET = 3.0,   -- land 3 studs above the egg part (same as grok-v3)
-	ARRIVE_TOLERANCE = 5.0,  -- stop early when this close after 0.25s
-	MIN_ARRIVE_ELAPSED = 0.25,
+	REACH_FACTOR = 3.0,      -- catch-up ceiling as a MULTIPLE of the planned
+	                         -- average speed, so it scales with distance
+	SPEED_LIMIT = nil,       -- optional absolute cap in studs/s; nil = none
+	TARGET_Y_OFFSET = 3.0,   -- added to the live egg position
+	ARRIVE_TOLERANCE = 5.0,  -- only used to label the result
 	MOTOR_RECHECK = 0.10,    -- seconds between Motor6D/state re-assertions
 	STATE_RETRY = 0.10,      -- seconds between ChangeState(Running) retries
 	AUTO_ON_HIT = true,      -- fly automatically when a hit/ragdoll is seen
@@ -730,16 +735,13 @@ local function endFlight(reason)
 		travelled = (root.Position - flight.origin).Magnitude
 		remaining = (flight.target - root.Position).Magnitude
 
-		if reason == "arrived" then
+		safe(function()
+			root.AssemblyLinearVelocity = Vector3.zero
+		end)
 
-			safe(function()
-				root.AssemblyLinearVelocity = Vector3.zero
-			end)
-
-			safe(function()
-				root.AssemblyAngularVelocity = Vector3.zero
-			end)
-		end
+		safe(function()
+			root.AssemblyAngularVelocity = Vector3.zero
+		end)
 	end
 
 	restoreWalkSpeed()
@@ -747,10 +749,11 @@ local function endFlight(reason)
 
 	local elapsed = os.clock() - flight.t0
 	local averageSpeed = elapsed > 0 and (travelled / elapsed) or 0
+	local arrived = remaining <= CONFIG.ARRIVE_TOLERANCE
 
 	report(string.format(
 		"%s | flew %.0f studs in %.2fs (avg %.0f studs/s) | gap to %s: %.0f studs",
-		reason == "arrived" and "ARRIVED" or "TIME UP (1.6s)",
+		arrived and "ARRIVED" or "TIME UP (1.6s)",
 		travelled,
 		elapsed,
 		averageSpeed,
@@ -814,19 +817,6 @@ local function startFlight(reason)
 		target.Position + Vector3.new(0, CONFIG.TARGET_Y_OFFSET, 0)
 
 	local distance = (targetPosition - root.Position).Magnitude
-	local requiredSpeed = distance / CONFIG.FLIGHT_DURATION
-	local capped = requiredSpeed > CONFIG.MAX_SPEED
-
-	if capped then
-
-		report(string.format(
-			"Target %.0f studs away needs %.0f studs/s; capped at %.0f "
-				.. "(will stop short).",
-			distance,
-			requiredSpeed,
-			CONFIG.MAX_SPEED
-		))
-	end
 
 	isFlying = true
 	flightToken = flightToken + 1
@@ -837,8 +827,7 @@ local function startFlight(reason)
 		origin = root.Position,
 		t0 = os.clock(),
 		distance = distance,
-		requiredSpeed = requiredSpeed,
-		capped = capped,
+		plannedAverage = distance / CONFIG.FLIGHT_DURATION,
 		source = target.Source,
 		reason = reason,
 	}
@@ -849,11 +838,10 @@ local function startFlight(reason)
 	task.spawn(forceRunOnce)
 
 	report(string.format(
-		"FLYING to %s (%s) | %.0f studs | %.0f studs/s | %.1fs",
+		"FLYING to %s (%s) | %.0f studs | auto speed | %.1fs",
 		tostring(selectedBiome),
 		tostring(target.Source),
 		distance,
-		math.min(requiredSpeed, CONFIG.MAX_SPEED),
 		CONFIG.FLIGHT_DURATION
 	))
 
@@ -896,14 +884,20 @@ connect(RunService.Heartbeat, function(dt)
 	enforceWalkSpeed()
 
 	local elapsed = os.clock() - flight.t0
-	local remainingTime = math.max(CONFIG.FLIGHT_DURATION - elapsed, 0.001)
+	local remainingTime = math.max(CONFIG.FLIGHT_DURATION - elapsed, 0.02)
 	local delta = flight.target - root.Position
 
-	-- Straight line, no arc: velocity = remaining distance / remaining time.
+	-- AUTO: no fixed speed. Velocity = what is still needed to cover the
+	-- remaining distance inside the time that is left.
 	local desired = delta / remainingTime
+	local catchUpCeiling = flight.plannedAverage * CONFIG.REACH_FACTOR
 
-	if desired.Magnitude > CONFIG.MAX_SPEED then
-		desired = desired.Unit * CONFIG.MAX_SPEED
+	if desired.Magnitude > catchUpCeiling then
+		desired = desired.Unit * catchUpCeiling
+	end
+
+	if CONFIG.SPEED_LIMIT and desired.Magnitude > CONFIG.SPEED_LIMIT then
+		desired = desired.Unit * CONFIG.SPEED_LIMIT
 	end
 
 	safe(function()
@@ -913,16 +907,6 @@ connect(RunService.Heartbeat, function(dt)
 	safe(function()
 		root.AssemblyAngularVelocity = Vector3.zero
 	end)
-
-	local distanceLeft = delta.Magnitude
-
-	if distanceLeft < CONFIG.ARRIVE_TOLERANCE
-		and elapsed > CONFIG.MIN_ARRIVE_ELAPSED then
-
-		endFlight("arrived")
-
-		return
-	end
 
 	if elapsed >= CONFIG.FLIGHT_DURATION then
 		endFlight("time")
@@ -1301,7 +1285,8 @@ bindCharacterWatch(getCharacter())
 _G.SNOW_FLIGHT_1_6S = {
 	version = "1.0",
 	flightDuration = CONFIG.FLIGHT_DURATION,
-	maxSpeed = CONFIG.MAX_SPEED,
+	reachFactor = CONFIG.REACH_FACTOR,
+	speedLimit = CONFIG.SPEED_LIMIT,
 	stop = stopEverything,
 	fly = startFlight,
 	stopFlight = function()

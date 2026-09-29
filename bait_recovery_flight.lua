@@ -20,11 +20,16 @@
    Every stage is timestamped in the on-screen log, so you can see the
    order happen instead of trusting it.
 
- SPEED
-   1.6 s is the total flight duration: speed = distance / 1.6,
-   recomputed every frame. MAX_SPEED (default 3000 studs/s) is a safety
-   clamp; if the target needs more, the flight ends short and the log
-   says so.
+ SPEED - AUTO CALCULATED
+   1.6 s is the ONLY fixed number in the flight. Every frame the script
+   reads the live distance left to the target and the time left, and sets
+    velocity = remaining distance / remaining time. A close egg gets a
+   low speed, a far egg gets a high one - nothing is pre-set.
+
+   REACH_FACTOR (default 3x the planned average) only limits how hard it
+   may correct if something pushes you off line, and it scales with the
+   distance, so it is not a fixed speed either. Set CONFIG.SPEED_LIMIT if
+   you want a hard ceiling (nil = none by default).
 
  WHAT IT WRITES
    * HumanoidRootPart AssemblyLinearVelocity / AssemblyAngularVelocity
@@ -98,12 +103,16 @@ local CONFIG = {
 	-- recovery
 	RESTORE_RETRY = 0.10,
 
-	-- flight
-	FLIGHT_DURATION = 1.6,        -- TOTAL flight time
-	MAX_SPEED = 3000.0,
-	TARGET_Y_OFFSET = 3.0,
-	ARRIVE_TOLERANCE = 5.0,
-	MIN_ARRIVE_ELAPSED = 0.25,
+	-- flight: 1.6 s is the ONLY fixed number. Speed is auto-calculated
+	-- every frame as: remaining distance / remaining time.
+	FLIGHT_DURATION = 1.6,        -- TOTAL flight time (the only constant)
+	REACH_FACTOR = 3.0,           -- catch-up ceiling as a MULTIPLE of the
+	                              -- planned average speed, so it scales with
+	                              -- distance instead of being a fixed speed
+	SPEED_LIMIT = nil,            -- optional absolute cap in studs/s;
+	                              -- nil = no cap at all
+	TARGET_Y_OFFSET = 3.0,        -- added to the live egg position
+	ARRIVE_TOLERANCE = 5.0,       -- only used to label the result
 
 	-- behaviour
 	RUN_WALKSPEED = 500.0,
@@ -1067,6 +1076,9 @@ local function flyTo(targetPosition, token, duration)
 	end
 
 	local origin = root.Position
+	local plannedDistance = (targetPosition - origin).Magnitude
+	local plannedAverage = plannedDistance / duration
+	local catchUpCeiling = plannedAverage * CONFIG.REACH_FACTOR
 	local started = os.clock()
 
 	isFlying = true
@@ -1075,13 +1087,12 @@ local function flyTo(targetPosition, token, duration)
 	applyFrictionless(true)
 	enforceWalkSpeed()
 
-	local arrived = false
-
+	-- Runs for exactly `duration`. There is no fixed speed: the velocity
+	-- needed is derived from the live distance to the target and the time
+	-- still remaining, so a far target simply gets a higher speed.
 	while scriptAlive and token == pipeline.token do
 
 		RunService.Heartbeat:Wait()
-
-		local elapsed = os.clock() - started
 
 		root = getRoot()
 		humanoid = getHumanoid()
@@ -1101,32 +1112,28 @@ local function flyTo(targetPosition, token, duration)
 		keepControl()
 		enforceWalkSpeed()
 
-		local remainingTime = math.max(duration - elapsed, 0.001)
+		local elapsed = os.clock() - started
+		local remainingTime = math.max(duration - elapsed, 0.02)
 		local delta = targetPosition - root.Position
+		local desired = delta / remainingTime
 
-		if delta.Magnitude > 0.001 then
-
-			local desired = delta / remainingTime
-
-			if desired.Magnitude > CONFIG.MAX_SPEED then
-				desired = desired.Unit * CONFIG.MAX_SPEED
-			end
-
-			safe(function()
-				root.AssemblyLinearVelocity = desired
-			end)
-
-			safe(function()
-				root.AssemblyAngularVelocity = Vector3.zero
-			end)
+		-- Catch-up ceiling: scales with the plan (distance / 1.6), so it is
+		-- auto-calculated too. It only matters if something pushes back.
+		if desired.Magnitude > catchUpCeiling then
+			desired = desired.Unit * catchUpCeiling
 		end
 
-		if delta.Magnitude < CONFIG.ARRIVE_TOLERANCE
-			and elapsed > CONFIG.MIN_ARRIVE_ELAPSED then
-
-			arrived = true
-			break
+		if CONFIG.SPEED_LIMIT and desired.Magnitude > CONFIG.SPEED_LIMIT then
+			desired = desired.Unit * CONFIG.SPEED_LIMIT
 		end
+
+		safe(function()
+			root.AssemblyLinearVelocity = desired
+		end)
+
+		safe(function()
+			root.AssemblyAngularVelocity = Vector3.zero
+		end)
 
 		if elapsed >= duration then
 			break
@@ -1148,6 +1155,8 @@ local function flyTo(targetPosition, token, duration)
 		travelled = (finalRoot.Position - origin).Magnitude
 		remaining = (targetPosition - finalRoot.Position).Magnitude
 	end
+
+	local arrived = remaining <= CONFIG.ARRIVE_TOLERANCE
 
 	return arrived, travelled, remaining
 end
@@ -1288,11 +1297,13 @@ local function flyToBiome(token)
 	setStage("FLYING")
 
 	logEvent(string.format(
-		"flight started to %s (%s) | %.0f studs | %.0f studs/s | %.1fs",
+		"flight started to %s (%s) at (%.0f, %.0f) | %.0f studs | "
+			.. "auto speed for %.1fs",
 		tostring(selectedBiome),
 		tostring(target.Source),
+		targetPosition.X,
+		targetPosition.Z,
 		distance,
-		distance / CONFIG.FLIGHT_DURATION,
 		CONFIG.FLIGHT_DURATION
 	))
 
