@@ -4,6 +4,8 @@
 	Built on the v2 inventory scanner (FULL SCAN / COPY RESULTS / drag). v3 adds the live layer that the
 	01:33 / 01:43 boss-hit logs could not give us:
 
+	  (build r2)  AUTO_WATCH starts the listener at load; repeat FULL SCANs print inventory diffs only;
+	              the export header reports userId (one line said "hired" before)
 	  FULL SCAN   leaderstats, player + character attributes, humanoid/movement snapshot,
 	              remote inventory (RemoteEvent + RemoteFunction, grouped by family),
 	              token-matched object search (word matching — "Trunk" no longer matches "run")
@@ -70,6 +72,8 @@ local CONFIG = {
 	RECENT_EVENTS      = 40,     -- ring of recent remote firings for HIT attribution
 	STATUS_HZ          = 1,      -- HUD/status row rate while watching
 	SCAN_LIMIT_OBJECTS = 60,     -- matched objects printed by FULL SCAN
+	AUTO_WATCH         = true,   -- start listening as soon as the script loads (a hit can't be missed)
+	SKIP_REPEAT_SCAN   = true,   -- repeat FULL SCANs print inventory changes only + skip the Workspace walk
 }
 
 -- Remote families worth watching in FOCUS mode (substring match on the full path).
@@ -88,6 +92,8 @@ local watching, watchMode = false, "focus"
 local watchConns, extraConns = {}, {}
 local remoteStats, recentEvents = {}, {}
 local hits, lastHitT = 0, -1
+local firstScanDone = false
+local lastInventory = {}
 local watchedRemoteNames = {}
 local API
 local countWatched, matchesFocus, watchList, doScan, doCopy, doExport, setWatch, destroy
@@ -289,7 +295,7 @@ local function buildGui()
 		Position = UDim2.new(0, 10, 0, 36), BackgroundColor3 = Color3.fromRGB(40, 120, 55), Text = "FULL SCAN",
 		TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, BorderSizePixel = 0 }, main)
 
-	watchButton = make("TextButton", { Name = "Btn_WATCHOFF", Size = UDim2.new(0, 108, 0, 30),
+	watchButton = make("TextButton", { Name = "Btn_WATCH", Size = UDim2.new(0, 108, 0, 30),
 		Position = UDim2.new(0, 124, 0, 36), BackgroundColor3 = Color3.fromRGB(40, 90, 140), Text = "WATCH: OFF",
 		TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, BorderSizePixel = 0 }, main)
 	watchLabel = watchButton
@@ -518,6 +524,11 @@ end
 
 local function scanObjects()
 	sep("OBJECT SEARCH (token-matched: run / running / treadmill / belt — 'plot' noise removed)")
+	if firstScanDone and CONFIG.SKIP_REPEAT_SCAN then
+		say("OBJECTS", "skipped — object set does not change mid-session; a full Workspace walk costs ~1s " ..
+			"(CONFIG.SKIP_REPEAT_SCAN=false to force it)")
+		return
+	end
 	local wanted = { run = true, running = true, treadmill = true, belt = true }
 	local matches, checked = {}, 0
 	for _, obj in ipairs(Workspace:GetDescendants()) do
@@ -577,15 +588,51 @@ local function scanRemotes()
 	local fams = {}
 	for name, g in pairs(groups) do fams[#fams + 1] = { name = name, g = g } end
 	table.sort(fams, function(a, b) return a.name < b.name end)
-	say("REMOTES", string.format("total=%d (RemoteEvent=%d RemoteFunction=%d) families=%d",
-		total, total - rf, rf, #fams))
-	for _, f in ipairs(fams) do
+
+	local function printFamily(f)
 		local g = f.g
 		say("REMOTES", string.format("%-34s RE=%-3d RF=%-3d %s", f.name, g.re, g.rf,
 			(g.watched and "  <-- LISTENING" or (g.focused and "  <-- FOCUS family (hit/ragdoll/carry)" or ""))))
 		for _, n in ipairs(g.names) do say("REMOTES", "      " .. n) end
 		if (g.re + g.rf) > #g.names then say("REMOTES", string.format("      … %d more", (g.re + g.rf) - #g.names)) end
 	end
+
+	say("REMOTES", string.format("total=%d (RemoteEvent=%d RemoteFunction=%d) families=%d",
+		total, total - rf, rf, #fams))
+	if firstScanDone and CONFIG.SKIP_REPEAT_SCAN then
+		local added, changed, removed = {}, {}, {}
+		for _, f in ipairs(fams) do
+			local old = lastInventory[f.name]
+			if not old then added[#added + 1] = f
+			elseif old.re ~= f.g.re or old.rf ~= f.g.rf then changed[#changed + 1] = f end
+		end
+		for name in pairs(lastInventory) do
+			if not groups[name] then removed[#removed + 1] = name end
+		end
+		table.sort(removed)
+		if (#added + #changed + #removed) == 0 then
+			say("REMOTES", "inventory unchanged since the previous scan — family listing suppressed " ..
+				"(CONFIG.SKIP_REPEAT_SCAN=false for the full dump every time)")
+		else
+			say("REMOTES", string.format("inventory changed: %d added, %d changed, %d removed",
+				#added, #changed, #removed))
+			for _, f in ipairs(added) do
+				say("REMOTES", "NEW  " .. f.name)
+				printFamily(f)
+			end
+			for _, f in ipairs(changed) do
+				local old = lastInventory[f.name]
+				say("REMOTES", string.format("CHANGED %-28s RE %d->%d  RF %d->%d",
+					f.name, old.re, f.g.re, old.rf, f.g.rf))
+			end
+			for _, name in ipairs(removed) do say("REMOTES", "GONE " .. name) end
+		end
+	else
+		for _, f in ipairs(fams) do printFamily(f) end
+		say("REMOTES", "full family listing (first scan of this session)")
+	end
+	lastInventory = {}
+	for name, g in pairs(groups) do lastInventory[name] = { re = g.re, rf = g.rf } end
 	local planned = #watchList(watchMode)
 	say("REMOTES", string.format("watching now: %d | %s mode selects %d of %d remote events%s",
 		countWatched(), watchMode, planned, total, watching and "" or " (WATCH is OFF)"))
@@ -593,6 +640,9 @@ end
 
 doScan = function()
 	sep("FULL SCAN")
+	if not watching then
+		say("TIP", "WATCH is OFF — press WATCH: ON before you play so a hit is recorded with the remote that caused it")
+	end
 	say("INFO", string.format("player=%s userId=%d | mode=%s | server clock %s",
 		localPlayer.Name, localPlayer.UserId or 0, watchMode, clockOf(serverNow())))
 	scanLeaderstats()
@@ -603,6 +653,7 @@ doScan = function()
 	scanObjects()
 	sep("SCAN COMPLETE")
 	say("INFO", "read-only: no remote calls made, no character properties written")
+	firstScanDone = true
 	refreshStatus()
 end
 
@@ -881,16 +932,14 @@ local function setWatch(on)
 	if on and not watching then
 		watching = true
 		connectWatch()
-		watchButton.Text = "WATCH: ON"
-		watchButton.Name = "Btn_WATCHON"
+		if watchButton then watchButton.Text = "WATCH: ON" end
 		say("WATCH", "watching ON — play now; a hit will produce a HIT row with the remote that caused it")
 		local left = ragdollRemaining()
 		if left then say("ATTR", string.format("ragdoll window active: %.1fs left", left)) end
 	elseif (not on) and watching then
 		watching = false
 		disconnectWatch()
-		watchButton.Text = "WATCH: OFF"
-		watchButton.Name = "Btn_WATCHOFF"
+		if watchButton then watchButton.Text = "WATCH: OFF" end
 	end
 	return watching
 end
@@ -914,7 +963,7 @@ doExport = function()
 		"===== ADVANCED SCANNER v3 (listener) =====",
 		string.format("exported at t+%.3fs | entries=%d dropped=%d | watch=%s mode=%s | watched=%d",
 			elapsed(), #journal, dropped, watching and "ON" or "OFF", watchMode, countWatched()),
-		string.format("player=%s | hired=%s", localPlayer.Name, tostring(localPlayer.UserId)),
+		string.format("player=%s | userId=%s", localPlayer.Name, tostring(localPlayer.UserId)),
 		"",
 	}
 	for _, entry in ipairs(journal) do
@@ -988,6 +1037,10 @@ if guiOk then
 	say("INFO", "v3 listener ready. FULL SCAN = inventory, WATCH ON = live capture, COPY RESULTS = paste here.")
 else
 	say("INFO", "GUI could not be parented (no PlayerGui) — API still available")
+end
+if CONFIG.AUTO_WATCH then
+	say("INFO", "AUTO_WATCH is on — the listener starts with the script, so a hit is captured even if you forget the button")
+	setWatch(true)
 end
 
 track(RunService.Heartbeat:Connect(heartbeat))

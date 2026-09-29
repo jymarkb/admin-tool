@@ -19,6 +19,11 @@ local function findInJournal(fragment, from)
 	end
 	return nil
 end
+local function countInJournal(fragment)
+	local n = 0
+	for _, e in ipairs(API.journal()) do if has(e.line, fragment) then n = n + 1 end end
+	return n
+end
 local function waitFor(pred, limit)
 	local g = 0
 	while not pred() and g < (limit or 5000) do g = g + 1; M.pump(0.02) end
@@ -37,19 +42,21 @@ M.pump(0.2)
 local gui = F.playerGui:FindFirstChild("AdvancedScanner_v3")
 check("GUI is created", gui ~= nil)
 check("FULL SCAN button exists", M.findDescendantByName(gui, "Btn_FULLSCAN") ~= nil)
-check("WATCH button exists", M.findDescendantByName(gui, "Btn_WATCHOFF") ~= nil)
+check("WATCH button exists", M.findDescendantByName(gui, "Btn_WATCH") ~= nil)
 check("MODE button exists", M.findDescendantByName(gui, "Btn_MODE") ~= nil)
 check("COPY button exists", M.findDescendantByName(gui, "Btn_COPY") ~= nil)
 check("CLEAR button exists", M.findDescendantByName(gui, "Btn_CLEAR") ~= nil)
 check("CLOSE button exists", M.findDescendantByName(gui, "Btn_CLOSE") ~= nil)
-check("starts with watch OFF", API.status().watching == false, tostring(API.status().watching))
+check("AUTO_WATCH starts the listener at load", API.status().watching == true, tostring(API.status().watching))
 check("starts in focus mode", API.status().mode == "focus", API.status().mode)
+check("watch button already reads ON", M.findDescendantByName(gui, "Btn_WATCH").Text == "WATCH: ON",
+	M.findDescendantByName(gui, "Btn_WATCH").Text)
 check("ready line logged", has(journalText(), "v3 listener ready"))
 check("no outgoing calls at boot", #M.outgoingCalls == 0 and API.stats().outgoingCalls == 0,
 	string.format("%d recorded", #M.outgoingCalls))
 
 local scanBtn = M.findDescendantByName(gui, "Btn_FULLSCAN")
-local watchBtn = M.findDescendantByName(gui, "Btn_WATCHOFF")
+local watchBtn = M.findDescendantByName(gui, "Btn_WATCH")
 local modeBtn = M.findDescendantByName(gui, "Btn_MODE")
 local copyBtn = M.findDescendantByName(gui, "Btn_COPY")
 
@@ -92,13 +99,51 @@ check("server time row printed with a clock", findInJournal("server time now = "
 check("object search no longer drags in plot noise", not has(text, "PlotSign"))
 check("object search is labelled with its tokens", has(text, "token-matched: run / running / treadmill / belt"))
 local planned = findInJournal("mode selects ")
-check("watch plan is reported even while WATCH is OFF",
-	planned ~= nil and has(planned.line, "WATCH is OFF") and has(planned.line, "remote events"),
+check("watch plan is reported (count + mode + total)",
+	planned ~= nil and has(planned.line, "of 22 remote events") and has(planned.line, "focus mode selects"),
 	planned and planned.line)
 check("network owner read failure is labelled, not '?'",
 	has(text, "net=client-side read blocked") or has(text, "net=nil") or has(text, "net="))
 check("scan made no outgoing calls", #M.outgoingCalls == 0, string.format("%d", #M.outgoingCalls))
 check("scan wrote nothing to the game", #M.violations == 0, tostring(M.violations[1] and M.violations[1].kind))
+
+--=================== B2. repeat scans are compact and diff-aware ===================
+local familiesBefore = countInJournal("RE/BossEvent/BlackHoleHit")
+local mark2 = #API.journal()
+scanBtn.MouseButton1Click:Fire()
+check("second scan completes", waitFor(function()
+	return #API.journal() > mark2 and has(journalText(), "SCAN COMPLETE") and countInJournal("SCAN COMPLETE") >= 2
+end))
+local function sinceMark(fragment)
+	local entries = API.journal()
+	for i = mark2 + 1, #entries do if has(entries[i].line, fragment) then return entries[i] end end
+	return nil
+end
+local unchangedRow = sinceMark("inventory unchanged since the previous scan")
+check("repeat scan reports the inventory as unchanged", unchangedRow ~= nil,
+	unchangedRow and unchangedRow.line)
+check("repeat scan does not repeat the family listing",
+	countInJournal("RE/BossEvent/BlackHoleHit") == familiesBefore,
+	string.format("%d then %d", familiesBefore, countInJournal("RE/BossEvent/BlackHoleHit")))
+check("repeat scan skips the Workspace walk", sinceMark("skipped — object set does not change mid-session") ~= nil)
+check("first scan said it was the full listing", countInJournal("full family listing") == 1)
+
+local networking = F.watchTargets[1].Parent
+local probeFamily = M.new("Folder", "ProbeFamily", networking, {})
+M.new("RemoteEvent", "RE/ProbeFamily/ProbeAdded", probeFamily, {})
+local mark3 = #API.journal()
+scanBtn.MouseButton1Click:Fire()
+check("third scan completes", waitFor(function() return countInJournal("SCAN COMPLETE") >= 3 end, 6000))
+local function afterMark(fragment)
+	local entries = API.journal()
+	for i = mark3 + 1, #entries do if has(entries[i].line, fragment) then return entries[i] end end
+	return nil
+end
+local changedRow = afterMark("inventory changed")
+check("new remote family reported as an inventory addition", changedRow ~= nil and has(changedRow.line, "1 added"),
+	changedRow and changedRow.line)
+check("the new remote is named", afterMark("ProbeAdded") ~= nil,
+	afterMark("ProbeAdded") and afterMark("ProbeAdded").line)
 
 --=================== C. watch list / modes ===================
 -- expired RagdollEndTime (the live log had one 215s in the past) must read as "ended ... ago"
@@ -130,8 +175,9 @@ API.setMode("all")
 check("all mode picks up the treadmill remote", listedPath(allList, "RE/Treadmill/SpeedGained"))
 
 --=================== D. listening ===================
-local baselineConns = M.aliveConnections()
 API.setMode("focus")
+API.watch(false)                     -- clean baseline: AUTO_WATCH already connected at load
+local baselineConns = M.aliveConnections()
 local focused = API.watch(true)
 check("watch turns on", focused == true and API.status().watching == true)
 check("watch button reflects state", watchBtn.Text == "WATCH: ON", watchBtn.Text)
@@ -277,6 +323,7 @@ check("copy() reports success", ok == true)
 check("clipboard received the export", M.clipboard ~= nil and #M.clipboard > 500,
 	M.clipboard and #M.clipboard)
 check("export has the v3 header", has(M.clipboard, "ADVANCED SCANNER v3 (listener)"))
+check("export header says userId, not 'hired'", has(M.clipboard, "userId=") and not has(M.clipboard, "hired="))
 check("export has the watch stats line", has(M.clipboard, "watch=ON"))
 check("export contains a HIT row", has(M.clipboard, "HIT"))
 check("export contains remote rows", has(M.clipboard, "RE/BossEvent/HazardHit"))

@@ -26,6 +26,23 @@ for _, e in ipairs(API.journal()) do
 	if shown > 16 then break end
 end
 
+print("")
+print("--- REPEAT SCAN (build r2: changes only) ---")
+local m2 = #API.journal()
+API.scan()
+local g2 = 0
+while #API.journal() == m2 and g2 < 2000 do g2 = g2 + 1 M.pump(0.02) end
+M.pump(1.0)
+local n = 0
+for i = m2 + 1, #API.journal() do
+	local line = API.journal()[i].line
+	if string.find(line, "REMOTE INVENTORY") or string.find(line, "inventory unchanged")
+		or string.find(line, "OBJECTS") or string.find(line, "watching now") then
+		print("  " .. line) n = n + 1
+	end
+	if n > 5 then break end
+end
+
 API.clear()
 print("")
 print("--- LIVE CAPTURE: boss hit while carrying ---")
