@@ -33,11 +33,18 @@
    a row - each one is visible there so you can see exactly when the game
    let go.
 
-   4. STRAIGHT FLIGHT      - the flight mechanics from
-                             "grok-v3-target-fix.lua" (velocity-only
-                             airborne travel, WalkSpeed enforcer, egg-mass
-                             neutralisation, arrival check), but the path is
-                             a straight line instead of a parabolic arc.
+   4. STRAIGHT FLIGHT      - grok-v3's own flight formula:
+                             walk a waypoint forward along the path by one
+                             frame, then set the velocity that covers the
+                             remaining gap in exactly that frame, clamped at
+                             AERIAL_SPEED * 1.5 (1125 studs/s - scaled up
+                             only when the target is farther than grok could
+                             reach in the flight time, e.g. Cosmic).
+                             The path is straight (peakArc = 0) instead of
+                             grok's parabolic arc, and the target comes from
+                             the same place grok takes it: a FRESH read-only
+                             AskFieldEggSnapshot, with the workspace slot
+                             folder only as a fallback.
 
                              It starts as soon as a pulse has restored
                              control - no ragdoll rollover, no post-landing
@@ -123,8 +130,12 @@ local CONFIG = {
 	-- ragdoll rollover and no post-landing hold.
 	FLIGHT_BIOME = "Snow",      -- destination biome egg
 	FLIGHT_DURATION = 1.6,      -- TOTAL flight time (the only constant)
-	REACH_FACTOR = 3.0,         -- catch-up ceiling as a MULTIPLE of the
-	                            -- planned average speed (auto, not fixed)
+	AERIAL_SPEED = 750.0,       -- grok-v3's planning speed
+	GROK_CLAMP_FACTOR = 1.5,    -- grok-v3 clamps at AERIAL_SPEED * this
+	                            -- (1125). For targets further than
+	                            -- AERIAL_SPEED * FLIGHT_DURATION the clamp
+	                            -- scales with the distance so the target is
+	                            -- still reachable inside the flight time.
 	SPEED_LIMIT = nil,          -- optional absolute cap in studs/s
 	TARGET_Y_OFFSET = 3.0,
 	ARRIVE_TOLERANCE = 5.0,
@@ -775,80 +786,490 @@ local function keepOnFeet()
 	end
 end
 
-local function getBiomeEgg(biome)
+--==================================================
+-- TARGET RESOLUTION (grok-v3 order: snapshot first, workspace second)
+--==================================================
 
-	local workspaceEgg = getWorkspaceEgg(biome)
+local snapshotCache = nil
 
-	if workspaceEgg then
-		return workspaceEgg
+local function asVector3(value)
+
+	if typeof(value) == "Vector3" then
+		return value
 	end
 
-	-- read-only snapshot fallback
-	local remote = getRemote("RF/EggWorld/AskFieldEggSnapshot")
+	if type(value) == "table"
+		and type(value.X) == "number"
+		and type(value.Y) == "number"
+		and type(value.Z) == "number" then
 
-	if not remote then
-		return nil
+		return Vector3.new(value.X, value.Y, value.Z)
 	end
 
-	local ok, result = safe(function()
-		return remote:InvokeServer()
-	end)
+	return nil
+end
 
-	if not ok or type(result) ~= "table" then
-		return nil
+local function asCFramePosition(value)
+
+	if typeof(value) == "CFrame" then
+		return value.Position
 	end
 
-	local records = result.Records or result.records
-
-	if type(records) ~= "table" then
-		return nil
+	if type(value) == "table" and value.Position ~= nil then
+		return asVector3(value.Position)
 	end
 
-	local wanted = string.lower(tostring(biome or ""))
+	return nil
+end
 
-	for _, record in pairs(records) do
+local function extractPosition(record)
+
+	local bounds = asCFramePosition(record.BoundsCFrame)
+
+	if bounds then
+		return bounds
+	end
+
+	local bottom = asCFramePosition(record.BottomCFrame)
+
+	if bottom then
+		return bottom
+	end
+
+	return asVector3(
+		record.Position or record.Pos or record.pos or record.P
+	)
+end
+
+-- grok-v3 reads the egg table from the read-only snapshot remote.
+local function parseSnapshot(raw)
+
+	local records = {}
+
+	if type(raw) ~= "table" then
+		return records
+	end
+
+	local source = raw.Records or raw.records
+
+	if type(source) ~= "table" then
+		return records
+	end
+
+	for _, record in pairs(source) do
 
 		if type(record) == "table" then
 
-			local area = string.lower(tostring(
-				record.AreaId or record.areaId or record.Area
-					or record.Biome or record.biome or ""
-			))
+			local position = extractPosition(record)
+			local uid = record.Uid or record.uid or record.UID
+				or record.Id or record.id
+			local area = record.AreaId or record.areaId or record.Area
+				or record.Biome or record.biome or record.AreaName
+				or record.areaName or record.Zone or record.zone
+			local category = record.AssetCategory or record.assetCategory
+				or record.Category
 
-			local carrier = record.CarrierUserId or record.carrierUserId
-			local bounds = record.BoundsCFrame or record.BottomCFrame
-			local position = nil
+			if position then
 
-			if typeof(bounds) == "CFrame" then
-				position = bounds.Position
-			elseif type(bounds) == "table" and bounds.Position then
-				position = bounds.Position
-			end
-
-			if not position then
-
-				local p = record.Position or record.Pos
-
-				if typeof(p) == "Vector3" then
-					position = p
-				elseif type(p) == "table" and p.X and p.Y and p.Z then
-					position = Vector3.new(p.X, p.Y, p.Z)
-				end
-			end
-
-			if area == wanted and position
-				and (carrier == nil or carrier == 0 or carrier == "") then
-
-				return {
-					Uid = tostring(record.Uid or record.uid or ""),
+				records[#records + 1] = {
+					Uid = tostring(uid or "?"),
+					AreaId = tostring(area or "Unknown"),
+					AssetCategory = tostring(category or "Egg"),
 					Position = position,
+					CarrierUserId = record.CarrierUserId or record.carrierUserId,
 					Source = "server snapshot",
 				}
 			end
 		end
 	end
 
+	return records
+end
+
+local function fetchSnapshot(forceRefresh)
+
+	if not forceRefresh and snapshotCache then
+		return snapshotCache
+	end
+
+	local remote = getRemote("RF/EggWorld/AskFieldEggSnapshot")
+
+	if not remote then
+		return {}
+	end
+
+	local ok, result = safe(function()
+		return remote:InvokeServer()
+	end)
+
+	if ok and type(result) == "table" then
+		snapshotCache = parseSnapshot(result)
+	else
+		snapshotCache = {}
+	end
+
+	return snapshotCache
+end
+
+local function isEggAvailable(egg)
+
+	local carrier = egg.CarrierUserId
+
+	return carrier == nil or carrier == 0 or carrier == ""
+end
+
+-- Exact match first (grok-v3 behaviour), then a looser contains match so
+-- names like "Cosmic Realm" still resolve for "Cosmic".
+local function matchBiome(eggArea, wanted)
+
+	local area = string.lower(tostring(eggArea or ""))
+	local target = string.lower(tostring(wanted or ""))
+
+	if area == target then
+		return true
+	end
+
+	if string.find(area, target, 1, true) then
+		return true
+	end
+
+	if string.find(target, area, 1, true) and #area > 2 then
+		return true
+	end
+
+	return false
+end
+
+local function biomeList(records)
+
+	local seen, names = {}, {}
+
+	for _, record in ipairs(records) do
+
+		local name = tostring(record.AreaId)
+
+		if not seen[name] then
+			seen[name] = true
+			names[#names + 1] = name
+		end
+	end
+
+	table.sort(names)
+
+	return names
+end
+
+-- Bounded workspace search: any container whose name mentions the biome
+-- and an egg, in case the slot folder is named differently.
+local function findInWorkspace(biome)
+
+	local wanted = string.lower(tostring(biome or ""))
+
+	local function partOf(container)
+
+		local okPart, part = safe(function()
+			return container:FindFirstChildWhichIsA("BasePart", true)
+		end)
+
+		return okPart and part or nil
+	end
+
+	local okArea, area = safe(function()
+		return Workspace:FindFirstChild("AreaEggSlotsClient")
+	end)
+
+	if okArea and area then
+
+		local okSlots, slots = safe(function()
+			return area:GetChildren()
+		end)
+
+		if okSlots and type(slots) == "table" then
+
+			for _, slot in ipairs(slots) do
+
+				if matchBiome(slot.Name, biome) then
+
+					local part = partOf(slot)
+
+					if part then
+
+						return {
+							Uid = tostring(slot.Name),
+							AreaId = tostring(biome),
+							AssetCategory = tostring(slot.Name),
+							Position = part.Position,
+							Source = "AreaEggSlotsClient",
+						}
+					end
+				end
+			end
+		end
+	end
+
+	-- bounded sweep for other egg folders (never a full workspace deep scan)
+	local okChildren, children = safe(function()
+		return Workspace:GetChildren()
+	end)
+
+	if not okChildren or type(children) ~= "table" then
+		return nil
+	end
+
+	local visited = 0
+
+	for _, child in ipairs(children) do
+
+		local okDesc, descendants = safe(function()
+			return child:GetDescendants()
+		end)
+
+		if okDesc and type(descendants) == "table" then
+
+			for _, descendant in ipairs(descendants) do
+
+				visited = visited + 1
+
+				if visited > 20000 then
+					return nil
+				end
+
+				local name = string.lower(tostring(descendant.Name))
+
+				if string.find(name, wanted, 1, true)
+					and string.find(name, "egg", 1, true) then
+
+					local part = partOf(descendant)
+
+					if part then
+
+						return {
+							Uid = tostring(descendant.Name),
+							AreaId = tostring(biome),
+							AssetCategory = tostring(descendant.Name),
+							Position = part.Position,
+							Source = "workspace (" .. tostring(child.Name) .. ")",
+						}
+					end
+				end
+			end
+		end
+	end
+
 	return nil
+end
+
+local lastResolveInfo = nil
+
+-- grok-v3 resolves from a FRESH snapshot, then falls back to the workspace.
+local function resolveTarget(biome)
+
+	local records = fetchSnapshot(true)
+
+	for _, record in ipairs(records) do
+
+		if matchBiome(record.AreaId, biome) and isEggAvailable(record) then
+
+			lastResolveInfo = {
+				found = true,
+				from = "server snapshot",
+				records = #records,
+				biomes = biomeList(records),
+			}
+
+			return record
+		end
+	end
+
+	local workspaceEgg = findInWorkspace(biome)
+
+	if workspaceEgg then
+
+		lastResolveInfo = {
+			found = true,
+			from = workspaceEgg.Source,
+			records = #records,
+			biomes = biomeList(records),
+		}
+
+		return workspaceEgg
+	end
+
+	lastResolveInfo = {
+		found = false,
+		from = "none",
+		records = #records,
+		biomes = biomeList(records),
+	}
+
+	return nil
+end
+
+--==================================================
+-- FLIGHT (grok-v3 velocity mechanics, straight path)
+--==================================================
+
+local function neutraliseParts(enable)
+
+	if not CONFIG.NEUTRALISE_PARTS then
+		return
+	end
+
+	local character = getCharacter()
+
+	if not character then
+		return
+	end
+
+	local okDesc, descendants = safe(function()
+		return character:GetDescendants()
+	end)
+
+	if not okDesc or type(descendants) ~= "table" then
+		return
+	end
+
+	for _, descendant in ipairs(descendants) do
+
+		local okPart, isPart = safe(function()
+			return descendant:IsA("BasePart")
+		end)
+
+		if okPart and isPart and descendant.Name ~= "HumanoidRootPart" then
+
+			if enable then
+
+				if originalPartPhysics[descendant] == nil then
+
+					originalPartPhysics[descendant] = {
+						massless = descendant.Massless,
+						collide = descendant.CanCollide,
+					}
+				end
+
+				safe(function()
+					descendant.Massless = true
+					descendant.CanCollide = false
+				end)
+
+			else
+
+				local original = originalPartPhysics[descendant]
+
+				if original then
+
+					safe(function()
+						descendant.Massless = original.massless
+						descendant.CanCollide = original.collide
+					end)
+
+					originalPartPhysics[descendant] = nil
+				end
+			end
+		end
+	end
+end
+
+local function enforceFlyWalkSpeed()
+
+	local humanoid = getHumanoid()
+
+	if not humanoid then
+		return
+	end
+
+	if savedFlyWalkSpeed == nil then
+
+		local ok, value = safe(function()
+			return humanoid.WalkSpeed
+		end)
+
+		savedFlyWalkSpeed = ok and value or nil
+	end
+
+	safe(function()
+		humanoid.WalkSpeed = CONFIG.FLY_RUN_WALKSPEED
+	end)
+end
+
+local function restoreFlyWalkSpeed()
+
+	local humanoid = getHumanoid()
+
+	if humanoid and savedFlyWalkSpeed ~= nil then
+
+		safe(function()
+			humanoid.WalkSpeed = savedFlyWalkSpeed
+		end)
+	end
+
+	savedFlyWalkSpeed = nil
+end
+
+-- Keeps the character on its feet for the whole flight: joints on, state
+-- Running, no rollover and no ragdoll take-over.
+local function keepOnFeet()
+
+	local humanoid = getHumanoid()
+	local character = getCharacter()
+
+	if not humanoid or not character then
+		return
+	end
+
+	local okDesc, descendants = safe(function()
+		return character:GetDescendants()
+	end)
+
+	if okDesc and type(descendants) == "table" then
+
+		for _, object in ipairs(descendants) do
+
+			local okMotor, isMotor = safe(function()
+				return object:IsA("Motor6D")
+			end)
+
+			if okMotor and isMotor then
+
+				local okEnabled, enabled = safe(function()
+					return object.Enabled
+				end)
+
+				if okEnabled and not enabled then
+
+					safe(function()
+						object.Enabled = true
+					end)
+				end
+			end
+		end
+	end
+
+	safe(function()
+		humanoid.PlatformStand = false
+	end)
+
+	safe(function()
+		humanoid.AutoRotate = true
+	end)
+
+	local okState, state = safe(function()
+		return humanoid:GetState()
+	end)
+
+	if okState and (state == Enum.HumanoidStateType.Physics
+		or state == Enum.HumanoidStateType.FallingDown
+		or state == Enum.HumanoidStateType.GettingUp
+		or state == Enum.HumanoidStateType.Ragdoll) then
+
+		safe(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end)
+
+		safe(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.Running)
+		end)
+	end
 end
 
 local function endFlight(reason)
@@ -869,8 +1290,8 @@ local function endFlight(reason)
 
 	if root and flight then
 
-		travelled = (root.Position - flight.origin).Magnitude
-		remaining = (flight.target - root.Position).Magnitude
+		travelled = (root.Position - flight.launch).Magnitude
+		remaining = (flight.landing - root.Position).Magnitude
 
 		safe(function()
 			root.AssemblyLinearVelocity = Vector3.zero
@@ -906,8 +1327,6 @@ local function endFlight(reason)
 	))
 end
 
--- NOTE: assigned (not re-declared) so the forward declaration above stays
--- the single visible local; otherwise the pulse would call a nil value.
 startFlight = function(reason)
 
 	if isFlying or not scriptAlive then
@@ -935,51 +1354,72 @@ startFlight = function(reason)
 		return false
 	end
 
-	local target = getBiomeEgg(CONFIG.FLIGHT_BIOME)
+	local target = resolveTarget(CONFIG.FLIGHT_BIOME)
 
 	if not target then
 
-		setStatus("No " .. tostring(CONFIG.FLIGHT_BIOME)
-			.. " egg target found for the flight.")
+		local info = lastResolveInfo or {}
+
+		local biomes = info.biomes and #info.biomes > 0
+			and table.concat(info.biomes, ", ")
+			or "none"
+
+		local message = string.format(
+			"No %s target. snapshot: %d record(s), biomes seen: %s",
+			tostring(CONFIG.FLIGHT_BIOME),
+			info.records or 0,
+			biomes
+		)
+
+		note(message)
+		setStatus(message)
 
 		return false
 	end
 
-	local targetPosition =
-		target.Position + Vector3.new(0, CONFIG.TARGET_Y_OFFSET, 0)
+	local landing = target.Position + Vector3.new(0, CONFIG.TARGET_Y_OFFSET, 0)
 
 	local started = os.clock()
-	local distance = (targetPosition - root.Position).Magnitude
+	local distance = (landing - root.Position).Magnitude
+
+	-- grok-v3 clamps at AERIAL_SPEED * 1.5. For a target farther than
+	-- AERIAL_SPEED * FLIGHT_DURATION that clamp is scaled up, otherwise a
+	-- distant biome (Cosmic) could never be reached in the flight time.
+	local grokClamp = CONFIG.AERIAL_SPEED * CONFIG.GROK_CLAMP_FACTOR
+	local neededAverage = distance / CONFIG.FLIGHT_DURATION
+	local clampSpeed = math.max(grokClamp, neededAverage * CONFIG.GROK_CLAMP_FACTOR)
 
 	isFlying = true
 	flightToken = flightToken + 1
 
 	flightData = {
 		token = flightToken,
-		target = targetPosition,
-		origin = root.Position,
+		launch = root.Position,
+		landing = landing,
 		t0 = started,
+		duration = CONFIG.FLIGHT_DURATION,
 		distance = distance,
-		plannedAverage = distance / CONFIG.FLIGHT_DURATION,
+		clampSpeed = clampSpeed,
+		peakArc = 0,                      -- straight flight: no arc
 		source = target.Source,
 	}
 
-	-- the pulse steps first, then straight flight
 	keepOnFeet()
 	enforceFlyWalkSpeed()
 	neutraliseParts(true)
 
 	note(string.format(
-		"flight started to %s (%s) | %.0f studs | auto speed for %.1fs | %s",
+		"flight started to %s (%s) | %.0f studs | clamp %.0f | %.1fs | %s",
 		tostring(CONFIG.FLIGHT_BIOME),
 		tostring(target.Source),
 		distance,
+		clampSpeed,
 		CONFIG.FLIGHT_DURATION,
 		tostring(reason or "manual")
 	))
 
 	setStatus(string.format(
-		"FLYING straight to %s | %.0f studs | 1.6s (auto speed)",
+		"FLYING straight to %s | %.0f studs | 1.6s",
 		tostring(CONFIG.FLIGHT_BIOME),
 		distance
 	))
@@ -987,9 +1427,10 @@ startFlight = function(reason)
 	return true
 end
 
--- One frame of the straight flight. Velocity only: the direction is the
--- remaining distance, the magnitude is remaining distance / remaining time.
-local function flightStep()
+-- One frame of flight. This is grok-v3's own formula: walk a waypoint
+-- forward along the path by one frame and set the velocity that reaches it
+-- in exactly that frame, clamped. peakArc is 0 so the path is straight.
+local function flightStep(dt)
 
 	if not isFlying or not flightData then
 		return
@@ -1013,34 +1454,39 @@ local function flightStep()
 		return
 	end
 
-	-- no rollover, no ragdoll: stay on the feet for the whole flight
 	keepOnFeet()
 	enforceFlyWalkSpeed()
 
+	dt = math.max(dt or 0, 0.001)
+
 	local elapsed = os.clock() - flight.t0
-	local remainingTime = math.max(CONFIG.FLIGHT_DURATION - elapsed, 0.02)
-	local delta = flight.target - root.Position
+	local prog = math.clamp(elapsed / flight.duration, 0, 1)
 
-	local desired = delta / remainingTime
-	local ceiling = flight.plannedAverage * CONFIG.REACH_FACTOR
+	local nextProg = math.clamp((elapsed + math.max(dt, 0.016)) / flight.duration, 0, 1)
+	local arcY = flight.peakArc * math.sin(nextProg * math.pi)
+	local waypoint = flight.launch:Lerp(flight.landing, nextProg)
+		+ Vector3.new(0, arcY, 0)
 
-	if desired.Magnitude > ceiling then
-		desired = desired.Unit * ceiling
+	local neededVel = (waypoint - root.Position) / dt
+
+	if neededVel.Magnitude > flight.clampSpeed then
+		neededVel = neededVel.Unit * flight.clampSpeed
 	end
 
-	if CONFIG.SPEED_LIMIT and desired.Magnitude > CONFIG.SPEED_LIMIT then
-		desired = desired.Unit * CONFIG.SPEED_LIMIT
+	if CONFIG.SPEED_LIMIT and neededVel.Magnitude > CONFIG.SPEED_LIMIT then
+		neededVel = neededVel.Unit * CONFIG.SPEED_LIMIT
 	end
 
 	safe(function()
-		root.AssemblyLinearVelocity = desired
+		root.AssemblyLinearVelocity = neededVel
 	end)
 
 	safe(function()
 		root.AssemblyAngularVelocity = Vector3.zero
 	end)
 
-	if elapsed >= CONFIG.FLIGHT_DURATION then
+	-- grok-v3 ends here; this build flies the full configured time
+	if prog >= 1 then
 		endFlight("1.6s elapsed")
 	end
 end
@@ -1049,14 +1495,14 @@ end
 -- HEARTBEAT: flight first, then the recovery pulse
 --==================================================
 
-connect(game:GetService("RunService").Heartbeat, function()
+connect(game:GetService("RunService").Heartbeat, function(dt)
 
 	if not scriptAlive then
 		return
 	end
 
 	if isFlying then
-		flightStep()
+		flightStep(dt)
 		return
 	end
 
@@ -1926,6 +2372,20 @@ _G.SIMPLE_RECOVERY_UI = {
 		end
 	end,
 	fly = startFlight,
+	-- shows what the resolver can actually see right now
+	diagnose = function()
+
+		local records = fetchSnapshot(true)
+		local names = biomeList(records)
+
+		return {
+			biome = CONFIG.FLIGHT_BIOME,
+			snapshotRecords = #records,
+			snapshotBiomes = names,
+			resolved = resolveTarget(CONFIG.FLIGHT_BIOME) ~= nil,
+			info = lastResolveInfo,
+		}
+	end,
 	setFlyAfterPulse = function(enabled)
 
 		flyAfterPulse = enabled and true or false

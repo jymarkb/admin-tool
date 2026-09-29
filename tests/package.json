@@ -1,0 +1,9 @@
+{
+  "name": "admin-tool-offline-tests",
+  "private": true,
+  "type": "module",
+  "description": "Offline Luau mock harness for the scripts in this repo. Not a Roblox script.",
+  "scripts": {
+    "test:recovery-ui": "node simple_recovery_ui/run.mjs"
+  }
+}
