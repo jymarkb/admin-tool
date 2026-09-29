@@ -1,27 +1,19 @@
 --[[=========================================================================
-	STEAL AN EGG — ESCAPE FLIGHT v6.2.1
-	+ Ground approach → confirmed target carry → immediate escape (no boss wait)
-	+ Heading to Forest | Y=112.5 | zero horizontal physics velocity
-	+ Bounded live-position steps; limited correction recovery, no landing snap
-	+ Preserve PlatformStand and original part physics; walk to Safe Zone
+	STEAL AN EGG — VELOCITY ESCAPE v6.3
+	+ Ground approach → confirmed target carry → velocity-driven return
+	+ World-space LinearVelocity controls ascent, cruise, braking and descent
+	+ No character CFrame/Position/PivotTo writes, including landing/cleanup
+	+ Keep collisions and PlatformStand unchanged; require ground contact
+	+ Copyable diagnostics retain measured velocity versus commanded velocity
 
-	Log audit (scanner_v3.1.lua, other-script.log, normal-run-log-no-script.log):
-	- Scripted returns cruise near Y=112.2–112.7, land near (612.2,70.7,-325).
-	- Neither capture has a HOLDING → EMPTY transition. The scanner's broad
-	  tool/name/rendered-asset heuristic cannot confirm pickup or delivery.
-	- FLIGHT_START is delayed four samples; FLIGHT_END can split one flight.
-	- LARGE_MOVE dt can be zero because ZERO_HORIZ updates its shared timer;
-	  height variance includes takeoff/landing. Neither is a tuning target.
-	- Follow-up 12:35:37: three 78-stud steps, then a 234-stud X/Z rollback
-	  to takeoff. v6.1 would abort here; the later Physics impulse is not proof of
-	  the rollback's cause. Retry only limited corrections, never catch up by
-	  teleporting along the old path. Log recovery/abort reasons explicitly.
-	- Follow-up 12:45:55 reaches cruise, then rolls back repeatedly. A mocked
-	  single-rollback recovery is not an in-game fix for that. v6.2.1 keeps
-	  movement limits unchanged and captures the missing run/abort evidence.
+	The reference scanner logs show repeated position resets during the old
+	CFrame return. This version changes the movement method, not a proven cause
+	of those resets. Physics-driven flight has real nonzero horizontal velocity
+	and will not reproduce the scanner's ZERO_HORIZ auto-flight signature.
 =========================================================================]]
 
 local Players                = game:GetService("Players")
+local Workspace              = game:GetService("Workspace")
 local RunService             = game:GetService("RunService")
 local ReplicatedStorage      = game:GetService("ReplicatedStorage")
 local UserInputService       = game:GetService("UserInputService")
@@ -49,15 +41,14 @@ local SAFE_ZONE_POSITION  = Vector3.new(427.6, 70.7, -423.4)
 local FOREST_LANDING      = Vector3.new(612.2, 70.7, -325.0)
 
 local CRUISE_Y            = 112.5
-local STEP_SIZE           = 78
-local MIN_FLIGHT_S        = 2.5
-local MAX_FLIGHT_S        = 6.0 -- absolute cap, including recovery and descent
-local LANDING_BUDGET_S    = 0.5
-local MAX_CORRECTIONS     = 2
-local CORRECTION_DISTANCE = 8
-local MAX_CORRECTION_DIST = STEP_SIZE * 4
-local FLIGHT_SPEED        = STEP_SIZE * 60 -- studs/s, capped at STEP_SIZE per frame
-local VERTICAL_STEP      = 12
+local FLIGHT_SPEED        = 180 -- actual studs/s, not studs per frame
+local ASCENT_SPEED        = 60
+local DESCENT_SPEED       = 28
+local FLIGHT_ACCEL        = 240 -- command acceleration/braking, studs/s²
+local DESCENT_RADIUS     = 40
+local MIN_FLIGHT_S        = 12
+local MAX_FLIGHT_S        = 90 -- whole-flight hard cap; no teleport on timeout
+local FLIGHT_STALL_S      = 4
 local ARRIVAL_RADIUS     = 5.5
 local CARRY_TIMEOUT_S    = 3
 local REMOTE_TIMEOUT_S   = 3
@@ -72,11 +63,9 @@ local cachedSnapshot      = nil
 local snapshotTried       = false
 local runCharacter        = nil
 local flightTrack         = nil
-
-local zeroFriction = PhysicalProperties.new(0.7, 0, 0, 100, 100)
-local originalPhysicalProperties = {}
-local savedCollisions = {}
-local savedMassless = {}
+local flightVelocity      = nil
+local flightAttachment    = nil
+local flightRoot          = nil
 
 ----------------------------------------------------------------
 -- HELPERS
@@ -126,101 +115,57 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[Steal-Pipeline v6.2.1] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[Steal-Pipeline v6.3] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
 	print(line)
 end
 
-local function sampleFlight(phase, dt, root, hum, expectedPos)
-	-- Observe before issuing this frame's CFrame write. In particular, retain
-	-- the actual rollback even if the scanner next samples our recovery step.
+local function sampleFlight(phase, dt, root, hum, commandedVelocity)
 	local pos, vel = root.Position, root.AssemblyLinearVelocity
 	local state = hum:GetState()
 	local line = string.format(
-		"t=%.3f %s dt=%.4f pos=(%.1f,%.1f,%.1f) expected=(%.1f,%.1f,%.1f) errorXZ=%.1f errorY=%.1f state=%s anchored=%s platform=%s vel=(%.1f,%.1f,%.1f)",
-		os.clock(), phase, dt, pos.X, pos.Y, pos.Z, expectedPos.X, expectedPos.Y, expectedPos.Z,
-		horizontalDistance(pos, expectedPos), pos.Y - expectedPos.Y, state.Name,
-		tostring(root.Anchored), tostring(hum.PlatformStand), vel.X, vel.Y, vel.Z)
+		"t=%.3f %s dt=%.4f pos=(%.1f,%.1f,%.1f) remaining=%.1f state=%s floor=%s anchored=%s platform=%s vel=(%.1f,%.1f,%.1f) command=(%.1f,%.1f,%.1f)",
+		os.clock(), phase, dt, pos.X, pos.Y, pos.Z, horizontalDistance(pos, FOREST_LANDING), state.Name,
+		tostring(hum.FloorMaterial), tostring(root.Anchored), tostring(hum.PlatformStand), vel.X, vel.Y, vel.Z,
+		commandedVelocity.X, commandedVelocity.Y, commandedVelocity.Z)
 	table.insert(flightSamples, line)
 	if #flightSamples > MAX_FLIGHT_SAMPLES then table.remove(flightSamples, 1) end
 end
 
 local function getDiagnosticsText()
-	return table.concat(diagnosticLines, "\n") .. "\n\nLAST FLIGHT OBSERVATIONS (before script writes):\n"
+	return table.concat(diagnosticLines, "\n") .. "\n\nLAST VELOCITY FLIGHT OBSERVATIONS:\n"
 		.. table.concat(flightSamples, "\n")
 end
 
 ----------------------------------------------------------------
--- REVERSIBLE FRICTION / COLLISION / EGG PHYSICS
+-- FLIGHT ACTUATOR CLEANUP (character part physics are not modified)
 ----------------------------------------------------------------
 
-local function setCharacterCollisions(enable)
-	if enable then
-		for part, original in pairs(savedCollisions) do
-			pcall(function() part.CanCollide = original end)
-			savedCollisions[part] = nil
-		end
-		return
-	end
-	local char = runCharacter
-	if not char then return end
-	for _, part in ipairs(char:GetDescendants()) do
-		if part:IsA("BasePart") then
-			if savedCollisions[part] == nil then savedCollisions[part] = part.CanCollide end
-			part.CanCollide = false
-		end
-	end
-end
-
-local function setFrictionless(enable)
-	if not enable then
-		for part, original in pairs(originalPhysicalProperties) do
-			pcall(function() part.CustomPhysicalProperties = original.value end)
-			originalPhysicalProperties[part] = nil
-		end
-		for part, original in pairs(savedMassless) do
-			pcall(function() part.Massless = original end)
-			savedMassless[part] = nil
-		end
-		setCharacterCollisions(true)
-		return
-	end
-	local char = runCharacter
-	if not char then return end
-	for _, part in ipairs(char:GetDescendants()) do
-		if part:IsA("BasePart") then
-			-- A wrapper preserves nil (Roblox's default material properties).
-			if originalPhysicalProperties[part] == nil then
-				originalPhysicalProperties[part] = { value = part.CustomPhysicalProperties }
-			end
-			part.CustomPhysicalProperties = zeroFriction
-		end
-	end
-	setCharacterCollisions(false)
-end
-
-local function neutraliseEggPhysics(char)
-	-- Only attached character parts, not unrelated models whose name happens
-	-- to contain the user ID. Every change is reversible, even after reparenting.
-	for _, part in ipairs(char:GetDescendants()) do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Parent ~= char then
-			if savedMassless[part] == nil then savedMassless[part] = part.Massless end
-			if savedCollisions[part] == nil then savedCollisions[part] = part.CanCollide end
-			part.Massless = true
-			part.CanCollide = false
-		end
-	end
-end
-
 local function cleanupRun()
+	-- Remove only the actuator/attachment owned by this run. Never reposition
+	-- the character, and never leave a velocity constraint running after Stop.
+	if flightVelocity then
+		pcall(function() flightVelocity:Destroy() end)
+		flightVelocity = nil
+	end
+	if flightAttachment then
+		pcall(function() flightAttachment:Destroy() end)
+		flightAttachment = nil
+	end
+	if flightRoot then
+		pcall(function()
+			flightRoot.AssemblyLinearVelocity = Vector3.zero
+			flightRoot.AssemblyAngularVelocity = Vector3.zero
+		end)
+		flightRoot = nil
+	end
 	if flightTrack then
 		pcall(function() flightTrack:Stop(0.1); flightTrack:Destroy() end)
 		flightTrack = nil
 	end
 	isFlying = false
-	setFrictionless(false)
 	restoreBaseSpeed()
 	local hum = runCharacter and runCharacter:FindFirstChildOfClass("Humanoid")
 	local root = runCharacter and runCharacter:FindFirstChild("HumanoidRootPart")
@@ -462,7 +407,7 @@ local function walkToTargetOnGround(targetPos, myToken)
 end
 
 ----------------------------------------------------------------
--- ESCAPE FLIGHT — bounded steps; never land from a timeout/failed approach
+-- VELOCITY FLIGHT — real physics motion, never position/CFrame stepping
 ----------------------------------------------------------------
 
 local function executeEscapeFlightToForest(myToken)
@@ -474,12 +419,31 @@ local function executeEscapeFlightToForest(myToken)
 		and hum.FloorMaterial ~= Enum.Material.Air then
 		return true
 	end
+
 	isFlying = true
-	setFrictionless(true)
+	flightRoot = root
 	hum:Move(Vector3.zero)
 	hum:MoveTo(root.Position)
+	hum.WalkSpeed = 0 -- restored on landing, Stop, error and respawn
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
+
+	-- LinearVelocity supplies the force needed to maintain world-space velocity
+	-- between Heartbeats (including gravity compensation). Keep body collisions
+	-- enabled as originally configured: landing is physical, not a Y-position snap.
+	flightAttachment = Instance.new("Attachment")
+	flightAttachment.Name = "EscapeFlightVelocityAttachment"
+	flightAttachment.Parent = root
+	flightVelocity = Instance.new("LinearVelocity")
+	flightVelocity.Name = "EscapeFlightVelocity"
+	flightVelocity.Attachment0 = flightAttachment
+	flightVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	flightVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	flightVelocity.ForceLimitsEnabled = true
+	flightVelocity.ForceLimitMode = Enum.ForceLimitMode.Magnitude
+	flightVelocity.MaxForce = math.max(root.AssemblyMass, 1) * (Workspace.Gravity + FLIGHT_ACCEL * 2)
+	flightVelocity.VectorVelocity = Vector3.zero
+	flightVelocity.Parent = root
 
 	pcall(function()
 		local animator = hum:FindFirstChildOfClass("Animator") or hum
@@ -497,88 +461,89 @@ local function executeEscapeFlightToForest(myToken)
 	table.clear(flightSamples)
 	local startPos = root.Position
 	local totalDist = horizontalDistance(startPos, FOREST_LANDING)
-	local expectedPos = startPos
-	local heading = Vector3.new(-1, 0, 0)
-	local corrections = 0
 	local startedAt = os.clock()
-	local hardDeadline = startedAt + MAX_FLIGHT_S
-	local deadline = startedAt + MIN_FLIGHT_S
-	traceRun("FLIGHT_START", string.format("pos=(%.1f,%.1f,%.1f) distance=%.1f",
-		startPos.X, startPos.Y, startPos.Z, totalDist))
+	local timeout = math.clamp(totalDist / FLIGHT_SPEED * 1.75
+		+ math.abs(CRUISE_Y - startPos.Y) / ASCENT_SPEED + 10, MIN_FLIGHT_S, MAX_FLIGHT_S)
+	local deadline = startedAt + timeout
+	local command = Vector3.zero
+	local phase = "ASCENT"
+	local bestMetric = math.huge
+	local lastProgressAt = startedAt
+	traceRun("FLIGHT_START", string.format("mode=VELOCITY pos=(%.1f,%.1f,%.1f) distance=%.1f speed=%.1f timeout=%.1fs",
+		startPos.X, startPos.Y, startPos.Z, totalDist, FLIGHT_SPEED, timeout))
 
 	while true do
 		local dt = RunService.Heartbeat:Wait()
 		root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
-		sampleFlight("CRUISE", dt, root, hum, expectedPos)
-		if os.clock() >= deadline then return false, "Flight timed out; no landing snap" end
-		if root.Anchored then return false, "Character anchored during flight" end
+		sampleFlight(phase, dt, root, hum, command)
+		if os.clock() >= deadline then return false, "Velocity flight timed out; no landing teleport" end
+		if root.Anchored then return false, "Character anchored during velocity flight" end
+		if not flightVelocity or flightVelocity.Parent ~= root
+			or not flightAttachment or flightAttachment.Parent ~= root then
+			return false, "Velocity actuator removed during flight"
+		end
 		local state = hum:GetState()
 		if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Ragdoll
 			or state == Enum.HumanoidStateType.FallingDown then
-			return false, "Flight interrupted by humanoid state " .. state.Name
+			return false, "Velocity flight interrupted by humanoid state " .. state.Name
 		end
 
-		local currentPos = root.Position
-		local correction = horizontalDistance(currentPos, expectedPos)
-		local verticalCorrection = math.abs(currentPos.Y - expectedPos.Y)
-		if correction > CORRECTION_DISTANCE or verticalCorrection > VERTICAL_STEP * 2 then
-			corrections += 1
-			traceRun("FLIGHT_CORRECTION", string.format("attempt=%d/%d xz=%.1f dy=%.1f pos=(%.1f,%.1f,%.1f)",
-				corrections, MAX_CORRECTIONS, correction, verticalCorrection, currentPos.X, currentPos.Y, currentPos.Z))
-			if corrections > MAX_CORRECTIONS or math.max(correction, verticalCorrection) > MAX_CORRECTION_DIST + 0.01 then
-				return false, "Repeated/large position corrections; flight stopped"
-			end
-			-- Rebase this step on the observed position, not the old traveled
-			-- distance. A 234-stud rollback must not cause a 312-stud catch-up.
-		end
-
-		local offset = Vector3.new(FOREST_LANDING.X - currentPos.X, 0, FOREST_LANDING.Z - currentPos.Z)
+		local pos = root.Position
+		local offset = Vector3.new(FOREST_LANDING.X - pos.X, 0, FOREST_LANDING.Z - pos.Z)
 		local remaining = offset.Magnitude
-		-- The 78-stud cap reduces effective speed below 60 FPS. Budget for the
-		-- remaining distance at that rate; recovery never resets the hard cap.
-		local effectiveSpeed = math.min(FLIGHT_SPEED, STEP_SIZE / math.max(dt, 1 / 60))
-		deadline = math.min(hardDeadline, math.max(deadline,
-			os.clock() + remaining / effectiveSpeed + LANDING_BUDGET_S))
-		if remaining <= 0.5 and math.abs(currentPos.Y - CRUISE_Y) <= 0.5 then break end
-
-		setFrictionless(true)
-		neutraliseEggPhysics(runCharacter)
-		if remaining > 0.001 then heading = offset.Unit end
-		local step = math.min(remaining, STEP_SIZE, FLIGHT_SPEED * math.max(dt, 0))
-		local xz = currentPos + heading * step
-		local dy = math.clamp(CRUISE_Y - currentPos.Y, -VERTICAL_STEP, VERTICAL_STEP)
-		local nextPos = Vector3.new(xz.X, currentPos.Y + dy, xz.Z)
-		root.CFrame = CFrame.new(nextPos, nextPos + heading)
-		root.AssemblyLinearVelocity = Vector3.new(0, -8, 0)
-		root.AssemblyAngularVelocity = Vector3.zero
-		expectedPos = nextPos
-	end
-
-	-- Descent is vertical only, and is permitted only after actual X/Z arrival.
-	while true do
-		local dt = RunService.Heartbeat:Wait()
-		root, hum, reason = getRunRig(myToken)
-		if not root then return false, reason end
-		sampleFlight("LANDING", dt, root, hum, expectedPos)
-		if root.Anchored then return false, "Character anchored during landing" end
-		if os.clock() >= deadline then return false, "Landing timed out" end
-		if horizontalDistance(root.Position, FOREST_LANDING) > ARRIVAL_RADIUS then
-			return false, "Forest arrival not confirmed"
+		local nextPhase = remaining <= DESCENT_RADIUS and "DESCENT"
+			or (math.abs(CRUISE_Y - pos.Y) > 3 and "ASCENT" or "CRUISE")
+		if nextPhase ~= phase then
+			phase = nextPhase
+			bestMetric, lastProgressAt = math.huge, os.clock()
+			traceRun("FLIGHT_PHASE", phase)
 		end
-		local dy = FOREST_LANDING.Y - root.Position.Y
-		local y = root.Position.Y + math.clamp(dy, -VERTICAL_STEP, VERTICAL_STEP)
-		local nextPos = Vector3.new(root.Position.X, y, root.Position.Z)
-		root.CFrame = CFrame.new(nextPos, nextPos + heading)
-		root.AssemblyLinearVelocity = Vector3.zero
-		root.AssemblyAngularVelocity = Vector3.zero
-		expectedPos = nextPos
-		if math.abs(dy) <= VERTICAL_STEP then break end
+
+		local velocity = root.AssemblyLinearVelocity
+		local horizontalSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+		if phase == "DESCENT" and remaining <= ARRIVAL_RADIUS
+			and math.abs(pos.Y - FOREST_LANDING.Y) <= 8
+			and hum.FloorMaterial ~= Enum.Material.Air
+			and horizontalSpeed <= 8 and math.abs(velocity.Y) <= 8 then
+			traceRun("FLIGHT_LANDED", string.format("mode=VELOCITY elapsed=%.3fs pos=(%.1f,%.1f,%.1f)",
+				os.clock() - startedAt, pos.X, pos.Y, pos.Z))
+			cleanupRun()
+			return true
+		end
+		if phase == "DESCENT" and pos.Y < FOREST_LANDING.Y - 8 then
+			return false, "Landing ground not detected; velocity flight stopped"
+		end
+
+		local altitudeError = phase == "DESCENT" and math.max(0, pos.Y - FOREST_LANDING.Y)
+			or math.abs(CRUISE_Y - pos.Y)
+		local metric = remaining + altitudeError
+		if metric < bestMetric - 1 then
+			bestMetric, lastProgressAt = metric, os.clock()
+		elseif os.clock() - lastProgressAt >= FLIGHT_STALL_S then
+			return false, "Velocity flight stalled (collision or repeated reset); no teleport fallback"
+		end
+
+		-- Proportional approach plus a braking-distance cap avoids full-speed
+		-- overshoot near Forest. Directions come from observed position only.
+		local speed = math.min(FLIGHT_SPEED, remaining * 2, math.sqrt(2 * FLIGHT_ACCEL * remaining))
+		local horizontal = remaining > 0.001 and offset.Unit * speed or Vector3.zero
+		local vertical
+		if phase == "DESCENT" then
+			-- Keep a small downward velocity until actual floor contact. A hover
+			-- at the reference Y alone is not evidence of a successful landing.
+			vertical = -math.clamp((pos.Y - FOREST_LANDING.Y) * 2, 4, DESCENT_SPEED)
+		else
+			vertical = math.clamp((CRUISE_Y - pos.Y) * 3, -DESCENT_SPEED, ASCENT_SPEED)
+		end
+		local desired = horizontal + Vector3.new(0, vertical, 0)
+		local change = desired - command
+		local maxChange = FLIGHT_ACCEL * math.clamp(dt, 0, 0.1)
+		command = change.Magnitude > maxChange and command + change.Unit * maxChange or desired
+		hum:Move(Vector3.zero)
+		flightVelocity.MaxForce = math.max(root.AssemblyMass, 1) * (Workspace.Gravity + FLIGHT_ACCEL * 2)
+		flightVelocity.VectorVelocity = command
 	end
-	traceRun("FLIGHT_LANDED", string.format("elapsed=%.3fs corrections=%d pos=(%.1f,%.1f,%.1f)",
-		os.clock() - startedAt, corrections, root.Position.X, root.Position.Y, root.Position.Z))
-	cleanupRun()
-	return true
 end
 
 ----------------------------------------------------------------
@@ -594,8 +559,8 @@ local function executeTeleportPipeline(statusLabel)
 	captureBaseSpeed()
 	table.clear(diagnosticLines)
 	table.clear(flightSamples)
-	traceRun("RUN_START", string.format("biome=%s speed=%.1f cruise=%.1f step=%.1f maxSeconds=%.1f maxCorrections=%d",
-		selectedBiome, dynamicBaseWalkSpeed, CRUISE_Y, STEP_SIZE, MAX_FLIGHT_S, MAX_CORRECTIONS))
+	traceRun("RUN_START", string.format("biome=%s walkSpeed=%.1f mode=VELOCITY cruiseY=%.1f flightSpeed=%.1f maxSeconds=%.1f",
+		selectedBiome, dynamicBaseWalkSpeed, CRUISE_Y, FLIGHT_SPEED, MAX_FLIGHT_S))
 
 	local function updateStatus(text, color)
 		if currentToken ~= myToken then return end
@@ -628,7 +593,7 @@ local function executeTeleportPipeline(statusLabel)
 			if not confirmCarry(targetEgg.Uid, myToken) then return false, "Target carry not confirmed" end
 			traceRun("CARRY_READY", string.format("uid=%s elapsed=%.3fs", targetEgg.Uid, os.clock() - carryStartedAt))
 
-			updateStatus("[4/5] ESCAPE FLIGHT → Forest...", Color3.fromRGB(255, 180, 100))
+			updateStatus("[4/5] VELOCITY FLIGHT → Forest...", Color3.fromRGB(255, 180, 100))
 			local arrived, flightError = executeEscapeFlightToForest(myToken)
 			if not arrived then return false, flightError end
 			local _, hum, forestError = getRunRig(myToken)
@@ -651,8 +616,8 @@ local function executeTeleportPipeline(statusLabel)
 		runCharacter = nil
 		if not ok then
 			traceRun("ERROR_DETAIL", tostring(completed))
-			warn("[Steal-Pipeline v6.2.1] " .. tostring(completed))
-			updateStatus("ERROR: Run stopped; physics restored.", Color3.fromRGB(255, 80, 80))
+			warn("[Steal-Pipeline v6.3] " .. tostring(completed))
+			updateStatus("ERROR: Flight stopped; controls restored.", Color3.fromRGB(255, 80, 80))
 		elseif not completed then
 			updateStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 80, 80))
 		else
@@ -696,7 +661,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "STEAL AN EGG: ESCAPE FLIGHT v6.2.1"
+title.Text = "STEAL AN EGG: VELOCITY FLIGHT v6.3"
 title.TextColor3 = Color3.fromRGB(120, 220, 255)
 title.TextSize = 11
 title.Font = Enum.Font.GothamBold
@@ -749,7 +714,7 @@ local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -16, 0, 38)
 statusLabel.Position = UDim2.new(0, 8, 0, 5)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Ready. Walk → Confirm carry → Escape → Safe Zone."
+statusLabel.Text = "Ready. Walk → Confirm carry → Velocity flight → Safe Zone."
 statusLabel.TextColor3 = Color3.fromRGB(180, 220, 255)
 statusLabel.TextSize = 10
 statusLabel.Font = Enum.Font.Code
@@ -784,7 +749,7 @@ local stealBtn = Instance.new("TextButton")
 stealBtn.Size = UDim2.new(1, -20, 0, 36)
 stealBtn.Position = UDim2.new(0, 10, 0, 154)
 stealBtn.BackgroundColor3 = Color3.fromRGB(30, 130, 75)
-stealBtn.Text = "STEAL EGG → ESCAPE FLIGHT"
+stealBtn.Text = "STEAL EGG → VELOCITY FLIGHT"
 stealBtn.TextColor3 = Color3.new(1,1,1)
 stealBtn.TextSize = 11
 stealBtn.Font = Enum.Font.GothamBold
@@ -817,7 +782,7 @@ local footer = Instance.new("TextLabel")
 footer.Size = UDim2.new(1, -20, 0, 26)
 footer.Position = UDim2.new(0, 10, 0, 234)
 footer.BackgroundTransparency = 1
-footer.Text = "v6.2.1 diagnostics: after a failed run, use Copy run diagnostics.\nMovement limits unchanged; repeated resets need runtime evidence."
+footer.Text = "v6.3: Velocity flight, no CFrame moves | 180 studs/s\nIf interrupted, use Copy run diagnostics."
 footer.TextColor3 = Color3.fromRGB(120, 140, 175)
 footer.TextSize = 9
 footer.Font = Enum.Font.Code
@@ -961,7 +926,7 @@ end)
 
 stopBtn.MouseButton1Click:Connect(function()
 	stopRun()
-	statusLabel.Text = "Stopped. Physics restored; egg not dropped."
+	statusLabel.Text = "Stopped. Velocity cleared; egg not dropped."
 	statusLabel.TextColor3 = Color3.fromRGB(255, 140, 140)
 end)
 
@@ -989,4 +954,4 @@ task.defer(function()
 	updateTargetDisplay()
 end)
 
-traceRun("READY", "Diagnostics build; movement limits unchanged. Walk→Grab→Forest→Safe.")
+traceRun("READY", "Velocity flight ready: no CFrame movement. Walk→Grab→Forest→Safe.")
