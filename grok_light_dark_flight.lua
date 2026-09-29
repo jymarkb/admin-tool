@@ -1,5 +1,5 @@
 --[[
-GROK LIGHT / DARK FLIGHT v1.0 -- standalone; admin_v6_escape.lua is untouched.
+GROK LIGHT / DARK FLIGHT v1.1 -- standalone; admin_v6_escape.lua is untouched.
 Reference: origin/main:grok-v3-target-fix.lua at a7b5ecd90630335a65f232e2ff13d90ab100e533.
 
 AUDIT OF THE SUPPLIED FOREST -> COSMIC SCANNER LOG
@@ -35,6 +35,10 @@ Forest egg (within 300 studs). Press START. The script obtains/keeps Forest
 bait and waits at most 15s for a natural guard reaction. It does NOT pick up a
 Light Dark egg or deliver the bait. Stop/Close restores owned properties.
 An in-flight InvokeServer cannot be recalled; no new carry is sent after Stop.
+v1.1 pickup: up to three sequential attempts within a 12s budget, scoped
+optional touch/prompt interactions, fresh same-UID validation between attempts,
+and exact ownership confirmation even after a false carry reply. No launch
+on a generic Tool/IsCarrying flag or on an unconfirmed successful RPC reply.
 Mock tests cannot establish live server acceptance or fix rubberbanding.
 ]]
 
@@ -72,6 +76,8 @@ local HOLD_DEAD_ZONE      = 1.2
 local FINAL_SETTLE_S      = 0.20
 local ARRIVAL_RADIUS      = 5.5
 local CARRY_TIMEOUT_S     = 3
+local PICKUP_ATTEMPTS     = 3
+local PICKUP_BUDGET_S     = 12
 local REMOTE_TIMEOUT_S    = 3
 local FLIGHT_ANIM_ID      = "rbxassetid://102039335618606"
 
@@ -139,7 +145,7 @@ local MAX_FLIGHT_SAMPLES = 24
 
 local function traceRun(tag, message)
 	local wallTime = os.date and os.date("%H:%M:%S") or "clock"
-	local line = string.format("[LightDark v1.0] %s t=%.3f run=%d %s | %s",
+	local line = string.format("[LightDark v1.1] %s t=%.3f run=%d %s | %s",
 		wallTime, os.clock(), currentToken, tag, message)
 	table.insert(diagnosticLines, line)
 	if #diagnosticLines > MAX_DIAGNOSTIC_LINES then table.remove(diagnosticLines, 1) end
@@ -284,8 +290,10 @@ end
 -- InvokeServer can yield indefinitely. Bound the wait and allow at most one
 -- outstanding request per remote; late responses never change run state.
 local pendingRemotes = {}
-local function invokeRemote(subPath, payload, myToken, confirmedWhileWaiting)
+local function invokeRemote(subPath, payload, myToken, confirmedWhileWaiting, stopAt)
 	local startedAt = os.clock()
+	local deadline = math.min(startedAt + REMOTE_TIMEOUT_S, stopAt or math.huge)
+	if startedAt >= deadline then return false, nil end
 	local function report(outcome)
 		if myToken and currentToken == myToken and isRunning then
 			traceRun("REMOTE", string.format("%s %s elapsed=%.3fs", subPath, outcome, os.clock() - startedAt))
@@ -314,7 +322,6 @@ local function invokeRemote(subPath, payload, myToken, confirmedWhileWaiting)
 			if pendingRemotes[subPath] == request then pendingRemotes[subPath] = nil end
 		end)
 	end
-	local deadline = os.clock() + REMOTE_TIMEOUT_S
 	while not request.done do
 		if myToken and not getRunRig(myToken) then return false, nil end
 		-- A replicated target UID can arrive before InvokeServer returns. Do not
@@ -332,11 +339,11 @@ local function invokeRemote(subPath, payload, myToken, confirmedWhileWaiting)
 	return request.ok, request.result
 end
 
-local function carryEggRemote(uid, myToken)
+local function carryEggRemote(uid, myToken, stopAt)
 	if not uid or not getRunRig(myToken) then return false end
 	if hasTargetEggAttribute(uid) then return true end
 	local ok, result = invokeRemote("RF/EggWorld/AskFieldEggCarry", { Uid = tostring(uid) }, myToken,
-		function() return hasTargetEggAttribute(uid) end)
+		function() return hasTargetEggAttribute(uid) end, stopAt)
 	return ok and result ~= false
 end
 
@@ -375,7 +382,7 @@ local function parseSnapshotEggs(raw)
 	return records
 end
 
-local function fetchSnapshot(forceRefresh, myToken)
+local function fetchSnapshot(forceRefresh, myToken, stopAt)
 	-- A timed-out or carry-confirmation snapshot may still be in flight.
 	-- Never label that older response a fresh post-strike destination.
 	if forceRefresh and pendingRemotes["RF/EggWorld/AskFieldEggSnapshot"] then
@@ -383,7 +390,7 @@ local function fetchSnapshot(forceRefresh, myToken)
 		return {}
 	end
 	if not forceRefresh and cachedSnapshot and #cachedSnapshot > 0 then return cachedSnapshot end
-	local ok, res = invokeRemote("RF/EggWorld/AskFieldEggSnapshot", nil, myToken)
+	local ok, res = invokeRemote("RF/EggWorld/AskFieldEggSnapshot", nil, myToken, nil, stopAt)
 	if ok and typeof(res) == "table" then
 		cachedSnapshot = parseSnapshotEggs(res)
 		return cachedSnapshot
@@ -391,12 +398,12 @@ local function fetchSnapshot(forceRefresh, myToken)
 	return {}
 end
 
-local function isHoldingEgg(uid, myToken)
+local function isHoldingEgg(uid, myToken, stopAt)
 	if not getRunRig(myToken) then return false end
 	if hasTargetEggAttribute(uid) then return true end
 	-- Generic Tools, IsCarrying and rendered model names do not identify the
 	-- selected egg. Fall back to fresh, target-specific ownership evidence.
-	for _, egg in ipairs(fetchSnapshot(true, myToken)) do
+	for _, egg in ipairs(fetchSnapshot(true, myToken, stopAt)) do
 		if egg.Uid == tostring(uid) then
 			return tonumber(egg.CarrierUserId) == LocalPlayer.UserId
 		end
@@ -404,9 +411,10 @@ local function isHoldingEgg(uid, myToken)
 	return false
 end
 
-local function confirmCarry(uid, myToken)
-	local deadline = os.clock() + CARRY_TIMEOUT_S
+local function confirmCarry(uid, myToken, stopAt, singleProbe)
+	local deadline = math.min(os.clock() + CARRY_TIMEOUT_S, stopAt or math.huge)
 	local probe = nil
+	local probeStarted = false
 	local nextProbeAt = 0
 	while getRunRig(myToken) do
 		-- Keep watching local replication while a snapshot is in flight instead
@@ -418,11 +426,12 @@ local function confirmCarry(uid, myToken)
 			probe = nil
 			nextProbeAt = os.clock() + 0.15
 		end
-		if not probe and os.clock() >= nextProbeAt then
+		if not probe and os.clock() >= nextProbeAt and (not singleProbe or not probeStarted) then
+			probeStarted = true
 			local request = { done = false }
 			probe = request
 			task.spawn(function()
-				request.holding = isHoldingEgg(uid, myToken)
+				request.holding = isHoldingEgg(uid, myToken, deadline)
 				request.done = true
 			end)
 		end
@@ -448,7 +457,7 @@ local function chooseEgg(eggs, biome, origin, allowOwn)
 		if cleanString(egg.AreaId) == cleanString(biome)
 			and (isEggAvailable(egg) or (allowOwn and tonumber(egg.CarrierUserId) == LocalPlayer.UserId)) then
 			-- Prefer this player's confirmed Forest bait if already held.
-			if allowOwn and hasTargetEggAttribute(egg.Uid) then return egg end
+			if allowOwn and (hasTargetEggAttribute(egg.Uid) or tonumber(egg.CarrierUserId) == LocalPlayer.UserId) then return egg end
 			local distance = (egg.Position - origin).Magnitude
 			if distance < nearest then best, nearest = egg, distance end
 		end
@@ -626,7 +635,7 @@ end
 -- REFERENCE LAUNCH SETUP (NATURAL GUARD REACTION, NEVER FORCED)
 ----------------------------------------------------------------
 
-local function glideToBait(targetPos, myToken)
+local function glideToBait(targetPos, myToken, stopAt)
 	local root, hum, reason = getRunRig(myToken)
 	if not root then return false, reason end
 	if (root.Position - targetPos).Magnitude > 300 then
@@ -638,7 +647,7 @@ local function glideToBait(targetPos, myToken)
 	hum:Move(Vector3.zero)
 	hum:MoveTo(root.Position)
 	local started = os.clock()
-	while os.clock() - started < 2.5 do
+	while os.clock() < math.min(started + 2.5, stopAt or math.huge) do
 		local dt = RunService.Heartbeat:Wait()
 		root, hum, reason = getRunRig(myToken)
 		if not root then return false, reason end
@@ -659,6 +668,160 @@ local function glideToBait(targetPos, myToken)
 		root.AssemblyAngularVelocity = Vector3.zero
 	end
 	return false, "Forest bait approach timed out"
+end
+
+-- Grok-v3 used a pickup burst plus touch/prompt attempts. Keep those optional
+-- interactions confined to the SELECTED egg, not every nearby world prompt.
+local function getBaitModel(uid)
+	local slots = Workspace:FindFirstChild("AreaEggSlotsClient")
+	return slots and slots:FindFirstChild(tostring(uid)) or nil
+end
+
+local function baitInteractionPart(model)
+	if not model then return nil end
+	local hitbox = model:FindFirstChild("Hitbox", true)
+	if hitbox and hitbox:IsA("BasePart") then return hitbox end
+	if model:IsA("BasePart") then return model end
+	return model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function tryBaitInteractions(bait, myToken, stopAt)
+	local root = getRunRig(myToken)
+	if not root or root.Anchored or os.clock() >= stopAt or hasTargetEggAttribute(bait.Uid) then return end
+	local function log(message)
+		if getRunRig(myToken) and os.clock() < stopAt then traceRun("PICKUP_INTERACTION", message) end
+	end
+	local model = getBaitModel(bait.Uid)
+	local part = baitInteractionPart(model)
+	if not part then
+		log("Selected UID has no streamed hitbox; remote-only attempt")
+		return
+	end
+	local distance = (root.Position - part.Position).Magnitude
+	if distance > 16 then
+		log(string.format("Selected hitbox %.2f studs away; local interactions skipped", distance))
+		return
+	end
+	if typeof(firetouchinterest) == "function" then
+		local ok = pcall(firetouchinterest, root, part, 0)
+		-- End the same touch even if Stop arrives; never leave a simulated touch
+		-- open. This releases the interaction, not another pickup attempt.
+		pcall(firetouchinterest, root, part, 1)
+		log("selected touch attempted=" .. tostring(ok))
+	end
+	if typeof(fireproximityprompt) == "function" then
+		for _, prompt in ipairs(model:GetDescendants()) do
+			if not getRunRig(myToken) or os.clock() >= stopAt or hasTargetEggAttribute(bait.Uid) then break end
+			if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+				local action = string.lower(tostring(prompt.ActionText))
+				local pickupAction = action:find("pick", 1, true) or action:find("take", 1, true)
+					or action:find("grab", 1, true) or action:find("steal", 1, true) or action:find("carry", 1, true)
+				-- Do not activate Buy/Upgrade/other unrelated interactions.
+				local parent = prompt.Parent
+				local promptPos = nil
+				if parent and parent:IsA("BasePart") then promptPos = parent.Position
+				elseif parent and parent:IsA("Attachment") then promptPos = parent.WorldPosition
+				elseif parent and parent:IsA("Model") then promptPos = parent:GetPivot().Position end
+				if pickupAction and promptPos and (root.Position - promptPos).Magnitude <= math.min(16, prompt.MaxActivationDistance) then
+					local ok = pcall(fireproximityprompt, prompt, 0)
+					log("selected pickup prompt attempted=" .. tostring(ok))
+					break
+				end
+			end
+		end
+	end
+end
+
+local function acquireForestBait(bait, myToken)
+	local deadline = os.clock() + PICKUP_BUDGET_S
+	local interactionWorker = nil
+	-- Already-owned bait can make another Carry RPC return false. Reconfirm
+	-- that exact UID instead of mistaking generic IsCarrying for ownership.
+	if hasTargetEggAttribute(bait.Uid) or tonumber(bait.CarrierUserId) == LocalPlayer.UserId then
+		if confirmCarry(bait.Uid, myToken, deadline, true) then
+			traceRun("PICKUP_CONFIRMED", "already owned uid=" .. bait.Uid)
+			return true
+		end
+		return false, "Previously owned Forest bait could not be reconfirmed"
+	end
+	for attempt = 1, PICKUP_ATTEMPTS do
+		local root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		if root.Anchored then return false, "Anchored during pickup" end
+		if os.clock() >= deadline then break end
+		local existing = LocalPlayer:GetAttribute("EggUid")
+		if existing ~= nil and tostring(existing) ~= "" and tostring(existing) ~= bait.Uid then
+			return false, "A different egg became carried during pickup"
+		end
+		if attempt > 1 then
+			-- Never overlap a Carry RPC or retry an egg claimed by another player.
+			if pendingRemotes["RF/EggWorld/AskFieldEggCarry"] then
+				return false, "Carry request still pending; no duplicate request sent"
+			end
+			local fresh = nil
+			for _, record in ipairs(fetchSnapshot(true, myToken, deadline)) do
+				if record.Uid == bait.Uid then fresh = record; break end
+			end
+			if not getRunRig(myToken) then return false, "Cancelled or character changed" end
+			if not fresh or cleanString(fresh.AreaId) ~= "forest" then
+				return false, "Selected Forest bait missing from fresh snapshot; no blind retry"
+			end
+			if tonumber(fresh.CarrierUserId) == LocalPlayer.UserId then
+				traceRun("PICKUP_CONFIRMED", "fresh owner matches uid=" .. fresh.Uid)
+				return true
+			end
+			if not isEggAvailable(fresh) then return false, "Selected Forest bait was claimed by another player" end
+			bait = fresh
+			local reached, approachError = glideToBait(bait.Position + Vector3.new(0, 3, 0), myToken, deadline)
+			if not reached then return false, approachError end
+		end
+
+		-- Give position replication a short opportunity to catch up. This is
+		-- not an acknowledgement of server position or an asserted fix.
+		local settleUntil = math.min(os.clock() + 0.15, deadline)
+		while os.clock() < settleUntil do
+			RunService.Heartbeat:Wait()
+			root, hum, reason = getRunRig(myToken)
+			if not root then return false, reason end
+			if root.Anchored then return false, "Anchored during pickup settle" end
+		end
+		root, hum, reason = getRunRig(myToken)
+		if not root then return false, reason end
+		if os.clock() >= deadline then break end
+		local part = baitInteractionPart(getBaitModel(bait.Uid))
+		traceRun("PICKUP_CONTEXT", string.format(
+			"attempt=%d/%d uid=%s owner=%s root=(%.2f,%.2f,%.2f) egg=(%.2f,%.2f,%.2f) distance=%.2f deltaY=%.2f hitboxDistance=%s state=%s floor=%s EggUid=%s IsCarrying=%s",
+			attempt, PICKUP_ATTEMPTS, bait.Uid, tostring(bait.CarrierUserId), root.Position.X, root.Position.Y, root.Position.Z,
+			bait.Position.X, bait.Position.Y, bait.Position.Z, (root.Position - bait.Position).Magnitude,
+			root.Position.Y - bait.Position.Y, part and string.format("%.2f", (root.Position - part.Position).Magnitude) or "not-streamed",
+			hum:GetState().Name, tostring(hum.FloorMaterial), tostring(LocalPlayer:GetAttribute("EggUid")), tostring(LocalPlayer:GetAttribute("IsCarrying"))))
+		-- Optional executor helpers may yield. Their worker checks the token
+		-- before starting any new interaction; the foreground wait stays bounded.
+		if not interactionWorker or interactionWorker.done then
+			local worker = { done = false }
+			interactionWorker = worker
+			local selectedBait = bait
+			task.spawn(function()
+				local ok, detail = pcall(tryBaitInteractions, selectedBait, myToken, deadline)
+				worker.done = true
+				if not ok and getRunRig(myToken) then traceRun("PICKUP_INTERACTION_ERROR", tostring(detail)) end
+			end)
+		end
+		local accepted = carryEggRemote(bait.Uid, myToken, deadline)
+		if not getRunRig(myToken) then return false, "Cancelled or character changed" end
+		traceRun("PICKUP_REPLY", string.format("attempt=%d accepted=%s; checking exact ownership", attempt, tostring(accepted)))
+		-- A false reply is not success. Allow short replication grace for
+		-- touch/prompt pickup or an already-completed request, then verify UID.
+		-- One ownership snapshot per grace window avoids starting another RPC
+		-- just before its deadline and blocking the next fresh retry snapshot.
+		if confirmCarry(bait.Uid, myToken, math.min(os.clock() + 0.75, deadline), true) then
+			traceRun("PICKUP_CONFIRMED", string.format("uid=%s attempt=%d", bait.Uid, attempt))
+			return true
+		end
+		if not getRunRig(myToken) then return false, "Cancelled or character changed" end
+		traceRun("PICKUP_UNCONFIRMED", string.format("attempt=%d; no exact ownership evidence", attempt))
+	end
+	return false, "Forest bait ownership unconfirmed after bounded pickup attempts; see PICKUP_CONTEXT logs"
 end
 
 local function naturalStrikeReason(root, hum)
@@ -768,8 +931,8 @@ local function startRoute(statusLabel, finished)
 			local reached, approachError = glideToBait(bait.Position + Vector3.new(0, 3, 0), myToken)
 			if not reached then return false, approachError end
 			status("[3/6] Confirming Forest bait carry...")
-			if not carryEggRemote(bait.Uid, myToken) then return false, "Forest carry request failed" end
-			if not confirmCarry(bait.Uid, myToken) then return false, "Forest bait ownership not confirmed" end
+			local carried, pickupError = acquireForestBait(bait, myToken)
+			if not carried then return false, pickupError end
 			traceRun("BAIT_CONFIRMED", bait.Uid .. "; keeping bait (no Drop remote)")
 			status("[4/6] Waiting for natural guard reaction (max 15s); no forced ragdoll...")
 			local struck, strikeError = waitForNaturalStrike(myToken)
@@ -850,7 +1013,7 @@ local function button(text, y, callback)
 	node.Activated:Connect(callback)
 	return node
 end
-label("GROK · FOREST → LIGHT / DARK · v1.0", 8, 24)
+label("GROK · FOREST → LIGHT / DARK · v1.1", 8, 24)
 label("Standalone guard-launch test. Close other movement scripts. Start near Forest bait. Keeps bait; no auto-drop.", 34, 44)
 local statusLabel = label("Ready. Natural guard reaction required; no forced state. Longer routes take longer than 2 seconds.", 190, 52)
 local logBox = Instance.new("TextBox")
