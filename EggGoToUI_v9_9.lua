@@ -245,8 +245,8 @@ local DEFAULT_SETTINGS = {
     RarityFilter   = {},
     AutoReturn     = true,
     Velocity       = false,
-    VelocityValue  = 270,
-    CarryVelocityValue = 180,
+    VelocityValue  = 300,
+    CarryVelocityValue = 250,
     Recovery       = true,
 }
 
@@ -331,6 +331,7 @@ local targetVelocity  = 270
 local savedWalkSpeed  = 16
 local zeroFriction    = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 local originalPhysicalProperties = {}
+local weAreCarrying   = false
 
 local recoveryEnabled = true
 local recoveryActive  = false
@@ -363,8 +364,8 @@ local wasRagdolledForVelocity = false
 local RAGDOLL_HOLD_TIME = 0.12
 
 -- v9 state + helpers (kept in X because the script is close to Luau's 200-locals limit)
-X.baseVelocity      = 290    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
-X.baseCarryVelocity = 250    -- carry speed (returning with egg). X.switchToCarry() activates it.
+X.baseVelocity      = 270    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
+X.baseCarryVelocity = 180    -- carry speed (returning with egg). X.switchToCarry() activates it.
 X.VELOCITY_STEP    = 10      -- every rubberband lowers the velocity by this much...
 X.MIN_VELOCITY     = 100     -- ...but never below this
 X.RUBBER_BACK      = 6       -- studs pulled BACKWARDS in a single frame (against our move direction) = rubberband
@@ -957,12 +958,43 @@ local function applySettings(t)
 
     if t.AutoReturn ~= nil then autoReturnEnabled = t.AutoReturn end
     if t.Velocity ~= nil then velocityEnabled = t.Velocity end
-    if t.VelocityValue ~= nil and t.VelocityValue > 0 then targetVelocity = t.VelocityValue; X.baseVelocity = t.VelocityValue end
-    if t.CarryVelocityValue ~= nil and t.CarryVelocityValue > 0 then X.baseCarryVelocity = t.CarryVelocityValue end
+
+    if t.VelocityValue ~= nil and t.VelocityValue > 0 then
+        X.baseVelocity = t.VelocityValue
+    elseif not X.baseVelocity or X.baseVelocity <= 0 then
+        X.baseVelocity = DEFAULT_SETTINGS.VelocityValue or 270
+    end
+
+    if t.CarryVelocityValue ~= nil and t.CarryVelocityValue > 0 then
+        X.baseCarryVelocity = t.CarryVelocityValue
+    elseif not X.baseCarryVelocity or X.baseCarryVelocity <= 0 then
+        X.baseCarryVelocity = DEFAULT_SETTINGS.CarryVelocityValue or 180
+    end
+
+    if weAreCarrying or (typeof(isHoldingEgg) == "function" and isHoldingEgg()) then
+        targetVelocity = X.baseCarryVelocity
+    else
+        targetVelocity = X.baseVelocity
+    end
+
+    if velocityEnabled then
+        local ch = LocalPlayer.Character
+        local h = ch and ch:FindFirstChildOfClass("Humanoid")
+        if h then pcall(function() h.WalkSpeed = targetVelocity end) end
+    end
+
     if t.Recovery ~= nil then
         recoveryEnabled = t.Recovery
         if not recoveryEnabled then recoveryState = RECOVERY_STATE.NONE end
     end
+
+    -- Keep currentSettings fully synchronized and normalized
+    currentSettings.SafeZone = { X = SAFE_ZONE.X, Y = SAFE_ZONE.Y, Z = SAFE_ZONE.Z }
+    currentSettings.Velocity = velocityEnabled
+    currentSettings.VelocityValue = X.baseVelocity
+    currentSettings.CarryVelocityValue = X.baseCarryVelocity
+    currentSettings.Recovery = recoveryEnabled
+    currentSettings.AutoReturn = autoReturnEnabled
     return true
 end
 
@@ -1311,7 +1343,7 @@ local EGG_SCAN_INTERVAL    = 1.0   -- FIXED cadence of the live egg scan while a
 local DROP_CONFIRM         = 0.6   -- seconds the carried object must be gone before we call it dropped
 
 -- Our OWN carry state (never trust a heuristic to say we carry something we never picked up)
-local weAreCarrying  = false
+weAreCarrying        = false
 local carryUid       = nil
 local carryMarkers   = nil    -- objects that appeared when WE picked the egg up (or nil if none seen)
 local lastFailReason = nil    -- shown by the loop instead of the generic "failed/skipped" text
@@ -3348,6 +3380,10 @@ autoFarmBtn.MouseButton1Click:Connect(function()
 end)
 
 copyBtn.MouseButton1Click:Connect(function()
+    local v=tonumber(velInputBox.Text)
+    if v and v>0 then X.baseVelocity=v end
+    local cv=tonumber(carryVelInputBox.Text)
+    if cv and cv>0 then X.baseCarryVelocity=cv end
     -- Sync live state
     currentSettings.Velocity=velocityEnabled
     currentSettings.VelocityValue=X.baseVelocity
@@ -3393,6 +3429,7 @@ loadBtn.MouseButton1Click:Connect(function()
     if X.refreshRarityUI then X.refreshRarityUI() end
     velInputBox.Text=tostring(math.floor(X.baseVelocity))
     carryVelInputBox.Text=tostring(math.floor(X.baseCarryVelocity))
+    jsonBox.Text=settingsToJSON(currentSettings) or jsonBox.Text
     statusLabel.Text="Config loaded"; statusLabel.TextColor3=Color3.fromRGB(120,255,150)
     refilterAndRender()
 end)
@@ -3416,6 +3453,10 @@ local function upVelIn()
     local v=tonumber(velInputBox.Text)
     if v and v>0 then
         X.baseVelocity=v
+        if currentSettings then
+            currentSettings.VelocityValue=v
+            if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        end
         if not weAreCarrying and not isHoldingEgg() then
             targetVelocity=v
             if velocityEnabled then
@@ -3436,6 +3477,7 @@ velInputBox:GetPropertyChangedSignal("Text"):Connect(function()
     local v=tonumber(velInputBox.Text)
     if v and v>0 then
         X.baseVelocity=v
+        if currentSettings then currentSettings.VelocityValue=v end
         if not weAreCarrying and not isHoldingEgg() then
             targetVelocity=v
             if velocityEnabled then
@@ -3452,6 +3494,10 @@ local function upCarryVelIn()
     local v=tonumber(carryVelInputBox.Text)
     if v and v>0 then
         X.baseCarryVelocity=v
+        if currentSettings then
+            currentSettings.CarryVelocityValue=v
+            if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        end
         if weAreCarrying or isHoldingEgg() then
             targetVelocity=v
             if velocityEnabled then
@@ -3472,6 +3518,7 @@ carryVelInputBox:GetPropertyChangedSignal("Text"):Connect(function()
     local v=tonumber(carryVelInputBox.Text)
     if v and v>0 then
         X.baseCarryVelocity=v
+        if currentSettings then currentSettings.CarryVelocityValue=v end
         if weAreCarrying or isHoldingEgg() then
             targetVelocity=v
             if velocityEnabled then
@@ -3490,6 +3537,10 @@ velToggleBtn.MouseButton1Click:Connect(function()
     velocityEnabled=not velocityEnabled
     if velocityEnabled then enableVelocity() else disableVelocity() end
     upVelBtn()
+    if currentSettings then
+        currentSettings.Velocity=velocityEnabled
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+    end
 end)
 
 function upRecBtn()
@@ -3507,6 +3558,10 @@ recoveryToggleBtn.MouseButton1Click:Connect(function()
     recoveryEnabled=not recoveryEnabled
     if not recoveryEnabled then recoveryState=RECOVERY_STATE.NONE end
     upRecBtn()
+    if currentSettings then
+        currentSettings.Recovery=recoveryEnabled
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+    end
 end)
 
 upVelBtn(); upRecBtn(); updateFarmBtnText()
@@ -3591,6 +3646,8 @@ applySettings(deepCopy(DEFAULT_SETTINGS))
 upVelBtn(); upRecBtn(); updateFarmBtnText()
 rebuildFarmDropdownItems()
 if X.refreshRarityUI then X.refreshRarityUI() end
+velInputBox.Text=tostring(math.floor(X.baseVelocity))
+carryVelInputBox.Text=tostring(math.floor(X.baseCarryVelocity))
 jsonBox.Text=settingsToJSON(currentSettings) or "{}"
 
 task.defer(scanEggs)
