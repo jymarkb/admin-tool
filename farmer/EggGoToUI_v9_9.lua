@@ -416,7 +416,11 @@ function X.markTeleport() X.ignoreJumpUntil = os.clock() + 0.35; X.rbLastPos = n
 
 -- back to TRAVEL speed (called after every egg, new target, drop, or delivery)
 function X.resetVelocity()
-    targetVelocity = X.baseVelocity
+    if weAreCarrying or (typeof(isHoldingEgg) == "function" and isHoldingEgg()) or (X.isHoldingEgg and X.isHoldingEgg()) then
+        targetVelocity = X.baseCarryVelocity
+    else
+        targetVelocity = X.baseVelocity
+    end
     if velocityEnabled then
         local ch = LocalPlayer.Character
         local h  = ch and ch:FindFirstChildOfClass("Humanoid")
@@ -470,10 +474,37 @@ local function setFrictionless(enable)
     end
 end
 
+-- Carry and Drop state forward declarations (must precede holdingSource, ragdoll updates, and ghost checks)
+weAreCarrying = false
+local carryUid = nil
+local carryMarkers = nil
+local dropRetry = nil
+
+-- Forward reference for checking if tracked carry markers are still active
+local function markersActiveCheck(m)
+    if not m then return false end
+    if typeof(m.inst) == "table" then
+        for _, e in ipairs(m.inst) do
+            if e.inst and e.inst.Parent ~= nil then return true end
+            if e.parent and e.parent.Parent and e.parent:FindFirstChild(e.name) then return true end
+        end
+    end
+    if typeof(m.attr) == "table" then
+        for _, a in ipairs(m.attr) do
+            if a.obj and a.obj.Parent ~= nil then
+                local ok, cur = pcall(function() return a.obj:GetAttribute(a.key) end)
+                if ok and cur == a.val then return true end
+            end
+        end
+    end
+    return false
+end
+
 -- Tightened holding check.
 --  * Only counts an EQUIPPED egg tool/model on the character (backpack tools no longer count)
---  * Only counts a ClientRenderedAssets model whose name contains OUR exact UserId as a whole
---    number (the old substring match could hit another player's id) and that has real geometry.
+--  * In ClientRenderedAssets, ONLY matches if carryUid is known and matches UserId_carryUid,
+--    or active carryMarkers from a confirmed pickup are alive.
+--    (NEVER match arbitrary ClientRenderedAssets models without carryUid, as nest eggs in the player's base also live in CRA!)
 --  * holdingSource() returns what matched, so it can be shown for debugging.
 local function holdingSource()
     local char = LocalPlayer.Character
@@ -485,14 +516,15 @@ local function holdingSource()
         end
     end
     local cra = Workspace:FindFirstChild("ClientRenderedAssets")
-    if cra then
-        local pat = "%f[%d]" .. tostring(LocalPlayer.UserId) .. "%f[%D]"
-        for _, m in ipairs(cra:GetChildren()) do
-            if m.Parent and string.find(m.Name, pat)
-               and (m:IsA("BasePart") or m:FindFirstChildWhichIsA("BasePart", true)) then
-                return "cra:" .. m.Name
-            end
+    if cra and carryUid then
+        local expectedName = tostring(LocalPlayer.UserId) .. "_" .. tostring(carryUid)
+        local m = cra:FindFirstChild(expectedName)
+        if m and (m:IsA("BasePart") or m:FindFirstChildWhichIsA("BasePart", true)) then
+            return "cra:" .. m.Name
         end
+    end
+    if carryMarkers and markersActiveCheck(carryMarkers) then
+        return "marker:" .. tostring(carryMarkers.label or "active")
     end
     return nil
 end
@@ -500,6 +532,7 @@ end
 local function isHoldingEgg()
     return holdingSource() ~= nil
 end
+X.isHoldingEgg = isHoldingEgg
 
 local function neutraliseEggPhysics(char)
     if not char then return end
@@ -552,7 +585,16 @@ local function updateRagdollStatus()
     local reason = getRagdollReason(h)
     lastRagdollReason = reason
     if reason then
-        if not ragdollSince then X.ragdollEpoch = X.ragdollEpoch + 1; X.lastRagdollAt = os.clock() end
+        if not ragdollSince then
+            X.ragdollEpoch = X.ragdollEpoch + 1
+            X.lastRagdollAt = os.clock()
+            if carryUid and not isHoldingEgg() then
+                X.looseUids[carryUid] = true
+                X.weDropped[carryUid] = os.clock()
+                X.clearMarks(carryUid)
+                X.listDirty = true
+            end
+        end
         ragdollSince = ragdollSince or os.clock()
         if os.clock() - ragdollSince > RAGDOLL_STALE_AFTER then ragdollStale = true end
     else
@@ -637,6 +679,82 @@ function X.recPos(r)
     return nil
 end
 
+-- Robust slot resolution in Workspace.AreaEggSlotsClient:
+-- Matches direct 32-hex UID, recursive/attribute Uid, Forest/Area pattern ("FirstAreaEgg_..._Forest:Slot_00X"),
+-- or 3D world position within 6 studs of the expected nest position.
+function X.findEggSlot(area, uid, nestId, areaId, pos)
+    if not area or not uid or uid == "" then return nil end
+    -- 1. Direct child match (standard 32-hex UID used in 95% of areas)
+    local direct = area:FindFirstChild(uid)
+    if direct then return direct end
+
+    -- 2. Attribute match or name contains UID
+    for _, ch in ipairs(area:GetChildren()) do
+        if ch.Name == uid or string.find(ch.Name, uid, 1, true) then
+            return ch
+        end
+        local au = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
+        if au and tostring(au) == uid then
+            return ch
+        end
+    end
+
+    -- 3. AreaId / NestId match (e.g. FirstAreaEgg_<UserId>_<id>_Forest:Slot_005)
+    local nStr = tostring(nestId or "")
+    local aStr = tostring(areaId or "")
+    if nStr ~= "" or aStr ~= "" then
+        for _, ch in ipairs(area:GetChildren()) do
+            local nm = ch.Name
+            local matchArea = (aStr == "") or (string.find(nm, aStr, 1, true) ~= nil)
+            local matchNest = false
+            if nStr ~= "" then
+                if string.find(nm, nStr, 1, true) then
+                    matchNest = true
+                else
+                    local num = tonumber(string.match(nStr, "%d+"))
+                    if num and (string.find(nm, string.format("Slot_%03d", num), 1, true) or string.find(nm, string.format("Slot_%d", num), 1, true)) then
+                        matchNest = true
+                    end
+                end
+            end
+            if matchArea and matchNest then
+                return ch
+            end
+        end
+    end
+
+    -- 4. World Position match (within 6 studs of expected nest position)
+    if pos and typeof(pos) == "Vector3" then
+        for _, ch in ipairs(area:GetChildren()) do
+            local cp = nil
+            if ch:IsA("BasePart") then
+                cp = ch.Position
+            elseif ch:IsA("Model") then
+                local pp = ch.PrimaryPart or ch:FindFirstChildWhichIsA("BasePart")
+                if pp then cp = pp.Position end
+            end
+            if cp and (cp - pos).Magnitude <= 6 then
+                return ch
+            end
+        end
+    end
+
+    return nil
+end
+
+-- Check if egg is placed in any player's base plot (Workspace.PlacedEggRenders.<UserId>_<EggUid>)
+function X.isEggInBaseRenders(uid)
+    if not uid or uid == "" then return false end
+    local per = Workspace:FindFirstChild("PlacedEggRenders")
+    if not per then return false end
+    for _, ch in ipairs(per:GetChildren()) do
+        if string.find(ch.Name, uid, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
 -- Per-area cross-check of the snapshot against the client slots (called from every successful scan).
 function X.updateSlotGhosts(by, recs)
     local area = Workspace:FindFirstChild("AreaEggSlotsClient")
@@ -650,14 +768,32 @@ function X.updateSlotGhosts(by, recs)
             if not pa then pa = { n = 0, has = 0, missing = {} }; perArea[a] = pa end
             pa.n = pa.n + 1
             local p = X.recPos(r)
-            local hasSlot = area:FindFirstChild(u) ~= nil
-            if X.vanished[u] then      -- v9.4: it was gone from the snapshot and is listed again = dropped / lying loose
-                X.vanished[u] = nil
-                X.looseUids[u] = true
-                X.clearMarks(u); X.stolenN[u] = nil
-                X.movingAt[u] = nil; X.deliveredUids[u] = nil; X.slotLostSince[u] = nil
+            local slotObj = X.findEggSlot(area, u, r.NestId, r.AreaId, p)
+            local hasSlot = slotObj ~= nil
+            local mine = (X.weDropped[u] and os.clock() - X.weDropped[u] < 60) or (dropRetry and dropRetry.uid == u)
+
+            -- If egg is rendered on a player's base plot, it is delivered/stolen
+            if X.isEggInBaseRenders(u) then
+                X.deliveredUids[u] = true
+                X.blacklistStolen(u)
+                X.looseUids[u] = nil
                 X.listDirty = true
             end
+
+            -- Re-listed after vanishing from snapshot: only restore if it respawned in its nest or we dropped it
+            if X.vanished[u] then
+                X.vanished[u] = nil
+                if hasSlot then
+                    X.clearMarks(u); X.stolenN[u] = nil
+                    X.movingAt[u] = nil; X.deliveredUids[u] = nil; X.slotLostSince[u] = nil
+                    X.listDirty = true
+                elseif mine then
+                    X.looseUids[u] = true
+                    X.clearMarks(u)
+                    X.listDirty = true
+                end
+            end
+
             -- v9.5: a taken egg whose nest slot vanished and is back again = it returned to its nest (bumped carrier)
             if X.goneUids[u] or X.badUids[u] then
                 if not hasSlot then
@@ -670,20 +806,23 @@ function X.updateSlotGhosts(by, recs)
                     end
                 end
             end
+
             if hasSlot then
                 pa.has = pa.has + 1; X.slotSeen[u] = true
                 if p and not X.nestPos[u] then X.nestPos[u] = p end
                 X.slotLostSince[u] = nil
+                X.missCount[u] = nil
             else
                 table.insert(pa.missing, u)
-                if X.slotSeen[u] and not X.looseUids[u] then X.slotLostSince[u] = X.slotLostSince[u] or os.clock()
-                else X.slotLostSince[u] = nil end
+                if not mine then
+                    X.slotLostSince[u] = X.slotLostSince[u] or os.clock()
+                end
             end
+
             -- moved away from its nest, or moved between two scans = lying loose (a dropped egg), not an empty nest
             if p then
                 local lp = X.lastPos[u]
                 local nowc = os.clock()
-                local mine = X.weDropped[u] and nowc - X.weDropped[u] < 60
                 if lp and (p - lp).Magnitude > 6 then
                     X.movingAt[u] = nowc; X.restN[u] = 0        -- moving: someone is carrying it
                     if not mine then X.looseUids[u] = nil end; X.deliveredUids[u] = nil
@@ -698,16 +837,18 @@ function X.updateSlotGhosts(by, recs)
                     if sz <= 30 and not mine and not hasSlot then
                         if not X.deliveredUids[u] then print("[EggGoToUI] egg rests at the delivery zone (delivered by someone):", u) end
                         X.deliveredUids[u] = true; X.listDirty = true
-                    else
+                    elseif X.stolenN[u] or X.isCarriedByOther(u) or X.isEggInBaseRenders(u) then
+                        -- Egg was stolen/carried by another player and now rests (delivered in their base)
+                        X.deliveredUids[u] = true
+                        X.blacklistStolen(u)
+                        X.looseUids[u] = nil
+                        X.listDirty = true
+                    elseif mine then
                         X.looseUids[u] = true
-                        if X.goneUids[u] or X.badUids[u] then
-                            X.clearMarks(u); X.listDirty = true
-                            print("[EggGoToUI] egg lying on the ground again (not stolen):", u)
-                        end
                     end
                 end
                 -- stale entry that sits at the delivery zone from the start (delivered before we ever saw it move)
-                if not hasSlot and not mine and not X.looseUids[u] and not X.deliveredUids[u] then
+                if not hasSlot and not mine and not X.deliveredUids[u] then
                     if Vector3.new(p.X - SAFE_ZONE.X, 0, p.Z - SAFE_ZONE.Z).Magnitude <= 15 then
                         X.deliveredUids[u] = true; X.listDirty = true
                     end
@@ -717,17 +858,22 @@ function X.updateSlotGhosts(by, recs)
         end
     end
     local newMiss = {}
-    for a, pa in pairs(perArea) do
-        if not X.slotDebugged[a] then
-            X.slotDebugged[a] = true
-            print(("[EggGoToUI] slot coverage area %s: %d/%d eggs have a slot"):format(a, pa.has, pa.n))
-        end
-        if pa.n >= 3 and pa.has >= 2 and pa.has / pa.n >= 0.6 then      -- slots are clearly populated here
+    local totalClientSlots = #area:GetChildren()
+    if totalClientSlots > 0 then
+        for a, pa in pairs(perArea) do
+            if not X.slotDebugged[a] then
+                X.slotDebugged[a] = true
+                print(("[EggGoToUI] slot coverage area %s: %d/%d eggs have a slot"):format(a, pa.has, pa.n))
+            end
             for _, u in ipairs(pa.missing) do
-                if not X.looseUids[u] then
+                local mine = (X.weDropped[u] and os.clock() - X.weDropped[u] < 60) or (dropRetry and dropRetry.uid == u)
+                if not mine then
                     local c = (X.missCount[u] or 0) + 1
                     newMiss[u] = c
-                    if c == 2 then print("[EggGoToUI] ghost egg (listed, no slot):", u, "area", a) end
+                    if c == 2 then
+                        print("[EggGoToUI] ghost egg (listed, no slot):", u, "area", a)
+                        X.listDirty = true
+                    end
                 end
             end
         end
@@ -749,6 +895,7 @@ function X.clearMarks(u)
     X.goneUids[u] = nil; X.badUids[u] = nil; X.failCount[u] = nil; X.missCount[u] = nil
     X.gonePos[u] = nil; X.slotGoneAt[u] = nil; X.slotBackN[u] = nil
     X.carrierPlayer[u] = nil
+    X.deliveredUids[u] = nil
 end
 
 -- A Gone/Carry mark only counts for X.GONE_TTL seconds (an egg that went back to its nest looks identical to a stale one)
@@ -772,9 +919,10 @@ function X.blacklistStolen(uid)
 end
 
 function X.slotLost(uid)
-    if not X.USE_SLOT_CHECK or not X.slotSeen[uid] or X.looseUids[uid] then return false end
+    if not X.USE_SLOT_CHECK or (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60) or (dropRetry and dropRetry.uid == uid) then return false end
     local a = Workspace:FindFirstChild("AreaEggSlotsClient")
-    return a ~= nil and a:FindFirstChild(uid) == nil
+    if not a or #a:GetChildren() == 0 then return false end
+    return X.findEggSlot(a, uid) == nil
 end
 
 -- v9.8: strong evidence that another player has / had the egg (returns the reason text)
@@ -782,33 +930,56 @@ function X.takenSignal(uid)
     local now = os.clock()
     local wd = X.weDropped[uid]
     if wd and now - wd < 60 then return nil end                       -- we dropped it ourselves: it is on the ground
+    if dropRetry and dropRetry.uid == uid then return nil end         -- currently retrying pickup after bump/drop
+    if now - X.lastRagdollAt < 15 and uid == carryUid then return nil end -- recently bumped with this egg
+    if X.isEggInBaseRenders(uid) then return "placed in player base plot" end
     if X.deliveredUids[uid] then return "rests at the delivery zone (delivered)" end
     if X.isCarriedByOther(uid) then return "carried by another player" end
     local mv = X.movingAt[uid]
     if mv and (X.restN[uid] or 0) < 2 and now - mv < 20 then return "moving between scans (carried by someone)" end
     local sl = X.slotLostSince[uid]
-    if sl and now - sl >= 4 and not X.looseUids[uid] then return "nest slot vanished (taken)" end
+    if sl and now - sl >= 2.5 and not X.looseUids[uid] then return "nest slot vanished (taken)" end
     return nil
 end
 
 function X.isGhost(r)
     local uid = tostring(r.Uid or "")
     if uid == "" or uid == X.ownUid then return false end
+    -- 1. Blacklisted takes absolute priority (e.g. pickup failed, nest was empty, player delivery)
     local b = X.badUids[uid]
     if b then
         if os.clock() < b then return true, "blacklisted (taken / failed pickup)" end
         X.badUids[uid] = nil
     end
+    -- 2. Eggs placed in any player's base plot
+    if X.isEggInBaseRenders(uid) then return true, "placed in player base plot" end
+    -- 3. Delivered eggs (safe zone or competitor base)
+    if X.deliveredUids[uid] then return true, "delivered by player" end
+    -- 4. Carried by another player
+    if X.isCarriedByOther(uid) then return true, "carried by another player" end
+    -- 5. FieldEggGone / FieldEggCarry network events
     if X.goneActive(uid) then return true, "Gone/Carry event" end
-    if X.takenSignal(uid) then return true, X.takenSignal(uid) end
+    -- 6. Taken signals (stolen, moving between scans, etc.)
+    local ts = X.takenSignal(uid)
+    if ts then return true, ts end
+    -- 7. Eggs WE dropped or are retrying pickup for are exempt from missing slot ghosting
+    local mine = (dropRetry and dropRetry.uid == uid) or (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60)
+    if mine then return false end
+    -- 8. Client slot cross-check: if AreaEggSlotsClient is active and has no slot for this egg
+    if (X.missCount[uid] or 0) >= 2 then
+        return true, "nest slot missing (empty nest)"
+    end
+    if X.slotLostSince[uid] and (os.clock() - X.slotLostSince[uid]) >= 2.5 then
+        return true, "nest slot vanished (taken)"
+    end
     return false
 end
 
--- v9.7: weak evidence only (no slot although the area's slots are populated / its slot vanished): SHOW it, farm it last
+-- v9.7: weak evidence only (1 scan with no slot, waiting for 2nd scan to confirm): farm it last
 function X.isUnverified(r)
     local uid = tostring(r.Uid or "")
     if uid == "" or uid == X.ownUid or X.looseUids[uid] then return false end
-    return (X.missCount[uid] or 0) >= 2
+    return (X.missCount[uid] or 0) == 1
 end
 
 -- Does the server's refusal text say the egg no longer exists / was taken?
@@ -852,12 +1023,41 @@ function X.startReappearMonitor()
                 addConnection(ev.OnClientEvent:Connect(function(pl)
                     if typeof(pl) ~= "table" then return end
                     local u = tostring(pl.Uid or pl.EggUid or "")
-                    if u ~= "" and (X.goneUids[u] or X.badUids[u]) then
-                        X.clearMarks(u); X.looseUids[u] = true; X.listDirty = true
+                    if u ~= "" then
+                        local isOurs = (pl.UserId and tostring(pl.UserId) == tostring(LocalPlayer.UserId)) or (u == carryUid)
+                        if isOurs then
+                            X.looseUids[u] = true
+                            X.weDropped[u] = os.clock()
+                            X.clearMarks(u)
+                            dropRetry = { uid = u, t = os.clock(), n = 1 }
+                        else
+                            X.carrierPlayer[u] = nil
+                            X.looseUids[u] = true
+                            X.clearMarks(u)
+                        end
+                        X.listDirty = true
                         print("[EggGoToUI] egg reappeared via", ev.Name, "- not stolen:", u)
                     end
                 end))
             end
+        end
+    end)
+    -- Explicitly hook OwnerShifted to track other players taking eggs
+    pcall(function()
+        local osEv = ReplicatedStorage.Packages.Networking:FindFirstChild("RE/EggWorld/OwnerShifted")
+        if osEv and osEv:IsA("RemoteEvent") then
+            addConnection(osEv.OnClientEvent:Connect(function(pl)
+                if typeof(pl) ~= "table" then return end
+                local u = tostring(pl.Uid or pl.EggUid or "")
+                local newOwner = pl.UserId or pl.Owner or pl.NewOwner
+                if u ~= "" and newOwner then
+                    if tostring(newOwner) ~= tostring(LocalPlayer.UserId) then
+                        X.carrierPlayer[u] = tostring(newOwner)
+                        X.looseUids[u] = nil
+                        X.listDirty = true
+                    end
+                end
+            end))
         end
     end)
 end
@@ -888,15 +1088,13 @@ function X.startCarrierMonitor()
         end
         if eggId and usId and tostring(usId) ~= tostring(LocalPlayer.UserId) then
             X.carrierPlayer[eggId] = nil
-            local otherPlr = Players:GetPlayerByUserId(tonumber(usId))
-            local oChar = otherPlr and otherPlr.Character
-            local oRoot = oChar and oChar:FindFirstChild("HumanoidRootPart")
-            local dSafe = oRoot and (Vector3.new(oRoot.Position.X - SAFE_ZONE.X, 0, oRoot.Position.Z - SAFE_ZONE.Z).Magnitude)
-            if dSafe and dSafe <= 50 then
-                X.deliveredUids[eggId] = true
-                X.blacklistStolen(eggId)
-            else
-                X.looseUids[eggId] = true
+            -- When another player finishes carrying an egg, they delivered it to their base/plot.
+            -- Mark it delivered & blacklisted so we don't try to farm a delivered egg!
+            X.deliveredUids[eggId] = true
+            X.blacklistStolen(eggId)
+            X.looseUids[eggId] = nil
+            if eggCache.byUid[eggId] then
+                eggCache.byUid[eggId] = nil
             end
             X.listDirty = true
         end
@@ -1079,7 +1277,18 @@ local SNAP_Y_OFFSET  = 3     -- stand slightly above the egg centre so we don't 
 local SAFE_ARRIVE_RADIUS = 8   -- counts as "arrived" at the safe zone within this many studs (XZ)
 local SAFE_SNAP_RADIUS   = 50  -- within this many studs of the safe zone, CFrame-snap onto it
 
--- Hop straight onto the safe-zone point (zero velocity, keep facing).
+local function getBesideOffset(targetPos, currentPos, dist)
+    dist = dist or 2.8
+    local diff = Vector3.new(currentPos.X - targetPos.X, 0, currentPos.Z - targetPos.Z)
+    local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
+    local groundY = currentPos.Y
+    if math.abs(groundY - targetPos.Y) > 6 then groundY = targetPos.Y end
+    local besidePos = Vector3.new(targetPos.X + dir.X * dist, groundY, targetPos.Z + dir.Z * dist)
+    local lookTarget = Vector3.new(targetPos.X, groundY, targetPos.Z)
+    return besidePos, lookTarget
+end
+
+-- Hop straight onto the safe-zone point (zero velocity, keep facing, ground-level).
 function X.snapToSafe()
     local ch = LocalPlayer.Character
     local r  = ch and ch:FindFirstChild("HumanoidRootPart")
@@ -1087,13 +1296,18 @@ function X.snapToSafe()
     X.markTeleport()
     pcall(function()
         r.AssemblyLinearVelocity = Vector3.zero
-        r.CFrame = CFrame.new(SAFE_ZONE.X, SAFE_ZONE.Y + SNAP_Y_OFFSET, SAFE_ZONE.Z) * (r.CFrame - r.CFrame.Position)
+        local targetY = SAFE_ZONE.Y
+        if math.abs(r.Position.Y - SAFE_ZONE.Y) <= 4 then
+            targetY = r.Position.Y
+        end
+        r.CFrame = CFrame.new(SAFE_ZONE.X, targetY, SAFE_ZONE.Z) * (r.CFrame - r.CFrame.Position)
     end)
     return true
 end
 
 -- dest may be a Vector3 OR a function returning the latest Vector3 (live-tracked target).
 -- opts.snapRadius: when set, teleports onto dest once within that XZ distance.
+-- opts.snapBeside: when true, teleports beside the egg facing it instead of dropping on top.
 local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
     local snapRadius = opts and opts.snapRadius
     local stuckHop   = opts and opts.stuckHop
@@ -1171,17 +1385,35 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                     end
                 end
                 if snapRadius and xz <= snapRadius then
-                    -- Close enough: hop straight onto the target (re-evaluated every tick, so a
-                    -- moving egg or a server rubber-band just gets snapped to again).
+                    -- Close enough: hop onto target (beside egg if snapBeside, otherwise safe zone)
                     h:Move(Vector3.zero)
                     X.markTeleport()
                     pcall(function()
                         r.AssemblyLinearVelocity = Vector3.zero
-                        r.CFrame = CFrame.new(dest.X, dest.Y + SNAP_Y_OFFSET, dest.Z) * (r.CFrame - r.CFrame.Position)
+                        if opts and opts.snapBeside then
+                            local bPos, lPos = getBesideOffset(dest, r.Position, 2.8)
+                            r.CFrame = CFrame.lookAt(bPos, lPos)
+                        else
+                            local yPos = dest.Y
+                            if math.abs(r.Position.Y - dest.Y) <= 4 then
+                                yPos = r.Position.Y
+                            end
+                            r.CFrame = CFrame.new(dest.X, yPos, dest.Z) * (r.CFrame - r.CFrame.Position)
+                        end
                     end)
                     task.wait(0.08)
                 elseif xz <= TELEPORT_ZONE then
-                    h:Move(Vector3.zero); X.markTeleport(); r.CFrame = CFrame.new(dest.X, rp.Y, dest.Z); task.wait(0.08)
+                    h:Move(Vector3.zero); X.markTeleport()
+                    pcall(function()
+                        r.AssemblyLinearVelocity = Vector3.zero
+                        if opts and opts.snapBeside then
+                            local bPos, lPos = getBesideOffset(dest, r.Position, 2.8)
+                            r.CFrame = CFrame.lookAt(bPos, lPos)
+                        else
+                            r.CFrame = CFrame.new(dest.X, rp.Y, dest.Z)
+                        end
+                    end)
+                    task.wait(0.08)
                 elseif xz > SLOW_ZONE then
                     h:MoveTo(dest); task.wait(0.3)
                 else
@@ -1242,6 +1474,7 @@ local function passesFilters(r)
     if X.isGhost(r) then return false end      -- v9.1: taken / empty nest
     if X.isCarriedByOther(u) then return false end
     if X.deliveredUids[u] then return false end
+    if X.isEggInBaseRenders(u) then return false end
     -- mutation filter
     local mOk = true
     if next(activeMutationFilter) then
@@ -1292,10 +1525,10 @@ local DROP_CONFIRM         = 0.6   -- seconds the carried object must be gone be
 
 -- Our OWN carry state (never trust a heuristic to say we carry something we never picked up)
 weAreCarrying        = false
-local carryUid       = nil
-local carryMarkers   = nil    -- objects that appeared when WE picked the egg up (or nil if none seen)
+carryUid             = nil
+carryMarkers         = nil    -- objects that appeared when WE picked the egg up (or nil if none seen)
 local lastFailReason = nil    -- shown by the loop instead of the generic "failed/skipped" text
-local dropRetry      = nil    -- { uid, t, n }: an egg we dropped -> fetch THIS one again first
+dropRetry            = nil    -- { uid, t, n }: an egg we dropped -> fetch THIS one again first
 
 -- ---------- LIVE EGG CACHE: one scanner, constant 1s cadence ----------
 local eggCache = { records = nil, byUid = {}, t = 0, tIssue = 0, seq = 0, err = nil }
@@ -1505,8 +1738,9 @@ end
 -- Are we STILL carrying an egg we picked up?  (used before any delivery walk)
 local function stillCarrying()
     if not weAreCarrying then return false end
+    if isHoldingEgg() then return true end
     if carryMarkers and not markersActive(carryMarkers) then return false end   -- object is gone
-    if carryUid and eggCache.byUid[carryUid] then return false end              -- egg is back in the field
+    if carryUid and eggCache.byUid[carryUid] and not isHoldingEgg() then return false end
     return true
 end
 
@@ -1562,10 +1796,11 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
 
     walkToken = walkToken + 1
     local walkTok = walkToken
+    local rtok = nil
 
     local function cancelled()
-        if isManual then return walkToken ~= walkTok end
-        return autoFarmToken ~= myTok or walkToken ~= walkTok
+        if isManual then return walkToken ~= walkTok and (not rtok or walkToken ~= rtok) end
+        return autoFarmToken ~= myTok or (walkToken ~= walkTok and (not rtok or walkToken ~= rtok))
     end
 
     -- Tracker: consumes each NEW scan from the constant 1s scanner
@@ -1624,9 +1859,19 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         do
             X.forceScan(1.5)
             if cancelled() then finish(false); return end
-            if X.goneActive(uid) or X.takenSignal(uid) or eggCache.byUid[uid] == nil then
+            local areaCl = Workspace:FindFirstChild("AreaEggSlotsClient")
+            local recCur = eggCache.byUid[uid]
+            local curPos = recCur and extPos(recCur) or livePos
+            local hasSlotNow = areaCl and X.findEggSlot(areaCl, uid, recCur and recCur.NestId, recCur and recCur.AreaId, curPos) ~= nil
+            local mine = (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60) or (dropRetry and dropRetry.uid == uid)
+            local emptyNest = areaCl and #areaCl:GetChildren() > 0 and not hasSlotNow and not mine
+            if X.isGhost(recCur or { Uid = uid }) or X.goneActive(uid) or X.takenSignal(uid) or eggCache.byUid[uid] == nil or emptyNest then
                 lastFailReason = tag .. "Nest already empty — next..."
-                if not isManual then X.blacklistStolen(uid) end
+                X.blacklistStolen(uid)
+                X.deliveredUids[uid] = true
+                X.looseUids[uid] = nil
+                if eggCache.byUid[uid] then eggCache.byUid[uid] = nil end
+                X.listDirty = true
                 X.requestEggRefresh()
                 finish(false); return
             end
@@ -1680,7 +1925,8 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             X.markTeleport()
             pcall(function()
                 r2.AssemblyLinearVelocity = Vector3.zero
-                r2.CFrame = CFrame.new(livePos.X, livePos.Y + SNAP_Y_OFFSET, livePos.Z) * (r2.CFrame - r2.CFrame.Position)
+                local bPos, lPos = getBesideOffset(livePos, r2.Position, 2.8)
+                r2.CFrame = CFrame.lookAt(bPos, lPos)
             end)
             return true
         end
@@ -1688,7 +1934,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         -- The egg's slot on the client (existing signal from the original script). Only trusted as a
         -- pickup signal if it actually EXISTED before we asked.
         local area0 = Workspace:FindFirstChild("AreaEggSlotsClient")
-        local slotExisted = area0 ~= nil and area0:FindFirstChild(uid) ~= nil
+        local slotExisted = area0 ~= nil and X.findEggSlot(area0, uid, rec0 and rec0.NestId, rec0 and rec0.AreaId, livePos) ~= nil
 
         -- A pickup only counts with REAL proof (no more "the server said OK" trust, which made us walk
         -- home empty-handed when the egg was not actually picked up):
@@ -1696,10 +1942,11 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         local carried, how, markers = false, nil, nil
         local stolen = false
         local lastRfInfo = "no reply"
+        local mine = (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60) or (dropRetry and dropRetry.uid == uid)
         local maxTry = AUTO_RETRY
         do   -- v9.2: no slot for this egg although the slot folder is populated -> most likely an empty nest: try only twice
             local ar = Workspace:FindFirstChild("AreaEggSlotsClient")
-            if X.USE_SLOT_CHECK and ar and #ar:GetChildren() > 0 and not ar:FindFirstChild(uid) and not X.looseUids[uid] then maxTry = math.min(maxTry, 2) end
+            if X.USE_SLOT_CHECK and ar and #ar:GetChildren() > 0 and not X.findEggSlot(ar, uid, rec0 and rec0.NestId, rec0 and rec0.AreaId, livePos) and not mine then maxTry = math.min(maxTry, 2) end
         end
         for attemptNo = 1, maxTry do
             if cancelled() then break end
@@ -1723,7 +1970,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                 if dCur > 75 then
                     statusLabel.Text = (tag .. "Knocked back (%d studs) — walking closer..."):format(math.floor(dCur))
                     statusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
-                    local closeWalk = walkSync(function() return livePos end, 15, myTok, { snapRadius = 40 }, isManual)
+                    local closeWalk = walkSync(function() return livePos end, 15, myTok, { snapRadius = 40, snapBeside = true }, isManual)
                     if not closeWalk or cancelled() then break end
                     if X.isCarriedByOther(uid) then
                         stolen = true
@@ -1763,7 +2010,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                 end
                 if slotExisted then
                     local a2 = Workspace:FindFirstChild("AreaEggSlotsClient")
-                    if a2 and not a2:FindFirstChild(uid) then carried, how = true, "slot removed"; break end
+                    if a2 and not X.findEggSlot(a2, uid, rec0 and rec0.NestId, rec0 and rec0.AreaId, livePos) then carried, how = true, "slot removed"; break end
                 end
                 if listedAtStart and eggCache.seq > seq0 and eggCache.byUid[uid] == nil then carried, how = true, "scan"; break end
                 if rfDone then
@@ -1786,15 +2033,23 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         if not carried then
             if stolen then
                 lastFailReason = tag .. "Egg was taken by someone else — next..."
-                if not isManual then X.blacklistStolen(uid) end        -- v9.5: 60s / 4 min / until unlisted
+                X.blacklistStolen(uid)
+                X.deliveredUids[uid] = true
+                X.looseUids[uid] = nil
             else
                 lastFailReason = tag .. "Pickup failed (" .. lastRfInfo .. ") — next..."
-                if not isManual then
-                    local n = (X.failCount[uid] or 0) + 1
-                    X.failCount[uid] = n
-                    X.blacklist(uid, n == 1 and 25 or (n == 2 and 180 or 1e9))   -- 3rd failure: stale entry, ignore it for good
+                local n = (X.failCount[uid] or 0) + 1
+                X.failCount[uid] = n
+                X.blacklist(uid, n == 1 and 45 or (n == 2 and 180 or 1e9))
+                if n >= 2 then
+                    X.deliveredUids[uid] = true
+                    X.looseUids[uid] = nil
                 end
             end
+            if eggCache.byUid[uid] then
+                eggCache.byUid[uid] = nil
+            end
+            X.listDirty = true
             X.requestEggRefresh()
             finish(false); return
         end
@@ -1841,7 +2096,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
 
         -- RETURN TRIP: starts immediately after a confirmed pickup; snaps onto the safe zone within 50 studs.
         walkToken = walkToken + 1
-        local rtok = walkToken
+        rtok = walkToken
         local done, arrived, dropped = false, false, false
         walkTo(SAFE_ZONE, SAFE_ARRIVE_RADIUS, rtok, function() arrived = true; done = true end,
                { stuckHop = true, snapRadius = SAFE_SNAP_RADIUS })
@@ -1857,7 +2112,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         local slotWasGone, slotBackSince = false, nil
         if slotExisted then
             local a3 = Workspace:FindFirstChild("AreaEggSlotsClient")
-            slotWasGone = not (a3 and a3:FindFirstChild(uid))
+            slotWasGone = not (a3 and X.findEggSlot(a3, uid, rec0 and rec0.NestId, rec0 and rec0.AreaId, basePos))
         end
         local fastUntil, forced = 0, false
         local bumped, seenEpoch, bumpScanAt, lastSnapT = false, pickupEpoch0, nil, 0
@@ -1903,18 +2158,18 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             local why = nil
             if dropEvt then why = "game event " .. dropEvt end
 
-            if not why and slotExisted then                         -- (1) the egg's slot is back
+            if not why and slotExisted and not isHoldingEgg() then     -- (1) the egg's slot is back
                 local a3 = Workspace:FindFirstChild("AreaEggSlotsClient")
-                local present = a3 ~= nil and a3:FindFirstChild(uid) ~= nil
+                local present = a3 ~= nil and X.findEggSlot(a3, uid, rec0 and rec0.NestId, rec0 and rec0.AreaId, basePos) ~= nil
                 if not present then
                     slotWasGone = true; slotBackSince = nil
                 elseif slotWasGone then
                     slotBackSince = slotBackSince or now
-                    if now - slotBackSince >= 0.4 then why = "egg slot reappeared" end
+                    if now - slotBackSince >= 0.6 then why = "egg slot reappeared" end
                 end
             end
 
-            if not why and eggCache.seq ~= lastSeq then             -- (2) what a scan taken AFTER the pickup says
+            if not why and not isHoldingEgg() and eggCache.seq ~= lastSeq then -- (2) what a scan taken AFTER the pickup says
                 lastSeq = eggCache.seq
                 if eggCache.tIssue >= pickupConfirmT then
                     local rec = eggCache.byUid[uid]
@@ -1956,6 +2211,12 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                         why = "object gone: " .. tostring(carryMarkers.label)
                     end
                 end
+            end
+
+            -- Ground truth: if we are holding the egg, IT CANNOT BE DROPPED!
+            if isHoldingEgg() then
+                why = nil
+                lostSince = nil
             end
 
             if why then
@@ -2018,12 +2279,14 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         end
         if arrived and not dropped then
             local vw = verifyDelivered()
-            if vw then dropped = true; dropWhy = vw end
+            if vw and not isHoldingEgg() then dropped = true; dropWhy = vw end
         end
 
         if dropped then
             walkToken = walkToken + 1          -- stop walking home: never go home empty-handed
             weAreCarrying = false
+            carryUid = nil
+            carryMarkers = nil
             X.resetVelocity()
             X.looseUids[uid] = true                       -- v9.3: it is lying on the ground now, NOT an empty nest
             X.ignoreGone[uid] = os.clock() + 10           -- v9.4: late Gone/Carry events for it are not a theft
@@ -2039,17 +2302,20 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         end
         if not arrived then walkToken = walkToken + 1 end
         if arrived then
-            X.resetVelocity()                   -- v9.6: delivered -> back to the default velocity right away
             X.deliverWait(myTok)                -- snap onto the zone + wait until the carried object is consumed
             weAreCarrying = false
+            carryUid = nil
+            carryMarkers = nil
+            dropRetry = nil
+            X.resetVelocity()                   -- v9.6: delivered -> back to the default velocity right away
             statusLabel.Text = tag .. "Safe zone ✓"
             statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
         end                                     -- (not arrived: the loop's gate finishes the delivery)
         X.requestEggRefresh()                   -- redraw the egg list now instead of waiting for luck
         finish(arrived)
-    end, { snapRadius = SNAP_RADIUS })
+    end, { snapRadius = SNAP_RADIUS, snapBeside = true, stuckHop = true })
 
-    while not completed and (isManual or autoFarmToken == myTok) and walkToken == walkTok do task.wait(0.15) end
+    while not completed and (isManual or autoFarmToken == myTok) and (walkToken == walkTok or (rtok and walkToken == rtok)) do task.wait(0.15) end
     if not isManual and autoFarmToken ~= myTok then walkToken = walkToken + 1 end
     return result
 end
@@ -2177,11 +2443,16 @@ local function autoFarmLoop()
             if stillCarrying() then
                 statusLabel.Text = "[AutoFarm] Delivering carried egg..."
                 statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+                X.switchToCarry()
                 if autoReturnEnabled then walkSync(SAFE_ZONE, SAFE_ARRIVE_RADIUS, myTok, { stuckHop = true, snapRadius = SAFE_SNAP_RADIUS }) end
-                if carryMarkers then X.deliverWait(myTok) end
+                if carryMarkers or isHoldingEgg() then X.deliverWait(myTok) end
                 X.requestEggRefresh()
             end
             weAreCarrying = false          -- one attempt, then move on (never return empty-handed)
+            carryUid = nil
+            carryMarkers = nil
+            dropRetry = nil
+            X.resetVelocity()
             skip = true
         end
 
@@ -2216,7 +2487,7 @@ local function autoFarmLoop()
                         if not target and os.clock() - dropRetry.t < 6 then waitingDrop = true end
                     end
                 end
-                if not waitingDrop and not target then
+                if not waitingDrop and not target and not skip then
                     local dist; target, dist, isSteal = X.pickNearest(records)
                 end
                 if waitingDrop then
@@ -2224,7 +2495,7 @@ local function autoFarmLoop()
                     statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
                     task.wait(0.3)
                     skip = true
-                elseif not target then
+                elseif not target and not skip then
                     statusLabel.Text = "[AutoFarm] No matching eggs — waiting..."
                     statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
                     local w = 0
@@ -2232,7 +2503,7 @@ local function autoFarmLoop()
                         task.wait(0.25); w = w + 0.25
                     end
                     skip = true
-                else
+                elseif target and not skip then
                     local pos = extPos(target)
                     local uid = tostring(target.Uid or "")
                     local sp  = tostring(target.AssetCategory or "?")
@@ -2254,6 +2525,12 @@ local function autoFarmLoop()
                             dropRetry = nil
                             statusLabel.Text = "[AutoFarm] OK " .. sp
                             statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+                        elseif isHoldingEgg() then
+                            -- We are still holding it! Don't retry from start, deliver it!
+                            weAreCarrying = true
+                            dropRetry = nil
+                            statusLabel.Text = "[AutoFarm] Holding egg — delivering..."
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
                         else
                             statusLabel.Text = lastFailReason or "[AutoFarm] failed/skipped — next..."
                             lastFailReason = nil
@@ -2446,7 +2723,13 @@ local function applyVelocity()
                 lastMoveDirection.Z * targetVelocity) end)
         end
     end
-    if isHoldingEgg() then neutraliseEggPhysics(ch) end
+    local isCarryingNow = weAreCarrying or isHoldingEgg()
+    if isCarryingNow then
+        neutraliseEggPhysics(ch)
+        if targetVelocity > X.baseCarryVelocity then
+            targetVelocity = X.baseCarryVelocity
+        end
+    end
     if h.WalkSpeed ~= targetVelocity then pcall(function() h.WalkSpeed = targetVelocity end) end
     if h.MoveDirection.Magnitude > 0.05 then
         local d = h.MoveDirection.Unit
@@ -2670,58 +2953,450 @@ local function getNetRemote(name)
     return ok and rem or nil
 end
 
--- Automation State
-local autoPlaceEggEnabled = false
-local autoHatchEnabled = false
-local autoSkipGrowthEnabled = false
-local autoSellEnabled = false
+-- Fusery Automation State
 local autoFuseEnabled = false
-local autoEquipBestEnabled = false
-local sellRarityThreshold = "Common"
 local fuseRarityThreshold = "Rare"
-local SELL_THRESHOLDS = { "Common", "Uncommon", "Rare", "Epic" }
 local FUSE_THRESHOLDS = { "Common", "Uncommon", "Rare", "Epic" }
 
--- Remote Action Helpers
-local function callPlaceEgg()
-    local rf = getNetRemote("RF/EggWorld/AskPlaceEgg")
-    if not rf then return false, "AskPlaceEgg remote not found" end
-    local ok, res = pcall(function() return rf:InvokeServer() end)
-    return ok, res
-end
+-- Inventory Metrics State
+local invTotalPets = 0
+local invEquippedPets = 0
+local invUnequippedPets = 0
+local invTotalEggs = 0
+local invPetsLabel = nil
+local invEggsLabel = nil
 
-local function callHatchEgg()
-    local rfHatch = getNetRemote("RF/EggWorld/AskHatch")
-    local rfFinish = getNetRemote("RF/EggWorld/AskFinishHatch")
-    local ok, res = false, nil
-    if rfHatch then ok, res = pcall(function() return rfHatch:InvokeServer() end) end
-    if rfFinish then pcall(function() rfFinish:InvokeServer() end) end
-    return ok, res
-end
-
-local function callSkipGrowth()
-    local rf = getNetRemote("RF/EggWorld/AskSkipGrowth")
-    if not rf then return false, "AskSkipGrowth remote not found" end
-    local ok, res = pcall(function() return rf:InvokeServer() end)
-    return ok, res
-end
-
-local function callSellEveryPet()
-    local re = getNetRemote("RE/PetSatchel/SellEveryPet")
-    if re then
-        local ok, err = pcall(function() re:FireServer() end)
-        return ok, err
+local function formatStatNumber(val)
+    if typeof(val) == "string" then return val end
+    if typeof(val) ~= "number" then return nil end
+    local absVal = math.abs(val)
+    if absVal >= 1e12 then
+        return string.format("%.1fT", val / 1e12)
+    elseif absVal >= 1e9 then
+        return string.format("%.1fB", val / 1e9)
+    elseif absVal >= 1e6 then
+        return string.format("%.1fM", val / 1e6)
+    elseif absVal >= 1e3 then
+        return string.format("%.1fK", val / 1e3)
+    elseif absVal >= 10 then
+        return string.format("%.1f", val)
+    else
+        return string.format("%.2f", val)
     end
-    return false, "SellEveryPet remote not found"
 end
 
-local function callWriteAutoSell(enabled)
-    local rf = getNetRemote("RF/Haul/WriteAutoSell")
-    if rf then return pcall(function() return rf:InvokeServer(enabled) end) end
-    return false, "WriteAutoSell remote not found"
+local function extractPetStats(petData, inst)
+    local earn = nil
+    local weight = nil
+
+    if type(petData) == "table" then
+        local rawEarn = petData["Money/s"] or petData.EarnRate or petData.MoneyRate or petData.Earn or petData.Rate or petData.Income or petData.CoinsPerSec or petData.CoinsPerSecond or petData.Cps or petData.Production
+        if rawEarn ~= nil then
+            if type(rawEarn) == "number" then
+                earn = "+" .. formatStatNumber(rawEarn) .. "/s"
+            else
+                earn = tostring(rawEarn)
+                if not string.find(earn, "/s") then earn = earn .. "/s" end
+            end
+        end
+
+        local rawWeight = petData.Weight or petData.Mass or petData.Kg or petData.Size
+        if rawWeight ~= nil then
+            if type(rawWeight) == "number" then
+                weight = formatStatNumber(rawWeight) .. " kg"
+            else
+                weight = tostring(rawWeight)
+                if not string.find(weight:lower(), "kg") then weight = weight .. " kg" end
+            end
+        end
+    end
+
+    if inst and (not earn or not weight) then
+        pcall(function()
+            local attrs = inst:GetAttributes() or {}
+            if not earn then
+                local aEarn = attrs["Money/s"] or attrs.EarnRate or attrs.MoneyRate or attrs.Earn or attrs.Rate or attrs.Income
+                if aEarn ~= nil then
+                    if type(aEarn) == "number" then
+                        earn = "+" .. formatStatNumber(aEarn) .. "/s"
+                    else
+                        earn = tostring(aEarn)
+                        if not string.find(earn, "/s") then earn = earn .. "/s" end
+                    end
+                end
+            end
+            if not weight then
+                local aWeight = attrs.Weight or attrs.Mass or attrs.Kg or attrs.Size
+                if aWeight ~= nil then
+                    if type(aWeight) == "number" then
+                        weight = formatStatNumber(aWeight) .. " kg"
+                    else
+                        weight = tostring(aWeight)
+                        if not string.find(weight:lower(), "kg") then weight = weight .. " kg" end
+                    end
+                end
+            end
+            if (not earn or not weight) and inst:IsA("GuiObject") then
+                for _, desc in ipairs(inst:GetDescendants()) do
+                    if desc:IsA("TextLabel") and desc.Visible and #desc.Text > 0 then
+                        local t = desc.Text
+                        if not earn and (string.find(t, "/s") or string.find(t, "/sec")) then
+                            earn = t
+                        end
+                        if not weight and (string.find(t:lower(), "kg") or string.find(t:lower(), "lbs")) then
+                            weight = t
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    return earn or "--/s", weight or "-- kg"
+end
+
+local function countInventoryEggs()
+    local count = 0
+    local seen = {}
+
+    -- 1. Held egg currently on character or ClientRenderedAssets
+    if typeof(isHoldingEgg) == "function" and isHoldingEgg() then
+        count = count + 1
+    end
+
+    -- 2. Tools in Backpack
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    if bp then
+        for _, t in ipairs(bp:GetChildren()) do
+            if t:IsA("Tool") then
+                local low = string.lower(t.Name)
+                if string.find(low, "egg") or t:GetAttribute("Egg") or t:GetAttribute("EggUid") then
+                    count = count + 1
+                end
+            end
+        end
+    end
+
+    -- 3. LocalPlayer egg containers
+    local eggContainers = {
+        LocalPlayer:FindFirstChild("Eggs"),
+        LocalPlayer:FindFirstChild("EggInventory"),
+        LocalPlayer:FindFirstChild("EggSatchel"),
+        LocalPlayer:FindFirstChild("Inventory")
+    }
+    for _, cont in ipairs(eggContainers) do
+        if cont then
+            for _, item in ipairs(cont:GetChildren()) do
+                local low = string.lower(item.Name)
+                local u = tostring(item:GetAttribute("Uid") or item:GetAttribute("EggUid") or item.Name)
+                if (string.find(low, "egg") or item:GetAttribute("Egg")) and not seen[u] then
+                    seen[u] = true
+                    count = count + 1
+                end
+            end
+        end
+    end
+
+    -- 4. Check ProfileMirror FetchProfile for eggs if available
+    local rfProfile = getNetRemote("RF/ProfileMirror/FetchProfile")
+    if rfProfile then
+        pcall(function()
+            local ok, prof = pcall(function() return rfProfile:InvokeServer() end)
+            if ok and type(prof) == "table" then
+                local eggTable = prof.Eggs or prof.EggSatchel or prof.EggInventory
+                if type(eggTable) == "table" then
+                    for k, v in pairs(eggTable) do
+                        local u = (type(v) == "table" and (v.Uid or v.Id or v.UUID)) or tostring(k)
+                        if not seen[u] then
+                            seen[u] = true
+                            count = count + 1
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    return count
+end
+
+local function updateInventorySummaryUI()
+    invTotalEggs = countInventoryEggs()
+    if invPetsLabel then
+        invPetsLabel.Text = string.format("🐾 Total Pets: %d   (%d Free, %d Equipped)", invTotalPets, invUnequippedPets, invEquippedPets)
+    end
+    if invEggsLabel then
+        invEggsLabel.Text = string.format("🥚 Total Eggs: %d in inventory", invTotalEggs)
+    end
+end
+
+
+local selectedFuseSpecies = nil
+local eligibleFusePets = {}
+local updateFuseSelectorUI = nil
+
+local function scanEligibleFusePets()
+    local equippedUids = {}
+    local equippedNames = {}
+
+    -- 1. PenRoster AskLiveSnapshot for equipped pets
+    local rfPen = getNetRemote("RF/PenRoster/AskLiveSnapshot")
+    if rfPen then
+        local ok, snap = pcall(function() return rfPen:InvokeServer() end)
+        if ok and type(snap) == "table" then
+            for _, item in pairs(snap) do
+                if type(item) == "table" then
+                    local uid = item.Id or item.PetId or item.Uid or item.UUID
+                    local name = item.Name or item.Species or item.PetType
+                    if uid then equippedUids[tostring(uid)] = true end
+                    if name then equippedNames[tostring(name)] = (equippedNames[tostring(name)] or 0) + 1 end
+                elseif type(item) == "string" then
+                    equippedUids[item] = true
+                end
+            end
+        end
+    end
+
+    -- 2. Character models/tools for equipped pets
+    local char = LocalPlayer.Character
+    if char then
+        for _, c in ipairs(char:GetChildren()) do
+            if c:IsA("Model") or c:IsA("Folder") or c:IsA("Tool") then
+                local low = string.lower(c.Name)
+                if string.find(low, "pet") or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[c.Name]) then
+                    equippedNames[c.Name] = (equippedNames[c.Name] or 0) + 1
+                    local uidAttr = c:GetAttribute("PetId") or c:GetAttribute("Uid") or c:GetAttribute("UUID")
+                    if uidAttr then equippedUids[tostring(uidAttr)] = true end
+                end
+            end
+        end
+    end
+
+    -- 3. Gather all owned pets from ProfileMirror or LocalPlayer containers or PlayerGui
+    local rawPets = {}
+
+    -- 3a. ProfileMirror FetchProfile
+    local rfProfile = getNetRemote("RF/ProfileMirror/FetchProfile")
+    if rfProfile then
+        local ok, prof = pcall(function() return rfProfile:InvokeServer() end)
+        if ok and type(prof) == "table" then
+            local satchel = prof.Satchel or prof.Pets or prof.PetSatchel or prof.Backpack
+            if type(satchel) == "table" then
+                for _, p in pairs(satchel) do
+                    if type(p) == "table" then
+                        local earn, weight = extractPetStats(p, nil)
+                        p._earn = earn
+                        p._weight = weight
+                        table.insert(rawPets, p)
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3b. LocalPlayer child folders (Satchel, Pets, PetInventory, Inventory)
+    local petContainers = {
+        LocalPlayer:FindFirstChild("Satchel"),
+        LocalPlayer:FindFirstChild("Pets"),
+        LocalPlayer:FindFirstChild("PetInventory"),
+        LocalPlayer:FindFirstChild("Inventory")
+    }
+    for _, container in ipairs(petContainers) do
+        if container then
+            for _, c in ipairs(container:GetChildren()) do
+                local attrs = c:GetAttributes() or {}
+                local earn, weight = extractPetStats(attrs, c)
+                table.insert(rawPets, {
+                    Id = attrs.Id or attrs.Uid or attrs.UUID or c.Name,
+                    Species = attrs.Species or attrs.Name or attrs.PetType or c.Name,
+                    Rarity = attrs.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[c.Name]) or "Common",
+                    Equipped = attrs.Equipped == true or attrs.IsEquipped == true,
+                    _earn = earn,
+                    _weight = weight
+                })
+            end
+        end
+    end
+
+    -- 3c. PlayerGui Satchel / Backpack UI inspection fallback
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if #rawPets == 0 and pg then
+        for _, guiObj in ipairs(pg:GetChildren()) do
+            if guiObj:IsA("ScreenGui") then
+                local low = string.lower(guiObj.Name)
+                if string.find(low, "satchel") or string.find(low, "backpack") or string.find(low, "pet") then
+                    for _, desc in ipairs(guiObj:GetDescendants()) do
+                        if desc:IsA("Frame") or desc:IsA("ImageButton") or desc:IsA("TextButton") then
+                            local petName = desc:GetAttribute("Species") or desc:GetAttribute("PetName") or desc.Name
+                            if typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[petName] then
+                                local isEquip = desc:GetAttribute("Equipped") == true or desc:FindFirstChild("EquippedTag") ~= nil
+                                local earn, weight = extractPetStats(nil, desc)
+                                table.insert(rawPets, {
+                                    Id = desc:GetAttribute("PetId") or desc:GetAttribute("Uid") or (petName .. "_" .. tostring(#rawPets + 1)),
+                                    Species = petName,
+                                    Rarity = PET_RARITY_PRESETS[petName] or "Common",
+                                    Equipped = isEquip,
+                                    _earn = earn,
+                                    _weight = weight
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 4. Group & Filter (EXCLUDING EQUIPPED)
+    local totalPets = 0
+    local totalEquipped = 0
+    local unequippedGroups = {}
+    for _, pet in ipairs(rawPets) do
+        totalPets = totalPets + 1
+        local uid = tostring(pet.Id or pet.Uid or pet.UUID or pet.PetId or "")
+        local species = pet.Species or pet.Name or pet.PetType or "Unknown"
+        local rarity = pet.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[species]) or "Common"
+
+        local isEquipped = (pet.Equipped == true)
+            or (uid ~= "" and equippedUids[uid] == true)
+            or (equippedNames[species] and equippedNames[species] > 0)
+
+        if isEquipped then
+            totalEquipped = totalEquipped + 1
+            if equippedNames[species] and equippedNames[species] > 0 then
+                equippedNames[species] = equippedNames[species] - 1
+            end
+        else
+            if not unequippedGroups[species] then
+                unequippedGroups[species] = {
+                    species = species,
+                    count = 0,
+                    uids = {},
+                    rarity = rarity,
+                    earn = pet._earn or "--/s",
+                    weight = pet._weight or "-- kg"
+                }
+            end
+            if pet._earn and pet._earn ~= "--/s" then
+                unequippedGroups[species].earn = pet._earn
+            end
+            if pet._weight and pet._weight ~= "-- kg" then
+                unequippedGroups[species].weight = pet._weight
+            end
+            unequippedGroups[species].count = unequippedGroups[species].count + 1
+            table.insert(unequippedGroups[species].uids, uid)
+        end
+    end
+
+    invTotalPets = totalPets
+    invEquippedPets = totalEquipped
+    invUnequippedPets = math.max(0, totalPets - totalEquipped)
+    if typeof(updateInventorySummaryUI) == "function" then
+        updateInventorySummaryUI()
+    end
+
+    -- 5. Keep ONLY species where unequipped count >= 3
+    local result = {}
+    for species, data in pairs(unequippedGroups) do
+        if data.count >= 3 then
+            table.insert(result, data)
+        end
+    end
+
+    table.sort(result, function(a, b)
+        local rankA = (typeof(X) == "table" and X.RARITY_RANK and X.RARITY_RANK[a.rarity]) or 99
+        local rankB = (typeof(X) == "table" and X.RARITY_RANK and X.RARITY_RANK[b.rarity]) or 99
+        if rankA ~= rankB then return rankA > rankB end
+        return a.count > b.count
+    end)
+
+    eligibleFusePets = result
+    return result
+end
+
+local function callFuseSelectedPet(species)
+    if not species then
+        logAuto("⚠️ Please select an eligible pet to fuse first", Color3.fromRGB(255, 180, 80))
+        return false, "No pet selected"
+    end
+
+    scanEligibleFusePets()
+
+    local targetData = nil
+    for _, item in ipairs(eligibleFusePets) do
+        if item.species == species then
+            targetData = item
+            break
+        end
+    end
+
+    if not targetData or targetData.count < 3 then
+        logAuto("⚠️ Need at least 3 unequipped " .. tostring(species) .. " to fuse", Color3.fromRGB(255, 120, 120))
+        return false, "Insufficient unequipped pets"
+    end
+
+    local uidsToFuse = { targetData.uids[1], targetData.uids[2], targetData.uids[3] }
+
+    local rfBriefing = getNetRemote("RF/Fusery/ConfirmBriefing")
+    local rfLoad     = getNetRemote("RF/Fusery/LoadPet")
+    local rfBegin    = getNetRemote("RF/Fusery/BeginFuse")
+    local rfFinish   = getNetRemote("RF/Fusery/FinishReveal")
+
+    logAuto("🧪 Loading 3x unequipped " .. species .. " into Fusery...", Color3.fromRGB(180, 140, 255))
+
+    if rfBriefing then pcall(function() rfBriefing:InvokeServer() end) end
+
+    if rfLoad then
+        for slot = 1, 3 do
+            local uid = uidsToFuse[slot]
+            local ok, res = pcall(function() return rfLoad:InvokeServer(slot, uid) end)
+            if not ok or res == false then
+                pcall(function() return rfLoad:InvokeServer({ Slot = slot, PetUid = uid, Id = uid }) end)
+            end
+            task.wait(0.08)
+        end
+    end
+
+    local fuseOk, fuseRes = false, nil
+    if rfBegin then
+        fuseOk, fuseRes = pcall(function() return rfBegin:InvokeServer() end)
+    end
+
+    if rfFinish then
+        task.wait(0.2)
+        pcall(function() rfFinish:InvokeServer() end)
+    end
+
+    task.wait(0.2)
+    scanEligibleFusePets()
+    if typeof(updateFuseSelectorUI) == "function" then
+        updateFuseSelectorUI()
+    end
+
+    if fuseOk then
+        logAuto("✅ [Fusery] Successfully fused 3x " .. species .. "!", Color3.fromRGB(120, 255, 180))
+    else
+        logAuto("🧪 Fusery cycle executed (result: " .. tostring(fuseRes) .. ")", Color3.fromRGB(200, 180, 255))
+    end
+
+    return fuseOk, fuseRes
 end
 
 local function callBeginFuse()
+    if selectedFuseSpecies then
+        return callFuseSelectedPet(selectedFuseSpecies)
+    end
+
+    -- Auto mode fallback: choose first candidate matching threshold
+    local list = scanEligibleFusePets()
+    local maxRank = (typeof(X) == "table" and X.RARITY_RANK and X.RARITY_RANK[fuseRarityThreshold]) or 99
+    for _, candidate in ipairs(list) do
+        local rRank = (typeof(X) == "table" and X.RARITY_RANK and X.RARITY_RANK[candidate.rarity]) or 99
+        if rRank <= maxRank then
+            return callFuseSelectedPet(candidate.species)
+        end
+    end
+
     local rfBriefing = getNetRemote("RF/Fusery/ConfirmBriefing")
     local rfBegin = getNetRemote("RF/Fusery/BeginFuse")
     local rfFinish = getNetRemote("RF/Fusery/FinishReveal")
@@ -2731,14 +3406,9 @@ local function callBeginFuse()
         if rfFinish then pcall(function() rfFinish:InvokeServer() end) end
         return ok, res
     end
-    return false, "Fusery remote not found"
+    return false, "No eligible unequipped pets with 3+ copies"
 end
 
-local function callWearBest()
-    local rf = getNetRemote("RF/Haul/WearBest")
-    if rf then return pcall(function() return rf:InvokeServer() end) end
-    return false, "WearBest remote not found"
-end
 
 -- Telemetry Logger
 local logEntries = {}
@@ -2783,118 +3453,104 @@ local function createAutoCard(titleText, height)
     return card
 end
 
--- CARD 1: EGG PLACEMENT & INCUBATION
-local cardEgg = createAutoCard("🪺 Egg Placement & Incubation", 94)
+-- CARD 1: INVENTORY OVERVIEW (At the top of Pets Tab)
+local cardInv = createAutoCard("📦 Inventory Overview", 74)
 
-local autoPlaceEggBtn = Instance.new("TextButton")
-autoPlaceEggBtn.Size = UDim2.new(0.5, -6, 0, 28); autoPlaceEggBtn.Position = UDim2.new(0, 8, 0, 28)
-autoPlaceEggBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoPlaceEggBtn.Text = "[OFF] Auto Place Egg"
-autoPlaceEggBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoPlaceEggBtn.TextSize = 11
-autoPlaceEggBtn.Font = Enum.Font.GothamBold; autoPlaceEggBtn.Parent = cardEgg
-Instance.new("UICorner", autoPlaceEggBtn).CornerRadius = UDim.new(0, 6)
+invPetsLabel = Instance.new("TextLabel")
+invPetsLabel.Size = UDim2.new(1, -44, 0, 20); invPetsLabel.Position = UDim2.new(0, 10, 0, 26)
+invPetsLabel.BackgroundTransparency = 1
+invPetsLabel.Text = "🐾 Total Pets: 0   (0 Free, 0 Equipped)"
+invPetsLabel.TextColor3 = Color3.fromRGB(220, 235, 255)
+invPetsLabel.TextSize = 11; invPetsLabel.Font = Enum.Font.GothamBold
+invPetsLabel.TextXAlignment = Enum.TextXAlignment.Left; invPetsLabel.Parent = cardInv
 
-local autoHatchBtn = Instance.new("TextButton")
-autoHatchBtn.Size = UDim2.new(0.5, -6, 0, 28); autoHatchBtn.Position = UDim2.new(0.5, 2, 0, 28)
-autoHatchBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoHatchBtn.Text = "[OFF] Auto Hatch"
-autoHatchBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoHatchBtn.TextSize = 11
-autoHatchBtn.Font = Enum.Font.GothamBold; autoHatchBtn.Parent = cardEgg
-Instance.new("UICorner", autoHatchBtn).CornerRadius = UDim.new(0, 6)
+invEggsLabel = Instance.new("TextLabel")
+invEggsLabel.Size = UDim2.new(1, -44, 0, 20); invEggsLabel.Position = UDim2.new(0, 10, 0, 48)
+invEggsLabel.BackgroundTransparency = 1
+invEggsLabel.Text = "🥚 Total Eggs: 0 in inventory"
+invEggsLabel.TextColor3 = Color3.fromRGB(180, 240, 200)
+invEggsLabel.TextSize = 11; invEggsLabel.Font = Enum.Font.GothamBold
+invEggsLabel.TextXAlignment = Enum.TextXAlignment.Left; invEggsLabel.Parent = cardInv
 
-local placeHeldEggBtn = Instance.new("TextButton")
-placeHeldEggBtn.Size = UDim2.new(0.5, -6, 0, 26); placeHeldEggBtn.Position = UDim2.new(0, 8, 0, 60)
-placeHeldEggBtn.BackgroundColor3 = Color3.fromRGB(38, 115, 70); placeHeldEggBtn.Text = "🪺 Place Held Egg"
-placeHeldEggBtn.TextColor3 = Color3.new(1, 1, 1); placeHeldEggBtn.TextSize = 11
-placeHeldEggBtn.Font = Enum.Font.GothamBold; placeHeldEggBtn.Parent = cardEgg
-Instance.new("UICorner", placeHeldEggBtn).CornerRadius = UDim.new(0, 6)
+local refreshInvBtn = Instance.new("TextButton")
+refreshInvBtn.Size = UDim2.new(0, 28, 0, 28); refreshInvBtn.Position = UDim2.new(1, -36, 0, 32)
+refreshInvBtn.BackgroundColor3 = Color3.fromRGB(42, 52, 75); refreshInvBtn.Text = "🔄"
+refreshInvBtn.TextColor3 = Color3.new(1, 1, 1); refreshInvBtn.TextSize = 12
+refreshInvBtn.Font = Enum.Font.GothamBold; refreshInvBtn.Parent = cardInv
+Instance.new("UICorner", refreshInvBtn).CornerRadius = UDim.new(0, 6)
 
-local autoSkipGrowthBtn = Instance.new("TextButton")
-autoSkipGrowthBtn.Size = UDim2.new(0.5, -6, 0, 26); autoSkipGrowthBtn.Position = UDim2.new(0.5, 2, 0, 60)
-autoSkipGrowthBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoSkipGrowthBtn.Text = "[OFF] Skip Growth"
-autoSkipGrowthBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoSkipGrowthBtn.TextSize = 11
-autoSkipGrowthBtn.Font = Enum.Font.GothamBold; autoSkipGrowthBtn.Parent = cardEgg
-Instance.new("UICorner", autoSkipGrowthBtn).CornerRadius = UDim.new(0, 6)
-
--- CARD 2: AUTO SELL SATCHEL
-local cardSell = createAutoCard("💰 Pet Satchel & Auto Sell", 94)
-
-local autoSellBtn = Instance.new("TextButton")
-autoSellBtn.Size = UDim2.new(0.5, -6, 0, 28); autoSellBtn.Position = UDim2.new(0, 8, 0, 28)
-autoSellBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoSellBtn.Text = "[OFF] Auto Sell"
-autoSellBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoSellBtn.TextSize = 11
-autoSellBtn.Font = Enum.Font.GothamBold; autoSellBtn.Parent = cardSell
-Instance.new("UICorner", autoSellBtn).CornerRadius = UDim.new(0, 6)
-
-local sellCommonsBtn = Instance.new("TextButton")
-sellCommonsBtn.Size = UDim2.new(0.5, -6, 0, 28); sellCommonsBtn.Position = UDim2.new(0.5, 2, 0, 28)
-sellCommonsBtn.BackgroundColor3 = Color3.fromRGB(150, 85, 35); sellCommonsBtn.Text = "💰 Sell Satchel"
-sellCommonsBtn.TextColor3 = Color3.new(1, 1, 1); sellCommonsBtn.TextSize = 11
-sellCommonsBtn.Font = Enum.Font.GothamBold; sellCommonsBtn.Parent = cardSell
-Instance.new("UICorner", sellCommonsBtn).CornerRadius = UDim.new(0, 6)
-
-local sellThresholdBtn = Instance.new("TextButton")
-sellThresholdBtn.Size = UDim2.new(0.5, -6, 0, 26); sellThresholdBtn.Position = UDim2.new(0, 8, 0, 60)
-sellThresholdBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62); sellThresholdBtn.Text = "Max Sell: Common ▾"
-sellThresholdBtn.TextColor3 = Color3.fromRGB(220, 230, 255); sellThresholdBtn.TextSize = 11
-sellThresholdBtn.Font = Enum.Font.GothamBold; sellThresholdBtn.Parent = cardSell
-Instance.new("UICorner", sellThresholdBtn).CornerRadius = UDim.new(0, 6)
-
-local protectLabel = Instance.new("TextLabel")
-protectLabel.Size = UDim2.new(0.5, -6, 0, 26); protectLabel.Position = UDim2.new(0.5, 2, 0, 60)
-protectLabel.BackgroundColor3 = Color3.fromRGB(30, 36, 48); protectLabel.Text = "🛡️ High Tiers Locked"
-protectLabel.TextColor3 = Color3.fromRGB(130, 225, 160); protectLabel.TextSize = 10
-protectLabel.Font = Enum.Font.GothamBold; protectLabel.Parent = cardSell
-Instance.new("UICorner", protectLabel).CornerRadius = UDim.new(0, 6)
-
--- CARD 3: FUSERY MACHINE
-local cardFuse = createAutoCard("🧪 Fusery & Mutation Machine", 94)
+-- CARD 2: FUSERY MACHINE
+local cardFuse = createAutoCard("🧪 Fusery & Mutation Machine", 126)
+cardFuse.ClipsDescendants = false
 
 local autoFuseBtn = Instance.new("TextButton")
-autoFuseBtn.Size = UDim2.new(0.5, -6, 0, 28); autoFuseBtn.Position = UDim2.new(0, 8, 0, 28)
+autoFuseBtn.Size = UDim2.new(0.5, -6, 0, 26); autoFuseBtn.Position = UDim2.new(0, 8, 0, 28)
 autoFuseBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoFuseBtn.Text = "[OFF] Auto Fuse"
 autoFuseBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoFuseBtn.TextSize = 11
 autoFuseBtn.Font = Enum.Font.GothamBold; autoFuseBtn.Parent = cardFuse
 Instance.new("UICorner", autoFuseBtn).CornerRadius = UDim.new(0, 6)
 
 local fuseNowBtn = Instance.new("TextButton")
-fuseNowBtn.Size = UDim2.new(0.5, -6, 0, 28); fuseNowBtn.Position = UDim2.new(0.5, 2, 0, 28)
+fuseNowBtn.Size = UDim2.new(0.5, -6, 0, 26); fuseNowBtn.Position = UDim2.new(0.5, 2, 0, 28)
 fuseNowBtn.BackgroundColor3 = Color3.fromRGB(90, 55, 145); fuseNowBtn.Text = "⚡ Fuse Now"
 fuseNowBtn.TextColor3 = Color3.new(1, 1, 1); fuseNowBtn.TextSize = 11
 fuseNowBtn.Font = Enum.Font.GothamBold; fuseNowBtn.Parent = cardFuse
 Instance.new("UICorner", fuseNowBtn).CornerRadius = UDim.new(0, 6)
 
 local fuseThresholdBtn = Instance.new("TextButton")
-fuseThresholdBtn.Size = UDim2.new(0.5, -6, 0, 26); fuseThresholdBtn.Position = UDim2.new(0, 8, 0, 60)
+fuseThresholdBtn.Size = UDim2.new(0.5, -6, 0, 24); fuseThresholdBtn.Position = UDim2.new(0, 8, 0, 58)
 fuseThresholdBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62); fuseThresholdBtn.Text = "Max Fuse: Rare ▾"
 fuseThresholdBtn.TextColor3 = Color3.fromRGB(220, 230, 255); fuseThresholdBtn.TextSize = 11
 fuseThresholdBtn.Font = Enum.Font.GothamBold; fuseThresholdBtn.Parent = cardFuse
 Instance.new("UICorner", fuseThresholdBtn).CornerRadius = UDim.new(0, 6)
 
 local fuseStateLabel = Instance.new("TextLabel")
-fuseStateLabel.Size = UDim2.new(0.5, -6, 0, 26); fuseStateLabel.Position = UDim2.new(0.5, 2, 0, 60)
+fuseStateLabel.Size = UDim2.new(0.5, -6, 0, 24); fuseStateLabel.Position = UDim2.new(0.5, 2, 0, 58)
 fuseStateLabel.BackgroundColor3 = Color3.fromRGB(30, 36, 48); fuseStateLabel.Text = "Fusery Ready"
 fuseStateLabel.TextColor3 = Color3.fromRGB(180, 160, 240); fuseStateLabel.TextSize = 10
 fuseStateLabel.Font = Enum.Font.GothamBold; fuseStateLabel.Parent = cardFuse
 Instance.new("UICorner", fuseStateLabel).CornerRadius = UDim.new(0, 6)
 
--- CARD 4: LOADOUT & UTILITIES
-local cardEquip = createAutoCard("⚡ Loadout & Wear Best", 64)
+-- Row 3: Manual Select Pet to Fuse (>= 3 unequipped, no equipped pets)
+local selectFusePetBtn = Instance.new("TextButton")
+selectFusePetBtn.Size = UDim2.new(1, -44, 0, 28); selectFusePetBtn.Position = UDim2.new(0, 8, 0, 88)
+selectFusePetBtn.BackgroundColor3 = Color3.fromRGB(32, 40, 58); selectFusePetBtn.Text = "🐾 Select Pet (>= 3 unequipped) ▾"
+selectFusePetBtn.TextColor3 = Color3.fromRGB(230, 240, 255); selectFusePetBtn.TextSize = 11
+selectFusePetBtn.Font = Enum.Font.GothamBold; selectFusePetBtn.Parent = cardFuse
+Instance.new("UICorner", selectFusePetBtn).CornerRadius = UDim.new(0, 6)
 
-local autoEquipBestBtn = Instance.new("TextButton")
-autoEquipBestBtn.Size = UDim2.new(0.5, -6, 0, 28); autoEquipBestBtn.Position = UDim2.new(0, 8, 0, 28)
-autoEquipBestBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoEquipBestBtn.Text = "[OFF] Auto Equip Best"
-autoEquipBestBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoEquipBestBtn.TextSize = 11
-autoEquipBestBtn.Font = Enum.Font.GothamBold; autoEquipBestBtn.Parent = cardEquip
-Instance.new("UICorner", autoEquipBestBtn).CornerRadius = UDim.new(0, 6)
+local refreshFusePetsBtn = Instance.new("TextButton")
+refreshFusePetsBtn.Size = UDim2.new(0, 26, 0, 28); refreshFusePetsBtn.Position = UDim2.new(1, -34, 0, 88)
+refreshFusePetsBtn.BackgroundColor3 = Color3.fromRGB(40, 50, 72); refreshFusePetsBtn.Text = "🔄"
+refreshFusePetsBtn.TextColor3 = Color3.new(1, 1, 1); refreshFusePetsBtn.TextSize = 12
+refreshFusePetsBtn.Font = Enum.Font.GothamBold; refreshFusePetsBtn.Parent = cardFuse
+Instance.new("UICorner", refreshFusePetsBtn).CornerRadius = UDim.new(0, 6)
 
-local equipBestNowBtn = Instance.new("TextButton")
-equipBestNowBtn.Size = UDim2.new(0.5, -6, 0, 28); equipBestNowBtn.Position = UDim2.new(0.5, 2, 0, 28)
-equipBestNowBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 160); equipBestNowBtn.Text = "⚡ Wear Best Now"
-equipBestNowBtn.TextColor3 = Color3.new(1, 1, 1); equipBestNowBtn.TextSize = 11
-equipBestNowBtn.Font = Enum.Font.GothamBold; equipBestNowBtn.Parent = cardEquip
-Instance.new("UICorner", equipBestNowBtn).CornerRadius = UDim.new(0, 6)
+-- Floating Dropdown Frame for Eligible Fuse Pets
+local fuseDropdownList = Instance.new("Frame")
+fuseDropdownList.Size = UDim2.new(1, -16, 0, 190)
+fuseDropdownList.Position = UDim2.new(0, 8, 0, 122)
+fuseDropdownList.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
+fuseDropdownList.BorderSizePixel = 0
+fuseDropdownList.ZIndex = 50
+fuseDropdownList.Visible = false
+fuseDropdownList.Parent = cardFuse
+Instance.new("UICorner", fuseDropdownList).CornerRadius = UDim.new(0, 6)
+local fdStroke = Instance.new("UIStroke", fuseDropdownList)
+fdStroke.Color = Color3.fromRGB(70, 95, 140); fdStroke.Thickness = 1.5
 
--- CARD 5: LIVE AUTOMATION LOG
-local cardLog = createAutoCard("📜 Automation Activity Log", 115)
+local fuseScroll = Instance.new("ScrollingFrame")
+fuseScroll.Size = UDim2.new(1, -4, 1, -4); fuseScroll.Position = UDim2.new(0, 2, 0, 2)
+fuseScroll.BackgroundTransparency = 1; fuseScroll.BorderSizePixel = 0
+fuseScroll.ScrollBarThickness = 5; fuseScroll.ZIndex = 51
+fuseScroll.Parent = fuseDropdownList
+
+local fuseScrollLayout = Instance.new("UIListLayout")
+fuseScrollLayout.Padding = UDim.new(0, 3)
+fuseScrollLayout.Parent = fuseScroll
+
+-- CARD 3: LIVE AUTOMATION LOG
+local cardLog = createAutoCard("📜 Fusery Activity Log", 125)
 
 local clearLogBtn = Instance.new("TextButton")
 clearLogBtn.Size = UDim2.new(0, 48, 0, 18); clearLogBtn.Position = UDim2.new(1, -54, 0, 4)
@@ -2904,7 +3560,7 @@ clearLogBtn.Font = Enum.Font.GothamBold; clearLogBtn.Parent = cardLog
 Instance.new("UICorner", clearLogBtn).CornerRadius = UDim.new(0, 4)
 
 logScroll = Instance.new("ScrollingFrame")
-logScroll.Size = UDim2.new(1, -16, 0, 80); logScroll.Position = UDim2.new(0, 8, 0, 28)
+logScroll.Size = UDim2.new(1, -16, 0, 90); logScroll.Position = UDim2.new(0, 8, 0, 28)
 logScroll.BackgroundColor3 = Color3.fromRGB(16, 18, 26); logScroll.BorderSizePixel = 0
 logScroll.ScrollBarThickness = 4; logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -2913,7 +3569,7 @@ Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0, 6)
 
 logTextLabel = Instance.new("TextLabel")
 logTextLabel.Size = UDim2.new(1, -8, 0, 0); logTextLabel.Position = UDim2.new(0, 4, 0, 2)
-logTextLabel.BackgroundTransparency = 1; logTextLabel.Text = "[Initializing automation suite...]"
+logTextLabel.BackgroundTransparency = 1; logTextLabel.Text = "[Fusery system ready]"
 logTextLabel.TextColor3 = Color3.fromRGB(180, 205, 240); logTextLabel.TextSize = 10
 logTextLabel.Font = Enum.Font.Code; logTextLabel.TextXAlignment = Enum.TextXAlignment.Left
 logTextLabel.TextYAlignment = Enum.TextYAlignment.Top; logTextLabel.AutomaticSize = Enum.AutomaticSize.Y
@@ -2924,153 +3580,7 @@ clearLogBtn.MouseButton1Click:Connect(function()
     logTextLabel.Text = "[Log cleared]"
 end)
 
--- CARD 6: SPECIES CATALOG & QUICK TARGET
-local cardCatalog = createAutoCard("🐾 Species Catalog & Quick Target", 280)
 
-local petSearchBox = Instance.new("TextBox")
-petSearchBox.Size = UDim2.new(1, -16, 0, 24); petSearchBox.Position = UDim2.new(0, 8, 0, 26)
-petSearchBox.BackgroundColor3 = Color3.fromRGB(16, 18, 24); petSearchBox.BorderSizePixel = 0
-petSearchBox.PlaceholderText = "🔍 Search species (Kitsune, Dragon, etc.)..."
-petSearchBox.PlaceholderColor3 = Color3.fromRGB(110, 125, 150); petSearchBox.Text = ""
-petSearchBox.TextColor3 = Color3.fromRGB(230, 240, 255); petSearchBox.TextSize = 11
-petSearchBox.Font = Enum.Font.Gotham; petSearchBox.ClearTextOnFocus = false
-petSearchBox.TextXAlignment = Enum.TextXAlignment.Left; petSearchBox.Parent = cardCatalog
-Instance.new("UICorner", petSearchBox).CornerRadius = UDim.new(0, 5)
-local psPad = Instance.new("UIPadding"); psPad.PaddingLeft = UDim.new(0, 6); psPad.Parent = petSearchBox
-
-local petRarityScroll = Instance.new("ScrollingFrame")
-petRarityScroll.Size = UDim2.new(1, -16, 0, 22); petRarityScroll.Position = UDim2.new(0, 8, 0, 54)
-petRarityScroll.BackgroundTransparency = 1; petRarityScroll.BorderSizePixel = 0
-petRarityScroll.ScrollBarThickness = 2; petRarityScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-petRarityScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
-petRarityScroll.ScrollingDirection = Enum.ScrollingDirection.X
-petRarityScroll.Parent = cardCatalog
-
-local prLayout = Instance.new("UIListLayout")
-prLayout.FillDirection = Enum.FillDirection.Horizontal; prLayout.Padding = UDim.new(0, 4)
-prLayout.Parent = petRarityScroll
-
-local PET_FILTER_RARITIES = {
-    "All", "Divine", "Eternal", "Secret", "Cosmic", "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common"
-}
-local rarityChipBtns = {}
-local selectedPetRarity = "All"
-
-local petsListFrame = Instance.new("ScrollingFrame")
-petsListFrame.Size = UDim2.new(1, -16, 0, 190); petsListFrame.Position = UDim2.new(0, 8, 0, 80)
-petsListFrame.BackgroundColor3 = Color3.fromRGB(16, 18, 24); petsListFrame.BorderSizePixel = 0
-petsListFrame.ScrollBarThickness = 5; petsListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-petsListFrame.Parent = cardCatalog
-Instance.new("UICorner", petsListFrame).CornerRadius = UDim.new(0, 6)
-local plLayout = Instance.new("UIListLayout"); plLayout.Padding = UDim.new(0, 3); plLayout.Parent = petsListFrame
-
-local PET_CARD_H = 32
-local RARITY_RANK = {
-    ["Divine"] = 1, ["Eternal"] = 2, ["Secret"] = 3, ["Cosmic"] = 4,
-    ["Mythic"] = 5, ["Legendary"] = 6, ["Epic"] = 7, ["Rare"] = 8,
-    ["Uncommon"] = 9, ["Common"] = 10,
-}
-
-refreshPetCards = function()
-    for _, c in ipairs(petsListFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-    local q = petSearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
-    local list = {}
-    for name, rar in pairs(PET_RARITY_PRESETS) do
-        local matchesSearch = (q == "" or name:lower():find(q, 1, true) ~= nil)
-        local matchesRarity = (selectedPetRarity == "All" or rar == selectedPetRarity)
-        if matchesSearch and matchesRarity then
-            local rank = RARITY_RANK[rar] or 99
-            table.insert(list, { name = name, rarity = rar, rank = rank })
-        end
-    end
-    table.sort(list, function(a, b)
-        if a.rank ~= b.rank then return a.rank < b.rank end
-        return a.name < b.name
-    end)
-    petsListFrame.CanvasSize = UDim2.new(0, 0, 0, #list * (PET_CARD_H + 3))
-
-    for _, p in ipairs(list) do
-        local rarCol = ALL_RARITY_COLORS[p.rarity] or RARITY_DEFAULT_COLOR
-        local isHighRarity = (p.rarity == "Divine" or p.rarity == "Eternal" or p.rarity == "Secret")
-        local isTargeted = selectedSpecies[p.name] == true
-
-        local card = Instance.new("Frame")
-        card.Size = UDim2.new(1, -6, 0, PET_CARD_H)
-        card.BackgroundColor3 = isHighRarity and Color3.fromRGB(38, 20, 26) or Color3.fromRGB(24, 28, 38)
-        card.BorderSizePixel = 0; card.Parent = petsListFrame
-        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
-
-        local strip = Instance.new("Frame")
-        strip.Size = UDim2.new(0, 3, 1, -4); strip.Position = UDim2.new(0, 3, 0, 2)
-        strip.BackgroundColor3 = rarCol; strip.BorderSizePixel = 0; strip.Parent = card
-        Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, -120, 1, 0); nameLabel.Position = UDim2.new(0, 12, 0, 0)
-        nameLabel.BackgroundTransparency = 1; nameLabel.Text = p.name
-        nameLabel.TextColor3 = isHighRarity and Color3.fromRGB(255, 200, 200) or Color3.fromRGB(220, 230, 255)
-        nameLabel.TextSize = 11; nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left; nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        nameLabel.Parent = card
-
-        local badge = Instance.new("TextLabel")
-        badge.Size = UDim2.new(0, 54, 0, 18); badge.Position = UDim2.new(1, -106, 0.5, -9)
-        badge.BackgroundColor3 = rarCol; badge.Text = p.rarity; badge.TextColor3 = Color3.new(1, 1, 1)
-        badge.TextSize = 8; badge.Font = Enum.Font.GothamBold
-        badge.TextXAlignment = Enum.TextXAlignment.Center; badge.Parent = card
-        Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 4)
-
-        local farmPetBtn = Instance.new("TextButton")
-        farmPetBtn.Size = UDim2.new(0, 44, 0, 20); farmPetBtn.Position = UDim2.new(1, -48, 0.5, -10)
-        farmPetBtn.BackgroundColor3 = isTargeted and Color3.fromRGB(38, 125, 75) or Color3.fromRGB(45, 100, 160)
-        farmPetBtn.Text = isTargeted and "✓ Farm" or "Farm"
-        farmPetBtn.TextColor3 = Color3.new(1, 1, 1); farmPetBtn.TextSize = 10
-        farmPetBtn.Font = Enum.Font.GothamBold; farmPetBtn.Parent = card
-        Instance.new("UICorner", farmPetBtn).CornerRadius = UDim.new(0, 4)
-
-        farmPetBtn.MouseButton1Click:Connect(function()
-            selectedSpecies = { [p.name] = true }
-            currentSettings.SpeciesFilter = { p.name }
-            if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
-            if typeof(updateFarmBtnText) == "function" then updateFarmBtnText() end
-            if typeof(rebuildFarmDropdownItems) == "function" then rebuildFarmDropdownItems() end
-            if typeof(refilterAndRender) == "function" then refilterAndRender() end
-            refreshPetCards()
-            switchTab("Eggs")
-            if statusLabel then
-                statusLabel.Text = "Targeting egg: " .. p.name
-                statusLabel.TextColor3 = Color3.fromRGB(120, 255, 180)
-            end
-            logAuto("🎯 Targeted species: " .. p.name, Color3.fromRGB(120, 255, 180))
-        end)
-    end
-end
-
-local function buildRarityChips()
-    for _, b in pairs(rarityChipBtns) do b:Destroy() end
-    rarityChipBtns = {}
-    for _, rName in ipairs(PET_FILTER_RARITIES) do
-        local isSel = (selectedPetRarity == rName)
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, math.max(34, #rName * 7 + 12), 1, -2)
-        btn.BackgroundColor3 = isSel and Color3.fromRGB(50, 95, 150) or Color3.fromRGB(32, 40, 58)
-        btn.Text = rName
-        local col = ALL_RARITY_COLORS[rName] or Color3.fromRGB(210, 220, 240)
-        btn.TextColor3 = isSel and Color3.new(1, 1, 1) or col
-        btn.TextSize = 9; btn.Font = Enum.Font.GothamBold; btn.Parent = petRarityScroll
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-
-        btn.MouseButton1Click:Connect(function()
-            selectedPetRarity = rName
-            buildRarityChips()
-            refreshPetCards()
-        end)
-        table.insert(rarityChipBtns, btn)
-    end
-end
-buildRarityChips()
-petSearchBox:GetPropertyChangedSignal("Text"):Connect(refreshPetCards)
-refreshPetCards()
 
 -- Toggle Handlers & Button Connectors
 local function updateToggleVisual(btn, enabled, label)
@@ -3085,71 +3595,164 @@ local function updateToggleVisual(btn, enabled, label)
     end
 end
 
-autoPlaceEggBtn.MouseButton1Click:Connect(function()
-    autoPlaceEggEnabled = not autoPlaceEggEnabled
-    updateToggleVisual(autoPlaceEggBtn, autoPlaceEggEnabled, "Auto Place Egg")
-    logAuto(autoPlaceEggEnabled and "🪺 Auto Place Egg enabled" or "Auto Place Egg disabled")
-end)
-
-autoHatchBtn.MouseButton1Click:Connect(function()
-    autoHatchEnabled = not autoHatchEnabled
-    updateToggleVisual(autoHatchBtn, autoHatchEnabled, "Auto Hatch")
-    logAuto(autoHatchEnabled and "🐣 Auto Hatch enabled" or "Auto Hatch disabled")
-end)
-
-autoSkipGrowthBtn.MouseButton1Click:Connect(function()
-    autoSkipGrowthEnabled = not autoSkipGrowthEnabled
-    updateToggleVisual(autoSkipGrowthBtn, autoSkipGrowthEnabled, "Skip Growth")
-    logAuto(autoSkipGrowthEnabled and "⚡ Auto Skip Growth enabled" or "Auto Skip Growth disabled")
-end)
-
-placeHeldEggBtn.MouseButton1Click:Connect(function()
-    if isHoldingEgg() then
-        local ok, err = callPlaceEgg()
-        if ok then
-            logAuto("🪺 [Manual] Held egg placed on nest", Color3.fromRGB(120, 255, 180))
-            if autoHatchEnabled then task.wait(0.2); callHatchEgg() end
-        else
-            logAuto("❌ Place error: " .. tostring(err), Color3.fromRGB(255, 120, 120))
-        end
-    else
-        logAuto("⚠️ Not holding an egg to place", Color3.fromRGB(255, 200, 120))
-    end
-end)
-
-autoSellBtn.MouseButton1Click:Connect(function()
-    autoSellEnabled = not autoSellEnabled
-    updateToggleVisual(autoSellBtn, autoSellEnabled, "Auto Sell")
-    callWriteAutoSell(autoSellEnabled)
-    logAuto(autoSellEnabled and ("💰 Auto Sell enabled (Threshold: " .. sellRarityThreshold .. ")") or "Auto Sell disabled")
-end)
-
-sellCommonsBtn.MouseButton1Click:Connect(function()
-    local ok = callSellEveryPet()
-    logAuto(ok and "💰 Satchel sale remote triggered" or "Satchel sale remote attempted", Color3.fromRGB(140, 255, 180))
-end)
-
-sellThresholdBtn.MouseButton1Click:Connect(function()
-    local curIdx = 1
-    for i, v in ipairs(SELL_THRESHOLDS) do if v == sellRarityThreshold then curIdx = i; break end end
-    curIdx = (curIdx % #SELL_THRESHOLDS) + 1
-    sellRarityThreshold = SELL_THRESHOLDS[curIdx]
-    sellThresholdBtn.Text = "Max Sell: " .. sellRarityThreshold .. " ▾"
-    logAuto("💰 Sell threshold: " .. sellRarityThreshold, Color3.fromRGB(255, 210, 120))
-end)
-
 autoFuseBtn.MouseButton1Click:Connect(function()
     autoFuseEnabled = not autoFuseEnabled
     updateToggleVisual(autoFuseBtn, autoFuseEnabled, "Auto Fuse")
     logAuto(autoFuseEnabled and ("🧪 Auto Fuse enabled (Max: " .. fuseRarityThreshold .. ")") or "Auto Fuse disabled")
 end)
 
+updateFuseSelectorUI = function()
+    local list = scanEligibleFusePets()
+    for _, child in ipairs(fuseScroll:GetChildren()) do
+        if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+
+    if #list == 0 then
+        local emptyLabel = Instance.new("TextLabel")
+        emptyLabel.Size = UDim2.new(1, -10, 0, 32); emptyLabel.Position = UDim2.new(0, 5, 0, 4)
+        emptyLabel.BackgroundTransparency = 1; emptyLabel.Text = "⚠️ No unequipped pets with 3+ copies"
+        emptyLabel.TextColor3 = Color3.fromRGB(220, 160, 160); emptyLabel.TextSize = 11
+        emptyLabel.Font = Enum.Font.Gotham; emptyLabel.ZIndex = 52
+        emptyLabel.Parent = fuseScroll
+        fuseScroll.CanvasSize = UDim2.new(0, 0, 0, 36)
+        if not selectedFuseSpecies then
+            selectFusePetBtn.Text = "🐾 Select Pet (No 3+ unequipped) ▾"
+            fuseNowBtn.Text = "⚡ Fuse Now"
+            fuseStateLabel.Text = "No 3+ Pets"
+            fuseStateLabel.TextColor3 = Color3.fromRGB(220, 160, 160)
+        end
+        return
+    end
+
+    local ITEM_H = 38
+    fuseScroll.CanvasSize = UDim2.new(0, 0, 0, #list * (ITEM_H + 3) + 4)
+
+    for _, p in ipairs(list) do
+        local isSelected = (selectedFuseSpecies == p.species)
+        local rarCol = (typeof(ALL_RARITY_COLORS) == "table" and ALL_RARITY_COLORS[p.rarity]) or Color3.fromRGB(200, 200, 200)
+
+        local itemFrame = Instance.new("Frame")
+        itemFrame.Size = UDim2.new(1, -6, 0, ITEM_H)
+        itemFrame.BackgroundColor3 = isSelected and Color3.fromRGB(36, 68, 115) or Color3.fromRGB(24, 30, 44)
+        itemFrame.BorderSizePixel = 0
+        itemFrame.ZIndex = 52
+        itemFrame.Parent = fuseScroll
+        Instance.new("UICorner", itemFrame).CornerRadius = UDim.new(0, 5)
+
+        -- Left rarity stripe
+        local strip = Instance.new("Frame")
+        strip.Size = UDim2.new(0, 3, 1, -4); strip.Position = UDim2.new(0, 3, 0, 2)
+        strip.BackgroundColor3 = rarCol; strip.BorderSizePixel = 0; strip.ZIndex = 53
+        strip.Parent = itemFrame
+        Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
+
+        -- Top row: Species Name + Count Badge
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(1, -125, 0, 18); nameLbl.Position = UDim2.new(0, 10, 0, 2)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = p.species .. " (" .. p.rarity .. ")"
+        nameLbl.TextColor3 = isSelected and Color3.new(1, 1, 1) or Color3.fromRGB(225, 235, 255)
+        nameLbl.TextSize = 11; nameLbl.Font = Enum.Font.GothamBold
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left; nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        nameLbl.ZIndex = 53; nameLbl.Parent = itemFrame
+
+        local countBadge = Instance.new("TextLabel")
+        countBadge.Size = UDim2.new(0, 108, 0, 16); countBadge.Position = UDim2.new(1, -112, 0, 3)
+        countBadge.BackgroundColor3 = isSelected and Color3.fromRGB(50, 110, 190) or Color3.fromRGB(35, 45, 65)
+        countBadge.Text = "x" .. tostring(p.count) .. " unequipped"
+        countBadge.TextColor3 = Color3.fromRGB(180, 240, 210)
+        countBadge.TextSize = 9; countBadge.Font = Enum.Font.GothamBold
+        countBadge.ZIndex = 53; countBadge.Parent = itemFrame
+        Instance.new("UICorner", countBadge).CornerRadius = UDim.new(0, 4)
+
+        -- Bottom row: Earn/s and Weight stats
+        local statsLbl = Instance.new("TextLabel")
+        statsLbl.Size = UDim2.new(1, -16, 0, 16); statsLbl.Position = UDim2.new(0, 10, 0, 20)
+        statsLbl.BackgroundTransparency = 1
+        statsLbl.Text = string.format("💰 Earn: %s   •   ⚖️ Weight: %s", tostring(p.earn or "--/s"), tostring(p.weight or "-- kg"))
+        statsLbl.TextColor3 = Color3.fromRGB(160, 200, 240)
+        statsLbl.TextSize = 9; statsLbl.Font = Enum.Font.Gotham
+        statsLbl.TextXAlignment = Enum.TextXAlignment.Left
+        statsLbl.ZIndex = 53; statsLbl.Parent = itemFrame
+
+        -- Transparent full-size button overlay for easy clicking
+        local clickBtn = Instance.new("TextButton")
+        clickBtn.Size = UDim2.new(1, 0, 1, 0)
+        clickBtn.BackgroundTransparency = 1; clickBtn.Text = ""
+        clickBtn.ZIndex = 54; clickBtn.Parent = itemFrame
+
+        clickBtn.MouseButton1Click:Connect(function()
+            selectedFuseSpecies = p.species
+            selectFusePetBtn.Text = "🐾 " .. p.species .. " (" .. p.count .. " unequipped) ▾"
+            fuseNowBtn.Text = "⚡ Fuse 3x " .. p.species
+            fuseStateLabel.Text = "Ready: 3x " .. p.species
+            fuseStateLabel.TextColor3 = Color3.fromRGB(120, 255, 180)
+            fuseDropdownList.Visible = false
+            cardFuse.Size = UDim2.new(1, 0, 0, 126)
+            logAuto("🐾 Selected for Fuse: " .. p.species .. " [Earn: " .. tostring(p.earn) .. ", Weight: " .. tostring(p.weight) .. "] (3 of " .. p.count .. " unequipped)", Color3.fromRGB(200, 180, 255))
+        end)
+    end
+
+    if selectedFuseSpecies then
+        local found = false
+        for _, p in ipairs(list) do
+            if p.species == selectedFuseSpecies then
+                selectFusePetBtn.Text = "🐾 " .. p.species .. " (" .. p.count .. " unequipped) ▾"
+                fuseNowBtn.Text = "⚡ Fuse 3x " .. p.species
+                fuseStateLabel.Text = "Ready: 3x " .. p.species
+                fuseStateLabel.TextColor3 = Color3.fromRGB(120, 255, 180)
+                found = true
+                break
+            end
+        end
+        if not found then
+            selectedFuseSpecies = nil
+            selectFusePetBtn.Text = "🐾 Select Pet (>= 3 unequipped) ▾"
+            fuseNowBtn.Text = "⚡ Fuse Now"
+            fuseStateLabel.Text = "Fusery Ready"
+            fuseStateLabel.TextColor3 = Color3.fromRGB(180, 160, 240)
+        end
+    end
+end
+
+selectFusePetBtn.MouseButton1Click:Connect(function()
+    local willBeOpen = not fuseDropdownList.Visible
+    fuseDropdownList.Visible = willBeOpen
+    cardFuse.Size = willBeOpen and UDim2.new(1, 0, 0, 320) or UDim2.new(1, 0, 0, 126)
+    if willBeOpen then
+        updateFuseSelectorUI()
+    end
+end)
+
+refreshFusePetsBtn.MouseButton1Click:Connect(function()
+    scanEligibleFusePets()
+    updateFuseSelectorUI()
+    logAuto("🔄 Pet inventory scanned (filtered for >= 3 unequipped)", Color3.fromRGB(150, 220, 255))
+end)
+
+refreshInvBtn.MouseButton1Click:Connect(function()
+    scanEligibleFusePets()
+    updateFuseSelectorUI()
+    logAuto("🔄 Inventory overview refreshed", Color3.fromRGB(150, 220, 255))
+end)
+
 fuseNowBtn.MouseButton1Click:Connect(function()
-    local ok, res = callBeginFuse()
-    if ok then
-        logAuto("🧪 [Manual] Fusery cycle initiated", Color3.fromRGB(180, 140, 255))
+    if selectedFuseSpecies then
+        local ok, res = callFuseSelectedPet(selectedFuseSpecies)
+        if ok then
+            logAuto("🧪 [Manual] Fused 3x " .. selectedFuseSpecies, Color3.fromRGB(180, 140, 255))
+        else
+            logAuto("❌ Fuse error: " .. tostring(res), Color3.fromRGB(255, 120, 120))
+        end
     else
-        logAuto("❌ Fuse error: " .. tostring(res), Color3.fromRGB(255, 120, 120))
+        local ok, res = callBeginFuse()
+        if ok then
+            logAuto("🧪 [Manual] Fusery cycle initiated", Color3.fromRGB(180, 140, 255))
+        else
+            logAuto("❌ Fuse error: " .. tostring(res), Color3.fromRGB(255, 120, 120))
+        end
     end
 end)
 
@@ -3162,56 +3765,25 @@ fuseThresholdBtn.MouseButton1Click:Connect(function()
     logAuto("🧪 Fuse threshold: " .. fuseRarityThreshold, Color3.fromRGB(200, 160, 255))
 end)
 
-autoEquipBestBtn.MouseButton1Click:Connect(function()
-    autoEquipBestEnabled = not autoEquipBestEnabled
-    updateToggleVisual(autoEquipBestBtn, autoEquipBestEnabled, "Auto Equip Best")
-    logAuto(autoEquipBestEnabled and "⚡ Auto Equip Best enabled" or "Auto Equip Best disabled")
-end)
-
-equipBestNowBtn.MouseButton1Click:Connect(function()
-    local ok, res = callWearBest()
-    logAuto(ok and "⚡ [Manual] Equipped best pets" or "Equip best response: " .. tostring(res), Color3.fromRGB(120, 230, 255))
-end)
+refreshPetCards = function()
+    scanEligibleFusePets()
+    if typeof(updateFuseSelectorUI) == "function" then
+        updateFuseSelectorUI()
+    end
+end
 
 -- Background Automation Loop
 task.spawn(function()
-    logAuto("Automation engine ready")
+    logAuto("Fusery engine ready")
+    scanEligibleFusePets()
     while not eggScannerStop and screenGui.Parent do
-        -- 1. Auto Place Egg
-        if autoPlaceEggEnabled and isHoldingEgg() then
-            local ok = callPlaceEgg()
-            if ok then
-                logAuto("🪺 [AutoPlace] Held egg placed on nest", Color3.fromRGB(120, 255, 180))
-                if autoHatchEnabled then
-                    task.wait(0.25)
-                    callHatchEgg()
-                    logAuto("🐣 [AutoHatch] Hatch checked", Color3.fromRGB(255, 220, 120))
-                end
-                if autoSkipGrowthEnabled then
-                    task.wait(0.1)
-                    callSkipGrowth()
-                end
-            end
-        end
-
-        -- 2. Auto Sell
-        if autoSellEnabled then
-            callSellEveryPet()
-        end
-
-        -- 3. Auto Fuse
         if autoFuseEnabled then
             callBeginFuse()
         end
-
-        -- 4. Auto Equip Best
-        if autoEquipBestEnabled then
-            callWearBest()
-        end
-
         task.wait(1.5)
     end
 end)
+
 
 end
 
@@ -3835,6 +4407,12 @@ local function scanEggs()
         if not recs then
             statusLabel.Text="Error: "..tostring(e); statusLabel.TextColor3=Color3.fromRGB(255,120,120); return
         end
+        local by = {}
+        for _, r in ipairs(recs) do
+            local u = tostring(r.Uid or "")
+            if u ~= "" then by[u] = r end
+        end
+        pcall(X.updateSlotGhosts, by, recs)
         lastFetchedRecords=recs; renderRecords(recs)
     end)
 end

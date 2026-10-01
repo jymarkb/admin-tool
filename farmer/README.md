@@ -76,40 +76,32 @@ The HUD features a vertical sidebar layout separating core modules into clean, d
 
 ---
 
-### Pet & Egg Automation Suite (Tab 2)
-The dedicated Pets tab bridges inventory management, egg processing, pet mutations, and farming targeting into an integrated autonomous pipeline:
+### Pet & Egg Automation Suite (Tab 2: Inventory & Fusery Focus)
+Tab 2 is streamlined exclusively for **Inventory Overview** and **Fusery Machine Automation**:
 
-1. **Egg Placement & Incubation Automation**:
-   - **`Auto Place Egg`**: Continuously monitors the player's held egg and backpack inventory; automatically delivers and seats eggs onto available nests/incubators using `RF/EggWorld/AskPlaceEgg`.
-   - **`Auto Hatch`**: Actively triggers incubation completion and hatch sequences via `RF/EggWorld/AskHatch` and `RF/EggWorld/AskFinishHatch`.
-   - **`Skip Growth`**: Automatically calls `RF/EggWorld/AskSkipGrowth` to bypass maturation timers when enabled.
-   - **`Place Held Egg`**: Instant one-click manual placement fallback.
+1. **Inventory Overview Header (`📦 Inventory Overview`)**:
+   - Located prominently at the very top of Tab 2.
+   - **Total Pets**: Displays real-time pet metrics parsed across server profile mirror snapshots, character models, and client containers:
+     `🐾 Total Pets: X   (Y Free, Z Equipped)`
+   - **Total Eggs**: Aggregates eggs currently held on character models (`ClientRenderedAssets`), equipped tools, Backpack inventory tools, and profile satchels:
+     `🥚 Total Eggs: N in inventory`
+   - **Instant Refresh (`🔄`)**: Immediately queries inventory remotes and updates both counts and the Fusery candidate list.
 
-2. **Pet Satchel & Auto Sell Automation**:
-   - **`Auto Sell`**: Toggles continuous server-side satchel offloading via `RF/Haul/WriteAutoSell` and autonomous inventory flushing.
-   - **`Sell Satchel`**: Manual panic button triggering `RE/PetSatchel/SellEveryPet` for immediate space clearance.
-   - **Rarity Ceiling Filter**: Configurable multi-tier selector cycling through `Common`, `Uncommon`, `Rare`, and `Epic` to guarantee high-tier and shiny pets are never liquidated.
+2. **Fusery & Mutation Machine (`🧪 Fusery Machine`)**:
+   - **`Manual Pet Selector`**: Clean dropdown displaying strictly candidate species where the player owns **$\ge 3$ unequipped copies**.
+   - **`Equipped Pet Exclusion & Protection`**: Authoritative equipped queries via `RF/PenRoster/AskLiveSnapshot` and character models ensure all equipped pets are completely filtered out of both the count and candidate pool, preventing accidental loadout consumption.
+   - **`Earn/s & Weight Inspection`**: Every candidate pet in the dropdown list displays live statistics:
+     - Species Name & Rarity badge (`🐾 [Species] ([Rarity])`)
+     - Unequipped Count badge (`xN unequipped`)
+     - Earnings per second (`💰 Earn: [earn/s]`, e.g. `+1.2M/s`)
+     - Weight (`⚖️ Weight: [weight]`, e.g. `14.5 kg`)
+   - **`⚡ Fuse 3x [Species]` / `Fuse Now`**: Direct trigger that loads slots 1..3 with unequipped candidate UIDs via `RF/Fusery/LoadPet`, initiates fusion with `RF/Fusery/BeginFuse`, claims the reward via `RF/Fusery/FinishReveal`, and automatically refreshes inventory counts.
+   - **`Auto Fuse` Toggle**: Autonomous background loop that matches candidates below the configured `Max Fuse` rarity threshold.
+   - **`Max Fuse` Rarity Filter**: Restricts automated fusing candidates to designated rarity brackets (`Common`, `Uncommon`, `Rare`, `Epic`).
 
-3. **Fusery & Mutation Machine Automation**:
-   - **`Auto Fuse`**: Manages the complete fusion cycle end-to-end: acknowledges tutorial briefings via `RF/Fusery/ConfirmBriefing`, initiates multi-pet fusion with `RF/Fusery/BeginFuse`, and finalizes pet reveals with `RF/Fusery/FinishReveal`.
-   - **`Fuse Now`**: Manual trigger to perform an immediate fusion batch on demand.
-   - **Fuse Rarity Filter**: Restricts automated fusing candidates to designated rarity brackets to preserve target collections.
-
-4. **Loadout & Equip Automation**:
-   - **`Auto Equip Best`**: Background thread periodically queries player stat multipliers and auto-equips the strongest pet loadout via `RF/Haul/WearBest`.
-   - **`Wear Best Now`**: Immediate one-click remote invocation to optimize equipped pets.
-
-5. **Live Automation Telemetry Logger**:
-   - Integrated 30-entry FIFO scrolling terminal embedded directly in the HUD.
-   - Timestamps formatted with second-level precision (`[HH:MM:SS]`).
-   - Categorized status tags (`[PLACE]`, `[HATCH]`, `[SELL]`, `[FUSE]`, `[EQUIP]`, `[SYS]`).
-   - Auto-scroll lock to latest events and one-click `Clear` button.
-
-6. **Species Catalog & Quick Target Bridge**:
-   - **Pre-Populated 100+ Pet Catalogue**: Indexed directly from `PET_RARITY_PRESETS` across all tiers: `Divine`, `Eternal`, `Secret`, `Cosmic`, `Mythic`, `Legendary`, `Epic`, `Rare`, `Uncommon`, and `Common`.
-   - **Instant Search & Rarity Filter Chips**: Real-time substring search with horizontal scroll chips for instant tier filtering.
-   - **Owned & Equipped Introspection (`🔄 Scan Owned`)**: Introspects local character hierarchies and data containers (`Pets`, `Inventory`, `PetInventory`) to tag owned (`🎒`) and equipped (`⭐`) pets.
-   - **One-Click Target Assignment (`✓ Farm` / `🎯 Target Filtered`)**: Clicking `Farm` on any pet automatically sets the active farm target in Tab 1, updates JSON configuration, and switches tabs seamlessly.
+3. **Live Fusery Activity Log (`📜 Fusery Activity Log`)**:
+   - Real-time scrolling telemetry terminal tracking scan results, pet selections, slot loading (slots 1..3), remote responses, and fusion completions.
+   - `Clear` button to purge output history.
 
 ---
 
@@ -122,9 +114,12 @@ The suite implements a dual-velocity state machine to balance travel speed again
 2. **Carry / Return Speed (`X.baseCarryVelocity`, Default: `250`)**:
    - Active strictly after a confirmed egg pickup.
    - Lower speed ensures stability while carrying high-mass or physics-welded egg models, preventing server desync, fling physics, and premature dropping.
-3. **State Transition Functions**:
+   - **Dynamic Enforcement on Heartbeat**: `applyVelocity()` clamps active velocity to `X.baseCarryVelocity` whenever `weAreCarrying` or `isHoldingEgg()` is true, continuously neutralizing physics and preventing accidental speed overrides.
+3. **State Transition Functions & Return Token Reconciliation**:
    - `X.switchToCarry()`: Evaluated on confirmed pickup. Updates humanoid `WalkSpeed` and switches internal velocity targets.
-   - `X.resetVelocity()`: Restores travel velocity when an egg is delivered, dropped, stolen, or when retargeting.
+   - `X.resetVelocity()`: Restores travel velocity when an egg is delivered, dropped, stolen, or when retargeting. State-aware: checks `weAreCarrying` and `isHoldingEgg()` to ensure carry velocity is never overridden prematurely while holding an egg.
+   - **Return Token Reconciliation (`rtok`)**: `autoGetEgg` generates a return walk token (`rtok`) upon pickup and waits on `walkToken == walkTok or (rtok and walkToken == rtok)` until safe-zone delivery completes, preventing premature function exits from overwriting carry speed.
+   - **Fallback Delivery Path**: `autoFarmLoop` fallback delivery block invokes `X.switchToCarry()` before initiating `walkSync` to guarantee return velocity even on recovered carries.
 4. **Frictionless Character Part Normalization**:
    - Sets character physical properties to custom zero friction: `PhysicalProperties.new(0.7, 0, 0, 100, 100)`.
    - Neutralizes assembly masses on carried eggs (`Massless = true`, `CanCollide = false`) to prevent character dragging or inertia flipping.
@@ -159,18 +154,21 @@ Hard teleports over long distances cause instant server death or character despa
 Manual "Get" button clicks on individual egg cards directly execute `autoGetEgg(uid, pos, myTok, true)` as a single-step execution of the autonomous farming pipeline. Both modes share 100% of the exact same code, avoiding any divergence:
 1. **Target Approach & 50-Stud Snap**:
    - Dynamic live position tracking through `eggCache.byUid[uid]` (with coordinate fallback if not in cache).
-   - Approaching via `walkTo` with `{ snapRadius = SNAP_RADIUS (50), stuckHop = true }`. The moment the character enters within 50 studs of the egg, it CFrame-snaps directly onto the egg with zero velocity and updated orientation.
+   - Approaching via `walkTo` with `{ snapRadius = SNAP_RADIUS (50), snapBeside = true, stuckHop = true }`. The moment the character enters within 50 studs of the egg, it CFrame-snaps beside the egg facing it (`getBesideOffset`) instead of dropping directly on top, preventing vertical hopping.
    - Pre-pickup alignment via `microSnap()` (clamped to $\le 75$ studs; engages approach walking if knocked back further).
 2. **Robust Pickup & Carry Transition**:
-   - Takes hold snapshot (`takeHoldSnapshot()`), listens for `FieldEggGone`/`FieldEggCarry` events, and verifies via 4 real signals before transitioning.
+   - Takes hold snapshot (`takeHoldSnapshot()`), listens for `FieldEggGone`/`FieldEggCarry` events, and verifies via real signals before transitioning.
+   - Strict `holdingSource()` / `isHoldingEgg()` verification: checks character tools and specifically `ClientRenderedAssets` for `UserId_carryUid` or active `carryMarkers`. Arbitrary CRA models are never matched, preventing the player's base nest eggs from causing false-positive carry detections.
    - Switches velocity to carry mode (`X.switchToCarry()`) and neutralizes carried egg collision/mass (`neutraliseEggPhysics()`).
-3. **Safe-Zone Return & 50-Stud Safe Snap**:
+3. **Safe-Zone Return & Ground-Level Safe Snap**:
    - Navigates toward `SAFE_ZONE` using `walkTo` with `{ snapRadius = SAFE_SNAP_RADIUS (50), stuckHop = true }`.
+   - Snaps to `SAFE_ZONE` preserve current ground height (`targetY = r.Position.Y` within 4 studs), completely eliminating vertical bouncing/hopping.
+   - Delivery gate in `autoFarmLoop` strictly checks `weAreCarrying` before attempting delivery, ensuring idle players standing in the safe zone never get trapped in an infinite delivery/jump cycle.
    - Parallel safe-zone watcher thread checks distance every `0.1s`:
      - Within 50 studs (`SAFE_SNAP_RADIUS`): immediately executes `X.snapToSafe()` every `0.25s` even if stunned or ragdolled.
      - Within 14 studs (`X.SAFE_DETECT_RADIUS`): confirms safe-zone arrival.
      - 45s watchdog safety net guarantees delivery snap.
-   - Post-arrival delivery loop (`X.deliverWait`): re-snaps onto safe-zone every 2s until the carried egg is consumed by the game, restores default velocity (`X.resetVelocity()`), and triggers `X.requestEggRefresh()`.
+   - Post-arrival delivery loop (`X.deliverWait`): waits until the carried egg is consumed by the game hitbox, restores default velocity (`X.resetVelocity()`), and triggers `X.requestEggRefresh()`.
 4. **Dropped Egg Auto-Recovery**:
    - If bumped or knocked loose during transit, manual get automatically detects the drop and re-fetches the egg via `dropRetry` just like auto farm.
 
@@ -194,11 +192,27 @@ Fast recovery ensures zero downtime when hit by bosses, traps, or player pushes:
 
 ### ESP Carrier Tracking & Ghost Egg Blacklisting
 Prevents the bot from chasing phantom eggs or eggs already taken by competitors:
+- **Client Slot Ground Truth (`Workspace.AreaEggSlotsClient`)**:
+  - The client's `AreaEggSlotsClient` folder is the authoritative representation of eggs actively sitting on nests.
+  - Multi-pattern slot resolver (`X.findEggSlot`):
+    1. Direct 32-hex child check (`area:FindFirstChild(uid)`).
+    2. Attribute / recursive identifier inspection (`Uid` / `EggUid`).
+    3. Biome/Nest compound identifier matching (`FirstAreaEgg_<UserId>_<id>_Forest:Slot_005`).
+    4. 3D World coordinate proximity matching ($\le 6$ studs from nest position).
+  - Uncapped slot cross-check (`X.updateSlotGhosts`): Evaluates all biomes without arbitrary population thresholds. If an egg's slot is missing across 2 consecutive scans ($\ge 2$s), it is flagged as an empty-nest ghost and hidden from both the UI list and auto-farm target queue.
+- **Base Plot Render Introspection (`Workspace.PlacedEggRenders`)**:
+  - Eggs placed or delivered into any player's base plot/nests are rendered as `<UserId>_<EggUid>` under `PlacedEggRenders`.
+  - `X.isEggInBaseRenders(uid)` continuously checks this container. Any listed egg found in a base plot is immediately classified as delivered/stolen and filtered out.
 - **Carrier Detection (`Workspace.ClientRenderedAssets`)**:
   - When any player picks up an egg, the game client renders `<UserId>_<EggUid>` under `ClientRenderedAssets`.
   - The scanner continuously parses these model names. If an egg's `Uid` is carried by another player (`UserId ~= LocalPlayer.UserId`), it is **immediately blacklisted** from targeting.
 - **Competitor Delivery Tracking**:
   - If a carrier model approaches within 50 studs of `SAFE_ZONE`, the egg is marked as successfully secured by an opponent and dropped from the active cache.
+- **Arrival Empty-Nest Verification (`autoGetEgg`)**:
+  - Immediately upon reaching an egg's location, a fresh snapshot and client slot inspection (`emptyNest`) are executed.
+  - If `AreaEggSlotsClient` is populated, the egg has no slot, and it is not an egg dropped by the local player, the bot aborts pickup immediately with `"Nest already empty"`, blacklists the ghost egg, requests a UI refresh, and advances to the next target without delay.
+- **Immunity Scope Clamp**:
+  - Only eggs dropped by the local player (`X.weDropped` within 60s or active `dropRetry`) are exempted from ghost filtering. Stale or competitor-moved eggs are never immunized.
 
 ---
 
