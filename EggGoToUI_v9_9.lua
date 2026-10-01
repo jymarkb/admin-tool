@@ -199,7 +199,7 @@ local PET_RARITY_PRESETS = {
     ["Unicorn"]="Divine", ["Crane"]="Epic", ["Salamander"]="Legendary",
     ["Red Panda"]="Mythic", ["Koi"]="Cosmic", ["Snowy Owl"]="Cosmic",
     ["Stag"]="Secret", ["Oni Tiger"]="Eternal", ["Kitsune"]="Divine",
-    ["Crustacia"]="Legendary", ["Kaiju Spider"]="Legendary", ["Blade Head"]="Mythic", ["Mantis"] = "Cosmic",
+    ["Crab"]="Legendary", ["Kaiju Spider"]="Legendary", ["Blade Head"]="Mythic", ["Mantis"] = "Cosmic",
     ["Mantaris"]="Cosmic", ["Rhinotaur"]="Cosmic", ["Shark"]="Secret",
     ["Gorilla King"]="Eternal", ["Nightflame"]="Divine", ["Dove"]="Legendary",
     ["Lamb"]="Mythic", ["Moth"]="Cosmic", ["Peacock"]="Cosmic",
@@ -241,11 +241,12 @@ local PET_RARITY_PRESETS = {
 local DEFAULT_SETTINGS = {
     SafeZone       = { X = SAFE_ZONE.X, Y = SAFE_ZONE.Y, Z = SAFE_ZONE.Z },
     MutationFilter = {},
-    SpeciesFilter  = { "All" },   -- array of selected species; "All" = show everything
-    RarityFilter   = {},          -- v9: array of ticked rarities; empty = rarity filter off
+    SpeciesFilter  = { "All" },
+    RarityFilter   = {},
     AutoReturn     = true,
     Velocity       = false,
     VelocityValue  = 270,
+    CarryVelocityValue = 180,
     Recovery       = true,
 }
 
@@ -313,6 +314,9 @@ local function validateSettings(t)
     if t.VelocityValue ~= nil and typeof(t.VelocityValue) ~= "number" then
         return false, "VelocityValue must be a number"
     end
+    if t.CarryVelocityValue ~= nil and typeof(t.CarryVelocityValue) ~= "number" then
+        return false, "CarryVelocityValue must be a number"
+    end
     if t.Recovery ~= nil and typeof(t.Recovery) ~= "boolean" then
         return false, "Recovery must be true/false"
     end
@@ -359,7 +363,8 @@ local wasRagdolledForVelocity = false
 local RAGDOLL_HOLD_TIME = 0.12
 
 -- v9 state + helpers (kept in X because the script is close to Luau's 200-locals limit)
-X.baseVelocity     = 270     -- what the user set (default 270). targetVelocity = this minus rubberband drops
+X.baseVelocity      = 290    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
+X.baseCarryVelocity = 250    -- carry speed (returning with egg). X.switchToCarry() activates it.
 X.VELOCITY_STEP    = 10      -- every rubberband lowers the velocity by this much...
 X.MIN_VELOCITY     = 100     -- ...but never below this
 X.RUBBER_BACK      = 6       -- studs pulled BACKWARDS in a single frame (against our move direction) = rubberband
@@ -379,17 +384,26 @@ X.PRIORITY_CHAIN = { "Divine", "Eternal", "Secret" }   -- farm order: Divine -> 
 
 function X.markTeleport() X.ignoreJumpUntil = os.clock() + 0.35; X.rbLastPos = nil; X.rbSamples = {} end
 
--- back to the velocity the user set (called after every egg and when a new target egg starts)
+-- back to TRAVEL speed (called after every egg, new target, drop, or delivery)
 function X.resetVelocity()
-    if targetVelocity ~= X.baseVelocity then
-        targetVelocity = X.baseVelocity
-        if velocityEnabled then
-            local ch = LocalPlayer.Character
-            local h  = ch and ch:FindFirstChildOfClass("Humanoid")
-            if h then pcall(function() h.WalkSpeed = targetVelocity end) end
-        end
-        if upVelBtn then pcall(upVelBtn) end
+    targetVelocity = X.baseVelocity
+    if velocityEnabled then
+        local ch = LocalPlayer.Character
+        local h  = ch and ch:FindFirstChildOfClass("Humanoid")
+        if h then pcall(function() h.WalkSpeed = targetVelocity end) end
     end
+    if upVelBtn then pcall(upVelBtn) end
+end
+
+-- switch to CARRY speed right after a confirmed pickup (return trip)
+function X.switchToCarry()
+    targetVelocity = X.baseCarryVelocity
+    if velocityEnabled then
+        local ch = LocalPlayer.Character
+        local h  = ch and ch:FindFirstChildOfClass("Humanoid")
+        if h then pcall(function() h.WalkSpeed = targetVelocity end) end
+    end
+    if upVelBtn then pcall(upVelBtn) end
 end
 
 local connections = {}
@@ -866,6 +880,7 @@ local function applySettings(t)
     if t.AutoReturn ~= nil then autoReturnEnabled = t.AutoReturn end
     if t.Velocity ~= nil then velocityEnabled = t.Velocity end
     if t.VelocityValue ~= nil and t.VelocityValue > 0 then targetVelocity = t.VelocityValue; X.baseVelocity = t.VelocityValue end
+    if t.CarryVelocityValue ~= nil and t.CarryVelocityValue > 0 then X.baseCarryVelocity = t.CarryVelocityValue end
     if t.Recovery ~= nil then
         recoveryEnabled = t.Recovery
         if not recoveryEnabled then recoveryState = RECOVERY_STATE.NONE end
@@ -1105,6 +1120,7 @@ local function getEgg(pos, uid, sl)
             local ok = confirmCarry(uid, 2.5)
             if ok then
                 task.wait(0.2)
+                X.switchToCarry()
                 if autoReturnEnabled then retSafe(my, sl)
                 else sl.Text = "Secured ✓ (no return)"; sl.TextColor3 = Color3.fromRGB(120,255,150); X.resetVelocity(); X.tripUntil = 0 end
             else
@@ -1687,12 +1703,14 @@ local function autoGetEgg(uid, startPos, myTok)
         end
 
         weAreCarrying, carryUid, carryMarkers = true, uid, markers
+        X.switchToCarry()
         local pickupConfirmT = os.clock()   -- scans issued BEFORE this may still show the egg lying on the ground
         local ch = LocalPlayer.Character
         if ch then neutraliseEggPhysics(ch) end
 
         if not autoReturnEnabled then
             weAreCarrying = false
+            X.resetVelocity()
             X.requestEggRefresh()
             finish(true); return
         end
@@ -1761,6 +1779,7 @@ local function autoGetEgg(uid, startPos, myTok)
                 bumped = true
                 fastUntil = now + 6
                 bumpScanAt = now + 0.35           -- give the server a moment to re-list a dropped egg
+                if not isHoldingEgg() then X.resetVelocity() end
             end
             if bumpScanAt and now >= bumpScanAt and (not isRagdolled or now - X.lastRagdollAt > 0.6) then
                 bumpScanAt = nil
@@ -1906,6 +1925,7 @@ local function autoGetEgg(uid, startPos, myTok)
         if dropped then
             walkToken = walkToken + 1          -- stop walking home: never go home empty-handed
             weAreCarrying = false
+            X.resetVelocity()
             X.looseUids[uid] = true                       -- v9.3: it is lying on the ground now, NOT an empty nest
             X.ignoreGone[uid] = os.clock() + 10           -- v9.4: late Gone/Carry events for it are not a theft
             X.weDropped[uid] = os.clock(); X.movingAt[uid] = nil; X.deliveredUids[uid] = nil; X.slotLostSince[uid] = nil
@@ -2468,25 +2488,60 @@ closeBtn.Parent=titleBar; Instance.new("UICorner",closeBtn).CornerRadius=UDim.ne
 
 local COL_W = 152; local COL_GAP = 12; local ROW_H = 28; local ROW_GAP = 4
 
--- Row 1: Velocity + Velocity Value
+-- Row 1: Velocity Toggle + Go Speed + Carry Speed
 local ROW1_Y = 44
+local VEL_BTN_W = 110
+local SPEED_W = 97
+local SPEED_GAP = 6
+
 local velToggleBtn = Instance.new("TextButton")
-velToggleBtn.Size = UDim2.new(0,COL_W,0,ROW_H); velToggleBtn.Position=UDim2.new(0,12,0,ROW1_Y)
+velToggleBtn.Size = UDim2.new(0,VEL_BTN_W,0,ROW_H); velToggleBtn.Position=UDim2.new(0,12,0,ROW1_Y)
 velToggleBtn.BackgroundColor3=Color3.fromRGB(42,48,65); velToggleBtn.Text="[OFF] Velocity"
-velToggleBtn.TextColor3=Color3.fromRGB(210,220,240); velToggleBtn.TextSize=13
+velToggleBtn.TextColor3=Color3.fromRGB(210,220,240); velToggleBtn.TextSize=12
 velToggleBtn.Font=Enum.Font.GothamBold; velToggleBtn.Parent=main
 Instance.new("UICorner",velToggleBtn).CornerRadius=UDim.new(0,6)
 
-local velInputBox = Instance.new("TextBox")
-velInputBox.Size=UDim2.new(0,COL_W,0,ROW_H); velInputBox.Position=UDim2.new(0,12+COL_W+COL_GAP,0,ROW1_Y)
-velInputBox.BackgroundColor3=Color3.fromRGB(28,34,48); velInputBox.Text=tostring(targetVelocity)
-velInputBox.PlaceholderText="Value (e.g.270)"; velInputBox.TextColor3=Color3.new(1,1,1)
-velInputBox.TextSize=13; velInputBox.Font=Enum.Font.GothamBold; velInputBox.ClearTextOnFocus=false
-velInputBox.Parent=main; Instance.new("UICorner",velInputBox).CornerRadius=UDim.new(0,6)
-local velInputStroke = Instance.new("UIStroke", velInputBox)
+local goFrame = Instance.new("Frame")
+goFrame.Size=UDim2.new(0,SPEED_W,0,ROW_H); goFrame.Position=UDim2.new(0,12+VEL_BTN_W+SPEED_GAP,0,ROW1_Y)
+goFrame.BackgroundColor3=Color3.fromRGB(28,34,48); goFrame.BorderSizePixel=0
+goFrame.Parent=main; Instance.new("UICorner",goFrame).CornerRadius=UDim.new(0,6)
+local velInputStroke = Instance.new("UIStroke", goFrame)
 velInputStroke.Color = Color3.fromRGB(60,80,115); velInputStroke.Thickness=1
 
--- Row 2: Recovery (full-width left side; right side unused or status preview)
+local goLabel = Instance.new("TextLabel")
+goLabel.Size=UDim2.new(0,32,1,0); goLabel.BackgroundTransparency=1
+goLabel.Text=" Go:"; goLabel.TextColor3=Color3.fromRGB(160,185,220)
+goLabel.TextSize=11; goLabel.Font=Enum.Font.GothamBold; goLabel.TextXAlignment=Enum.TextXAlignment.Left
+goLabel.Parent=goFrame
+
+local velInputBox = Instance.new("TextBox")
+velInputBox.Size=UDim2.new(1,-34,1,0); velInputBox.Position=UDim2.new(0,34,0,0)
+velInputBox.BackgroundTransparency=1; velInputBox.Text=tostring(X.baseVelocity)
+velInputBox.PlaceholderText="270"; velInputBox.TextColor3=Color3.new(1,1,1)
+velInputBox.TextSize=12; velInputBox.Font=Enum.Font.GothamBold; velInputBox.ClearTextOnFocus=false
+velInputBox.TextXAlignment=Enum.TextXAlignment.Left; velInputBox.Parent=goFrame
+
+local carryFrame = Instance.new("Frame")
+carryFrame.Size=UDim2.new(0,SPEED_W,0,ROW_H); carryFrame.Position=UDim2.new(0,12+VEL_BTN_W+SPEED_GAP+SPEED_W+SPEED_GAP,0,ROW1_Y)
+carryFrame.BackgroundColor3=Color3.fromRGB(28,34,48); carryFrame.BorderSizePixel=0
+carryFrame.Parent=main; Instance.new("UICorner",carryFrame).CornerRadius=UDim.new(0,6)
+local carryInputStroke = Instance.new("UIStroke", carryFrame)
+carryInputStroke.Color = Color3.fromRGB(60,80,115); carryInputStroke.Thickness=1
+
+local carryLabel = Instance.new("TextLabel")
+carryLabel.Size=UDim2.new(0,44,1,0); carryLabel.BackgroundTransparency=1
+carryLabel.Text=" Carry:"; carryLabel.TextColor3=Color3.fromRGB(160,185,220)
+carryLabel.TextSize=11; carryLabel.Font=Enum.Font.GothamBold; carryLabel.TextXAlignment=Enum.TextXAlignment.Left
+carryLabel.Parent=carryFrame
+
+local carryVelInputBox = Instance.new("TextBox")
+carryVelInputBox.Size=UDim2.new(1,-46,1,0); carryVelInputBox.Position=UDim2.new(0,46,0,0)
+carryVelInputBox.BackgroundTransparency=1; carryVelInputBox.Text=tostring(X.baseCarryVelocity)
+carryVelInputBox.PlaceholderText="180"; carryVelInputBox.TextColor3=Color3.new(1,1,1)
+carryVelInputBox.TextSize=12; carryVelInputBox.Font=Enum.Font.GothamBold; carryVelInputBox.ClearTextOnFocus=false
+carryVelInputBox.TextXAlignment=Enum.TextXAlignment.Left; carryVelInputBox.Parent=carryFrame
+
+-- Row 2: Recovery (left) + Velocity Live Status (right)
 local ROW2_Y = ROW1_Y + ROW_H + ROW_GAP
 local recoveryToggleBtn = Instance.new("TextButton")
 recoveryToggleBtn.Size=UDim2.new(0,COL_W,0,ROW_H); recoveryToggleBtn.Position=UDim2.new(0,12,0,ROW2_Y)
@@ -2495,7 +2550,6 @@ recoveryToggleBtn.TextColor3=Color3.new(1,1,1); recoveryToggleBtn.TextSize=13
 recoveryToggleBtn.Font=Enum.Font.GothamBold; recoveryToggleBtn.Parent=main
 Instance.new("UICorner",recoveryToggleBtn).CornerRadius=UDim.new(0,6)
 
--- Velocity status on right of row 2
 local velStatusLabel = Instance.new("TextLabel")
 velStatusLabel.Size=UDim2.new(0,COL_W,0,ROW_H); velStatusLabel.Position=UDim2.new(0,12+COL_W+COL_GAP,0,ROW2_Y)
 velStatusLabel.BackgroundColor3=Color3.fromRGB(24,29,40); velStatusLabel.Text="  Vel: 0"
@@ -3142,6 +3196,7 @@ copyBtn.MouseButton1Click:Connect(function()
     -- Sync live state
     currentSettings.Velocity=velocityEnabled
     currentSettings.VelocityValue=X.baseVelocity
+    currentSettings.CarryVelocityValue=X.baseCarryVelocity
     currentSettings.Recovery=recoveryEnabled
     currentSettings.AutoReturn=autoReturnEnabled
     local ml={}
@@ -3182,6 +3237,7 @@ loadBtn.MouseButton1Click:Connect(function()
     rebuildFarmDropdownItems()
     if X.refreshRarityUI then X.refreshRarityUI() end
     velInputBox.Text=tostring(math.floor(X.baseVelocity))
+    carryVelInputBox.Text=tostring(math.floor(X.baseCarryVelocity))
     statusLabel.Text="Config loaded"; statusLabel.TextColor3=Color3.fromRGB(120,255,150)
     refilterAndRender()
 end)
@@ -3191,7 +3247,7 @@ end)
 -- ==================================================
 function upVelBtn()
     if velocityEnabled then
-        velToggleBtn.Text=("[ON] Vel: %d%s"):format(math.floor(targetVelocity), targetVelocity < X.baseVelocity and " ↓" or "")
+        velToggleBtn.Text="[ON] Velocity"
         velToggleBtn.BackgroundColor3=Color3.fromRGB(35,135,75)
         velToggleBtn.TextColor3=Color3.new(1,1,1)
     else
@@ -3204,7 +3260,15 @@ end
 local function upVelIn()
     local v=tonumber(velInputBox.Text)
     if v and v>0 then
-        targetVelocity=v; X.baseVelocity=v
+        X.baseVelocity=v
+        if not weAreCarrying and not isHoldingEgg() then
+            targetVelocity=v
+            if velocityEnabled then
+                local ch=LocalPlayer.Character
+                local h=ch and ch:FindFirstChildOfClass("Humanoid")
+                if h then pcall(function() h.WalkSpeed=targetVelocity end) end
+            end
+        end
         velInputStroke.Color=Color3.fromRGB(60,140,240)
         upVelBtn()
     else
@@ -3215,10 +3279,59 @@ end
 velInputBox.FocusLost:Connect(upVelIn)
 velInputBox:GetPropertyChangedSignal("Text"):Connect(function()
     local v=tonumber(velInputBox.Text)
-    if v and v>0 then targetVelocity=v; X.baseVelocity=v; upVelBtn() end
+    if v and v>0 then
+        X.baseVelocity=v
+        if not weAreCarrying and not isHoldingEgg() then
+            targetVelocity=v
+            if velocityEnabled then
+                local ch=LocalPlayer.Character
+                local h=ch and ch:FindFirstChildOfClass("Humanoid")
+                if h then pcall(function() h.WalkSpeed=targetVelocity end) end
+            end
+        end
+        upVelBtn()
+    end
 end)
+
+local function upCarryVelIn()
+    local v=tonumber(carryVelInputBox.Text)
+    if v and v>0 then
+        X.baseCarryVelocity=v
+        if weAreCarrying or isHoldingEgg() then
+            targetVelocity=v
+            if velocityEnabled then
+                local ch=LocalPlayer.Character
+                local h=ch and ch:FindFirstChildOfClass("Humanoid")
+                if h then pcall(function() h.WalkSpeed=targetVelocity end) end
+            end
+        end
+        carryInputStroke.Color=Color3.fromRGB(60,140,240)
+        upVelBtn()
+    else
+        carryVelInputBox.Text=tostring(math.floor(X.baseCarryVelocity))
+        carryInputStroke.Color=Color3.fromRGB(60,80,115)
+    end
+end
+carryVelInputBox.FocusLost:Connect(upCarryVelIn)
+carryVelInputBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local v=tonumber(carryVelInputBox.Text)
+    if v and v>0 then
+        X.baseCarryVelocity=v
+        if weAreCarrying or isHoldingEgg() then
+            targetVelocity=v
+            if velocityEnabled then
+                local ch=LocalPlayer.Character
+                local h=ch and ch:FindFirstChildOfClass("Humanoid")
+                if h then pcall(function() h.WalkSpeed=targetVelocity end) end
+            end
+        end
+        upVelBtn()
+    end
+end)
+
 velToggleBtn.MouseButton1Click:Connect(function()
     upVelIn()
+    upCarryVelIn()
     velocityEnabled=not velocityEnabled
     if velocityEnabled then enableVelocity() else disableVelocity() end
     upVelBtn()
@@ -3245,11 +3358,19 @@ upVelBtn(); upRecBtn(); updateFarmBtnText()
 
 local function toggleMenuVisible()
     main.Visible = not main.Visible
-    menuToggleBtn.Text = main.Visible and "✕" or "☰"
+    menuToggleBtn.Text = "☰"
 end
 menuToggleBtn.MouseButton1Click:Connect(toggleMenuVisible)
 
-closeBtn.MouseButton1Click:Connect(toggleMenuVisible)
+closeBtn.MouseButton1Click:Connect(function()
+    if autoFarmEnabled then toggleAutoFarm() end
+    eggScannerStop = true
+    velocityEnabled = false
+    recoveryEnabled = false
+    disableVelocity()
+    disconnectAll()
+    screenGui:Destroy()
+end)
 
 -- ==================================================
 -- HEARTBEAT LOOPS
