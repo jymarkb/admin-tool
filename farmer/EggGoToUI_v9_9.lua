@@ -327,7 +327,7 @@ end
 -- VELOCITY / RECOVERY STATE
 -- ==================================================
 local velocityEnabled = false
-local targetVelocity  = 270
+local targetVelocity  = 300
 local savedWalkSpeed  = 16
 local zeroFriction    = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 local originalPhysicalProperties = {}
@@ -364,8 +364,8 @@ local wasRagdolledForVelocity = false
 local RAGDOLL_HOLD_TIME = 0.12
 
 -- v9 state + helpers (kept in X because the script is close to Luau's 200-locals limit)
-X.baseVelocity      = 270    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
-X.baseCarryVelocity = 180    -- carry speed (returning with egg). X.switchToCarry() activates it.
+X.baseVelocity      = 300    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
+X.baseCarryVelocity = 250    -- carry speed (returning with egg). X.switchToCarry() activates it.
 X.VELOCITY_STEP    = 10      -- every rubberband lowers the velocity by this much...
 X.MIN_VELOCITY     = 100     -- ...but never below this
 X.RUBBER_BACK      = 6       -- studs pulled BACKWARDS in a single frame (against our move direction) = rubberband
@@ -962,13 +962,13 @@ local function applySettings(t)
     if t.VelocityValue ~= nil and t.VelocityValue > 0 then
         X.baseVelocity = t.VelocityValue
     elseif not X.baseVelocity or X.baseVelocity <= 0 then
-        X.baseVelocity = DEFAULT_SETTINGS.VelocityValue or 270
+        X.baseVelocity = DEFAULT_SETTINGS.VelocityValue or 300
     end
 
     if t.CarryVelocityValue ~= nil and t.CarryVelocityValue > 0 then
         X.baseCarryVelocity = t.CarryVelocityValue
     elseif not X.baseCarryVelocity or X.baseCarryVelocity <= 0 then
-        X.baseCarryVelocity = DEFAULT_SETTINGS.CarryVelocityValue or 180
+        X.baseCarryVelocity = DEFAULT_SETTINGS.CarryVelocityValue or 250
     end
 
     if weAreCarrying or (typeof(isHoldingEgg) == "function" and isHoldingEgg()) then
@@ -2704,7 +2704,7 @@ goLabel.Parent=goFrame
 local velInputBox = Instance.new("TextBox")
 velInputBox.Size=UDim2.new(1,-34,1,0); velInputBox.Position=UDim2.new(0,34,0,0)
 velInputBox.BackgroundTransparency=1; velInputBox.Text=tostring(X.baseVelocity)
-velInputBox.PlaceholderText="270"; velInputBox.TextColor3=Color3.new(1,1,1)
+velInputBox.PlaceholderText="300"; velInputBox.TextColor3=Color3.new(1,1,1)
 velInputBox.TextSize=12; velInputBox.Font=Enum.Font.GothamBold; velInputBox.ClearTextOnFocus=false
 velInputBox.TextXAlignment=Enum.TextXAlignment.Left; velInputBox.Parent=goFrame
 
@@ -2724,7 +2724,7 @@ carryLabel.Parent=carryFrame
 local carryVelInputBox = Instance.new("TextBox")
 carryVelInputBox.Size=UDim2.new(1,-46,1,0); carryVelInputBox.Position=UDim2.new(0,46,0,0)
 carryVelInputBox.BackgroundTransparency=1; carryVelInputBox.Text=tostring(X.baseCarryVelocity)
-carryVelInputBox.PlaceholderText="180"; carryVelInputBox.TextColor3=Color3.new(1,1,1)
+carryVelInputBox.PlaceholderText="250"; carryVelInputBox.TextColor3=Color3.new(1,1,1)
 carryVelInputBox.TextSize=12; carryVelInputBox.Font=Enum.Font.GothamBold; carryVelInputBox.ClearTextOnFocus=false
 carryVelInputBox.TextXAlignment=Enum.TextXAlignment.Left; carryVelInputBox.Parent=carryFrame
 
