@@ -7,6 +7,8 @@ This documentation covers the architecture, control logic, networking hooks, and
 ## Table of Contents
 1. [EggGoToUI v9.9 - Automated Farming Suite](#1-egggotoui-v99---automated-farming-suite)
    - [Overview & High-Level Architecture](#overview--high-level-architecture)
+   - [Sidebar Navigation & Multi-Tab Interface](#sidebar-navigation--multi-tab-interface)
+   - [Pet & Egg Automation Suite (Tab 2)](#pet--egg-automation-suite-tab-2)
    - [Dual-Velocity Physics Engine](#dual-velocity-physics-engine)
    - [Anti-Rubberband System & Dynamic Speed Step-Down](#anti-rubberband-system--dynamic-speed-step-down)
    - [Anti-Teleport & Micro-Snap Distance Gating](#anti-teleport--micro-snap-distance-gating)
@@ -59,6 +61,54 @@ This documentation covers the architecture, control logic, networking hooks, and
    │  - Rubberband Stepdown│                       │  - Drop Detection     │
    └───────────────────────┘                       └───────────────────────┘
 ```
+
+---
+
+### Sidebar Navigation & Multi-Tab Interface
+The HUD features a vertical sidebar layout separating core modules into clean, dedicated tabs:
+
+- **Navigation Rail (`46px` icon-only rail)**:
+  - **`🥚` (Tab 1)**: Autonomous farming controls, dual-velocity inputs, recovery toggles, live speed metrics, species & rarity filters, JSON profile syncing, and the live egg list view.
+  - **`🐾` (Tab 2)**: Autonomous egg placement & incubation, pet satchel auto-selling, fusery & mutation automation, best pet auto-equipper, live telemetry logger, and species catalog with 1-click targeting.
+- **State Preservation**: Switching tabs preserves active auto-farming, background egg scanning threads, and velocity stabilization without UI interruption or reset.
+- **Auto-Close Dropdowns**: Navigating across tabs automatically collapses floating dropdowns (species and rarity selectors) to prevent UI overlapping.
+
+---
+
+### Pet & Egg Automation Suite (Tab 2)
+The dedicated Pets tab bridges inventory management, egg processing, pet mutations, and farming targeting into an integrated autonomous pipeline:
+
+1. **Egg Placement & Incubation Automation**:
+   - **`Auto Place Egg`**: Continuously monitors the player's held egg and backpack inventory; automatically delivers and seats eggs onto available nests/incubators using `RF/EggWorld/AskPlaceEgg`.
+   - **`Auto Hatch`**: Actively triggers incubation completion and hatch sequences via `RF/EggWorld/AskHatch` and `RF/EggWorld/AskFinishHatch`.
+   - **`Skip Growth`**: Automatically calls `RF/EggWorld/AskSkipGrowth` to bypass maturation timers when enabled.
+   - **`Place Held Egg`**: Instant one-click manual placement fallback.
+
+2. **Pet Satchel & Auto Sell Automation**:
+   - **`Auto Sell`**: Toggles continuous server-side satchel offloading via `RF/Haul/WriteAutoSell` and autonomous inventory flushing.
+   - **`Sell Satchel`**: Manual panic button triggering `RE/PetSatchel/SellEveryPet` for immediate space clearance.
+   - **Rarity Ceiling Filter**: Configurable multi-tier selector cycling through `Common`, `Uncommon`, `Rare`, and `Epic` to guarantee high-tier and shiny pets are never liquidated.
+
+3. **Fusery & Mutation Machine Automation**:
+   - **`Auto Fuse`**: Manages the complete fusion cycle end-to-end: acknowledges tutorial briefings via `RF/Fusery/ConfirmBriefing`, initiates multi-pet fusion with `RF/Fusery/BeginFuse`, and finalizes pet reveals with `RF/Fusery/FinishReveal`.
+   - **`Fuse Now`**: Manual trigger to perform an immediate fusion batch on demand.
+   - **Fuse Rarity Filter**: Restricts automated fusing candidates to designated rarity brackets to preserve target collections.
+
+4. **Loadout & Equip Automation**:
+   - **`Auto Equip Best`**: Background thread periodically queries player stat multipliers and auto-equips the strongest pet loadout via `RF/Haul/WearBest`.
+   - **`Wear Best Now`**: Immediate one-click remote invocation to optimize equipped pets.
+
+5. **Live Automation Telemetry Logger**:
+   - Integrated 30-entry FIFO scrolling terminal embedded directly in the HUD.
+   - Timestamps formatted with second-level precision (`[HH:MM:SS]`).
+   - Categorized status tags (`[PLACE]`, `[HATCH]`, `[SELL]`, `[FUSE]`, `[EQUIP]`, `[SYS]`).
+   - Auto-scroll lock to latest events and one-click `Clear` button.
+
+6. **Species Catalog & Quick Target Bridge**:
+   - **Pre-Populated 100+ Pet Catalogue**: Indexed directly from `PET_RARITY_PRESETS` across all tiers: `Divine`, `Eternal`, `Secret`, `Cosmic`, `Mythic`, `Legendary`, `Epic`, `Rare`, `Uncommon`, and `Common`.
+   - **Instant Search & Rarity Filter Chips**: Real-time substring search with horizontal scroll chips for instant tier filtering.
+   - **Owned & Equipped Introspection (`🔄 Scan Owned`)**: Introspects local character hierarchies and data containers (`Pets`, `Inventory`, `PetInventory`) to tag owned (`🎒`) and equipped (`⭐`) pets.
+   - **One-Click Target Assignment (`✓ Farm` / `🎯 Target Filtered`)**: Clicking `Farm` on any pet automatically sets the active farm target in Tab 1, updates JSON configuration, and switches tabs seamlessly.
 
 ---
 
@@ -164,13 +214,15 @@ Complete bidirectional synchronization between live UI controls, memory state, a
 ---
 
 ### Clean Shutdown & Memory Deallocation
-Clicking the title bar "X" button triggers a graceful shutdown:
-1. Stops the `autoFarmLoop` thread via cancellation token.
-2. Halts the 1.0s background egg cache scanner.
-3. Disables velocity and recovery engines.
-4. Restores character humanoid `WalkSpeed` and original physical friction properties.
-5. Disconnects all `RunService.Heartbeat`, `CharacterAdded`, and UI event connections.
-6. Destroys the `ScreenGui` instance cleanly from memory.
+Clicking the title bar "X" button triggers a comprehensive `fullCleanup()` routine:
+1. Halts `autoFarmLoop` immediately by setting `autoFarmEnabled = false` and advancing `autoFarmToken`.
+2. Cancels active movement loops (`walkTo`, `retSafe`) by advancing `walkToken` and halting humanoid navigation (`h:Move(Vector3.zero)`).
+3. Terminates the background 1.0s egg cache scanner and live telemetry watcher loops (`eggScannerStop = true`).
+4. Disables velocity and recovery engines, unanchoring `HumanoidRootPart` and resetting assembly linear and angular velocities.
+5. Restores character humanoid `WalkSpeed` (normal 16) and original physical friction properties (`setFrictionless(false)`).
+6. Disconnects all `RunService.Heartbeat`, `CharacterAdded`, network listeners (`RE/FieldEggGone`, `ChildAdded`), and user input connections.
+7. Completely destroys `ScreenGui` instances from `PlayerGui` / `CoreGui`.
+8. Cleans up `_G.EggGoToUI_Cleanup`; subsequent script executions also invoke this cleanup at launch to prevent ghost threads or parallel script conflicts.
 
 ---
 

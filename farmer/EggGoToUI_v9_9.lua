@@ -133,6 +133,12 @@
 
 local ok, err = pcall(function()
 
+-- Terminate any previous running instance of this script
+if _G.EggGoToUI_Cleanup then
+    pcall(_G.EggGoToUI_Cleanup)
+end
+_G.EggGoToUI_Stop = false
+
 local Players           = game:GetService("Players")
 local Workspace         = game:GetService("Workspace")
 local UserInputService  = game:GetService("UserInputService")
@@ -141,7 +147,24 @@ local HttpService       = game:GetService("HttpService")
 local RunService        = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
+if not LocalPlayer then
+    pcall(function() LocalPlayer = Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.LocalPlayer end)
+    LocalPlayer = LocalPlayer or Players.LocalPlayer
+end
+
+local function getSafeUiParent()
+    if typeof(gethui) == "function" then
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
+    end
+    local okCore, core = pcall(function() return game:GetService("CoreGui") end)
+    if okCore and core then
+        local okTest = pcall(function() local f = Instance.new("Folder", core); f:Destroy() end)
+        if okTest then return core end
+    end
+    return (LocalPlayer and (LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5))) or game:GetService("CoreGui")
+end
+local PlayerGui = getSafeUiParent()
 
 local SAFE_ZONE = Vector3.new(536.731, 70, -368.698)
 
@@ -381,7 +404,13 @@ X.rubberCount      = 0
 X.selectedRarities = {}      -- set of ticked rarities (empty = rarity filter off)
 X.RARITY_RANK  = { Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5, Mythic=6, Cosmic=7, Secret=8, Eternal=9, Divine=10 }
 X.RARITY_ORDER = { "Divine", "Eternal", "Secret", "Cosmic", "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common" }
-X.PRIORITY_CHAIN = { "Divine", "Eternal", "Secret" }   -- farm order: Divine -> Eternal -> Secret -> selected (farthest)
+X.PRIORITY_CHAIN = { "Divine", "Eternal", "Secret" }
+X.ROW_H = 28
+X.ROW_GAP = 4
+X.ROW3_Y = 8 + (28 + 4) * 2
+X.MAX_FARM_DD_HEIGHT = 200
+
+local upVelBtn, upRecBtn   -- farm order: Divine -> Eternal -> Secret -> selected (farthest)
 
 function X.markTeleport() X.ignoreJumpUntil = os.clock() + 0.35; X.rbLastPos = nil; X.rbSamples = {} end
 
@@ -2240,7 +2269,7 @@ local function autoFarmLoop()
                     end
                 end
                 if not waitingDrop and not target then
-                    target, _, isSteal = X.pickNearest(records)
+                    local dist; target, dist, isSteal = X.pickNearest(records)
                 end
                 if waitingDrop then
                     statusLabel.Text = "[AutoFarm] Waiting for the dropped egg to reappear..."
@@ -2595,20 +2624,651 @@ local function disableVelocity()
 end
 
 -- ==================================================
+-- UI FORWARD DECLARATIONS (Shared across tabs and handlers)
+-- ==================================================
+local screenGui
+local main
+local menuToggleBtn
+local closeBtn
+local tabEggs
+local tabPets
+local tabBtnEggs
+local tabBtnPets
+local switchTab
+local velToggleBtn
+local velInputBox
+local velInputStroke
+local carryVelInputBox
+local carryInputStroke
+local recoveryToggleBtn
+local velStatusLabel
+local farmDropdownBtn
+local farmDropdownList
+local farmSearchBox
+local farmDropScroll
+local farmDropdownOpen = false
+local jsonLabel
+local jsonBox
+local refreshBtn
+local copyBtn
+local loadBtn
+local autoFarmBtn
+local statusLabel
+local listFrame
+local refreshPetCards
+local updateFarmBtnText
+local rebuildFarmDropdownItems
+local refilterAndRender
+local upVelIn
+local upCarryVelIn
+local toggleMenuVisible
+local logAuto
+
+-- ==================================================
+-- TAB 2 BUILDER
+-- ==================================================
+local function buildPetsTabUI()
+-- ==================================================
+-- TAB 2: PETS & AUTOMATION SUITE
+-- ==================================================
+local tabPetsLayout = Instance.new("UIListLayout")
+tabPetsLayout.Padding = UDim.new(0, 8)
+tabPetsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabPetsLayout.Parent = tabPets
+
+local tabPetsPad = Instance.new("UIPadding")
+tabPetsPad.PaddingTop = UDim.new(0, 8)
+tabPetsPad.PaddingBottom = UDim.new(0, 12)
+tabPetsPad.PaddingLeft = UDim.new(0, 10)
+tabPetsPad.PaddingRight = UDim.new(0, 10)
+tabPetsPad.Parent = tabPets
+
+-- Networking helper
+local function getNetRemote(name)
+    local ok, rem = pcall(function()
+        local net = ReplicatedStorage:FindFirstChild("Packages")
+            and ReplicatedStorage.Packages:FindFirstChild("Networking")
+        if net then
+            local direct = net:FindFirstChild(name)
+            if direct then return direct end
+            local cur = net
+            for part in string.gmatch(name, "[^/]+") do
+                cur = cur and cur:FindFirstChild(part)
+            end
+            if cur then return cur end
+        end
+        local anyDirect = ReplicatedStorage:FindFirstChild(name, true)
+        if anyDirect then return anyDirect end
+        local leafName = name:match("([^/]+)$") or name
+        return ReplicatedStorage:FindFirstChild(leafName, true)
+    end)
+    return ok and rem or nil
+end
+
+-- Automation State
+local autoPlaceEggEnabled = false
+local autoHatchEnabled = false
+local autoSkipGrowthEnabled = false
+local autoSellEnabled = false
+local autoFuseEnabled = false
+local autoEquipBestEnabled = false
+local sellRarityThreshold = "Common"
+local fuseRarityThreshold = "Rare"
+local SELL_THRESHOLDS = { "Common", "Uncommon", "Rare", "Epic" }
+local FUSE_THRESHOLDS = { "Common", "Uncommon", "Rare", "Epic" }
+
+-- Remote Action Helpers
+local function callPlaceEgg()
+    local rf = getNetRemote("RF/EggWorld/AskPlaceEgg")
+    if not rf then return false, "AskPlaceEgg remote not found" end
+    local ok, res = pcall(function() return rf:InvokeServer() end)
+    return ok, res
+end
+
+local function callHatchEgg()
+    local rfHatch = getNetRemote("RF/EggWorld/AskHatch")
+    local rfFinish = getNetRemote("RF/EggWorld/AskFinishHatch")
+    local ok, res = false, nil
+    if rfHatch then ok, res = pcall(function() return rfHatch:InvokeServer() end) end
+    if rfFinish then pcall(function() rfFinish:InvokeServer() end) end
+    return ok, res
+end
+
+local function callSkipGrowth()
+    local rf = getNetRemote("RF/EggWorld/AskSkipGrowth")
+    if not rf then return false, "AskSkipGrowth remote not found" end
+    local ok, res = pcall(function() return rf:InvokeServer() end)
+    return ok, res
+end
+
+local function callSellEveryPet()
+    local re = getNetRemote("RE/PetSatchel/SellEveryPet")
+    if re then
+        local ok, err = pcall(function() re:FireServer() end)
+        return ok, err
+    end
+    return false, "SellEveryPet remote not found"
+end
+
+local function callWriteAutoSell(enabled)
+    local rf = getNetRemote("RF/Haul/WriteAutoSell")
+    if rf then return pcall(function() return rf:InvokeServer(enabled) end) end
+    return false, "WriteAutoSell remote not found"
+end
+
+local function callBeginFuse()
+    local rfBriefing = getNetRemote("RF/Fusery/ConfirmBriefing")
+    local rfBegin = getNetRemote("RF/Fusery/BeginFuse")
+    local rfFinish = getNetRemote("RF/Fusery/FinishReveal")
+    if rfBriefing then pcall(function() rfBriefing:InvokeServer() end) end
+    if rfBegin then
+        local ok, res = pcall(function() return rfBegin:InvokeServer() end)
+        if rfFinish then pcall(function() rfFinish:InvokeServer() end) end
+        return ok, res
+    end
+    return false, "Fusery remote not found"
+end
+
+local function callWearBest()
+    local rf = getNetRemote("RF/Haul/WearBest")
+    if rf then return pcall(function() return rf:InvokeServer() end) end
+    return false, "WearBest remote not found"
+end
+
+-- Telemetry Logger
+local logEntries = {}
+local MAX_LOG_LINES = 30
+local logTextLabel = nil
+local logScroll = nil
+
+logAuto = function(msg, col)
+    local ts = os.date("%H:%M:%S")
+    local line = ("[%s] %s"):format(ts, tostring(msg))
+    pcall(function() print("[EggGoToUI - Pets] " .. line) end)
+    table.insert(logEntries, line)
+    if #logEntries > MAX_LOG_LINES then table.remove(logEntries, 1) end
+    if logTextLabel then
+        logTextLabel.Text = table.concat(logEntries, "\n")
+        if logScroll then
+            pcall(function() logScroll.CanvasPosition = Vector2.new(0, 9999) end)
+        end
+    end
+end
+
+-- Top Banner removed per request
+
+-- Helper to create stylized automation cards
+local function createAutoCard(titleText, height)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, height)
+    card.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    card.BorderSizePixel = 0
+    card.Parent = tabPets
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+    local cStr = Instance.new("UIStroke", card)
+    cStr.Color = Color3.fromRGB(50, 65, 95); cStr.Thickness = 1
+
+    local hLabel = Instance.new("TextLabel")
+    hLabel.Size = UDim2.new(1, -16, 0, 22); hLabel.Position = UDim2.new(0, 8, 0, 4)
+    hLabel.BackgroundTransparency = 1; hLabel.Text = titleText
+    hLabel.TextColor3 = Color3.fromRGB(200, 215, 245); hLabel.TextSize = 12
+    hLabel.Font = Enum.Font.GothamBold; hLabel.TextXAlignment = Enum.TextXAlignment.Left
+    hLabel.Parent = card
+
+    return card
+end
+
+-- CARD 1: EGG PLACEMENT & INCUBATION
+local cardEgg = createAutoCard("🪺 Egg Placement & Incubation", 94)
+
+local autoPlaceEggBtn = Instance.new("TextButton")
+autoPlaceEggBtn.Size = UDim2.new(0.5, -6, 0, 28); autoPlaceEggBtn.Position = UDim2.new(0, 8, 0, 28)
+autoPlaceEggBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoPlaceEggBtn.Text = "[OFF] Auto Place Egg"
+autoPlaceEggBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoPlaceEggBtn.TextSize = 11
+autoPlaceEggBtn.Font = Enum.Font.GothamBold; autoPlaceEggBtn.Parent = cardEgg
+Instance.new("UICorner", autoPlaceEggBtn).CornerRadius = UDim.new(0, 6)
+
+local autoHatchBtn = Instance.new("TextButton")
+autoHatchBtn.Size = UDim2.new(0.5, -6, 0, 28); autoHatchBtn.Position = UDim2.new(0.5, 2, 0, 28)
+autoHatchBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoHatchBtn.Text = "[OFF] Auto Hatch"
+autoHatchBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoHatchBtn.TextSize = 11
+autoHatchBtn.Font = Enum.Font.GothamBold; autoHatchBtn.Parent = cardEgg
+Instance.new("UICorner", autoHatchBtn).CornerRadius = UDim.new(0, 6)
+
+local placeHeldEggBtn = Instance.new("TextButton")
+placeHeldEggBtn.Size = UDim2.new(0.5, -6, 0, 26); placeHeldEggBtn.Position = UDim2.new(0, 8, 0, 60)
+placeHeldEggBtn.BackgroundColor3 = Color3.fromRGB(38, 115, 70); placeHeldEggBtn.Text = "🪺 Place Held Egg"
+placeHeldEggBtn.TextColor3 = Color3.new(1, 1, 1); placeHeldEggBtn.TextSize = 11
+placeHeldEggBtn.Font = Enum.Font.GothamBold; placeHeldEggBtn.Parent = cardEgg
+Instance.new("UICorner", placeHeldEggBtn).CornerRadius = UDim.new(0, 6)
+
+local autoSkipGrowthBtn = Instance.new("TextButton")
+autoSkipGrowthBtn.Size = UDim2.new(0.5, -6, 0, 26); autoSkipGrowthBtn.Position = UDim2.new(0.5, 2, 0, 60)
+autoSkipGrowthBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoSkipGrowthBtn.Text = "[OFF] Skip Growth"
+autoSkipGrowthBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoSkipGrowthBtn.TextSize = 11
+autoSkipGrowthBtn.Font = Enum.Font.GothamBold; autoSkipGrowthBtn.Parent = cardEgg
+Instance.new("UICorner", autoSkipGrowthBtn).CornerRadius = UDim.new(0, 6)
+
+-- CARD 2: AUTO SELL SATCHEL
+local cardSell = createAutoCard("💰 Pet Satchel & Auto Sell", 94)
+
+local autoSellBtn = Instance.new("TextButton")
+autoSellBtn.Size = UDim2.new(0.5, -6, 0, 28); autoSellBtn.Position = UDim2.new(0, 8, 0, 28)
+autoSellBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoSellBtn.Text = "[OFF] Auto Sell"
+autoSellBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoSellBtn.TextSize = 11
+autoSellBtn.Font = Enum.Font.GothamBold; autoSellBtn.Parent = cardSell
+Instance.new("UICorner", autoSellBtn).CornerRadius = UDim.new(0, 6)
+
+local sellCommonsBtn = Instance.new("TextButton")
+sellCommonsBtn.Size = UDim2.new(0.5, -6, 0, 28); sellCommonsBtn.Position = UDim2.new(0.5, 2, 0, 28)
+sellCommonsBtn.BackgroundColor3 = Color3.fromRGB(150, 85, 35); sellCommonsBtn.Text = "💰 Sell Satchel"
+sellCommonsBtn.TextColor3 = Color3.new(1, 1, 1); sellCommonsBtn.TextSize = 11
+sellCommonsBtn.Font = Enum.Font.GothamBold; sellCommonsBtn.Parent = cardSell
+Instance.new("UICorner", sellCommonsBtn).CornerRadius = UDim.new(0, 6)
+
+local sellThresholdBtn = Instance.new("TextButton")
+sellThresholdBtn.Size = UDim2.new(0.5, -6, 0, 26); sellThresholdBtn.Position = UDim2.new(0, 8, 0, 60)
+sellThresholdBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62); sellThresholdBtn.Text = "Max Sell: Common ▾"
+sellThresholdBtn.TextColor3 = Color3.fromRGB(220, 230, 255); sellThresholdBtn.TextSize = 11
+sellThresholdBtn.Font = Enum.Font.GothamBold; sellThresholdBtn.Parent = cardSell
+Instance.new("UICorner", sellThresholdBtn).CornerRadius = UDim.new(0, 6)
+
+local protectLabel = Instance.new("TextLabel")
+protectLabel.Size = UDim2.new(0.5, -6, 0, 26); protectLabel.Position = UDim2.new(0.5, 2, 0, 60)
+protectLabel.BackgroundColor3 = Color3.fromRGB(30, 36, 48); protectLabel.Text = "🛡️ High Tiers Locked"
+protectLabel.TextColor3 = Color3.fromRGB(130, 225, 160); protectLabel.TextSize = 10
+protectLabel.Font = Enum.Font.GothamBold; protectLabel.Parent = cardSell
+Instance.new("UICorner", protectLabel).CornerRadius = UDim.new(0, 6)
+
+-- CARD 3: FUSERY MACHINE
+local cardFuse = createAutoCard("🧪 Fusery & Mutation Machine", 94)
+
+local autoFuseBtn = Instance.new("TextButton")
+autoFuseBtn.Size = UDim2.new(0.5, -6, 0, 28); autoFuseBtn.Position = UDim2.new(0, 8, 0, 28)
+autoFuseBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoFuseBtn.Text = "[OFF] Auto Fuse"
+autoFuseBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoFuseBtn.TextSize = 11
+autoFuseBtn.Font = Enum.Font.GothamBold; autoFuseBtn.Parent = cardFuse
+Instance.new("UICorner", autoFuseBtn).CornerRadius = UDim.new(0, 6)
+
+local fuseNowBtn = Instance.new("TextButton")
+fuseNowBtn.Size = UDim2.new(0.5, -6, 0, 28); fuseNowBtn.Position = UDim2.new(0.5, 2, 0, 28)
+fuseNowBtn.BackgroundColor3 = Color3.fromRGB(90, 55, 145); fuseNowBtn.Text = "⚡ Fuse Now"
+fuseNowBtn.TextColor3 = Color3.new(1, 1, 1); fuseNowBtn.TextSize = 11
+fuseNowBtn.Font = Enum.Font.GothamBold; fuseNowBtn.Parent = cardFuse
+Instance.new("UICorner", fuseNowBtn).CornerRadius = UDim.new(0, 6)
+
+local fuseThresholdBtn = Instance.new("TextButton")
+fuseThresholdBtn.Size = UDim2.new(0.5, -6, 0, 26); fuseThresholdBtn.Position = UDim2.new(0, 8, 0, 60)
+fuseThresholdBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62); fuseThresholdBtn.Text = "Max Fuse: Rare ▾"
+fuseThresholdBtn.TextColor3 = Color3.fromRGB(220, 230, 255); fuseThresholdBtn.TextSize = 11
+fuseThresholdBtn.Font = Enum.Font.GothamBold; fuseThresholdBtn.Parent = cardFuse
+Instance.new("UICorner", fuseThresholdBtn).CornerRadius = UDim.new(0, 6)
+
+local fuseStateLabel = Instance.new("TextLabel")
+fuseStateLabel.Size = UDim2.new(0.5, -6, 0, 26); fuseStateLabel.Position = UDim2.new(0.5, 2, 0, 60)
+fuseStateLabel.BackgroundColor3 = Color3.fromRGB(30, 36, 48); fuseStateLabel.Text = "Fusery Ready"
+fuseStateLabel.TextColor3 = Color3.fromRGB(180, 160, 240); fuseStateLabel.TextSize = 10
+fuseStateLabel.Font = Enum.Font.GothamBold; fuseStateLabel.Parent = cardFuse
+Instance.new("UICorner", fuseStateLabel).CornerRadius = UDim.new(0, 6)
+
+-- CARD 4: LOADOUT & UTILITIES
+local cardEquip = createAutoCard("⚡ Loadout & Wear Best", 64)
+
+local autoEquipBestBtn = Instance.new("TextButton")
+autoEquipBestBtn.Size = UDim2.new(0.5, -6, 0, 28); autoEquipBestBtn.Position = UDim2.new(0, 8, 0, 28)
+autoEquipBestBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoEquipBestBtn.Text = "[OFF] Auto Equip Best"
+autoEquipBestBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoEquipBestBtn.TextSize = 11
+autoEquipBestBtn.Font = Enum.Font.GothamBold; autoEquipBestBtn.Parent = cardEquip
+Instance.new("UICorner", autoEquipBestBtn).CornerRadius = UDim.new(0, 6)
+
+local equipBestNowBtn = Instance.new("TextButton")
+equipBestNowBtn.Size = UDim2.new(0.5, -6, 0, 28); equipBestNowBtn.Position = UDim2.new(0.5, 2, 0, 28)
+equipBestNowBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 160); equipBestNowBtn.Text = "⚡ Wear Best Now"
+equipBestNowBtn.TextColor3 = Color3.new(1, 1, 1); equipBestNowBtn.TextSize = 11
+equipBestNowBtn.Font = Enum.Font.GothamBold; equipBestNowBtn.Parent = cardEquip
+Instance.new("UICorner", equipBestNowBtn).CornerRadius = UDim.new(0, 6)
+
+-- CARD 5: LIVE AUTOMATION LOG
+local cardLog = createAutoCard("📜 Automation Activity Log", 115)
+
+local clearLogBtn = Instance.new("TextButton")
+clearLogBtn.Size = UDim2.new(0, 48, 0, 18); clearLogBtn.Position = UDim2.new(1, -54, 0, 4)
+clearLogBtn.BackgroundColor3 = Color3.fromRGB(50, 58, 80); clearLogBtn.Text = "Clear"
+clearLogBtn.TextColor3 = Color3.fromRGB(200, 215, 240); clearLogBtn.TextSize = 10
+clearLogBtn.Font = Enum.Font.GothamBold; clearLogBtn.Parent = cardLog
+Instance.new("UICorner", clearLogBtn).CornerRadius = UDim.new(0, 4)
+
+logScroll = Instance.new("ScrollingFrame")
+logScroll.Size = UDim2.new(1, -16, 0, 80); logScroll.Position = UDim2.new(0, 8, 0, 28)
+logScroll.BackgroundColor3 = Color3.fromRGB(16, 18, 26); logScroll.BorderSizePixel = 0
+logScroll.ScrollBarThickness = 4; logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+logScroll.Parent = cardLog
+Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0, 6)
+
+logTextLabel = Instance.new("TextLabel")
+logTextLabel.Size = UDim2.new(1, -8, 0, 0); logTextLabel.Position = UDim2.new(0, 4, 0, 2)
+logTextLabel.BackgroundTransparency = 1; logTextLabel.Text = "[Initializing automation suite...]"
+logTextLabel.TextColor3 = Color3.fromRGB(180, 205, 240); logTextLabel.TextSize = 10
+logTextLabel.Font = Enum.Font.Code; logTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+logTextLabel.TextYAlignment = Enum.TextYAlignment.Top; logTextLabel.AutomaticSize = Enum.AutomaticSize.Y
+logTextLabel.Parent = logScroll
+
+clearLogBtn.MouseButton1Click:Connect(function()
+    logEntries = {}
+    logTextLabel.Text = "[Log cleared]"
+end)
+
+-- CARD 6: SPECIES CATALOG & QUICK TARGET
+local cardCatalog = createAutoCard("🐾 Species Catalog & Quick Target", 280)
+
+local petSearchBox = Instance.new("TextBox")
+petSearchBox.Size = UDim2.new(1, -16, 0, 24); petSearchBox.Position = UDim2.new(0, 8, 0, 26)
+petSearchBox.BackgroundColor3 = Color3.fromRGB(16, 18, 24); petSearchBox.BorderSizePixel = 0
+petSearchBox.PlaceholderText = "🔍 Search species (Kitsune, Dragon, etc.)..."
+petSearchBox.PlaceholderColor3 = Color3.fromRGB(110, 125, 150); petSearchBox.Text = ""
+petSearchBox.TextColor3 = Color3.fromRGB(230, 240, 255); petSearchBox.TextSize = 11
+petSearchBox.Font = Enum.Font.Gotham; petSearchBox.ClearTextOnFocus = false
+petSearchBox.TextXAlignment = Enum.TextXAlignment.Left; petSearchBox.Parent = cardCatalog
+Instance.new("UICorner", petSearchBox).CornerRadius = UDim.new(0, 5)
+local psPad = Instance.new("UIPadding"); psPad.PaddingLeft = UDim.new(0, 6); psPad.Parent = petSearchBox
+
+local petRarityScroll = Instance.new("ScrollingFrame")
+petRarityScroll.Size = UDim2.new(1, -16, 0, 22); petRarityScroll.Position = UDim2.new(0, 8, 0, 54)
+petRarityScroll.BackgroundTransparency = 1; petRarityScroll.BorderSizePixel = 0
+petRarityScroll.ScrollBarThickness = 2; petRarityScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+petRarityScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
+petRarityScroll.ScrollingDirection = Enum.ScrollingDirection.X
+petRarityScroll.Parent = cardCatalog
+
+local prLayout = Instance.new("UIListLayout")
+prLayout.FillDirection = Enum.FillDirection.Horizontal; prLayout.Padding = UDim.new(0, 4)
+prLayout.Parent = petRarityScroll
+
+local PET_FILTER_RARITIES = {
+    "All", "Divine", "Eternal", "Secret", "Cosmic", "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common"
+}
+local rarityChipBtns = {}
+local selectedPetRarity = "All"
+
+local petsListFrame = Instance.new("ScrollingFrame")
+petsListFrame.Size = UDim2.new(1, -16, 0, 190); petsListFrame.Position = UDim2.new(0, 8, 0, 80)
+petsListFrame.BackgroundColor3 = Color3.fromRGB(16, 18, 24); petsListFrame.BorderSizePixel = 0
+petsListFrame.ScrollBarThickness = 5; petsListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+petsListFrame.Parent = cardCatalog
+Instance.new("UICorner", petsListFrame).CornerRadius = UDim.new(0, 6)
+local plLayout = Instance.new("UIListLayout"); plLayout.Padding = UDim.new(0, 3); plLayout.Parent = petsListFrame
+
+local PET_CARD_H = 32
+local RARITY_RANK = {
+    ["Divine"] = 1, ["Eternal"] = 2, ["Secret"] = 3, ["Cosmic"] = 4,
+    ["Mythic"] = 5, ["Legendary"] = 6, ["Epic"] = 7, ["Rare"] = 8,
+    ["Uncommon"] = 9, ["Common"] = 10,
+}
+
+refreshPetCards = function()
+    for _, c in ipairs(petsListFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+    local q = petSearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
+    local list = {}
+    for name, rar in pairs(PET_RARITY_PRESETS) do
+        local matchesSearch = (q == "" or name:lower():find(q, 1, true) ~= nil)
+        local matchesRarity = (selectedPetRarity == "All" or rar == selectedPetRarity)
+        if matchesSearch and matchesRarity then
+            local rank = RARITY_RANK[rar] or 99
+            table.insert(list, { name = name, rarity = rar, rank = rank })
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.rank ~= b.rank then return a.rank < b.rank end
+        return a.name < b.name
+    end)
+    petsListFrame.CanvasSize = UDim2.new(0, 0, 0, #list * (PET_CARD_H + 3))
+
+    for _, p in ipairs(list) do
+        local rarCol = ALL_RARITY_COLORS[p.rarity] or RARITY_DEFAULT_COLOR
+        local isHighRarity = (p.rarity == "Divine" or p.rarity == "Eternal" or p.rarity == "Secret")
+        local isTargeted = selectedSpecies[p.name] == true
+
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -6, 0, PET_CARD_H)
+        card.BackgroundColor3 = isHighRarity and Color3.fromRGB(38, 20, 26) or Color3.fromRGB(24, 28, 38)
+        card.BorderSizePixel = 0; card.Parent = petsListFrame
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
+
+        local strip = Instance.new("Frame")
+        strip.Size = UDim2.new(0, 3, 1, -4); strip.Position = UDim2.new(0, 3, 0, 2)
+        strip.BackgroundColor3 = rarCol; strip.BorderSizePixel = 0; strip.Parent = card
+        Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, -120, 1, 0); nameLabel.Position = UDim2.new(0, 12, 0, 0)
+        nameLabel.BackgroundTransparency = 1; nameLabel.Text = p.name
+        nameLabel.TextColor3 = isHighRarity and Color3.fromRGB(255, 200, 200) or Color3.fromRGB(220, 230, 255)
+        nameLabel.TextSize = 11; nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left; nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        nameLabel.Parent = card
+
+        local badge = Instance.new("TextLabel")
+        badge.Size = UDim2.new(0, 54, 0, 18); badge.Position = UDim2.new(1, -106, 0.5, -9)
+        badge.BackgroundColor3 = rarCol; badge.Text = p.rarity; badge.TextColor3 = Color3.new(1, 1, 1)
+        badge.TextSize = 8; badge.Font = Enum.Font.GothamBold
+        badge.TextXAlignment = Enum.TextXAlignment.Center; badge.Parent = card
+        Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 4)
+
+        local farmPetBtn = Instance.new("TextButton")
+        farmPetBtn.Size = UDim2.new(0, 44, 0, 20); farmPetBtn.Position = UDim2.new(1, -48, 0.5, -10)
+        farmPetBtn.BackgroundColor3 = isTargeted and Color3.fromRGB(38, 125, 75) or Color3.fromRGB(45, 100, 160)
+        farmPetBtn.Text = isTargeted and "✓ Farm" or "Farm"
+        farmPetBtn.TextColor3 = Color3.new(1, 1, 1); farmPetBtn.TextSize = 10
+        farmPetBtn.Font = Enum.Font.GothamBold; farmPetBtn.Parent = card
+        Instance.new("UICorner", farmPetBtn).CornerRadius = UDim.new(0, 4)
+
+        farmPetBtn.MouseButton1Click:Connect(function()
+            selectedSpecies = { [p.name] = true }
+            currentSettings.SpeciesFilter = { p.name }
+            if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+            if typeof(updateFarmBtnText) == "function" then updateFarmBtnText() end
+            if typeof(rebuildFarmDropdownItems) == "function" then rebuildFarmDropdownItems() end
+            if typeof(refilterAndRender) == "function" then refilterAndRender() end
+            refreshPetCards()
+            switchTab("Eggs")
+            if statusLabel then
+                statusLabel.Text = "Targeting egg: " .. p.name
+                statusLabel.TextColor3 = Color3.fromRGB(120, 255, 180)
+            end
+            logAuto("🎯 Targeted species: " .. p.name, Color3.fromRGB(120, 255, 180))
+        end)
+    end
+end
+
+local function buildRarityChips()
+    for _, b in pairs(rarityChipBtns) do b:Destroy() end
+    rarityChipBtns = {}
+    for _, rName in ipairs(PET_FILTER_RARITIES) do
+        local isSel = (selectedPetRarity == rName)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, math.max(34, #rName * 7 + 12), 1, -2)
+        btn.BackgroundColor3 = isSel and Color3.fromRGB(50, 95, 150) or Color3.fromRGB(32, 40, 58)
+        btn.Text = rName
+        local col = ALL_RARITY_COLORS[rName] or Color3.fromRGB(210, 220, 240)
+        btn.TextColor3 = isSel and Color3.new(1, 1, 1) or col
+        btn.TextSize = 9; btn.Font = Enum.Font.GothamBold; btn.Parent = petRarityScroll
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+
+        btn.MouseButton1Click:Connect(function()
+            selectedPetRarity = rName
+            buildRarityChips()
+            refreshPetCards()
+        end)
+        table.insert(rarityChipBtns, btn)
+    end
+end
+buildRarityChips()
+petSearchBox:GetPropertyChangedSignal("Text"):Connect(refreshPetCards)
+refreshPetCards()
+
+-- Toggle Handlers & Button Connectors
+local function updateToggleVisual(btn, enabled, label)
+    if enabled then
+        btn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Text = "[ON] " .. label
+    else
+        btn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
+        btn.TextColor3 = Color3.fromRGB(210, 220, 240)
+        btn.Text = "[OFF] " .. label
+    end
+end
+
+autoPlaceEggBtn.MouseButton1Click:Connect(function()
+    autoPlaceEggEnabled = not autoPlaceEggEnabled
+    updateToggleVisual(autoPlaceEggBtn, autoPlaceEggEnabled, "Auto Place Egg")
+    logAuto(autoPlaceEggEnabled and "🪺 Auto Place Egg enabled" or "Auto Place Egg disabled")
+end)
+
+autoHatchBtn.MouseButton1Click:Connect(function()
+    autoHatchEnabled = not autoHatchEnabled
+    updateToggleVisual(autoHatchBtn, autoHatchEnabled, "Auto Hatch")
+    logAuto(autoHatchEnabled and "🐣 Auto Hatch enabled" or "Auto Hatch disabled")
+end)
+
+autoSkipGrowthBtn.MouseButton1Click:Connect(function()
+    autoSkipGrowthEnabled = not autoSkipGrowthEnabled
+    updateToggleVisual(autoSkipGrowthBtn, autoSkipGrowthEnabled, "Skip Growth")
+    logAuto(autoSkipGrowthEnabled and "⚡ Auto Skip Growth enabled" or "Auto Skip Growth disabled")
+end)
+
+placeHeldEggBtn.MouseButton1Click:Connect(function()
+    if isHoldingEgg() then
+        local ok, err = callPlaceEgg()
+        if ok then
+            logAuto("🪺 [Manual] Held egg placed on nest", Color3.fromRGB(120, 255, 180))
+            if autoHatchEnabled then task.wait(0.2); callHatchEgg() end
+        else
+            logAuto("❌ Place error: " .. tostring(err), Color3.fromRGB(255, 120, 120))
+        end
+    else
+        logAuto("⚠️ Not holding an egg to place", Color3.fromRGB(255, 200, 120))
+    end
+end)
+
+autoSellBtn.MouseButton1Click:Connect(function()
+    autoSellEnabled = not autoSellEnabled
+    updateToggleVisual(autoSellBtn, autoSellEnabled, "Auto Sell")
+    callWriteAutoSell(autoSellEnabled)
+    logAuto(autoSellEnabled and ("💰 Auto Sell enabled (Threshold: " .. sellRarityThreshold .. ")") or "Auto Sell disabled")
+end)
+
+sellCommonsBtn.MouseButton1Click:Connect(function()
+    local ok = callSellEveryPet()
+    logAuto(ok and "💰 Satchel sale remote triggered" or "Satchel sale remote attempted", Color3.fromRGB(140, 255, 180))
+end)
+
+sellThresholdBtn.MouseButton1Click:Connect(function()
+    local curIdx = 1
+    for i, v in ipairs(SELL_THRESHOLDS) do if v == sellRarityThreshold then curIdx = i; break end end
+    curIdx = (curIdx % #SELL_THRESHOLDS) + 1
+    sellRarityThreshold = SELL_THRESHOLDS[curIdx]
+    sellThresholdBtn.Text = "Max Sell: " .. sellRarityThreshold .. " ▾"
+    logAuto("💰 Sell threshold: " .. sellRarityThreshold, Color3.fromRGB(255, 210, 120))
+end)
+
+autoFuseBtn.MouseButton1Click:Connect(function()
+    autoFuseEnabled = not autoFuseEnabled
+    updateToggleVisual(autoFuseBtn, autoFuseEnabled, "Auto Fuse")
+    logAuto(autoFuseEnabled and ("🧪 Auto Fuse enabled (Max: " .. fuseRarityThreshold .. ")") or "Auto Fuse disabled")
+end)
+
+fuseNowBtn.MouseButton1Click:Connect(function()
+    local ok, res = callBeginFuse()
+    if ok then
+        logAuto("🧪 [Manual] Fusery cycle initiated", Color3.fromRGB(180, 140, 255))
+    else
+        logAuto("❌ Fuse error: " .. tostring(res), Color3.fromRGB(255, 120, 120))
+    end
+end)
+
+fuseThresholdBtn.MouseButton1Click:Connect(function()
+    local curIdx = 1
+    for i, v in ipairs(FUSE_THRESHOLDS) do if v == fuseRarityThreshold then curIdx = i; break end end
+    curIdx = (curIdx % #FUSE_THRESHOLDS) + 1
+    fuseRarityThreshold = FUSE_THRESHOLDS[curIdx]
+    fuseThresholdBtn.Text = "Max Fuse: " .. fuseRarityThreshold .. " ▾"
+    logAuto("🧪 Fuse threshold: " .. fuseRarityThreshold, Color3.fromRGB(200, 160, 255))
+end)
+
+autoEquipBestBtn.MouseButton1Click:Connect(function()
+    autoEquipBestEnabled = not autoEquipBestEnabled
+    updateToggleVisual(autoEquipBestBtn, autoEquipBestEnabled, "Auto Equip Best")
+    logAuto(autoEquipBestEnabled and "⚡ Auto Equip Best enabled" or "Auto Equip Best disabled")
+end)
+
+equipBestNowBtn.MouseButton1Click:Connect(function()
+    local ok, res = callWearBest()
+    logAuto(ok and "⚡ [Manual] Equipped best pets" or "Equip best response: " .. tostring(res), Color3.fromRGB(120, 230, 255))
+end)
+
+-- Background Automation Loop
+task.spawn(function()
+    logAuto("Automation engine ready")
+    while not eggScannerStop and screenGui.Parent do
+        -- 1. Auto Place Egg
+        if autoPlaceEggEnabled and isHoldingEgg() then
+            local ok = callPlaceEgg()
+            if ok then
+                logAuto("🪺 [AutoPlace] Held egg placed on nest", Color3.fromRGB(120, 255, 180))
+                if autoHatchEnabled then
+                    task.wait(0.25)
+                    callHatchEgg()
+                    logAuto("🐣 [AutoHatch] Hatch checked", Color3.fromRGB(255, 220, 120))
+                end
+                if autoSkipGrowthEnabled then
+                    task.wait(0.1)
+                    callSkipGrowth()
+                end
+            end
+        end
+
+        -- 2. Auto Sell
+        if autoSellEnabled then
+            callSellEveryPet()
+        end
+
+        -- 3. Auto Fuse
+        if autoFuseEnabled then
+            callBeginFuse()
+        end
+
+        -- 4. Auto Equip Best
+        if autoEquipBestEnabled then
+            callWearBest()
+        end
+
+        task.wait(1.5)
+    end
+end)
+
+end
+
+-- ==================================================
+-- MAIN UI BUILDER
+-- ==================================================
+local function buildMainUI()
+-- ==================================================
 -- UI
 -- ==================================================
 for _, n in ipairs({"EggGoToUI_v4","EggGoToUI_v5","EggGoToUI_v6","EggGoToUI_v7","EggGoToUI_v8","EggGoToUI_v9"}) do
     local old = PlayerGui:FindFirstChild(n); if old then old:Destroy() end
 end
 
-local screenGui = Instance.new("ScreenGui")
+screenGui = Instance.new("ScreenGui")
 screenGui.Name = "EggGoToUI_v9"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = PlayerGui
 
 -- Floating toggle button: always visible, hides/shows the main menu panel
-local menuToggleBtn = Instance.new("TextButton")
+menuToggleBtn = Instance.new("TextButton")
 menuToggleBtn.Size             = UDim2.new(0, 40, 0, 40)
 menuToggleBtn.Position         = UDim2.new(0, 8, 0, 50)   -- Y=50 clears the Roblox core top-bar
 menuToggleBtn.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
@@ -2641,9 +3301,11 @@ UserInputService.InputChanged:Connect(function(i)
     end
 end)
 
-local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 340, 0, 511)
-main.Position = UDim2.new(0.5, -170, 0.5, -255)
+farmDropdownOpen = false
+
+main = Instance.new("Frame")
+main.Size = UDim2.new(0, 380, 0, 520)
+main.Position = UDim2.new(0.5, -190, 0.5, -260)
 main.BackgroundColor3 = Color3.fromRGB(22, 24, 30)
 main.BorderSizePixel = 0
 main.Parent = screenGui
@@ -2663,36 +3325,144 @@ tfix.BackgroundColor3 = Color3.fromRGB(32,40,60); tfix.BorderSizePixel=0; tfix.P
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1,-80,1,0); title.Position = UDim2.new(0,12,0,0)
-title.BackgroundTransparency=1; title.Text="Egg Go-To v9 (Rarity + Multi-Farm + Recovery)"
-title.TextColor3=Color3.fromRGB(220,230,255); title.TextSize=15; title.Font=Enum.Font.GothamBold
+title.BackgroundTransparency=1; title.Text="Egg Go-To v9.9 (Farm + Pets Suite)"
+title.TextColor3=Color3.fromRGB(220,230,255); title.TextSize=14; title.Font=Enum.Font.GothamBold
 title.TextXAlignment=Enum.TextXAlignment.Left; title.Parent=titleBar
 
-local closeBtn = Instance.new("TextButton")
+closeBtn = Instance.new("TextButton")
 closeBtn.Size=UDim2.new(0,30,0,24); closeBtn.Position=UDim2.new(1,-38,0.5,-12)
 closeBtn.BackgroundColor3=Color3.fromRGB(170,50,50); closeBtn.Text="X"
 closeBtn.TextColor3=Color3.new(1,1,1); closeBtn.TextSize=14; closeBtn.Font=Enum.Font.GothamBold
 closeBtn.Parent=titleBar; Instance.new("UICorner",closeBtn).CornerRadius=UDim.new(0,6)
 
+-- Sidebar navigation (Compact icon-only rail)
+local SIDEBAR_W = 46
+local sidebar = Instance.new("Frame")
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, SIDEBAR_W, 1, -36)
+sidebar.Position = UDim2.new(0, 0, 0, 36)
+sidebar.BackgroundColor3 = Color3.fromRGB(26, 32, 46)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = main
+
+local sidebarDivider = Instance.new("Frame")
+sidebarDivider.Name = "SidebarDivider"
+sidebarDivider.Size = UDim2.new(0, 1, 1, 0)
+sidebarDivider.Position = UDim2.new(1, -1, 0, 0)
+sidebarDivider.BackgroundColor3 = Color3.fromRGB(50, 70, 105)
+sidebarDivider.BorderSizePixel = 0
+sidebarDivider.Parent = sidebar
+
+tabBtnEggs = Instance.new("TextButton")
+tabBtnEggs.Name = "TabBtnEggs"
+tabBtnEggs.Size = UDim2.new(0, 34, 0, 34)
+tabBtnEggs.Position = UDim2.new(0.5, -17, 0, 10)
+tabBtnEggs.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
+tabBtnEggs.Text = "🥚"
+tabBtnEggs.TextColor3 = Color3.new(1, 1, 1)
+tabBtnEggs.TextSize = 18
+tabBtnEggs.Font = Enum.Font.GothamBold
+tabBtnEggs.Parent = sidebar
+Instance.new("UICorner", tabBtnEggs).CornerRadius = UDim.new(0, 6)
+
+tabBtnPets = Instance.new("TextButton")
+tabBtnPets.Name = "TabBtnPets"
+tabBtnPets.Size = UDim2.new(0, 34, 0, 34)
+tabBtnPets.Position = UDim2.new(0.5, -17, 0, 50)
+tabBtnPets.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+tabBtnPets.Text = "🐾"
+tabBtnPets.TextColor3 = Color3.fromRGB(160, 185, 220)
+tabBtnPets.TextSize = 18
+tabBtnPets.Font = Enum.Font.GothamBold
+tabBtnPets.Parent = sidebar
+Instance.new("UICorner", tabBtnPets).CornerRadius = UDim.new(0, 6)
+
+local contentContainer = Instance.new("Frame")
+contentContainer.Name = "ContentContainer"
+contentContainer.Size = UDim2.new(1, -SIDEBAR_W, 1, -36)
+contentContainer.Position = UDim2.new(0, SIDEBAR_W, 0, 36)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ClipsDescendants = false
+contentContainer.Parent = main
+
+-- Tab 1: Current menu (Eggs / Farm)
+tabEggs = Instance.new("Frame")
+tabEggs.Name = "TabEggs"
+tabEggs.Size = UDim2.new(1, 0, 1, 0)
+tabEggs.Position = UDim2.new(0, 0, 0, 0)
+tabEggs.BackgroundTransparency = 1
+tabEggs.BorderSizePixel = 0
+tabEggs.ClipsDescendants = false
+tabEggs.Visible = true
+tabEggs.Parent = contentContainer
+
+-- Tab 2: Pets & Automation Suite
+tabPets = Instance.new("ScrollingFrame")
+tabPets.Name = "TabPets"
+tabPets.Size = UDim2.new(1, 0, 1, 0)
+tabPets.Position = UDim2.new(0, 0, 0, 0)
+tabPets.BackgroundTransparency = 1
+tabPets.BorderSizePixel = 0
+tabPets.ScrollBarThickness = 5
+tabPets.CanvasSize = UDim2.new(0, 0, 0, 0)
+tabPets.AutomaticCanvasSize = Enum.AutomaticSize.Y
+tabPets.ClipsDescendants = true
+tabPets.Visible = false
+tabPets.Parent = contentContainer
+
+refreshPetCards = nil
+
+switchTab = function(tabName)
+    if tabName == "Eggs" then
+        tabEggs.Visible = true
+        tabPets.Visible = false
+        tabBtnEggs.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
+        tabBtnEggs.TextColor3 = Color3.new(1, 1, 1)
+        tabBtnPets.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnPets.TextColor3 = Color3.fromRGB(160, 185, 220)
+    elseif tabName == "Pets" then
+        if X.closeRarity then X.closeRarity() end
+        if farmDropdownOpen then
+            farmDropdownOpen = false
+            if farmDropdownList then
+                farmDropdownList.Visible = false
+                farmDropdownList.Size = UDim2.new(0, 258, 0, 0)
+            end
+            if typeof(updateFarmBtnText) == "function" then updateFarmBtnText() end
+        end
+        tabEggs.Visible = false
+        tabPets.Visible = true
+        tabBtnEggs.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnEggs.TextColor3 = Color3.fromRGB(160, 185, 220)
+        tabBtnPets.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
+        tabBtnPets.TextColor3 = Color3.new(1, 1, 1)
+        if refreshPetCards then refreshPetCards() end
+    end
+end
+tabBtnEggs.MouseButton1Click:Connect(function() switchTab("Eggs") end)
+tabBtnPets.MouseButton1Click:Connect(function() switchTab("Pets") end)
+
 local COL_W = 152; local COL_GAP = 12; local ROW_H = 28; local ROW_GAP = 4
 
 -- Row 1: Velocity Toggle + Go Speed + Carry Speed
-local ROW1_Y = 44
+local ROW1_Y = 8
 local VEL_BTN_W = 110
 local SPEED_W = 97
 local SPEED_GAP = 6
 
-local velToggleBtn = Instance.new("TextButton")
+velToggleBtn = Instance.new("TextButton")
 velToggleBtn.Size = UDim2.new(0,VEL_BTN_W,0,ROW_H); velToggleBtn.Position=UDim2.new(0,12,0,ROW1_Y)
 velToggleBtn.BackgroundColor3=Color3.fromRGB(42,48,65); velToggleBtn.Text="[OFF] Velocity"
 velToggleBtn.TextColor3=Color3.fromRGB(210,220,240); velToggleBtn.TextSize=12
-velToggleBtn.Font=Enum.Font.GothamBold; velToggleBtn.Parent=main
+velToggleBtn.Font=Enum.Font.GothamBold; velToggleBtn.Parent=tabEggs
 Instance.new("UICorner",velToggleBtn).CornerRadius=UDim.new(0,6)
 
 local goFrame = Instance.new("Frame")
 goFrame.Size=UDim2.new(0,SPEED_W,0,ROW_H); goFrame.Position=UDim2.new(0,12+VEL_BTN_W+SPEED_GAP,0,ROW1_Y)
 goFrame.BackgroundColor3=Color3.fromRGB(28,34,48); goFrame.BorderSizePixel=0
-goFrame.Parent=main; Instance.new("UICorner",goFrame).CornerRadius=UDim.new(0,6)
-local velInputStroke = Instance.new("UIStroke", goFrame)
+goFrame.Parent=tabEggs; Instance.new("UICorner",goFrame).CornerRadius=UDim.new(0,6)
+velInputStroke = Instance.new("UIStroke", goFrame)
 velInputStroke.Color = Color3.fromRGB(60,80,115); velInputStroke.Thickness=1
 
 local goLabel = Instance.new("TextLabel")
@@ -2701,7 +3471,7 @@ goLabel.Text=" Go:"; goLabel.TextColor3=Color3.fromRGB(160,185,220)
 goLabel.TextSize=11; goLabel.Font=Enum.Font.GothamBold; goLabel.TextXAlignment=Enum.TextXAlignment.Left
 goLabel.Parent=goFrame
 
-local velInputBox = Instance.new("TextBox")
+velInputBox = Instance.new("TextBox")
 velInputBox.Size=UDim2.new(1,-34,1,0); velInputBox.Position=UDim2.new(0,34,0,0)
 velInputBox.BackgroundTransparency=1; velInputBox.Text=tostring(X.baseVelocity)
 velInputBox.PlaceholderText="300"; velInputBox.TextColor3=Color3.new(1,1,1)
@@ -2711,8 +3481,8 @@ velInputBox.TextXAlignment=Enum.TextXAlignment.Left; velInputBox.Parent=goFrame
 local carryFrame = Instance.new("Frame")
 carryFrame.Size=UDim2.new(0,SPEED_W,0,ROW_H); carryFrame.Position=UDim2.new(0,12+VEL_BTN_W+SPEED_GAP+SPEED_W+SPEED_GAP,0,ROW1_Y)
 carryFrame.BackgroundColor3=Color3.fromRGB(28,34,48); carryFrame.BorderSizePixel=0
-carryFrame.Parent=main; Instance.new("UICorner",carryFrame).CornerRadius=UDim.new(0,6)
-local carryInputStroke = Instance.new("UIStroke", carryFrame)
+carryFrame.Parent=tabEggs; Instance.new("UICorner",carryFrame).CornerRadius=UDim.new(0,6)
+carryInputStroke = Instance.new("UIStroke", carryFrame)
 carryInputStroke.Color = Color3.fromRGB(60,80,115); carryInputStroke.Thickness=1
 
 local carryLabel = Instance.new("TextLabel")
@@ -2721,7 +3491,7 @@ carryLabel.Text=" Carry:"; carryLabel.TextColor3=Color3.fromRGB(160,185,220)
 carryLabel.TextSize=11; carryLabel.Font=Enum.Font.GothamBold; carryLabel.TextXAlignment=Enum.TextXAlignment.Left
 carryLabel.Parent=carryFrame
 
-local carryVelInputBox = Instance.new("TextBox")
+carryVelInputBox = Instance.new("TextBox")
 carryVelInputBox.Size=UDim2.new(1,-46,1,0); carryVelInputBox.Position=UDim2.new(0,46,0,0)
 carryVelInputBox.BackgroundTransparency=1; carryVelInputBox.Text=tostring(X.baseCarryVelocity)
 carryVelInputBox.PlaceholderText="250"; carryVelInputBox.TextColor3=Color3.new(1,1,1)
@@ -2730,19 +3500,19 @@ carryVelInputBox.TextXAlignment=Enum.TextXAlignment.Left; carryVelInputBox.Paren
 
 -- Row 2: Recovery (left) + Velocity Live Status (right)
 local ROW2_Y = ROW1_Y + ROW_H + ROW_GAP
-local recoveryToggleBtn = Instance.new("TextButton")
+recoveryToggleBtn = Instance.new("TextButton")
 recoveryToggleBtn.Size=UDim2.new(0,COL_W,0,ROW_H); recoveryToggleBtn.Position=UDim2.new(0,12,0,ROW2_Y)
 recoveryToggleBtn.BackgroundColor3=Color3.fromRGB(35,135,75); recoveryToggleBtn.Text="[ON] Recovery"
 recoveryToggleBtn.TextColor3=Color3.new(1,1,1); recoveryToggleBtn.TextSize=13
-recoveryToggleBtn.Font=Enum.Font.GothamBold; recoveryToggleBtn.Parent=main
+recoveryToggleBtn.Font=Enum.Font.GothamBold; recoveryToggleBtn.Parent=tabEggs
 Instance.new("UICorner",recoveryToggleBtn).CornerRadius=UDim.new(0,6)
 
-local velStatusLabel = Instance.new("TextLabel")
+velStatusLabel = Instance.new("TextLabel")
 velStatusLabel.Size=UDim2.new(0,COL_W,0,ROW_H); velStatusLabel.Position=UDim2.new(0,12+COL_W+COL_GAP,0,ROW2_Y)
 velStatusLabel.BackgroundColor3=Color3.fromRGB(24,29,40); velStatusLabel.Text="  Vel: 0"
 velStatusLabel.TextColor3=Color3.fromRGB(140,190,240); velStatusLabel.TextSize=11
 velStatusLabel.Font=Enum.Font.GothamBold; velStatusLabel.TextXAlignment=Enum.TextXAlignment.Left
-velStatusLabel.Parent=main; Instance.new("UICorner",velStatusLabel).CornerRadius=UDim.new(0,6)
+velStatusLabel.Parent=tabEggs; Instance.new("UICorner",velStatusLabel).CornerRadius=UDim.new(0,6)
 
 -- Row 3: Farm dropdown (multi-select)
 local ROW3_Y = ROW2_Y + ROW_H + ROW_GAP
@@ -2750,20 +3520,20 @@ local farmLabel = Instance.new("TextLabel")
 farmLabel.Size=UDim2.new(0,55,0,ROW_H); farmLabel.Position=UDim2.new(0,12,0,ROW3_Y)
 farmLabel.BackgroundTransparency=1; farmLabel.Text="Farm:"
 farmLabel.TextColor3=Color3.fromRGB(180,195,220); farmLabel.TextSize=13
-farmLabel.Font=Enum.Font.Gotham; farmLabel.TextXAlignment=Enum.TextXAlignment.Left; farmLabel.Parent=main
+farmLabel.Font=Enum.Font.Gotham; farmLabel.TextXAlignment=Enum.TextXAlignment.Left; farmLabel.Parent=tabEggs
 
-local farmDropdownBtn = Instance.new("TextButton")
+farmDropdownBtn = Instance.new("TextButton")
 farmDropdownBtn.Size=UDim2.new(0,258,0,ROW_H); farmDropdownBtn.Position=UDim2.new(0,70,0,ROW3_Y)
 farmDropdownBtn.BackgroundColor3=Color3.fromRGB(40,48,65); farmDropdownBtn.Text="All ▼"
 farmDropdownBtn.TextColor3=Color3.new(1,1,1); farmDropdownBtn.TextSize=13
-farmDropdownBtn.Font=Enum.Font.GothamBold; farmDropdownBtn.Parent=main
+farmDropdownBtn.Font=Enum.Font.GothamBold; farmDropdownBtn.Parent=tabEggs
 Instance.new("UICorner",farmDropdownBtn).CornerRadius=UDim.new(0,6)
 
-local farmDropdownList = Instance.new("Frame")
+farmDropdownList = Instance.new("Frame")
 farmDropdownList.Size=UDim2.new(0,258,0,0); farmDropdownList.Position=UDim2.new(0,70,0,ROW3_Y+ROW_H+2)
 farmDropdownList.BackgroundColor3=Color3.fromRGB(30,36,50); farmDropdownList.BorderSizePixel=0
 farmDropdownList.ClipsDescendants=true; farmDropdownList.Visible=false
-farmDropdownList.ZIndex=30; farmDropdownList.Parent=main
+farmDropdownList.ZIndex=30; farmDropdownList.Parent=tabEggs
 Instance.new("UICorner",farmDropdownList).CornerRadius=UDim.new(0,6)
 
 -- Quick row
@@ -2780,9 +3550,26 @@ farmNoneBtn.Size=UDim2.new(0.5,-2,1,-4); farmNoneBtn.Position=UDim2.new(0.5,0,0,
 farmNoneBtn.BackgroundColor3=Color3.fromRGB(90,45,45); farmNoneBtn.Text="None"
 farmNoneBtn.TextColor3=Color3.new(1,1,1); farmNoneBtn.TextSize=12; farmNoneBtn.Font=Enum.Font.GothamBold
 farmNoneBtn.Parent=farmQuickRow; Instance.new("UICorner",farmNoneBtn).CornerRadius=UDim.new(0,4)
+    farmAllBtn.MouseButton1Click:Connect(function()
+        selectedSpecies = { ["All"] = true }
+        currentSettings.SpeciesFilter = {"All"}
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        if updateFarmBtnText then updateFarmBtnText() end
+        if rebuildFarmDropdownItems then rebuildFarmDropdownItems() end
+        if refilterAndRender then refilterAndRender() end
+    end)
+    farmNoneBtn.MouseButton1Click:Connect(function()
+        selectedSpecies = {}
+        currentSettings.SpeciesFilter = {}
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        if updateFarmBtnText then updateFarmBtnText() end
+        if rebuildFarmDropdownItems then rebuildFarmDropdownItems() end
+        if refilterAndRender then refilterAndRender() end
+    end)
+
 
 -- Search
-local farmSearchBox = Instance.new("TextBox")
+farmSearchBox = Instance.new("TextBox")
 farmSearchBox.Size=UDim2.new(1,-8,0,24); farmSearchBox.Position=UDim2.new(0,4,0,28)
 farmSearchBox.BackgroundColor3=Color3.fromRGB(16,18,24); farmSearchBox.PlaceholderText="Search egg..."
 farmSearchBox.Text=""; farmSearchBox.TextColor3=Color3.fromRGB(220,230,255)
@@ -2792,26 +3579,25 @@ farmSearchBox.TextXAlignment=Enum.TextXAlignment.Left; farmSearchBox.Parent=farm
 Instance.new("UICorner",farmSearchBox).CornerRadius=UDim.new(0,4)
 local fsp = Instance.new("UIPadding"); fsp.PaddingLeft=UDim.new(0,6); fsp.Parent=farmSearchBox
 
-local farmDropScroll = Instance.new("ScrollingFrame")
+farmDropScroll = Instance.new("ScrollingFrame")
 farmDropScroll.Size=UDim2.new(1,0,0,0); farmDropScroll.Position=UDim2.new(0,0,0,56)
 farmDropScroll.BackgroundTransparency=1; farmDropScroll.BorderSizePixel=0
 farmDropScroll.ScrollBarThickness=4; farmDropScroll.CanvasSize=UDim2.new(0,0,0,0)
 farmDropScroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
 farmDropScroll.Parent=farmDropdownList
 
-local farmDropdownOpen = false
 local MAX_FARM_DD_HEIGHT = 200
 
 -- Row 4: JSON textbox
 local ROW4_Y = ROW3_Y + 2 * (ROW_H + ROW_GAP)     -- v9: one extra row (Rarity) sits between Farm and the JSON box
-local jsonLabel = Instance.new("TextLabel")
+jsonLabel = Instance.new("TextLabel")
 jsonLabel.Size=UDim2.new(1,-24,0,14); jsonLabel.Position=UDim2.new(0,12,0,ROW4_Y)
 jsonLabel.BackgroundTransparency=1; jsonLabel.Text="Config JSON:"
 jsonLabel.TextColor3=Color3.fromRGB(180,195,220); jsonLabel.TextSize=11
-jsonLabel.Font=Enum.Font.Gotham; jsonLabel.TextXAlignment=Enum.TextXAlignment.Left; jsonLabel.Parent=main
+jsonLabel.Font=Enum.Font.Gotham; jsonLabel.TextXAlignment=Enum.TextXAlignment.Left; jsonLabel.Parent=tabEggs
 
 local JSON_BOX_H = 70
-local jsonBox = Instance.new("TextBox")
+jsonBox = Instance.new("TextBox")
 jsonBox.Size=UDim2.new(1,-24,0,JSON_BOX_H); jsonBox.Position=UDim2.new(0,12,0,ROW4_Y+16)
 jsonBox.BackgroundColor3=Color3.fromRGB(16,18,24)
 jsonBox.TextColor3=Color3.fromRGB(180,255,200); jsonBox.TextSize=10
@@ -2819,7 +3605,7 @@ jsonBox.Font=Enum.Font.Code; jsonBox.MultiLine=true; jsonBox.ClearTextOnFocus=fa
 jsonBox.TextWrapped=true; jsonBox.TextXAlignment=Enum.TextXAlignment.Left
 jsonBox.TextYAlignment=Enum.TextYAlignment.Top
 jsonBox.Text=settingsToJSON(DEFAULT_SETTINGS) or "{}"
-jsonBox.Parent=main; Instance.new("UICorner",jsonBox).CornerRadius=UDim.new(0,8)
+jsonBox.Parent=tabEggs; Instance.new("UICorner",jsonBox).CornerRadius=UDim.new(0,8)
 local jp = Instance.new("UIPadding"); jp.PaddingLeft=UDim.new(0,8); jp.PaddingRight=UDim.new(0,8); jp.PaddingTop=UDim.new(0,6); jp.Parent=jsonBox
 
 -- Row 5: Refresh / Copy / Load / AutoFarm (4 buttons across 316px available)
@@ -2827,31 +3613,31 @@ local ROW5_Y = ROW4_Y + 16 + JSON_BOX_H + ROW_GAP
 local BTN_W = 76
 local BTN_GAP = 4
 
-local refreshBtn = Instance.new("TextButton")
+refreshBtn = Instance.new("TextButton")
 refreshBtn.Size=UDim2.new(0,BTN_W,0,26); refreshBtn.Position=UDim2.new(0,12,0,ROW5_Y)
 refreshBtn.BackgroundColor3=Color3.fromRGB(45,100,160); refreshBtn.Text="Refresh"
 refreshBtn.TextColor3=Color3.new(1,1,1); refreshBtn.TextSize=12
 refreshBtn.Font=Enum.Font.GothamBold
 refreshBtn.Active=true; refreshBtn.AutoButtonColor=true; refreshBtn.ZIndex=20
-refreshBtn.Parent=main
+refreshBtn.Parent=tabEggs
 Instance.new("UICorner",refreshBtn).CornerRadius=UDim.new(0,6)
 
-local copyBtn = Instance.new("TextButton")
+copyBtn = Instance.new("TextButton")
 copyBtn.Size=UDim2.new(0,BTN_W,0,26); copyBtn.Position=UDim2.new(0,12+BTN_W+BTN_GAP,0,ROW5_Y)
 copyBtn.BackgroundColor3=Color3.fromRGB(60,130,90); copyBtn.Text="Copy JSON"
 copyBtn.TextColor3=Color3.new(1,1,1); copyBtn.TextSize=11
 copyBtn.Font=Enum.Font.GothamBold
 copyBtn.Active=true; copyBtn.AutoButtonColor=true; copyBtn.ZIndex=20
-copyBtn.Parent=main
+copyBtn.Parent=tabEggs
 Instance.new("UICorner",copyBtn).CornerRadius=UDim.new(0,6)
 
-local loadBtn = Instance.new("TextButton")
+loadBtn = Instance.new("TextButton")
 loadBtn.Size=UDim2.new(0,BTN_W,0,26); loadBtn.Position=UDim2.new(0,12+(BTN_W+BTN_GAP)*2,0,ROW5_Y)
 loadBtn.BackgroundColor3=Color3.fromRGB(160,120,40); loadBtn.Text="Load JSON"
 loadBtn.TextColor3=Color3.new(1,1,1); loadBtn.TextSize=11
 loadBtn.Font=Enum.Font.GothamBold
 loadBtn.Active=true; loadBtn.AutoButtonColor=true; loadBtn.ZIndex=20
-loadBtn.Parent=main
+loadBtn.Parent=tabEggs
 Instance.new("UICorner",loadBtn).CornerRadius=UDim.new(0,6)
 
 autoFarmBtn = Instance.new("TextButton")
@@ -2864,7 +3650,7 @@ autoFarmBtn.Active=true; autoFarmBtn.AutoButtonColor=true
 autoFarmBtn.TextWrapped=false; autoFarmBtn.TextTruncate=Enum.TextTruncate.None
 autoFarmBtn.ClipsDescendants=false
 autoFarmBtn.ZIndex=25
-autoFarmBtn.Parent=main
+autoFarmBtn.Parent=tabEggs
 Instance.new("UICorner",autoFarmBtn).CornerRadius=UDim.new(0,6)
 
 -- Row 6: Status
@@ -2873,17 +3659,20 @@ statusLabel = Instance.new("TextLabel")
 statusLabel.Size=UDim2.new(1,-24,0,20); statusLabel.Position=UDim2.new(0,12,0,ROW6_Y)
 statusLabel.BackgroundTransparency=1; statusLabel.Text="Loading eggs..."
 statusLabel.TextColor3=Color3.fromRGB(180,195,220); statusLabel.TextSize=12
-statusLabel.Font=Enum.Font.Gotham; statusLabel.TextXAlignment=Enum.TextXAlignment.Left; statusLabel.Parent=main
+statusLabel.Font=Enum.Font.Gotham; statusLabel.TextXAlignment=Enum.TextXAlignment.Left; statusLabel.Parent=tabEggs
 
 -- Egg list
 local LIST_Y = ROW6_Y + 22
-local listFrame = Instance.new("ScrollingFrame")
-listFrame.Size=UDim2.new(1,-24,1,-(LIST_Y+12)); listFrame.Position=UDim2.new(0,12,0,LIST_Y)
+listFrame = Instance.new("ScrollingFrame")
+listFrame.Size=UDim2.new(1,-24,1,-(LIST_Y+10)); listFrame.Position=UDim2.new(0,12,0,LIST_Y)
 listFrame.BackgroundColor3=Color3.fromRGB(16,18,24); listFrame.BorderSizePixel=0
-listFrame.ScrollBarThickness=6; listFrame.CanvasSize=UDim2.new(0,0,0,0); listFrame.Parent=main
+listFrame.ScrollBarThickness=6; listFrame.CanvasSize=UDim2.new(0,0,0,0); listFrame.Parent=tabEggs
 Instance.new("UICorner",listFrame).CornerRadius=UDim.new(0,8)
 local ll = Instance.new("UIListLayout"); ll.Padding=UDim.new(0,3); ll.Parent=listFrame
 
+
+
+    -- Drag support for main window
 -- Drag
 local dragging, dragStart, startPos
 titleBar.InputBegan:Connect(function(i)
@@ -2901,6 +3690,12 @@ UserInputService.InputChanged:Connect(function(i)
     end
 end)
 
+
+
+    -- Populate Tab 2
+    buildPetsTabUI()
+end
+buildMainUI()
 -- ==================================================
 -- EGG CARD  (compact single-row list item)
 -- ==================================================
@@ -3000,9 +3795,6 @@ end
 -- ==================================================
 -- SCAN / RENDER
 -- ==================================================
-local rebuildFarmDropdownItems
-local refilterAndRender
-
 local function clearList()
     for _, c in ipairs(listFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 end
@@ -3133,7 +3925,7 @@ end)
 -- ==================================================
 -- FARM DROPDOWN (multi-select with search)
 -- ==================================================
-local function updateFarmBtnText()
+function updateFarmBtnText()
     if selectedSpecies["All"] then
         farmDropdownBtn.Text = "All ▼"
         return
@@ -3212,26 +4004,14 @@ end
 
 farmSearchBox:GetPropertyChangedSignal("Text"):Connect(rebuildFarmDropdownItems)
 
-farmAllBtn.MouseButton1Click:Connect(function()
-    selectedSpecies = { ["All"] = true }
-    currentSettings.SpeciesFilter = {"All"}
-    jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text
-    updateFarmBtnText(); rebuildFarmDropdownItems(); refilterAndRender()
-end)
-
-farmNoneBtn.MouseButton1Click:Connect(function()
-    selectedSpecies = {}
-    currentSettings.SpeciesFilter = {}
-    jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text
-    updateFarmBtnText(); rebuildFarmDropdownItems(); refilterAndRender()
-end)
+-- (farmAllBtn/farmNoneBtn wired in buildMainUI)
 
 local function toggleFarmDropdown()
     farmDropdownOpen = not farmDropdownOpen
     farmDropdownList.Visible = farmDropdownOpen
     if farmDropdownOpen then
         local fh = #speciesOrder * 22
-        local sh = math.min(fh, MAX_FARM_DD_HEIGHT)
+        local sh = math.min(fh, X.MAX_FARM_DD_HEIGHT)
         farmDropScroll.Size = UDim2.new(1,0,0,sh)
         farmDropdownList.Size = UDim2.new(0,258,0,56+sh)
         farmDropdownBtn.Text = selectedSpecies["All"] and "All ▲" or (farmDropdownBtn.Text:gsub("▼","▲"))
@@ -3250,25 +4030,25 @@ end)
 -- RARITY DROPDOWN (multi-select) — v9
 -- ==================================================
 do
-    local R = { ITEM_H = 22, QUICK_H = 28, LIST_W = 258, rowY = ROW3_Y + ROW_H + ROW_GAP, open = false }
+    local R = { ITEM_H = 22, QUICK_H = 28, LIST_W = 258, rowY = X.ROW3_Y + X.ROW_H + X.ROW_GAP, open = false }
 
     R.label = Instance.new("TextLabel")
-    R.label.Size=UDim2.new(0,55,0,ROW_H); R.label.Position=UDim2.new(0,12,0,R.rowY)
+    R.label.Size=UDim2.new(0,55,0,X.ROW_H); R.label.Position=UDim2.new(0,12,0,R.rowY)
     R.label.BackgroundTransparency=1; R.label.Text="Rarity:"
     R.label.TextColor3=Color3.fromRGB(180,195,220); R.label.TextSize=13
-    R.label.Font=Enum.Font.Gotham; R.label.TextXAlignment=Enum.TextXAlignment.Left; R.label.Parent=main
+    R.label.Font=Enum.Font.Gotham; R.label.TextXAlignment=Enum.TextXAlignment.Left; R.label.Parent=tabEggs
 
     R.btn = Instance.new("TextButton")
-    R.btn.Size=UDim2.new(0,R.LIST_W,0,ROW_H); R.btn.Position=UDim2.new(0,70,0,R.rowY)
+    R.btn.Size=UDim2.new(0,R.LIST_W,0,X.ROW_H); R.btn.Position=UDim2.new(0,70,0,R.rowY)
     R.btn.BackgroundColor3=Color3.fromRGB(40,48,65); R.btn.Text="Off ▼"
     R.btn.TextColor3=Color3.new(1,1,1); R.btn.TextSize=13
-    R.btn.Font=Enum.Font.GothamBold; R.btn.Parent=main
+    R.btn.Font=Enum.Font.GothamBold; R.btn.Parent=tabEggs
     Instance.new("UICorner",R.btn).CornerRadius=UDim.new(0,6)
 
     R.list = Instance.new("Frame")
-    R.list.Size=UDim2.new(0,R.LIST_W,0,0); R.list.Position=UDim2.new(0,70,0,R.rowY+ROW_H+2)
+    R.list.Size=UDim2.new(0,R.LIST_W,0,0); R.list.Position=UDim2.new(0,70,0,R.rowY+X.ROW_H+2)
     R.list.BackgroundColor3=Color3.fromRGB(30,36,50); R.list.BorderSizePixel=0
-    R.list.ClipsDescendants=true; R.list.Visible=false; R.list.ZIndex=31; R.list.Parent=main
+    R.list.ClipsDescendants=true; R.list.Visible=false; R.list.ZIndex=31; R.list.Parent=tabEggs
     Instance.new("UICorner",R.list).CornerRadius=UDim.new(0,6)
 
     function R.btnText(arrow)
@@ -3572,15 +4352,49 @@ local function toggleMenuVisible()
 end
 menuToggleBtn.MouseButton1Click:Connect(toggleMenuVisible)
 
-closeBtn.MouseButton1Click:Connect(function()
-    if autoFarmEnabled then toggleAutoFarm() end
+local function fullCleanup()
+    _G.EggGoToUI_Stop = true
     eggScannerStop = true
+    autoFarmEnabled = false
+    autoFarmToken = autoFarmToken + 1
+    walkToken = walkToken + 1
+    X.tripUntil = 0
     velocityEnabled = false
     recoveryEnabled = false
+    recoveryActive = false
     disableVelocity()
     disconnectAll()
-    screenGui:Destroy()
-end)
+    local ch = LocalPlayer.Character
+    local h = ch and ch:FindFirstChildOfClass("Humanoid")
+    local r = ch and ch:FindFirstChild("HumanoidRootPart")
+    if h then
+        pcall(function()
+            h:Move(Vector3.zero)
+            if r then h.WalkToPoint = r.Position end
+            h.WalkSpeed = (savedWalkSpeed and savedWalkSpeed > 0) and savedWalkSpeed or 16
+        end)
+    end
+    if r then
+        pcall(function()
+            r.AssemblyLinearVelocity = Vector3.zero
+            r.AssemblyAngularVelocity = Vector3.zero
+            r.Anchored = false
+        end)
+    end
+    pcall(function()
+        for _, n in ipairs({"EggGoToUI_v4","EggGoToUI_v5","EggGoToUI_v6","EggGoToUI_v7","EggGoToUI_v8","EggGoToUI_v9"}) do
+            local old = PlayerGui:FindFirstChild(n); if old then old:Destroy() end
+        end
+        if screenGui and screenGui.Parent then screenGui:Destroy() end
+    end)
+    if _G.EggGoToUI_Cleanup == fullCleanup then
+        _G.EggGoToUI_Cleanup = nil
+    end
+    print("[EggGoToUI] Full cleanup completed. All routines terminated.")
+end
+_G.EggGoToUI_Cleanup = fullCleanup
+
+closeBtn.MouseButton1Click:Connect(fullCleanup)
 
 -- ==================================================
 -- HEARTBEAT LOOPS
