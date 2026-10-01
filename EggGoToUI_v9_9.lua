@@ -193,7 +193,7 @@ local PET_RARITY_PRESETS = {
     ["El Maja"]="Eternal", ["Dodo"]="Rare", ["Pterodactyl"]="Legendary",
     ["Ankylosaurus"]="Mythic", ["Triceratops"]="Cosmic", ["Bronto"]="Cosmic",
     ["Tralaledon"]="Secret", ["T-Rex"]="Secret", ["Mosasaurus"]="Eternal",
-    ["Centapede"]="Epic", ["Cosmic Gecko"]="Legendary", ["Cosmic Gorilla"]="Mythic",
+    ["Centapede"]="Epic", ["Galaxy Gecko"]="Legendary", ["Cyclops Gorilla"]="Mythic",
     ["La Vacca Saturno Saturnita"]="Cosmic", ["Cosmic Dragon"]="Secret",
     ["Cosmic Skeleton Boss"]="Secret", ["Eternal Lunar Dragon"]="Eternal",
     ["Unicorn"]="Divine", ["Crane"]="Epic", ["Salamander"]="Legendary",
@@ -375,7 +375,7 @@ X.rubberCount      = 0
 X.selectedRarities = {}      -- set of ticked rarities (empty = rarity filter off)
 X.RARITY_RANK  = { Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5, Mythic=6, Cosmic=7, Secret=8, Eternal=9, Divine=10 }
 X.RARITY_ORDER = { "Divine", "Eternal", "Secret", "Cosmic", "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common" }
-X.PRIORITY_CHAIN = { "Divine", "Eternal", "Secret", "Mythic" }   -- farm order: Divine -> Eternal -> Secret -> Mythic -> selected
+X.PRIORITY_CHAIN = { "Divine", "Eternal", "Secret" }   -- farm order: Divine -> Eternal -> Secret -> selected (farthest)
 
 function X.markTeleport() X.ignoreJumpUntil = os.clock() + 0.35; X.rbLastPos = nil; X.rbSamples = {} end
 
@@ -1933,8 +1933,8 @@ local function autoGetEgg(uid, startPos, myTok)
     return result
 end
 
--- Returns best, tier.  Rarity filter OFF: nearest matching egg (tier 0).  Rarity filter ON: lowest tier first
--- (Divine -> Eternal -> Secret -> Mythic -> the other selected eggs), nearest first inside the same tier.
+-- Priority: Divine -> Eternal -> Secret (tiers 1-3, nearest first so we rush to them).
+-- Everything else (Mythic, selected species, no rarity filter): FARTHEST first.
 function X.pickNearest(records)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -1951,8 +1951,9 @@ function X.pickNearest(records)
                 local dy = p.Y - myPos.Y
                 local dz = p.Z - myPos.Z
                 local d = math.sqrt(dx*dx + dz*dz + dy*dy*0.25)
-                local tier = (hasR and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)   -- v9.7: unverified eggs last
-                if tier < bestTier or (tier == bestTier and d < bestDist) then
+                local tier = (hasR and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
+                -- Within the same tier, always pick the FARTHEST egg (farthest trips give more rewards).
+                if tier < bestTier or (tier == bestTier and d > bestDist) then
                     best, bestTier, bestDist = r, tier, d
                 end
             end
@@ -2399,9 +2400,43 @@ screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = PlayerGui
 
+-- Floating toggle button: always visible, hides/shows the main menu panel
+local menuToggleBtn = Instance.new("TextButton")
+menuToggleBtn.Size             = UDim2.new(0, 40, 0, 40)
+menuToggleBtn.Position         = UDim2.new(0, 8, 0, 50)   -- Y=50 clears the Roblox core top-bar
+menuToggleBtn.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+menuToggleBtn.Text             = "☰"
+menuToggleBtn.TextColor3       = Color3.fromRGB(200, 215, 255)
+menuToggleBtn.TextSize         = 22
+menuToggleBtn.Font             = Enum.Font.GothamBold
+menuToggleBtn.ZIndex           = 200
+menuToggleBtn.Parent           = screenGui
+Instance.new("UICorner", menuToggleBtn).CornerRadius = UDim.new(0, 8)
+local mts = Instance.new("UIStroke", menuToggleBtn)
+mts.Color = Color3.fromRGB(70, 110, 180); mts.Thickness = 1.5
+
+-- Drag support for the toggle button
+local tDragging, tDragStart, tStartPos = false, nil, nil
+menuToggleBtn.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        tDragging = true; tDragStart = i.Position; tStartPos = menuToggleBtn.Position
+    end
+end)
+menuToggleBtn.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then tDragging = false end
+end)
+UserInputService.InputChanged:Connect(function(i)
+    if tDragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+        local d = i.Position - tDragStart
+        menuToggleBtn.Position = UDim2.new(
+            tStartPos.X.Scale, tStartPos.X.Offset + d.X,
+            tStartPos.Y.Scale, tStartPos.Y.Offset + d.Y)
+    end
+end)
+
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 400, 0, 752)
-main.Position = UDim2.new(0.5, -200, 0.5, -376)
+main.Size = UDim2.new(0, 340, 0, 511)
+main.Position = UDim2.new(0.5, -170, 0.5, -255)
 main.BackgroundColor3 = Color3.fromRGB(22, 24, 30)
 main.BorderSizePixel = 0
 main.Parent = screenGui
@@ -2431,7 +2466,7 @@ closeBtn.BackgroundColor3=Color3.fromRGB(170,50,50); closeBtn.Text="X"
 closeBtn.TextColor3=Color3.new(1,1,1); closeBtn.TextSize=14; closeBtn.Font=Enum.Font.GothamBold
 closeBtn.Parent=titleBar; Instance.new("UICorner",closeBtn).CornerRadius=UDim.new(0,6)
 
-local COL_W = 182; local COL_GAP = 12; local ROW_H = 28; local ROW_GAP = 4
+local COL_W = 152; local COL_GAP = 12; local ROW_H = 28; local ROW_GAP = 4
 
 -- Row 1: Velocity + Velocity Value
 local ROW1_Y = 44
@@ -2477,14 +2512,14 @@ farmLabel.TextColor3=Color3.fromRGB(180,195,220); farmLabel.TextSize=13
 farmLabel.Font=Enum.Font.Gotham; farmLabel.TextXAlignment=Enum.TextXAlignment.Left; farmLabel.Parent=main
 
 local farmDropdownBtn = Instance.new("TextButton")
-farmDropdownBtn.Size=UDim2.new(0,318,0,ROW_H); farmDropdownBtn.Position=UDim2.new(0,70,0,ROW3_Y)
+farmDropdownBtn.Size=UDim2.new(0,258,0,ROW_H); farmDropdownBtn.Position=UDim2.new(0,70,0,ROW3_Y)
 farmDropdownBtn.BackgroundColor3=Color3.fromRGB(40,48,65); farmDropdownBtn.Text="All ▼"
 farmDropdownBtn.TextColor3=Color3.new(1,1,1); farmDropdownBtn.TextSize=13
 farmDropdownBtn.Font=Enum.Font.GothamBold; farmDropdownBtn.Parent=main
 Instance.new("UICorner",farmDropdownBtn).CornerRadius=UDim.new(0,6)
 
 local farmDropdownList = Instance.new("Frame")
-farmDropdownList.Size=UDim2.new(0,318,0,0); farmDropdownList.Position=UDim2.new(0,70,0,ROW3_Y+ROW_H+2)
+farmDropdownList.Size=UDim2.new(0,258,0,0); farmDropdownList.Position=UDim2.new(0,70,0,ROW3_Y+ROW_H+2)
 farmDropdownList.BackgroundColor3=Color3.fromRGB(30,36,50); farmDropdownList.BorderSizePixel=0
 farmDropdownList.ClipsDescendants=true; farmDropdownList.Visible=false
 farmDropdownList.ZIndex=30; farmDropdownList.Parent=main
@@ -2546,9 +2581,9 @@ jsonBox.Text=settingsToJSON(DEFAULT_SETTINGS) or "{}"
 jsonBox.Parent=main; Instance.new("UICorner",jsonBox).CornerRadius=UDim.new(0,8)
 local jp = Instance.new("UIPadding"); jp.PaddingLeft=UDim.new(0,8); jp.PaddingRight=UDim.new(0,8); jp.PaddingTop=UDim.new(0,6); jp.Parent=jsonBox
 
--- Row 5: Refresh / Copy / Load / AutoFarm (4 buttons, 91w + 4gap)
+-- Row 5: Refresh / Copy / Load / AutoFarm (4 buttons across 316px available)
 local ROW5_Y = ROW4_Y + 16 + JSON_BOX_H + ROW_GAP
-local BTN_W = 91
+local BTN_W = 76
 local BTN_GAP = 4
 
 local refreshBtn = Instance.new("TextButton")
@@ -2606,7 +2641,7 @@ listFrame.Size=UDim2.new(1,-24,1,-(LIST_Y+12)); listFrame.Position=UDim2.new(0,1
 listFrame.BackgroundColor3=Color3.fromRGB(16,18,24); listFrame.BorderSizePixel=0
 listFrame.ScrollBarThickness=6; listFrame.CanvasSize=UDim2.new(0,0,0,0); listFrame.Parent=main
 Instance.new("UICorner",listFrame).CornerRadius=UDim.new(0,8)
-local ll = Instance.new("UIListLayout"); ll.Padding=UDim.new(0,6); ll.Parent=listFrame
+local ll = Instance.new("UIListLayout"); ll.Padding=UDim.new(0,3); ll.Parent=listFrame
 
 -- Drag
 local dragging, dragStart, startPos
@@ -2626,79 +2661,98 @@ UserInputService.InputChanged:Connect(function(i)
 end)
 
 -- ==================================================
--- EGG CARD
+-- EGG CARD  (compact single-row list item)
 -- ==================================================
-local CARD_HEIGHT = 90
-
-local function makeBadge(parent, text, col, x, y)
-    local b = Instance.new("TextLabel")
-    b.Size = UDim2.new(0,0,0,16); b.AutomaticSize=Enum.AutomaticSize.X
-    b.Position=UDim2.new(0,x,0,y); b.BackgroundColor3=col; b.Text=" "..text.." "
-    b.TextColor3=Color3.new(1,1,1); b.TextSize=10; b.Font=Enum.Font.GothamBold
-    b.TextXAlignment=Enum.TextXAlignment.Center; b.Parent=parent
-    Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
-    return b
-end
+local CARD_HEIGHT = 34   -- compact row height
 
 local function createEggCard(idx, r)
-    local uid=tostring(r.Uid or""); local sp=tostring(r.AssetCategory or"Unknown")
-    local slot=tostring(r.NestId or"?"); local area=tostring(r.AreaId or"?")
-    local sc=r.AssetScale; local pos=extPos(r); local mut=mutLabel(r)
-    local hl=highlightRarity(r); local fullRar=effectiveRarity(r)
+    local uid     = tostring(r.Uid or "")
+    local sp      = tostring(r.AssetCategory or "Unknown")
+    local slot    = tostring(r.NestId or "?")
+    local area    = tostring(r.AreaId or "?")
+    local pos     = extPos(r)
+    local mut     = mutLabel(r)
+    local hl      = highlightRarity(r)
+    local fullRar = effectiveRarity(r)
+    local rarCol  = ALL_RARITY_COLORS[fullRar] or RARITY_DEFAULT_COLOR
 
-    local bg = hl and Color3.fromRGB(50,20,20) or Color3.fromRGB(28,32,42)
+    -- card background: slightly tinted for high-rarity eggs
+    local bg = hl and Color3.fromRGB(45, 18, 18) or Color3.fromRGB(26, 30, 40)
     local card = Instance.new("Frame")
-    card.Size=UDim2.new(1,-12,0,CARD_HEIGHT); card.BackgroundColor3=bg
-    card.BorderSizePixel=0; card.Parent=listFrame
-    Instance.new("UICorner",card).CornerRadius=UDim.new(0,8)
+    card.Size             = UDim2.new(1, -12, 0, CARD_HEIGHT)
+    card.BackgroundColor3 = bg
+    card.BorderSizePixel  = 0
+    card.Parent           = listFrame
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
 
-    if hl then
-        local st=Instance.new("Frame"); st.Size=UDim2.new(0,4,1,0); st.Position=UDim2.new(0,0,0,0)
-        st.BackgroundColor3=ALL_RARITY_COLORS[hl] or RARITY_DEFAULT_COLOR; st.BorderSizePixel=0
-        st.Parent=card; Instance.new("UICorner",st).CornerRadius=UDim.new(0,4)
-    end
+    -- left rarity colour strip (always present)
+    local strip = Instance.new("Frame")
+    strip.Size             = UDim2.new(0, 3, 1, -6)
+    strip.Position         = UDim2.new(0, 4, 0, 3)
+    strip.BackgroundColor3 = rarCol
+    strip.BorderSizePixel  = 0
+    strip.Parent           = card
+    Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
 
-    local nm=Instance.new("TextLabel")
-    nm.Size=UDim2.new(1,-96,0,18); nm.Position=UDim2.new(0,10,0,6); nm.BackgroundTransparency=1
-    nm.Text=("#%d  %s"):format(idx, sp); nm.TextColor3=hl and Color3.fromRGB(255,200,200) or Color3.fromRGB(220,230,255)
-    nm.TextSize=13; nm.Font=Enum.Font.GothamBold; nm.TextXAlignment=Enum.TextXAlignment.Left
-    nm.TextTruncate=Enum.TextTruncate.AtEnd; nm.Parent=card
+    local LEFT = 13   -- x offset after the strip
 
-    local info=Instance.new("TextLabel")
-    info.Size=UDim2.new(1,-96,0,14); info.Position=UDim2.new(0,10,0,24); info.BackgroundTransparency=1
-    info.Text=("%s · %s"):format(slot, area); info.TextColor3=Color3.fromRGB(150,165,190)
-    info.TextSize=11; info.Font=Enum.Font.Gotham; info.TextXAlignment=Enum.TextXAlignment.Left; info.Parent=card
+    -- index + egg name (top half)
+    local nm = Instance.new("TextLabel")
+    nm.Size               = UDim2.new(1, -(LEFT + 82), 0, 18)
+    nm.Position           = UDim2.new(0, LEFT, 0, 2)
+    nm.BackgroundTransparency = 1
+    nm.Text               = ("#%d  %s"):format(idx, sp)
+    nm.TextColor3         = hl and Color3.fromRGB(255, 195, 195) or Color3.fromRGB(215, 225, 255)
+    nm.TextSize           = 12
+    nm.Font               = Enum.Font.GothamBold
+    nm.TextXAlignment     = Enum.TextXAlignment.Left
+    nm.TextTruncate       = Enum.TextTruncate.AtEnd
+    nm.Parent             = card
 
-    local sText = (typeof(sc) == "number") and ("x%.2f"):format(sc) or (sc ~= nil and tostring(sc) or "")
-    local sl2=Instance.new("TextLabel")
-    sl2.Size=UDim2.new(1,-96,0,14); sl2.Position=UDim2.new(0,10,0,40); sl2.BackgroundTransparency=1
-    sl2.Text=sText; sl2.TextColor3=Color3.fromRGB(150,165,190); sl2.TextSize=11
-    sl2.Font=Enum.Font.Code; sl2.TextXAlignment=Enum.TextXAlignment.Left; sl2.Parent=card
+    -- secondary line: area · nest · mutation
+    local subParts = { area, slot }
+    if mut then table.insert(subParts, mut) end
+    local sub = Instance.new("TextLabel")
+    sub.Size               = UDim2.new(1, -(LEFT + 82), 0, 13)
+    sub.Position           = UDim2.new(0, LEFT, 0, 19)
+    sub.BackgroundTransparency = 1
+    sub.Text               = table.concat(subParts, " · ")
+    sub.TextColor3         = Color3.fromRGB(130, 145, 175)
+    sub.TextSize           = 10
+    sub.Font               = Enum.Font.Gotham
+    sub.TextXAlignment     = Enum.TextXAlignment.Left
+    sub.TextTruncate       = Enum.TextTruncate.AtEnd
+    sub.Parent             = card
 
-    local pl=Instance.new("TextLabel")
-    pl.Size=UDim2.new(1,-96,0,14); pl.Position=UDim2.new(0,10,0,56); pl.BackgroundTransparency=1
-    pl.Text=pos and ("(%.0f, %.0f, %.0f)"):format(pos.X,pos.Y,pos.Z) or "pos unknown"
-    pl.TextColor3=Color3.fromRGB(120,135,160); pl.TextSize=10; pl.Font=Enum.Font.Code
-    pl.TextXAlignment=Enum.TextXAlignment.Left; pl.Parent=card
+    -- rarity badge (vertically centred, to the left of the Get button)
+    local rab = Instance.new("TextLabel")
+    rab.Size               = UDim2.new(0, 68, 0, 16)
+    rab.Position           = UDim2.new(1, -134, 0.5, -8)
+    rab.BackgroundColor3   = rarCol
+    rab.Text               = " " .. fullRar .. " "
+    rab.TextColor3         = Color3.new(1, 1, 1)
+    rab.TextSize           = 9
+    rab.Font               = Enum.Font.GothamBold
+    rab.TextXAlignment     = Enum.TextXAlignment.Center
+    rab.TextTruncate       = Enum.TextTruncate.AtEnd
+    rab.Parent             = card
+    Instance.new("UICorner", rab).CornerRadius = UDim.new(0, 4)
 
-    local bx=10
-    if mut then
-        local mc=MUTATION_COLORS[mut] or MUTATION_DEFAULT_COLOR
-        makeBadge(card, mut, mc, bx, 72); bx=bx+math.max(20,#mut*7+18)
-    end
-    if fullRar then
-        makeBadge(card, fullRar, ALL_RARITY_COLORS[fullRar] or RARITY_DEFAULT_COLOR, bx, 72)
-    end
-
-    local gb=Instance.new("TextButton")
-    gb.Size=UDim2.new(0,70,0,34); gb.Position=UDim2.new(1,-82,0.5,-17)
-    gb.BackgroundColor3=Color3.fromRGB(40,130,80); gb.Text="Get"
-    gb.TextColor3=Color3.new(1,1,1); gb.TextSize=13; gb.Font=Enum.Font.GothamBold
-    gb.Parent=card; Instance.new("UICorner",gb).CornerRadius=UDim.new(0,6)
+    -- compact Get button
+    local gb = Instance.new("TextButton")
+    gb.Size             = UDim2.new(0, 54, 0, 24)
+    gb.Position         = UDim2.new(1, -62, 0.5, -12)
+    gb.BackgroundColor3 = Color3.fromRGB(38, 125, 75)
+    gb.Text             = "Get"
+    gb.TextColor3       = Color3.new(1, 1, 1)
+    gb.TextSize         = 12
+    gb.Font             = Enum.Font.GothamBold
+    gb.Parent           = card
+    Instance.new("UICorner", gb).CornerRadius = UDim.new(0, 5)
     gb.MouseButton1Click:Connect(function()
-        if autoFarmEnabled then toggleAutoFarm() end -- stop autofarm on manual Get
+        if autoFarmEnabled then toggleAutoFarm() end
         if pos then getEgg(pos, uid, statusLabel)
-        else statusLabel.Text="No position"; statusLabel.TextColor3=Color3.fromRGB(255,120,120) end
+        else statusLabel.Text = "No position"; statusLabel.TextColor3 = Color3.fromRGB(255, 120, 120) end
     end)
 end
 
@@ -2760,7 +2814,7 @@ local function renderRecords(records, quiet)
             if r.AreaId then biomes[tostring(r.AreaId)]=true end
         end
     end
-    listFrame.CanvasSize=UDim2.new(0,0,0,d*(CARD_HEIGHT+6))
+    listFrame.CanvasSize=UDim2.new(0,0,0,d*(CARD_HEIGHT+3))
     if d==0 then
         sl.Text="No eggs match active filters"; sl.TextColor3=Color3.fromRGB(255,160,100); return
     end
@@ -2938,11 +2992,11 @@ local function toggleFarmDropdown()
         local fh = #speciesOrder * 22
         local sh = math.min(fh, MAX_FARM_DD_HEIGHT)
         farmDropScroll.Size = UDim2.new(1,0,0,sh)
-        farmDropdownList.Size = UDim2.new(0,318,0,56+sh)
+        farmDropdownList.Size = UDim2.new(0,258,0,56+sh)
         farmDropdownBtn.Text = selectedSpecies["All"] and "All ▲" or (farmDropdownBtn.Text:gsub("▼","▲"))
         rebuildFarmDropdownItems()
     else
-        farmDropdownList.Size = UDim2.new(0,318,0,0)
+        farmDropdownList.Size = UDim2.new(0,258,0,0)
         updateFarmBtnText()
     end
 end
@@ -2955,7 +3009,7 @@ end)
 -- RARITY DROPDOWN (multi-select) — v9
 -- ==================================================
 do
-    local R = { ITEM_H = 22, QUICK_H = 28, LIST_W = 318, rowY = ROW3_Y + ROW_H + ROW_GAP, open = false }
+    local R = { ITEM_H = 22, QUICK_H = 28, LIST_W = 258, rowY = ROW3_Y + ROW_H + ROW_GAP, open = false }
 
     R.label = Instance.new("TextLabel")
     R.label.Size=UDim2.new(0,55,0,ROW_H); R.label.Position=UDim2.new(0,12,0,R.rowY)
@@ -3068,7 +3122,7 @@ UserInputService.InputBegan:Connect(function(input)
     end
     if farmDropdownOpen and not isInside(farmDropdownBtn, farmDropdownList) then
         farmDropdownOpen=false; farmDropdownList.Visible=false
-        farmDropdownList.Size=UDim2.new(0,318,0,0); updateFarmBtnText()
+        farmDropdownList.Size=UDim2.new(0,258,0,0); updateFarmBtnText()
     end
 end)
 
@@ -3189,12 +3243,13 @@ end)
 
 upVelBtn(); upRecBtn(); updateFarmBtnText()
 
-closeBtn.MouseButton1Click:Connect(function()
-    if autoFarmEnabled then toggleAutoFarm() end
-    eggScannerStop = true
-    velocityEnabled=false; recoveryEnabled=false
-    disableVelocity(); disconnectAll(); screenGui:Destroy()
-end)
+local function toggleMenuVisible()
+    main.Visible = not main.Visible
+    menuToggleBtn.Text = main.Visible and "✕" or "☰"
+end
+menuToggleBtn.MouseButton1Click:Connect(toggleMenuVisible)
+
+closeBtn.MouseButton1Click:Connect(toggleMenuVisible)
 
 -- ==================================================
 -- HEARTBEAT LOOPS
