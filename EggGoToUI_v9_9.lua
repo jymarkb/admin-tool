@@ -569,6 +569,37 @@ X.lastPos    = {}    -- uid -> position in the previous scan
 X.vanished   = {}    -- v9.4: uid -> time it stopped being listed (carried / taken). Coming back = lying loose
 X.gonePos    = {}    -- v9.4: uid -> where it was when a Gone/Carry event fired
 X.ignoreGone = {}    -- v9.4: uid -> expiry: Gone/Carry events are ignored (we just dropped this egg)
+X.carrierPlayer = {} -- uid -> userId string of another player carrying this egg
+
+function X.getCarrier(uid)
+    local uStr = tostring(uid or "")
+    if uStr == "" then return nil end
+    local cached = X.carrierPlayer[uStr]
+    if cached then return cached end
+
+    local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+    if cra then
+        for _, m in ipairs(cra:GetChildren()) do
+            local usId, eggId = string.match(m.Name, "^(%d+)_(.+)$")
+            if not eggId and string.find(m.Name, "_", 1, true) then
+                usId, eggId = string.match(m.Name, "^(%d+)_(.*)")
+            end
+            if eggId and eggId == uStr then
+                return usId
+            elseif string.find(m.Name, uStr, 1, true) then
+                local us = string.match(m.Name, "^(%d+)_")
+                return us or "other"
+            end
+        end
+    end
+    return nil
+end
+
+function X.isCarriedByOther(uid)
+    local c = X.getCarrier(uid)
+    if not c then return false end
+    return tostring(c) ~= tostring(LocalPlayer.UserId)
+end
 
 function X.recPos(r)
     if typeof(r.BoundsCFrame) == "CFrame" then return r.BoundsCFrame.Position end
@@ -687,6 +718,7 @@ X.weDropped  = {}    -- v9.8: uid -> time WE dropped it
 function X.clearMarks(u)
     X.goneUids[u] = nil; X.badUids[u] = nil; X.failCount[u] = nil; X.missCount[u] = nil
     X.gonePos[u] = nil; X.slotGoneAt[u] = nil; X.slotBackN[u] = nil
+    X.carrierPlayer[u] = nil
 end
 
 -- A Gone/Carry mark only counts for X.GONE_TTL seconds (an egg that went back to its nest looks identical to a stale one)
@@ -721,6 +753,7 @@ function X.takenSignal(uid)
     local wd = X.weDropped[uid]
     if wd and now - wd < 60 then return nil end                       -- we dropped it ourselves: it is on the ground
     if X.deliveredUids[uid] then return "rests at the delivery zone (delivered)" end
+    if X.isCarriedByOther(uid) then return "carried by another player" end
     local mv = X.movingAt[uid]
     if mv and (X.restN[uid] or 0) < 2 and now - mv < 20 then return "moving between scans (carried by someone)" end
     local sl = X.slotLostSince[uid]
@@ -799,6 +832,51 @@ function X.startReappearMonitor()
     end)
 end
 X.startReappearMonitor()
+
+-- Live carrier monitor: watches Workspace.ClientRenderedAssets for other players holding eggs
+function X.startCarrierMonitor()
+    local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+    if not cra then return end
+
+    local function onCarriedAdded(m)
+        local usId, eggId = string.match(m.Name, "^(%d+)_(.+)$")
+        if not eggId and string.find(m.Name, "_", 1, true) then
+            usId, eggId = string.match(m.Name, "^(%d+)_(.*)")
+        end
+        if eggId and usId then
+            if tostring(usId) ~= tostring(LocalPlayer.UserId) then
+                X.carrierPlayer[eggId] = tostring(usId)
+                X.listDirty = true
+            end
+        end
+    end
+
+    local function onCarriedRemoved(m)
+        local usId, eggId = string.match(m.Name, "^(%d+)_(.+)$")
+        if not eggId and string.find(m.Name, "_", 1, true) then
+            usId, eggId = string.match(m.Name, "^(%d+)_(.*)")
+        end
+        if eggId and usId and tostring(usId) ~= tostring(LocalPlayer.UserId) then
+            X.carrierPlayer[eggId] = nil
+            local otherPlr = Players:GetPlayerByUserId(tonumber(usId))
+            local oChar = otherPlr and otherPlr.Character
+            local oRoot = oChar and oChar:FindFirstChild("HumanoidRootPart")
+            local dSafe = oRoot and (Vector3.new(oRoot.Position.X - SAFE_ZONE.X, 0, oRoot.Position.Z - SAFE_ZONE.Z).Magnitude)
+            if dSafe and dSafe <= 50 then
+                X.deliveredUids[eggId] = true
+                X.blacklistStolen(eggId)
+            else
+                X.looseUids[eggId] = true
+            end
+            X.listDirty = true
+        end
+    end
+
+    for _, c in ipairs(cra:GetChildren()) do onCarriedAdded(c) end
+    addConnection(cra.ChildAdded:Connect(onCarriedAdded))
+    addConnection(cra.ChildRemoved:Connect(onCarriedRemoved))
+end
+X.startCarrierMonitor()
 
 local function normName(n)
     local s = tostring(n or ""):lower()
@@ -1180,7 +1258,10 @@ function X.eggTier(r)
 end
 
 local function passesFilters(r)
+    local u = tostring(r.Uid or "")
     if X.isGhost(r) then return false end      -- v9.1: taken / empty nest
+    if X.isCarriedByOther(u) then return false end
+    if X.deliveredUids[u] then return false end
     -- mutation filter
     local mOk = true
     if next(activeMutationFilter) then
@@ -1607,13 +1688,18 @@ local function autoGetEgg(uid, startPos, myTok)
             local ch2 = LocalPlayer.Character
             local r2  = ch2 and ch2:FindFirstChild("HumanoidRootPart")
             local h2  = ch2 and ch2:FindFirstChildOfClass("Humanoid")
-            if not r2 or typeof(livePos) ~= "Vector3" then return end
+            if not r2 or typeof(livePos) ~= "Vector3" then return false end
+            local dist = (Vector3.new(livePos.X, 0, livePos.Z) - Vector3.new(r2.Position.X, 0, r2.Position.Z)).Magnitude
+            if dist > 75 then
+                return false
+            end
             if h2 then pcall(function() h2:Move(Vector3.zero) end) end
             X.markTeleport()
             pcall(function()
                 r2.AssemblyLinearVelocity = Vector3.zero
                 r2.CFrame = CFrame.new(livePos.X, livePos.Y + SNAP_Y_OFFSET, livePos.Z) * (r2.CFrame - r2.CFrame.Position)
             end)
+            return true
         end
 
         -- The egg's slot on the client (existing signal from the original script). Only trusted as a
@@ -1638,6 +1724,32 @@ local function autoGetEgg(uid, startPos, myTok)
             -- never fire the request while ragdolled/stunned (bounded wait)
             local wr = 0
             while isRagdolled and wr < 3 and not cancelled() do task.wait(0.1); wr = wr + 0.1 end
+
+            -- ESP check: if another player is already carrying this egg, abort immediately
+            if X.isCarriedByOther(uid) then
+                stolen = true
+                lastFailReason = "[AutoFarm] Egg taken by another player — next..."
+                break
+            end
+
+            -- DISTANCE CHECK: If knocked back > 75 studs by boss or bump, walk closer first before any micro-snap!
+            local chTmp = LocalPlayer.Character
+            local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
+            if rTmp and typeof(livePos) == "Vector3" then
+                local dCur = (Vector3.new(livePos.X, 0, livePos.Z) - Vector3.new(rTmp.Position.X, 0, rTmp.Position.Z)).Magnitude
+                if dCur > 75 then
+                    statusLabel.Text = ("[AutoFarm] Knocked back (%d studs) — walking closer..."):format(math.floor(dCur))
+                    statusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
+                    local closeWalk = walkSync(function() return livePos end, 15, myTok, { snapRadius = 40 })
+                    if not closeWalk or cancelled() then break end
+                    if X.isCarriedByOther(uid) then
+                        stolen = true
+                        lastFailReason = "[AutoFarm] Egg taken by another player — next..."
+                        break
+                    end
+                end
+            end
+
             microSnap(); task.wait(0.12)
             statusLabel.Text = ("[AutoFarm] Picking up... try %d/%d"):format(attemptNo, maxTry)
             statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
@@ -1953,33 +2065,68 @@ local function autoGetEgg(uid, startPos, myTok)
     return result
 end
 
--- Priority: Divine -> Eternal -> Secret (tiers 1-3, nearest first so we rush to them).
--- Everything else (Mythic, selected species, no rarity filter): FARTHEST first.
+-- Priority: Divine -> Eternal -> Secret -> farthest
+-- STEAL OPPORTUNITY: When near safe zone, if any target egg is loose on ground nearby (<80 studs), steal it!
 function X.pickNearest(records)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local myPos = root and root.Position
     if not myPos then return nil end
     local hasR = X.hasRarity()
-    local best, bestTier, bestDist = nil, math.huge, math.huge
+
+    -- 1. STEAL OPPORTUNITY:
+    -- If we are at or near the safe zone, check if any matching egg is loose/on the ground nearby (< 80 studs)
+    -- and NOT carried by another player. Grab it immediately before someone else does!
+    local dToSafe = Vector3.new(myPos.X - SAFE_ZONE.X, 0, myPos.Z - SAFE_ZONE.Z).Magnitude
+    if dToSafe <= 60 then
+        local bestSteal, bestStealTier, bestStealDist = nil, math.huge, math.huge
+        for _, r in ipairs(records) do
+            if passesFilters(r) then
+                local u = tostring(r.Uid or "")
+                if not X.isCarriedByOther(u) then
+                    local p = extPos(r)
+                    if p then
+                        local dEgg = Vector3.new(p.X - myPos.X, 0, p.Z - myPos.Z).Magnitude
+                        -- Close (< 80 studs) and pickable on the ground (loose / dropped / outside nest)
+                        local isGround = X.looseUids[u] or (p - SAFE_ZONE).Magnitude <= 80 or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
+                        if dEgg <= 80 and isGround then
+                            local tier = (hasR and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
+                            if tier < bestStealTier or (tier == bestStealTier and dEgg < bestStealDist) then
+                                bestSteal, bestStealTier, bestStealDist = r, tier, dEgg
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        if bestSteal then
+            return bestSteal, bestStealTier, true
+        end
+    end
+
+    -- 2. Standard Selection:
+    -- Divine -> Eternal -> Secret -> farthest
+    local best, bestTier, bestDist = nil, math.huge, 0
     for _, r in ipairs(records) do
         if passesFilters(r) then
-            local p = extPos(r)
-            if p then
-                -- 3D distance (xz weighted more, since y jitter is common)
-                local dx = p.X - myPos.X
-                local dy = p.Y - myPos.Y
-                local dz = p.Z - myPos.Z
-                local d = math.sqrt(dx*dx + dz*dz + dy*dy*0.25)
-                local tier = (hasR and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
-                -- Within the same tier, always pick the FARTHEST egg (farthest trips give more rewards).
-                if tier < bestTier or (tier == bestTier and d > bestDist) then
-                    best, bestTier, bestDist = r, tier, d
+            local u = tostring(r.Uid or "")
+            if not X.isCarriedByOther(u) then
+                local p = extPos(r)
+                if p then
+                    local dx = p.X - myPos.X
+                    local dy = p.Y - myPos.Y
+                    local dz = p.Z - myPos.Z
+                    local d = math.sqrt(dx*dx + dz*dz + dy*dy*0.25)
+                    local tier = (hasR and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
+                    -- Within the same tier, always pick the FARTHEST egg (farthest gives more)
+                    if tier < bestTier or (tier == bestTier and d > bestDist) then
+                        best, bestTier, bestDist = r, tier, d
+                    end
                 end
             end
         end
     end
-    return best, best and bestTier or nil
+    return best, best and bestTier or nil, false
 end
 
 local function autoFarmLoop()
@@ -2051,6 +2198,7 @@ local function autoFarmLoop()
             if not skip then
                 -- An egg we just DROPPED gets fetched again before anything else
                 local target, waitingDrop = nil, false
+                local isSteal = false
                 if dropRetry then
                     if dropRetry.n > 4 or os.clock() - dropRetry.t > 30 then
                         dropRetry = nil
@@ -2059,7 +2207,9 @@ local function autoFarmLoop()
                         if not target and os.clock() - dropRetry.t < 6 then waitingDrop = true end
                     end
                 end
-                if not waitingDrop then target = target or X.pickNearest(records) end
+                if not waitingDrop and not target then
+                    target, _, isSteal = X.pickNearest(records)
+                end
                 if waitingDrop then
                     statusLabel.Text = "[AutoFarm] Waiting for the dropped egg to reappear..."
                     statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
@@ -2081,8 +2231,13 @@ local function autoFarmLoop()
                         task.wait(0.5)
                         skip = true
                     else
-                        statusLabel.Text = "[AutoFarm] -> " .. sp .. " (" .. effectiveRarity(target) .. ")"
-                        statusLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
+                        if isSteal then
+                            statusLabel.Text = "[AutoFarm] STEAL -> " .. sp .. " (" .. effectiveRarity(target) .. ")"
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                        else
+                            statusLabel.Text = "[AutoFarm] -> " .. sp .. " (" .. effectiveRarity(target) .. ")"
+                            statusLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
+                        end
 
                         local ok = autoGetEgg(uid, pos, myTok)
                         X.resetVelocity()          -- v9: egg finished (success or not) -> back to the default velocity
