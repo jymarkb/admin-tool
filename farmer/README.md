@@ -12,6 +12,7 @@ This documentation covers the architecture, control logic, networking hooks, and
    - [Dual-Velocity Physics Engine](#dual-velocity-physics-engine)
    - [Anti-Rubberband System & Dynamic Speed Step-Down](#anti-rubberband-system--dynamic-speed-step-down)
    - [Anti-Teleport & Micro-Snap Distance Gating](#anti-teleport--micro-snap-distance-gating)
+   - [Manual "Get" & Auto-Farm Unified Code Architecture](#manual-get--auto-farm-unified-code-architecture)
    - [Instant Ragdoll Recovery Engine](#instant-ragdoll-recovery-engine)
    - [ESP Carrier Tracking & Ghost Egg Blacklisting](#esp-carrier-tracking--ghost-egg-blacklisting)
    - [Target Priority Chain & Safe Zone Steal Logic](#target-priority-chain--safe-zone-steal-logic)
@@ -151,6 +152,27 @@ Hard teleports over long distances cause instant server death or character despa
 - **Boss Bump / Knockback Recovery**:
   - When knocked back $> 75$ studs by a boss or enemy player, the bot **never teleports**.
   - It engages smooth synchronized walking (`walkSync`) with stuck-hop detection until within the $\le 75$ stud threshold before attempting final pickup.
+
+---
+
+### Manual "Get" & Auto-Farm Unified Code Architecture
+Manual "Get" button clicks on individual egg cards directly execute `autoGetEgg(uid, pos, myTok, true)` as a single-step execution of the autonomous farming pipeline. Both modes share 100% of the exact same code, avoiding any divergence:
+1. **Target Approach & 50-Stud Snap**:
+   - Dynamic live position tracking through `eggCache.byUid[uid]` (with coordinate fallback if not in cache).
+   - Approaching via `walkTo` with `{ snapRadius = SNAP_RADIUS (50), stuckHop = true }`. The moment the character enters within 50 studs of the egg, it CFrame-snaps directly onto the egg with zero velocity and updated orientation.
+   - Pre-pickup alignment via `microSnap()` (clamped to $\le 75$ studs; engages approach walking if knocked back further).
+2. **Robust Pickup & Carry Transition**:
+   - Takes hold snapshot (`takeHoldSnapshot()`), listens for `FieldEggGone`/`FieldEggCarry` events, and verifies via 4 real signals before transitioning.
+   - Switches velocity to carry mode (`X.switchToCarry()`) and neutralizes carried egg collision/mass (`neutraliseEggPhysics()`).
+3. **Safe-Zone Return & 50-Stud Safe Snap**:
+   - Navigates toward `SAFE_ZONE` using `walkTo` with `{ snapRadius = SAFE_SNAP_RADIUS (50), stuckHop = true }`.
+   - Parallel safe-zone watcher thread checks distance every `0.1s`:
+     - Within 50 studs (`SAFE_SNAP_RADIUS`): immediately executes `X.snapToSafe()` every `0.25s` even if stunned or ragdolled.
+     - Within 14 studs (`X.SAFE_DETECT_RADIUS`): confirms safe-zone arrival.
+     - 45s watchdog safety net guarantees delivery snap.
+   - Post-arrival delivery loop (`X.deliverWait`): re-snaps onto safe-zone every 2s until the carried egg is consumed by the game, restores default velocity (`X.resetVelocity()`), and triggers `X.requestEggRefresh()`.
+4. **Dropped Egg Auto-Recovery**:
+   - If bumped or knocked loose during transit, manual get automatically detects the drop and re-fetches the egg via `dropRetry` just like auto farm.
 
 ---
 

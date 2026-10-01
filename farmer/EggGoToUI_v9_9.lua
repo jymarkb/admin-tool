@@ -223,7 +223,7 @@ local PET_RARITY_PRESETS = {
     ["Red Panda"]="Mythic", ["Koi"]="Cosmic", ["Snowy Owl"]="Cosmic",
     ["Stag"]="Secret", ["Oni Tiger"]="Eternal", ["Kitsune"]="Divine",
     ["Crab"]="Legendary", ["Kaiju Spider"]="Legendary", ["Blade Head"]="Mythic", ["Mantis"] = "Cosmic",
-    ["Mantaris"]="Cosmic", ["Rhinotaur"]="Cosmic", ["Shark"]="Secret",
+    ["Mantaris"]="Cosmic", ["Rhino"]="Cosmic", ["Shark"]="Secret",
     ["Gorilla King"]="Eternal", ["Nightflame"]="Divine", ["Dove"]="Legendary",
     ["Lamb"]="Mythic", ["Moth"]="Cosmic", ["Peacock"]="Cosmic",
     ["Pure Jellyfish"]="Secret", ["Centaur"]="Secret", ["Pegasus"]="Eternal",
@@ -1193,88 +1193,7 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
     end)
 end
 
-local function retSafe(myTok, sl)
-    sl.Text = "Returning to safe zone..."
-    sl.TextColor3 = Color3.fromRGB(100, 180, 255)
-    walkTo(SAFE_ZONE, SAFE_ARRIVE_RADIUS, myTok, function()
-        if walkToken == myTok then
-            sl.Text = "Safe zone ✓"; sl.TextColor3 = Color3.fromRGB(120,255,150)
-            X.resetVelocity(); X.tripUntil = 0
-        end
-    end, { snapRadius = SAFE_SNAP_RADIUS, stuckHop = true })
-end
-
--- ==================================================
--- CONFIRM CARRY
--- ==================================================
-local function confirmCarry(uid, timeout)
-    local cf = false; local cs = {}
-    for _, p in ipairs({"RE/EggWorld/FieldEggGone","RE/EggWorld/FieldEggCarry"}) do
-        local ok, r = pcall(function() return ReplicatedStorage.Packages.Networking[p] end)
-        if ok and r and r:IsA("RemoteEvent") then
-            table.insert(cs, r.OnClientEvent:Connect(function(pl)
-                if cf then return end
-                if typeof(pl) == "table" then
-                    local pu = tostring(pl.Uid or pl.EggUid or "")
-                    if pu == uid then cf = true end
-                end
-            end))
-        end
-    end
-    local el = 0
-    while not cf and el < timeout do
-        local a = Workspace:FindFirstChild("AreaEggSlotsClient")
-        if a and not a:FindFirstChild(uid) then cf = true; break end
-        task.wait(0.15); el = el + 0.15
-    end
-    for _, c in ipairs(cs) do pcall(function() c:Disconnect() end) end
-    return cf
-end
-
--- ==================================================
--- GET EGG
--- ==================================================
-local MAX_CARRY_RETRIES = 3
-
-local function getEgg(pos, uid, sl)
-    if typeof(pos) ~= "Vector3" then return end
-    walkToken = walkToken + 1; local my = walkToken
-    X.resetVelocity(); X.tripUntil = os.clock() + 90     -- v9: new target egg = default velocity; rubberband watch on
-
-    local function try(n)
-        if walkToken ~= my then return end
-        sl.Text = n == 1 and "Going to egg..." or ("Retry "..n.."/"..MAX_CARRY_RETRIES)
-        sl.TextColor3 = Color3.fromRGB(255,220,100)
-
-        walkTo(pos, 6, my, function()
-            if walkToken ~= my then return end
-            sl.Text = "Picking up..."; sl.TextColor3 = Color3.fromRGB(255,220,100)
-            local c = carryEgg(uid, sl)
-            if not c then
-                if n < MAX_CARRY_RETRIES then task.wait(0.5); try(n+1)
-                else sl.Text = "Carry failed after "..MAX_CARRY_RETRIES; sl.TextColor3 = Color3.fromRGB(255,120,120) end
-                return
-            end
-            sl.Text = "Confirming..."; sl.TextColor3 = Color3.fromRGB(255,220,100)
-            local ok = confirmCarry(uid, 2.5)
-            if ok then
-                task.wait(0.2)
-                X.switchToCarry()
-                if autoReturnEnabled then retSafe(my, sl)
-                else sl.Text = "Secured ✓ (no return)"; sl.TextColor3 = Color3.fromRGB(120,255,150); X.resetVelocity(); X.tripUntil = 0 end
-            else
-                if n < MAX_CARRY_RETRIES then
-                    sl.Text = "Not confirmed, retry "..(n+1).."/"..MAX_CARRY_RETRIES
-                    sl.TextColor3 = Color3.fromRGB(255,180,80); task.wait(0.5); try(n+1)
-                else
-                    sl.Text = "Pickup unconfirmed after "..MAX_CARRY_RETRIES
-                    sl.TextColor3 = Color3.fromRGB(255,120,120)
-                end
-            end
-        end)
-    end
-    try(1)
-end
+-- Note: Manual get is a single-step execution of autoGetEgg (defined below with auto farm).
 
 -- ==================================================
 -- HELPERS
@@ -1570,7 +1489,7 @@ function X.deliverWait(myTok)
     X.snapToSafe()
     if not carryMarkers then task.wait(0.3); return true end
     local t, lastSnap, streak = 0, 0, 0
-    while t < HOLD_RELEASE_TIMEOUT and autoFarmToken == myTok do
+    while t < HOLD_RELEASE_TIMEOUT and (autoFarmToken == myTok or walkToken == myTok) do
         if not markersActive(carryMarkers) then
             streak = streak + 1
             if streak >= 3 then return true end
@@ -1613,13 +1532,14 @@ function X.describeVal(v, maxn)
 end
 
 local describeVal = X.describeVal
+
 -- Blocking walk (runs in the autofarm thread). Returns true only if we actually arrived.
-local function walkSync(destOrFn, radius, myTok, opts)
+local function walkSync(destOrFn, radius, myTok, opts, isManual)
     walkToken = walkToken + 1
     local tok = walkToken
     local done, arrived = false, false
     walkTo(destOrFn, radius, tok, function() arrived = true; done = true end, opts)
-    while not done and autoFarmToken == myTok and walkToken == tok do task.wait(0.1) end
+    while not done and (isManual or autoFarmToken == myTok) and walkToken == tok do task.wait(0.1) end
     if not arrived then walkToken = walkToken + 1 end
     return arrived
 end
@@ -1627,12 +1547,13 @@ end
 -- Walks to an egg (position refreshed from the live 1s cache), snaps onto it inside SNAP_RADIUS,
 -- carries it, confirms from REAL signals only, then returns to the safe zone -- aborting the trip
 -- if the egg gets dropped so we never walk home empty-handed.
-local function autoGetEgg(uid, startPos, myTok)
+local function autoGetEgg(uid, startPos, myTok, isManual)
     X.resetVelocity()             -- v9: every new target egg starts at the default velocity
     X.ownUid = nil                -- v9.1: not ours until we actually start the pickup
     local completed, result = false, false
     local phase   = "walking"     -- walking -> carrying -> done
     local livePos = startPos
+    local tag     = isManual and "[ManualGet] " or "[AutoFarm] "
 
     local function finish(ok)
         if completed then return end
@@ -1643,23 +1564,24 @@ local function autoGetEgg(uid, startPos, myTok)
     local walkTok = walkToken
 
     local function cancelled()
+        if isManual then return walkToken ~= walkTok end
         return autoFarmToken ~= myTok or walkToken ~= walkTok
     end
 
     -- Tracker: consumes each NEW scan from the constant 1s scanner
     task.spawn(function()
         local t0, missing, lastSeq = os.clock(), 0, eggCache.seq
-        while not completed and phase == "walking" and autoFarmToken == myTok do
+        while not completed and phase == "walking" and (isManual or autoFarmToken == myTok) and walkToken == walkTok do
             task.wait(0.15)
-            if completed or phase ~= "walking" or autoFarmToken ~= myTok then break end
+            if completed or phase ~= "walking" or (not isManual and autoFarmToken ~= myTok) or walkToken ~= walkTok then break end
             if os.clock() - t0 > WALK_TIMEOUT then
                 walkToken = walkToken + 1; finish(false); break
             end
             -- v9.1: the game told us it is gone / its slot vanished -> don't walk to an empty nest
             if X.goneActive(uid) or X.takenSignal(uid) then
                 walkToken = walkToken + 1
-                lastFailReason = "[AutoFarm] Egg taken by someone else — next..."
-                X.blacklistStolen(uid)
+                lastFailReason = tag .. "Egg taken by someone else — next..."
+                if not isManual then X.blacklistStolen(uid) end
                 finish(false); break
             end
             if eggCache.seq ~= lastSeq then
@@ -1670,8 +1592,8 @@ local function autoGetEgg(uid, startPos, myTok)
                     local np = extPos(found)
                     if np then livePos = np end
                     -- v9: a higher-priority rarity (Divine > Eternal > Secret > Mythic) spawned before we picked
-                    -- this egg up: switch to it (a dropped egg we are re-fetching is never abandoned)
-                    if X.hasRarity() and not (dropRetry and dropRetry.uid == uid) then
+                    -- this egg up: switch to it (a dropped egg we are re-fetching is never abandoned; manual get stays on chosen egg)
+                    if not isManual and X.hasRarity() and not (dropRetry and dropRetry.uid == uid) then
                         local okp, best, bTier = pcall(X.pickNearest, eggCache.records or {})
                         if okp and best and bTier and bTier < 5 and tostring(best.Uid or "") ~= uid
                            and bTier < X.eggTier(found) then
@@ -1685,8 +1607,8 @@ local function autoGetEgg(uid, startPos, myTok)
                     local lim = (X.looseUids[uid] or (dropRetry and dropRetry.uid == uid)) and 4 or 2   -- v9.4: dropped eggs re-list late
                     if missing >= lim then        -- gone on 2 scans in a row: someone else took it
                         walkToken = walkToken + 1
-                        lastFailReason = "[AutoFarm] Egg gone before pickup — next..."
-                        X.blacklist(uid, 45)
+                        lastFailReason = tag .. "Egg gone before pickup — next..."
+                        if not isManual then X.blacklist(uid, 45) end
                         finish(false); break
                     end
                 end
@@ -1703,21 +1625,21 @@ local function autoGetEgg(uid, startPos, myTok)
             X.forceScan(1.5)
             if cancelled() then finish(false); return end
             if X.goneActive(uid) or X.takenSignal(uid) or eggCache.byUid[uid] == nil then
-                lastFailReason = "[AutoFarm] Nest already empty — next..."
-                X.blacklistStolen(uid)
+                lastFailReason = tag .. "Nest already empty — next..."
+                if not isManual then X.blacklistStolen(uid) end
                 X.requestEggRefresh()
                 finish(false); return
             end
         end
         X.ownUid = uid                              -- from here on Gone/Carry events for this uid are ours
-        statusLabel.Text = "[AutoFarm] Picking up..."
+        statusLabel.Text = tag .. "Picking up..."
         statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
 
         local before = takeHoldSnapshot()
         local pickupEpoch0 = X.ragdollEpoch      -- any ragdoll/stun after this point = we were bumped while grabbing/carrying
         do
             local rec0 = eggCache.byUid[uid]
-            if rec0 then print("[AutoFarm] egg record:", describeVal(rec0, 14)) end
+            if rec0 then print(tag .. "egg record:", describeVal(rec0, 14)) end
         end
 
         -- Listen BEFORE invoking so an early FieldEggGone/Carry event can't be missed
@@ -1789,7 +1711,7 @@ local function autoGetEgg(uid, startPos, myTok)
             -- ESP check: if another player is already carrying this egg, abort immediately
             if X.isCarriedByOther(uid) then
                 stolen = true
-                lastFailReason = "[AutoFarm] Egg taken by another player — next..."
+                lastFailReason = tag .. "Egg taken by another player — next..."
                 break
             end
 
@@ -1799,20 +1721,20 @@ local function autoGetEgg(uid, startPos, myTok)
             if rTmp and typeof(livePos) == "Vector3" then
                 local dCur = (Vector3.new(livePos.X, 0, livePos.Z) - Vector3.new(rTmp.Position.X, 0, rTmp.Position.Z)).Magnitude
                 if dCur > 75 then
-                    statusLabel.Text = ("[AutoFarm] Knocked back (%d studs) — walking closer..."):format(math.floor(dCur))
+                    statusLabel.Text = (tag .. "Knocked back (%d studs) — walking closer..."):format(math.floor(dCur))
                     statusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
-                    local closeWalk = walkSync(function() return livePos end, 15, myTok, { snapRadius = 40 })
+                    local closeWalk = walkSync(function() return livePos end, 15, myTok, { snapRadius = 40 }, isManual)
                     if not closeWalk or cancelled() then break end
                     if X.isCarriedByOther(uid) then
                         stolen = true
-                        lastFailReason = "[AutoFarm] Egg taken by another player — next..."
+                        lastFailReason = tag .. "Egg taken by another player — next..."
                         break
                     end
                 end
             end
 
             microSnap(); task.wait(0.12)
-            statusLabel.Text = ("[AutoFarm] Picking up... try %d/%d"):format(attemptNo, maxTry)
+            statusLabel.Text = (tag .. "Picking up... try %d/%d"):format(attemptNo, maxTry)
             statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
 
             local rf = getCarryRemote()
@@ -1863,13 +1785,15 @@ local function autoGetEgg(uid, startPos, myTok)
         cleanup()
         if not carried then
             if stolen then
-                lastFailReason = "[AutoFarm] Egg was taken by someone else — next..."
-                X.blacklistStolen(uid)        -- v9.5: 60s / 4 min / until unlisted (was: until unlisted)
+                lastFailReason = tag .. "Egg was taken by someone else — next..."
+                if not isManual then X.blacklistStolen(uid) end        -- v9.5: 60s / 4 min / until unlisted
             else
-                lastFailReason = "[AutoFarm] Pickup failed (" .. lastRfInfo .. ") — next..."
-                local n = (X.failCount[uid] or 0) + 1
-                X.failCount[uid] = n
-                X.blacklist(uid, n == 1 and 25 or (n == 2 and 180 or 1e9))   -- 3rd failure: stale entry, ignore it for good
+                lastFailReason = tag .. "Pickup failed (" .. lastRfInfo .. ") — next..."
+                if not isManual then
+                    local n = (X.failCount[uid] or 0) + 1
+                    X.failCount[uid] = n
+                    X.blacklist(uid, n == 1 and 25 or (n == 2 and 180 or 1e9))   -- 3rd failure: stale entry, ignore it for good
+                end
             end
             X.requestEggRefresh()
             finish(false); return
@@ -1885,6 +1809,8 @@ local function autoGetEgg(uid, startPos, myTok)
             weAreCarrying = false
             X.resetVelocity()
             X.requestEggRefresh()
+            statusLabel.Text = tag .. "Secured ✓ (no return)"
+            statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
             finish(true); return
         end
 
@@ -1936,7 +1862,7 @@ local function autoGetEgg(uid, startPos, myTok)
         local fastUntil, forced = 0, false
         local bumped, seenEpoch, bumpScanAt, lastSnapT = false, pickupEpoch0, nil, 0
 
-        while not done and autoFarmToken == myTok and walkToken == rtok do
+        while not done and (isManual or autoFarmToken == myTok) and walkToken == rtok do
             task.wait(0.1)
             if done then break end          -- the walker reported arrival while we slept: that is a delivery, never a "drop"
             local now = os.clock()
@@ -2044,11 +1970,11 @@ local function autoGetEgg(uid, startPos, myTok)
             if now - lastStatus >= 0.5 then
                 lastStatus = now
                 if isRagdolled then
-                    statusLabel.Text = "[AutoFarm] Paused (ragdoll: " .. tostring(lastRagdollReason) .. ")"
+                    statusLabel.Text = tag .. "Paused (ragdoll: " .. tostring(lastRagdollReason) .. ")"
                     statusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
                 else
                     local d = dSafe ~= math.huge and dSafe or 0
-                    statusLabel.Text = ("[AutoFarm] Returning %d studs (pickup: %s)%s"):format(d, tostring(how), bumped and " [bumped]" or "")
+                    statusLabel.Text = (tag .. "Returning %d studs (pickup: %s)%s"):format(d, tostring(how), bumped and " [bumped]" or "")
                     statusLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
                 end
             end
@@ -2068,7 +1994,7 @@ local function autoGetEgg(uid, startPos, myTok)
             if staleMode and not X.snapHidesCarried then return nil end    -- listing shows carried eggs: can't tell
             local t0, waited, seq0, seen, absent = os.clock(), 0, eggCache.seq, 0, 0
             task.spawn(X.forceScan)
-            while waited < 3 and autoFarmToken == myTok do
+            while waited < 3 and (isManual or autoFarmToken == myTok) do
                 task.wait(0.1); waited = waited + 0.1
                 if eggCache.seq ~= seq0 and eggCache.tIssue >= t0 then
                     seq0 = eggCache.seq
@@ -2106,8 +2032,8 @@ local function autoGetEgg(uid, startPos, myTok)
             X.clearMarks(uid); X.stolenN[uid] = nil
             dropRetry = { uid = uid, t = os.clock(),
                           n = ((dropRetry and dropRetry.uid == uid) and dropRetry.n or 0) + 1 }
-            lastFailReason = "[AutoFarm] Egg dropped (" .. tostring(dropWhy) .. ") — picking it up again..."
-            warn("[AutoFarm] drop detected:", dropWhy)
+            lastFailReason = tag .. "Egg dropped (" .. tostring(dropWhy) .. ") — picking it up again..."
+            warn(tag .. "drop detected:", dropWhy)
             X.requestEggRefresh()
             finish(false); return
         end
@@ -2116,14 +2042,36 @@ local function autoGetEgg(uid, startPos, myTok)
             X.resetVelocity()                   -- v9.6: delivered -> back to the default velocity right away
             X.deliverWait(myTok)                -- snap onto the zone + wait until the carried object is consumed
             weAreCarrying = false
+            statusLabel.Text = tag .. "Safe zone ✓"
+            statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
         end                                     -- (not arrived: the loop's gate finishes the delivery)
         X.requestEggRefresh()                   -- redraw the egg list now instead of waiting for luck
         finish(arrived)
     end, { snapRadius = SNAP_RADIUS })
 
-    while not completed and autoFarmToken == myTok do task.wait(0.15) end
-    if autoFarmToken ~= myTok then walkToken = walkToken + 1 end
+    while not completed and (isManual or autoFarmToken == myTok) and walkToken == walkTok do task.wait(0.15) end
+    if not isManual and autoFarmToken ~= myTok then walkToken = walkToken + 1 end
     return result
+end
+
+-- ==================================================
+-- MANUAL GET (SINGLE-STEP AUTOFARM)
+-- ==================================================
+local function getEgg(pos, uid, sl)
+    if typeof(pos) ~= "Vector3" then return end
+    if autoFarmEnabled then toggleAutoFarm() end
+    walkToken = walkToken + 1
+    local myTok = walkToken
+    task.spawn(function()
+        local ok = autoGetEgg(uid, pos, myTok, true)
+        while not ok and dropRetry and dropRetry.uid == uid and dropRetry.n <= 3 and walkToken == myTok do
+            task.wait(0.3)
+            if walkToken ~= myTok then break end
+            local cur = eggCache.byUid[uid]
+            local p = cur and extPos(cur) or pos
+            ok = autoGetEgg(uid, p, myTok, true)
+        end
+    end)
 end
 
 -- Priority: Divine -> Eternal -> Secret -> farthest
@@ -2331,38 +2279,57 @@ local function autoFarmLoop()
 end
 
 local function toggleAutoFarm()
-    pcall(function()
+    local ok, err = pcall(function()
         autoFarmEnabled = not autoFarmEnabled
         if autoFarmEnabled then
-            autoFarmBtn.Text = "[ON] AutoFarm"
-            autoFarmBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
-            autoFarmBtn.TextColor3 = Color3.fromRGB(220,255,220)
+            if autoFarmBtn then
+                autoFarmBtn.Text = "[ON] AutoFarm"
+                autoFarmBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+                autoFarmBtn.TextColor3 = Color3.fromRGB(220, 255, 220)
+            end
             walkToken = walkToken + 1
             autoFarmToken = autoFarmToken + 1
-            statusLabel.Text = "[AutoFarm] Starting..."
-            statusLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
+            if statusLabel then
+                statusLabel.Text = "[AutoFarm] Starting..."
+                statusLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
+            end
             task.spawn(function()
-                local ok, e2 = pcall(autoFarmLoop)
-                if not ok then
+                local okLoop, e2 = pcall(autoFarmLoop)
+                if not okLoop then
                     autoFarmEnabled = false
-                    autoFarmBtn.Text = "[OFF] AutoFarm"
-                    autoFarmBtn.BackgroundColor3 = Color3.fromRGB(90, 50, 50)
-                    autoFarmBtn.TextColor3 = Color3.new(1,1,1)
-                    statusLabel.Text = "[AutoFarm] ERROR: " .. tostring(e2)
-                    statusLabel.TextColor3 = Color3.fromRGB(255,80,80)
+                    if autoFarmBtn then
+                        autoFarmBtn.Text = "[OFF] AutoFarm"
+                        autoFarmBtn.BackgroundColor3 = Color3.fromRGB(90, 50, 50)
+                        autoFarmBtn.TextColor3 = Color3.new(1, 1, 1)
+                    end
+                    if statusLabel then
+                        statusLabel.Text = "[AutoFarm] ERROR: " .. tostring(e2)
+                        statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+                    end
                     warn("[AutoFarm] loop error:", e2)
                 end
             end)
         else
-            autoFarmBtn.Text = "[OFF] AutoFarm"
-            autoFarmBtn.BackgroundColor3 = Color3.fromRGB(90, 50, 50)
-            autoFarmBtn.TextColor3 = Color3.new(1,1,1)
+            if autoFarmBtn then
+                autoFarmBtn.Text = "[OFF] AutoFarm"
+                autoFarmBtn.BackgroundColor3 = Color3.fromRGB(90, 50, 50)
+                autoFarmBtn.TextColor3 = Color3.new(1, 1, 1)
+            end
             autoFarmToken = autoFarmToken + 1
             walkToken = walkToken + 1
-            statusLabel.Text = "[AutoFarm] Stopping..."
-            statusLabel.TextColor3 = Color3.fromRGB(200,200,200)
+            if statusLabel then
+                statusLabel.Text = "[AutoFarm] Stopping..."
+                statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            end
         end
     end)
+    if not ok then
+        warn("[AutoFarm] toggle error:", err)
+        if statusLabel then
+            statusLabel.Text = "[AutoFarm] Toggle error: " .. tostring(err)
+            statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        end
+    end
 end
 
 -- ==================================================
@@ -2652,8 +2619,6 @@ local jsonBox
 local refreshBtn
 local copyBtn
 local loadBtn
-local autoFarmBtn
-local statusLabel
 local listFrame
 local refreshPetCards
 local updateFarmBtnText
@@ -4229,7 +4194,7 @@ function upVelBtn()
     end
 end
 
-local function upVelIn()
+function upVelIn()
     local v=tonumber(velInputBox.Text)
     if v and v>0 then
         X.baseVelocity=v
@@ -4270,7 +4235,7 @@ velInputBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
-local function upCarryVelIn()
+function upCarryVelIn()
     local v=tonumber(carryVelInputBox.Text)
     if v and v>0 then
         X.baseCarryVelocity=v
@@ -4346,7 +4311,7 @@ end)
 
 upVelBtn(); upRecBtn(); updateFarmBtnText()
 
-local function toggleMenuVisible()
+function toggleMenuVisible()
     main.Visible = not main.Visible
     menuToggleBtn.Text = "☰"
 end
