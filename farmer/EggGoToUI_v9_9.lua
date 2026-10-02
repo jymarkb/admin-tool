@@ -2985,9 +2985,41 @@ local function formatStatNumber(val)
     end
 end
 
+local function formatPetWeight(weightVal, scaleVal)
+    if type(weightVal) == "string" then
+        local kgStr = weightVal:match("([%d,]+)%s*[Kk][Gg]")
+        if kgStr then
+            local numOnly = kgStr:gsub(",", "")
+            local n = tonumber(numOnly)
+            if n and n > 0 then
+                local formatted = tostring(math.round(n))
+                local k
+                while true do
+                    formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+                    if k == 0 then break end
+                end
+                return formatted .. "Kg", n
+            end
+        end
+    end
+    local rawW = tonumber(weightVal) or 0
+    if rawW <= 0 then return "-- kg", 0 end
+    local s = tonumber(scaleVal) or 1
+    -- Authoritative game formula: DisplayWeight = math.round(Weight * Scale^2)
+    local finalW = math.round(rawW * (s * s))
+    local formatted = tostring(finalW)
+    local k
+    while true do
+        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+        if k == 0 then break end
+    end
+    return formatted .. "Kg", finalW
+end
+
 local function extractPetStats(petData, inst)
     local earn = nil
     local weight = nil
+    local weightNum = 0
 
     if type(petData) == "table" then
         local rawEarn = petData["Money/s"] or petData.EarnRate or petData.MoneyRate or petData.Earn or petData.Rate or petData.Income or petData.CoinsPerSec or petData.CoinsPerSecond or petData.Cps or petData.Production
@@ -3002,16 +3034,12 @@ local function extractPetStats(petData, inst)
 
         local rawWeight = petData.Weight or petData.Mass or petData.Kg or petData.Size
         if rawWeight ~= nil then
-            if type(rawWeight) == "number" then
-                weight = formatStatNumber(rawWeight) .. " kg"
-            else
-                weight = tostring(rawWeight)
-                if not string.find(weight:lower(), "kg") then weight = weight .. " kg" end
-            end
+            local scale = petData.Scale
+            weight, weightNum = formatPetWeight(rawWeight, scale)
         end
     end
 
-    if inst and (not earn or not weight) then
+    if inst and (not earn or not weight or weight == "-- kg") then
         pcall(function()
             local attrs = inst:GetAttributes() or {}
             if not earn then
@@ -3025,26 +3053,26 @@ local function extractPetStats(petData, inst)
                     end
                 end
             end
-            if not weight then
+            if not weight or weight == "-- kg" then
                 local aWeight = attrs.Weight or attrs.Mass or attrs.Kg or attrs.Size
                 if aWeight ~= nil then
-                    if type(aWeight) == "number" then
-                        weight = formatStatNumber(aWeight) .. " kg"
-                    else
-                        weight = tostring(aWeight)
-                        if not string.find(weight:lower(), "kg") then weight = weight .. " kg" end
-                    end
+                    local scale = attrs.Scale
+                    weight, weightNum = formatPetWeight(aWeight, scale)
                 end
             end
-            if (not earn or not weight) and inst:IsA("GuiObject") then
+            if (not earn or not weight or weight == "-- kg") and inst:IsA("GuiObject") then
                 for _, desc in ipairs(inst:GetDescendants()) do
                     if desc:IsA("TextLabel") and desc.Visible and #desc.Text > 0 then
                         local t = desc.Text
                         if not earn and (string.find(t, "/s") or string.find(t, "/sec")) then
                             earn = t
                         end
-                        if not weight and (string.find(t:lower(), "kg") or string.find(t:lower(), "lbs")) then
-                            weight = t
+                        if (not weight or weight == "-- kg") and (string.find(t:lower(), "kg") or string.find(t:lower(), "lbs")) then
+                            local wStr, wN = formatPetWeight(t, 1)
+                            if wN > 0 then
+                                weight = wStr
+                                weightNum = wN
+                            end
                         end
                     end
                 end
@@ -3052,70 +3080,87 @@ local function extractPetStats(petData, inst)
         end)
     end
 
-    return earn or "--/s", weight or "-- kg"
+    return earn or "--/s", weight or "-- kg", weightNum
 end
 
 local function countInventoryEggs()
-    local count = 0
-    local seen = {}
-
-    -- 1. Held egg currently on character or ClientRenderedAssets
-    if typeof(isHoldingEgg) == "function" and isHoldingEgg() then
-        count = count + 1
-    end
-
-    -- 2. Tools in Backpack
-    local bp = LocalPlayer:FindFirstChild("Backpack")
-    if bp then
-        for _, t in ipairs(bp:GetChildren()) do
-            if t:IsA("Tool") then
-                local low = string.lower(t.Name)
-                if string.find(low, "egg") or t:GetAttribute("Egg") or t:GetAttribute("EggUid") then
-                    count = count + 1
-                end
-            end
-        end
-    end
-
-    -- 3. LocalPlayer egg containers
-    local eggContainers = {
-        LocalPlayer:FindFirstChild("Eggs"),
-        LocalPlayer:FindFirstChild("EggInventory"),
-        LocalPlayer:FindFirstChild("EggSatchel"),
-        LocalPlayer:FindFirstChild("Inventory")
-    }
-    for _, cont in ipairs(eggContainers) do
-        if cont then
-            for _, item in ipairs(cont:GetChildren()) do
-                local low = string.lower(item.Name)
-                local u = tostring(item:GetAttribute("Uid") or item:GetAttribute("EggUid") or item.Name)
-                if (string.find(low, "egg") or item:GetAttribute("Egg")) and not seen[u] then
-                    seen[u] = true
-                    count = count + 1
-                end
-            end
-        end
-    end
-
-    -- 4. Check ProfileMirror FetchProfile for eggs if available
-    local rfProfile = getNetRemote("RF/ProfileMirror/FetchProfile")
-    if rfProfile then
-        pcall(function()
-            local ok, prof = pcall(function() return rfProfile:InvokeServer() end)
-            if ok and type(prof) == "table" then
-                local eggTable = prof.Eggs or prof.EggSatchel or prof.EggInventory
-                if type(eggTable) == "table" then
-                    for k, v in pairs(eggTable) do
-                        local u = (type(v) == "table" and (v.Uid or v.Id or v.UUID)) or tostring(k)
-                        if not seen[u] then
-                            seen[u] = true
-                            count = count + 1
+    -- 1. Client EggState module (Instant local client read, 0 network latency)
+    local clientFolder = ReplicatedStorage:FindFirstChild("Client")
+    local eggStateMod = clientFolder and clientFolder:FindFirstChild("EggState")
+    if eggStateMod and eggStateMod:IsA("ModuleScript") then
+        local ok, eggState = pcall(function() return require(eggStateMod) end)
+        if ok and type(eggState) == "table" and type(eggState.ReadOwnedEggs) == "function" then
+            local okSnap, snap = pcall(eggState.ReadOwnedEggs)
+            if okSnap and type(snap) == "table" then
+                for _, pData in pairs(snap) do
+                    if type(pData) == "table" and (pData.OwnerUserId == LocalPlayer.UserId or tostring(pData.OwnerUserId) == tostring(LocalPlayer.UserId)) then
+                        local recs = pData.Records or pData
+                        if type(recs) == "table" then
+                            local c = 0
+                            for _ in pairs(recs) do c = c + 1 end
+                            if c > 0 then return c end
                         end
                     end
                 end
             end
-        end)
+        end
     end
+
+    -- 2. RF/EggWorld/AskLiveSnapshot remote
+    local rfEggSnap = getNetRemote("RF/EggWorld/AskLiveSnapshot")
+    if rfEggSnap then
+        local ok, snap = pcall(function() return rfEggSnap:InvokeServer() end)
+        if ok and type(snap) == "table" then
+            for _, pData in pairs(snap) do
+                if type(pData) == "table" and (pData.OwnerUserId == LocalPlayer.UserId or tostring(pData.OwnerUserId) == tostring(LocalPlayer.UserId)) then
+                    local recs = pData.Records or pData
+                    if type(recs) == "table" then
+                        local c = 0
+                        for _ in pairs(recs) do c = c + 1 end
+                        if c > 0 then return c end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. RF/ProfileMirror/FetchProfile(LocalPlayer).EggInventory
+    local rfProfile = getNetRemote("RF/ProfileMirror/FetchProfile")
+    if rfProfile then
+        local ok, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
+        if ok and type(prof) == "table" and type(prof.EggInventory) == "table" then
+            local c = 0
+            for _ in pairs(prof.EggInventory) do c = c + 1 end
+            if c > 0 then return c end
+        end
+    end
+
+    -- 4. Fallback: Tools in Backpack & Character
+    local count = 0
+    local seen = {}
+    if typeof(isHoldingEgg) == "function" and isHoldingEgg() then
+        count = count + 1
+    end
+    local function checkContainerForEggs(cont)
+        if not cont then return end
+        for _, t in ipairs(cont:GetChildren()) do
+            if t:IsA("Tool") then
+                local attrs = t:GetAttributes() or {}
+                local dName = attrs.DisplayName or t.Name
+                local low = string.lower(dName)
+                local isEgg = string.find(low, "egg") ~= nil or attrs.Category == "Egg" or string.find(string.lower(t.Name), "egg") ~= nil
+                if isEgg then
+                    local u = tostring(attrs.UID or attrs.Uid or attrs.Id or t.Name)
+                    if not seen[u] then
+                        seen[u] = true
+                        count = count + 1
+                    end
+                end
+            end
+        end
+    end
+    checkContainerForEggs(LocalPlayer:FindFirstChild("Backpack"))
+    checkContainerForEggs(LocalPlayer.Character)
 
     return count
 end
@@ -3133,117 +3178,240 @@ end
 
 local selectedFuseSpecies = nil
 local eligibleFusePets = {}
+local checkedPetUids = {}
 local updateFuseSelectorUI = nil
+local fuseHeaderBadge = nil
 
 local function scanEligibleFusePets()
     local equippedUids = {}
     local equippedNames = {}
+    local equippedEarnRates = {}
 
-    -- 1. PenRoster AskLiveSnapshot for equipped pets
+    -- 1. PenRoster AskLiveSnapshot for equipped pets (matches LocalPlayer.UserId records)
     local rfPen = getNetRemote("RF/PenRoster/AskLiveSnapshot")
     if rfPen then
         local ok, snap = pcall(function() return rfPen:InvokeServer() end)
         if ok and type(snap) == "table" then
-            for _, item in pairs(snap) do
-                if type(item) == "table" then
-                    local uid = item.Id or item.PetId or item.Uid or item.UUID
-                    local name = item.Name or item.Species or item.PetType
-                    if uid then equippedUids[tostring(uid)] = true end
-                    if name then equippedNames[tostring(name)] = (equippedNames[tostring(name)] or 0) + 1 end
-                elseif type(item) == "string" then
-                    equippedUids[item] = true
-                end
-            end
-        end
-    end
-
-    -- 2. Character models/tools for equipped pets
-    local char = LocalPlayer.Character
-    if char then
-        for _, c in ipairs(char:GetChildren()) do
-            if c:IsA("Model") or c:IsA("Folder") or c:IsA("Tool") then
-                local low = string.lower(c.Name)
-                if string.find(low, "pet") or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[c.Name]) then
-                    equippedNames[c.Name] = (equippedNames[c.Name] or 0) + 1
-                    local uidAttr = c:GetAttribute("PetId") or c:GetAttribute("Uid") or c:GetAttribute("UUID")
-                    if uidAttr then equippedUids[tostring(uidAttr)] = true end
-                end
-            end
-        end
-    end
-
-    -- 3. Gather all owned pets from ProfileMirror or LocalPlayer containers or PlayerGui
-    local rawPets = {}
-
-    -- 3a. ProfileMirror FetchProfile
-    local rfProfile = getNetRemote("RF/ProfileMirror/FetchProfile")
-    if rfProfile then
-        local ok, prof = pcall(function() return rfProfile:InvokeServer() end)
-        if ok and type(prof) == "table" then
-            local satchel = prof.Satchel or prof.Pets or prof.PetSatchel or prof.Backpack
-            if type(satchel) == "table" then
-                for _, p in pairs(satchel) do
-                    if type(p) == "table" then
-                        local earn, weight = extractPetStats(p, nil)
-                        p._earn = earn
-                        p._weight = weight
-                        table.insert(rawPets, p)
-                    end
-                end
-            end
-        end
-    end
-
-    -- 3b. LocalPlayer child folders (Satchel, Pets, PetInventory, Inventory)
-    local petContainers = {
-        LocalPlayer:FindFirstChild("Satchel"),
-        LocalPlayer:FindFirstChild("Pets"),
-        LocalPlayer:FindFirstChild("PetInventory"),
-        LocalPlayer:FindFirstChild("Inventory")
-    }
-    for _, container in ipairs(petContainers) do
-        if container then
-            for _, c in ipairs(container:GetChildren()) do
-                local attrs = c:GetAttributes() or {}
-                local earn, weight = extractPetStats(attrs, c)
-                table.insert(rawPets, {
-                    Id = attrs.Id or attrs.Uid or attrs.UUID or c.Name,
-                    Species = attrs.Species or attrs.Name or attrs.PetType or c.Name,
-                    Rarity = attrs.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[c.Name]) or "Common",
-                    Equipped = attrs.Equipped == true or attrs.IsEquipped == true,
-                    _earn = earn,
-                    _weight = weight
-                })
-            end
-        end
-    end
-
-    -- 3c. PlayerGui Satchel / Backpack UI inspection fallback
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if #rawPets == 0 and pg then
-        for _, guiObj in ipairs(pg:GetChildren()) do
-            if guiObj:IsA("ScreenGui") then
-                local low = string.lower(guiObj.Name)
-                if string.find(low, "satchel") or string.find(low, "backpack") or string.find(low, "pet") then
-                    for _, desc in ipairs(guiObj:GetDescendants()) do
-                        if desc:IsA("Frame") or desc:IsA("ImageButton") or desc:IsA("TextButton") then
-                            local petName = desc:GetAttribute("Species") or desc:GetAttribute("PetName") or desc.Name
-                            if typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[petName] then
-                                local isEquip = desc:GetAttribute("Equipped") == true or desc:FindFirstChild("EquippedTag") ~= nil
-                                local earn, weight = extractPetStats(nil, desc)
-                                table.insert(rawPets, {
-                                    Id = desc:GetAttribute("PetId") or desc:GetAttribute("Uid") or (petName .. "_" .. tostring(#rawPets + 1)),
-                                    Species = petName,
-                                    Rarity = PET_RARITY_PRESETS[petName] or "Common",
-                                    Equipped = isEquip,
-                                    _earn = earn,
-                                    _weight = weight
-                                })
+            for _, pData in pairs(snap) do
+                if type(pData) == "table" and (pData.OwnerUserId == LocalPlayer.UserId or tostring(pData.OwnerUserId) == tostring(LocalPlayer.UserId)) then
+                    local records = pData.Records or pData
+                    if type(records) == "table" then
+                        for petUid, petRec in pairs(records) do
+                            local uStr = tostring(petUid)
+                            equippedUids[uStr] = true
+                            if type(petRec) == "table" then
+                                local sp = petRec.Species or petRec.Name or petRec.PetType
+                                if sp then equippedNames[sp] = (equippedNames[sp] or 0) + 1 end
                             end
                         end
                     end
                 end
             end
+        end
+    end
+
+    -- 2. PlayerGui.ActivePets.Frame.ScrollingFrame for live equipped pet slots and earn rates
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    local activePetsGui = pg and pg:FindFirstChild("ActivePets")
+    local activeSf = activePetsGui and activePetsGui:FindFirstChild("ScrollingFrame", true)
+    if activeSf then
+        for _, f in ipairs(activeSf:GetChildren()) do
+            local uid = f.Name:match("^Pet_(%x+)$")
+            if uid then
+                equippedUids[uid] = true
+                for _, d in ipairs(f:GetDescendants()) do
+                    if d:IsA("TextLabel") and d.Text ~= "" then
+                        local earnMatch = d.Text:match("%$[%d%.]+%a*/s")
+                        if earnMatch then
+                            equippedEarnRates[uid] = earnMatch
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Gather all owned pets from Backpack & Character Tools (PRIMARY GROUND TRUTH)
+    local rawPets = {}
+    local sourceBreakdown = {}
+    local seenUids = {}
+
+    local function scanToolContainer(container, srcName)
+        if not container then return end
+        for _, tool in ipairs(container:GetChildren()) do
+            if tool:IsA("Tool") then
+                local attrs = tool:GetAttributes() or {}
+                local itemType = attrs.ItemType or ""
+                local isGear = attrs.GearName ~= nil or itemType == "Gear" or attrs.IsBat == true
+                if not isGear then
+                    local dName = attrs.DisplayName or tool.Name
+                    local isEgg = string.find(dName:lower(), "egg") ~= nil or attrs.Category == "Egg" or string.find(tool.Name:lower(), "egg") ~= nil
+                    if not isEgg then
+                        local petUid = attrs.UID or attrs.Uid or attrs.Id or tool.Name
+                        local uidStr = tostring(petUid)
+                        if not seenUids[uidStr] then
+                            seenUids[uidStr] = true
+                            local rawName = attrs.DisplayName or attrs.Category or tool.Name
+                            local cleanBase = rawName:gsub("^%b[]%s*", "")
+                            for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold"}) do
+                                cleanBase = cleanBase:gsub("^" .. mWord .. "%s+", "")
+                            end
+
+                            local weightStr, weightNum = formatPetWeight(attrs.Weight, attrs.Scale)
+
+                            local mut = ""
+                            if type(attrs.BaseMutation) == "string" and attrs.BaseMutation ~= "" then
+                                mut = attrs.BaseMutation
+                            elseif type(attrs.Mutations) == "string" and attrs.Mutations ~= "" then
+                                mut = attrs.Mutations
+                            end
+
+                            local species = rawName
+                            if mut ~= "" and not string.find(species, mut) then
+                                species = string.format("[%s] %s", mut, species)
+                            end
+
+                            local rarity = attrs.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[attrs.DisplayName] or PET_RARITY_PRESETS[cleanBase] or PET_RARITY_PRESETS[rawName])) or "Common"
+
+                            local isEquip = equippedUids[uidStr] == true or attrs.Equipped == true
+                            local earn = equippedEarnRates[uidStr] or "--/s"
+
+                            table.insert(rawPets, {
+                                Id = uidStr,
+                                Uid = uidStr,
+                                Species = species,
+                                BaseSpecies = cleanBase,
+                                Mutation = mut,
+                                Rarity = rarity,
+                                Equipped = isEquip,
+                                _weightNum = weightNum,
+                                _weight = weightStr,
+                                _earn = earn,
+                                _source = srcName
+                            })
+                            sourceBreakdown[srcName] = (sourceBreakdown[srcName] or 0) + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    scanToolContainer(LocalPlayer:FindFirstChild("Backpack"), "Backpack")
+    scanToolContainer(LocalPlayer.Character, "Character")
+
+    -- 3b. ProfileMirror FetchProfile fallback with LocalPlayer argument
+    if #rawPets == 0 then
+        local rfProfile = getNetRemote("RF/ProfileMirror/FetchProfile")
+        if rfProfile then
+            local ok, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
+            if ok and type(prof) == "table" then
+                local pData = prof.Data or prof.Profile or prof
+                local seenTables = {}
+
+                local function searchProfile(tbl, path, depth)
+                    if depth > 4 or type(tbl) ~= "table" then return end
+                    if seenTables[tbl] then return end
+                    seenTables[tbl] = true
+
+                    local isCandidate = false
+                    local sampleCount = 0
+                    for k, v in pairs(tbl) do
+                        sampleCount = sampleCount + 1
+                        if (type(k) == "string" and #k == 32 and k:match("^%x+$"))
+                           or (type(v) == "table" and (v.Species or v.PetName or v.PetType or v.Earn or v.Rate or v.Weight or v.PetId or v.UID)) then
+                            isCandidate = true
+                            break
+                        end
+                        if sampleCount > 8 then break end
+                    end
+
+                    if isCandidate then
+                        local countInTable = 0
+                        for k, v in pairs(tbl) do
+                            if type(v) == "table" then
+                                local petUid = v.UID or v.Id or v.Uid or v.UUID or v.PetId or (type(k) == "string" and #k >= 10 and k)
+                                local uidStr = tostring(petUid or k)
+                                if not seenUids[uidStr] then
+                                    seenUids[uidStr] = true
+                                    local species = v.DisplayName or v.Species or v.Name or v.PetName or v.PetType or "Unknown"
+                                    local earn, weight, wNum = extractPetStats(v, nil)
+                                    table.insert(rawPets, {
+                                        Id = uidStr,
+                                        Uid = uidStr,
+                                        Species = species,
+                                        Rarity = v.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[species]) or "Common",
+                                        Equipped = equippedUids[uidStr] == true or v.Equipped == true,
+                                        _weightNum = wNum or 0,
+                                        _earn = earn,
+                                        _weight = weight,
+                                        _source = path
+                                    })
+                                    countInTable = countInTable + 1
+                                end
+                            end
+                        end
+                        if countInTable > 0 then
+                            sourceBreakdown[path] = (sourceBreakdown[path] or 0) + countInTable
+                        end
+                    else
+                        for k, v in pairs(tbl) do
+                            if type(v) == "table" then
+                                searchProfile(v, path .. "." .. tostring(k), depth + 1)
+                            end
+                        end
+                    end
+                end
+
+                searchProfile(pData, "Profile", 1)
+            end
+        end
+    end
+
+    -- 3c. PlayerGui Satchel / Backpack UI inspection fallback
+    if #rawPets == 0 and pg then
+        local guiCount = 0
+        for _, guiObj in ipairs(pg:GetChildren()) do
+            if guiObj:IsA("ScreenGui") and guiObj ~= screenGui and guiObj.Name ~= "RemoteLogger" and guiObj.Name ~= "PetProbeGui" and guiObj.Name ~= "TargetedCharacterScannerGui" then
+                for _, desc in ipairs(guiObj:GetDescendants()) do
+                    if desc:IsA("Frame") or desc:IsA("ImageButton") or desc:IsA("TextButton") then
+                        local attrs = desc:GetAttributes() or {}
+                        local petName = attrs.DisplayName or attrs.Species or attrs.PetName or attrs.Name or desc:GetAttribute("Species")
+                        local petUid = attrs.UID or attrs.PetId or attrs.Uid or attrs.UUID or (#desc.Name == 32 and desc.Name:match("^%x+$") and desc.Name)
+
+                        local parentName = (desc.Parent and desc.Parent.Name:lower()) or ""
+                        local isPetSlot = string.find(parentName, "satchel") or string.find(parentName, "pet") or string.find(parentName, "grid") or string.find(parentName, "inventory")
+                        if not petName and isPetSlot and #desc.Name > 1 and desc.Name ~= "Template" and desc.Name ~= "Sample" then
+                            petName = desc.Name
+                        end
+
+                        if petName then
+                            local uidStr = tostring(petUid or (petName .. "_" .. tostring(#rawPets + 1)))
+                            if not seenUids[uidStr] then
+                                seenUids[uidStr] = true
+                                local isEquip = equippedUids[uidStr] == true or attrs.Equipped == true or desc:FindFirstChild("EquippedTag") ~= nil
+                                local earn, weight, wNum = extractPetStats(attrs, desc)
+                                local rarity = attrs.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[petName]) or "Common"
+                                table.insert(rawPets, {
+                                    Id = uidStr,
+                                    Uid = uidStr,
+                                    Species = petName,
+                                    Rarity = rarity,
+                                    Equipped = isEquip,
+                                    _weightNum = wNum or 0,
+                                    _earn = earn,
+                                    _weight = weight,
+                                    _source = "PlayerGui." .. guiObj.Name
+                                })
+                                guiCount = guiCount + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        if guiCount > 0 then
+            sourceBreakdown["PlayerGui"] = guiCount
         end
     end
 
@@ -3255,7 +3423,11 @@ local function scanEligibleFusePets()
         totalPets = totalPets + 1
         local uid = tostring(pet.Id or pet.Uid or pet.UUID or pet.PetId or "")
         local species = pet.Species or pet.Name or pet.PetType or "Unknown"
-        local rarity = pet.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and PET_RARITY_PRESETS[species]) or "Common"
+        local cleanBase = (pet.BaseSpecies or species):gsub("^%b[]%s*", "")
+        for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold"}) do
+            cleanBase = cleanBase:gsub("^" .. mWord .. "%s+", "")
+        end
+        local rarity = pet.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[species] or PET_RARITY_PRESETS[cleanBase])) or "Common"
 
         local isEquipped = (pet.Equipped == true)
             or (uid ~= "" and equippedUids[uid] == true)
@@ -3270,8 +3442,11 @@ local function scanEligibleFusePets()
             if not unequippedGroups[species] then
                 unequippedGroups[species] = {
                     species = species,
+                    baseSpecies = cleanBase,
+                    mutation = pet.Mutation or "",
                     count = 0,
                     uids = {},
+                    pets = {},
                     rarity = rarity,
                     earn = pet._earn or "--/s",
                     weight = pet._weight or "-- kg"
@@ -3285,6 +3460,16 @@ local function scanEligibleFusePets()
             end
             unequippedGroups[species].count = unequippedGroups[species].count + 1
             table.insert(unequippedGroups[species].uids, uid)
+            table.insert(unequippedGroups[species].pets, {
+                uid = uid,
+                species = species,
+                baseSpecies = cleanBase,
+                mutation = pet.Mutation or "",
+                weightNum = pet._weightNum or 0,
+                weight = pet._weight or "-- kg",
+                earn = pet._earn or "--/s",
+                source = pet._source or "Backpack"
+            })
         end
     end
 
@@ -3310,8 +3495,127 @@ local function scanEligibleFusePets()
         return a.count > b.count
     end)
 
+    -- Sort pets within each group by weight (lightest to heaviest)
+    for _, group in ipairs(result) do
+        table.sort(group.pets, function(a, b)
+            return (a.weightNum or 0) < (b.weightNum or 0)
+        end)
+    end
+
     eligibleFusePets = result
+
+    -- Telemetry logging to console and UI activity log
+    local details = {}
+    for src, c in pairs(sourceBreakdown) do
+        table.insert(details, string.format("%s: %d", src, c))
+    end
+    local srcStr = #details > 0 and table.concat(details, ", ") or "none"
+    print(string.format("[EggGoToUI] Pet Scan complete: %d total (%d unequipped, %d equipped). Sources: %s. Eligible for fuse (>= 3): %d species",
+        totalPets, invUnequippedPets, totalEquipped, srcStr, #result))
+
     return result
+end
+
+local function callFuseSpecificPets(species, uidsToFuse)
+    if not species or not uidsToFuse or #uidsToFuse ~= 3 then
+        logAuto("⚠️ Exactly 3 pets must be selected to fuse", Color3.fromRGB(255, 180, 80))
+        return false, "Must select 3 pets"
+    end
+
+    for i = 1, 3 do
+        if not uidsToFuse[i] or tostring(uidsToFuse[i]) == "" then
+            logAuto("❌ Invalid Pet UID in slot " .. i, Color3.fromRGB(255, 120, 120))
+            return false, "Invalid pet UID"
+        end
+    end
+
+    local rfBriefing = getNetRemote("RF/Fusery/ConfirmBriefing")
+    local rfLoad     = getNetRemote("RF/Fusery/LoadPet")
+    local rfBegin    = getNetRemote("RF/Fusery/BeginFuse")
+    local rfFinish   = getNetRemote("RF/Fusery/FinishReveal")
+
+    if rfBriefing then pcall(function() rfBriefing:InvokeServer() end) end
+
+    if not rfLoad then
+        logAuto("❌ Remote RF/Fusery/LoadPet not found", Color3.fromRGB(255, 100, 100))
+        return false, "LoadPet remote missing"
+    end
+
+    logAuto("🧪 Loading 3x selected " .. species .. " into Fusery...", Color3.fromRGB(180, 140, 255))
+
+    local loadedCount = 0
+    for slot = 1, 3 do
+        local uid = tostring(uidsToFuse[slot])
+        local shortUid = (#uid > 8) and (uid:sub(1, 8) .. "...") or uid
+        logAuto(string.format("  [%d/3] Loading %s (%s)...", slot, species, shortUid), Color3.fromRGB(170, 190, 240))
+
+        -- Verified server signature from farmer/fuse.log:
+        -- InvokeServer(petUid, false)
+        local ok, res = pcall(function()
+            return rfLoad:InvokeServer(uid, false)
+        end)
+
+        if ok and res ~= false then
+            loadedCount = loadedCount + 1
+            logAuto(string.format("  ✓ [%d/3] Loaded", slot), Color3.fromRGB(140, 255, 180))
+        else
+            logAuto(string.format("  ⚠️ [%d/3] LoadPet returned: %s", slot, tostring(res)), Color3.fromRGB(255, 180, 80))
+        end
+        task.wait(0.15)
+    end
+
+    local fuseOk = (loadedCount >= 3)
+    local fuseRes = nil
+    if fuseOk then
+        if rfBegin then
+            local okB, resB = pcall(function() return rfBegin:InvokeServer() end)
+            if okB and resB ~= false and resB ~= nil then
+                fuseRes = resB
+                logAuto("⚡ [Fusery] BeginFuse: " .. tostring(resB), Color3.fromRGB(120, 255, 180))
+            else
+                logAuto("⚡ [Fusery] BeginFuse sent", Color3.fromRGB(120, 255, 180))
+            end
+        end
+
+        if rfFinish then
+            task.wait(0.2)
+            pcall(function() rfFinish:InvokeServer() end)
+        end
+
+        -- Trigger ContentCreator snapshot if available to sync client state
+        task.wait(0.3)
+        pcall(function()
+            local ccReq = ReplicatedStorage:FindFirstChild("ContentCreatorRemotes")
+            if ccReq and ccReq:FindFirstChild("Request") then
+                ccReq.Request:InvokeServer("snapshot", { lightweight = true })
+            end
+        end)
+
+        -- Clear checked state for the fused UIDs
+        for _, u in ipairs(uidsToFuse) do
+            checkedPetUids[u] = nil
+        end
+    else
+        logAuto(string.format("⚠️ Only %d/3 pets loaded into Fusery. Aborting fuse.", loadedCount), Color3.fromRGB(255, 160, 80))
+    end
+
+    task.wait(0.3)
+    scanEligibleFusePets()
+    if typeof(updateFuseSelectorUI) == "function" then
+        updateFuseSelectorUI()
+    end
+
+    if fuseOk then
+        logAuto("✅ [Fusery] Successfully fused 3x " .. species .. "!", Color3.fromRGB(120, 255, 180))
+        if fuseHeaderBadge then
+            fuseHeaderBadge.Text = "Fused 3x!"
+            fuseHeaderBadge.TextColor3 = Color3.fromRGB(120, 255, 180)
+        end
+    else
+        logAuto(string.format("⚠️ Fusery aborted (%d/3 loaded)", loadedCount), Color3.fromRGB(255, 180, 80))
+    end
+
+    return fuseOk, fuseRes
 end
 
 local function callFuseSelectedPet(species)
@@ -3320,66 +3624,27 @@ local function callFuseSelectedPet(species)
         return false, "No pet selected"
     end
 
-    scanEligibleFusePets()
-
-    local targetData = nil
+    -- First try to find 3 checked pets for this species
     for _, item in ipairs(eligibleFusePets) do
         if item.species == species then
-            targetData = item
-            break
-        end
-    end
-
-    if not targetData or targetData.count < 3 then
-        logAuto("⚠️ Need at least 3 unequipped " .. tostring(species) .. " to fuse", Color3.fromRGB(255, 120, 120))
-        return false, "Insufficient unequipped pets"
-    end
-
-    local uidsToFuse = { targetData.uids[1], targetData.uids[2], targetData.uids[3] }
-
-    local rfBriefing = getNetRemote("RF/Fusery/ConfirmBriefing")
-    local rfLoad     = getNetRemote("RF/Fusery/LoadPet")
-    local rfBegin    = getNetRemote("RF/Fusery/BeginFuse")
-    local rfFinish   = getNetRemote("RF/Fusery/FinishReveal")
-
-    logAuto("🧪 Loading 3x unequipped " .. species .. " into Fusery...", Color3.fromRGB(180, 140, 255))
-
-    if rfBriefing then pcall(function() rfBriefing:InvokeServer() end) end
-
-    if rfLoad then
-        for slot = 1, 3 do
-            local uid = uidsToFuse[slot]
-            local ok, res = pcall(function() return rfLoad:InvokeServer(slot, uid) end)
-            if not ok or res == false then
-                pcall(function() return rfLoad:InvokeServer({ Slot = slot, PetUid = uid, Id = uid }) end)
+            local uids = {}
+            for _, p in ipairs(item.pets or {}) do
+                if checkedPetUids[p.uid] then
+                    table.insert(uids, p.uid)
+                end
             end
-            task.wait(0.08)
+            if #uids == 3 then
+                return callFuseSpecificPets(species, uids)
+            end
+            -- Fallback if not exactly 3 checked: use the first 3
+            if #item.uids >= 3 then
+                return callFuseSpecificPets(species, { item.uids[1], item.uids[2], item.uids[3] })
+            end
         end
     end
 
-    local fuseOk, fuseRes = false, nil
-    if rfBegin then
-        fuseOk, fuseRes = pcall(function() return rfBegin:InvokeServer() end)
-    end
-
-    if rfFinish then
-        task.wait(0.2)
-        pcall(function() rfFinish:InvokeServer() end)
-    end
-
-    task.wait(0.2)
-    scanEligibleFusePets()
-    if typeof(updateFuseSelectorUI) == "function" then
-        updateFuseSelectorUI()
-    end
-
-    if fuseOk then
-        logAuto("✅ [Fusery] Successfully fused 3x " .. species .. "!", Color3.fromRGB(120, 255, 180))
-    else
-        logAuto("🧪 Fusery cycle executed (result: " .. tostring(fuseRes) .. ")", Color3.fromRGB(200, 180, 255))
-    end
-
-    return fuseOk, fuseRes
+    logAuto("⚠️ Need at least 3 unequipped " .. tostring(species) .. " to fuse", Color3.fromRGB(255, 120, 120))
+    return false, "Insufficient unequipped pets"
 end
 
 local function callBeginFuse()
@@ -3397,15 +3662,6 @@ local function callBeginFuse()
         end
     end
 
-    local rfBriefing = getNetRemote("RF/Fusery/ConfirmBriefing")
-    local rfBegin = getNetRemote("RF/Fusery/BeginFuse")
-    local rfFinish = getNetRemote("RF/Fusery/FinishReveal")
-    if rfBriefing then pcall(function() rfBriefing:InvokeServer() end) end
-    if rfBegin then
-        local ok, res = pcall(function() return rfBegin:InvokeServer() end)
-        if rfFinish then pcall(function() rfFinish:InvokeServer() end) end
-        return ok, res
-    end
     return false, "No eligible unequipped pets with 3+ copies"
 end
 
@@ -3479,74 +3735,42 @@ refreshInvBtn.TextColor3 = Color3.new(1, 1, 1); refreshInvBtn.TextSize = 12
 refreshInvBtn.Font = Enum.Font.GothamBold; refreshInvBtn.Parent = cardInv
 Instance.new("UICorner", refreshInvBtn).CornerRadius = UDim.new(0, 6)
 
--- CARD 2: FUSERY MACHINE
-local cardFuse = createAutoCard("🧪 Fusery & Mutation Machine", 126)
-cardFuse.ClipsDescendants = false
+-- CARD 2: FUSERY CANDIDATES (Count >= 3)
+local cardFuse = createAutoCard("🧪 Fusery Candidates (Select 3 to Fuse)", 300)
 
-local autoFuseBtn = Instance.new("TextButton")
-autoFuseBtn.Size = UDim2.new(0.5, -6, 0, 26); autoFuseBtn.Position = UDim2.new(0, 8, 0, 28)
-autoFuseBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65); autoFuseBtn.Text = "[OFF] Auto Fuse"
-autoFuseBtn.TextColor3 = Color3.fromRGB(210, 220, 240); autoFuseBtn.TextSize = 11
-autoFuseBtn.Font = Enum.Font.GothamBold; autoFuseBtn.Parent = cardFuse
-Instance.new("UICorner", autoFuseBtn).CornerRadius = UDim.new(0, 6)
+fuseHeaderBadge = Instance.new("TextLabel")
+fuseHeaderBadge.Size = UDim2.new(0, 110, 0, 20); fuseHeaderBadge.Position = UDim2.new(1, -145, 0, 4)
+fuseHeaderBadge.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
+fuseHeaderBadge.Text = "0 eligible"
+fuseHeaderBadge.TextColor3 = Color3.fromRGB(160, 210, 255)
+fuseHeaderBadge.TextSize = 10; fuseHeaderBadge.Font = Enum.Font.GothamBold
+fuseHeaderBadge.Parent = cardFuse
+Instance.new("UICorner", fuseHeaderBadge).CornerRadius = UDim.new(0, 4)
 
-local fuseNowBtn = Instance.new("TextButton")
-fuseNowBtn.Size = UDim2.new(0.5, -6, 0, 26); fuseNowBtn.Position = UDim2.new(0.5, 2, 0, 28)
-fuseNowBtn.BackgroundColor3 = Color3.fromRGB(90, 55, 145); fuseNowBtn.Text = "⚡ Fuse Now"
-fuseNowBtn.TextColor3 = Color3.new(1, 1, 1); fuseNowBtn.TextSize = 11
-fuseNowBtn.Font = Enum.Font.GothamBold; fuseNowBtn.Parent = cardFuse
-Instance.new("UICorner", fuseNowBtn).CornerRadius = UDim.new(0, 6)
+local refreshFuseListBtn = Instance.new("TextButton")
+refreshFuseListBtn.Size = UDim2.new(0, 24, 0, 20); refreshFuseListBtn.Position = UDim2.new(1, -30, 0, 4)
+refreshFuseListBtn.BackgroundColor3 = Color3.fromRGB(42, 52, 75); refreshFuseListBtn.Text = "🔄"
+refreshFuseListBtn.TextColor3 = Color3.new(1, 1, 1); refreshFuseListBtn.TextSize = 11
+refreshFuseListBtn.Font = Enum.Font.GothamBold; refreshFuseListBtn.Parent = cardFuse
+Instance.new("UICorner", refreshFuseListBtn).CornerRadius = UDim.new(0, 4)
 
-local fuseThresholdBtn = Instance.new("TextButton")
-fuseThresholdBtn.Size = UDim2.new(0.5, -6, 0, 24); fuseThresholdBtn.Position = UDim2.new(0, 8, 0, 58)
-fuseThresholdBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62); fuseThresholdBtn.Text = "Max Fuse: Rare ▾"
-fuseThresholdBtn.TextColor3 = Color3.fromRGB(220, 230, 255); fuseThresholdBtn.TextSize = 11
-fuseThresholdBtn.Font = Enum.Font.GothamBold; fuseThresholdBtn.Parent = cardFuse
-Instance.new("UICorner", fuseThresholdBtn).CornerRadius = UDim.new(0, 6)
-
-local fuseStateLabel = Instance.new("TextLabel")
-fuseStateLabel.Size = UDim2.new(0.5, -6, 0, 24); fuseStateLabel.Position = UDim2.new(0.5, 2, 0, 58)
-fuseStateLabel.BackgroundColor3 = Color3.fromRGB(30, 36, 48); fuseStateLabel.Text = "Fusery Ready"
-fuseStateLabel.TextColor3 = Color3.fromRGB(180, 160, 240); fuseStateLabel.TextSize = 10
-fuseStateLabel.Font = Enum.Font.GothamBold; fuseStateLabel.Parent = cardFuse
-Instance.new("UICorner", fuseStateLabel).CornerRadius = UDim.new(0, 6)
-
--- Row 3: Manual Select Pet to Fuse (>= 3 unequipped, no equipped pets)
-local selectFusePetBtn = Instance.new("TextButton")
-selectFusePetBtn.Size = UDim2.new(1, -44, 0, 28); selectFusePetBtn.Position = UDim2.new(0, 8, 0, 88)
-selectFusePetBtn.BackgroundColor3 = Color3.fromRGB(32, 40, 58); selectFusePetBtn.Text = "🐾 Select Pet (>= 3 unequipped) ▾"
-selectFusePetBtn.TextColor3 = Color3.fromRGB(230, 240, 255); selectFusePetBtn.TextSize = 11
-selectFusePetBtn.Font = Enum.Font.GothamBold; selectFusePetBtn.Parent = cardFuse
-Instance.new("UICorner", selectFusePetBtn).CornerRadius = UDim.new(0, 6)
-
-local refreshFusePetsBtn = Instance.new("TextButton")
-refreshFusePetsBtn.Size = UDim2.new(0, 26, 0, 28); refreshFusePetsBtn.Position = UDim2.new(1, -34, 0, 88)
-refreshFusePetsBtn.BackgroundColor3 = Color3.fromRGB(40, 50, 72); refreshFusePetsBtn.Text = "🔄"
-refreshFusePetsBtn.TextColor3 = Color3.new(1, 1, 1); refreshFusePetsBtn.TextSize = 12
-refreshFusePetsBtn.Font = Enum.Font.GothamBold; refreshFusePetsBtn.Parent = cardFuse
-Instance.new("UICorner", refreshFusePetsBtn).CornerRadius = UDim.new(0, 6)
-
--- Floating Dropdown Frame for Eligible Fuse Pets
-local fuseDropdownList = Instance.new("Frame")
-fuseDropdownList.Size = UDim2.new(1, -16, 0, 190)
-fuseDropdownList.Position = UDim2.new(0, 8, 0, 122)
-fuseDropdownList.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
-fuseDropdownList.BorderSizePixel = 0
-fuseDropdownList.ZIndex = 50
-fuseDropdownList.Visible = false
-fuseDropdownList.Parent = cardFuse
-Instance.new("UICorner", fuseDropdownList).CornerRadius = UDim.new(0, 6)
-local fdStroke = Instance.new("UIStroke", fuseDropdownList)
-fdStroke.Color = Color3.fromRGB(70, 95, 140); fdStroke.Thickness = 1.5
-
+-- Scrolling Container for Candidate Pets
 local fuseScroll = Instance.new("ScrollingFrame")
-fuseScroll.Size = UDim2.new(1, -4, 1, -4); fuseScroll.Position = UDim2.new(0, 2, 0, 2)
-fuseScroll.BackgroundTransparency = 1; fuseScroll.BorderSizePixel = 0
-fuseScroll.ScrollBarThickness = 5; fuseScroll.ZIndex = 51
-fuseScroll.Parent = fuseDropdownList
+fuseScroll.Size = UDim2.new(1, -12, 1, -32); fuseScroll.Position = UDim2.new(0, 6, 0, 26)
+fuseScroll.BackgroundColor3 = Color3.fromRGB(16, 20, 30); fuseScroll.BorderSizePixel = 0
+fuseScroll.ScrollBarThickness = 4; fuseScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+fuseScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+fuseScroll.ClipsDescendants = true
+fuseScroll.Parent = cardFuse
+Instance.new("UICorner", fuseScroll).CornerRadius = UDim.new(0, 6)
+
+local fsPad = Instance.new("UIPadding", fuseScroll)
+fsPad.PaddingTop = UDim.new(0, 4); fsPad.PaddingBottom = UDim.new(0, 4)
+fsPad.PaddingLeft = UDim.new(0, 4); fsPad.PaddingRight = UDim.new(0, 4)
 
 local fuseScrollLayout = Instance.new("UIListLayout")
-fuseScrollLayout.Padding = UDim.new(0, 3)
+fuseScrollLayout.Padding = UDim.new(0, 4)
+fuseScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
 fuseScrollLayout.Parent = fuseScroll
 
 -- CARD 3: LIVE AUTOMATION LOG
@@ -3580,189 +3804,320 @@ clearLogBtn.MouseButton1Click:Connect(function()
     logTextLabel.Text = "[Log cleared]"
 end)
 
-
-
--- Toggle Handlers & Button Connectors
-local function updateToggleVisual(btn, enabled, label)
-    if enabled then
-        btn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.Text = "[ON] " .. label
-    else
-        btn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
-        btn.TextColor3 = Color3.fromRGB(210, 220, 240)
-        btn.Text = "[OFF] " .. label
-    end
-end
-
-autoFuseBtn.MouseButton1Click:Connect(function()
-    autoFuseEnabled = not autoFuseEnabled
-    updateToggleVisual(autoFuseBtn, autoFuseEnabled, "Auto Fuse")
-    logAuto(autoFuseEnabled and ("🧪 Auto Fuse enabled (Max: " .. fuseRarityThreshold .. ")") or "Auto Fuse disabled")
-end)
+local isFusing = false
 
 updateFuseSelectorUI = function()
     local list = scanEligibleFusePets()
+
+    -- Clean old pet rows
     for _, child in ipairs(fuseScroll:GetChildren()) do
-        if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("Frame") then
+        if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("TextButton") then
             child:Destroy()
         end
     end
 
-    if #list == 0 then
-        local emptyLabel = Instance.new("TextLabel")
-        emptyLabel.Size = UDim2.new(1, -10, 0, 32); emptyLabel.Position = UDim2.new(0, 5, 0, 4)
-        emptyLabel.BackgroundTransparency = 1; emptyLabel.Text = "⚠️ No unequipped pets with 3+ copies"
-        emptyLabel.TextColor3 = Color3.fromRGB(220, 160, 160); emptyLabel.TextSize = 11
-        emptyLabel.Font = Enum.Font.Gotham; emptyLabel.ZIndex = 52
-        emptyLabel.Parent = fuseScroll
-        fuseScroll.CanvasSize = UDim2.new(0, 0, 0, 36)
-        if not selectedFuseSpecies then
-            selectFusePetBtn.Text = "🐾 Select Pet (No 3+ unequipped) ▾"
-            fuseNowBtn.Text = "⚡ Fuse Now"
-            fuseStateLabel.Text = "No 3+ Pets"
-            fuseStateLabel.TextColor3 = Color3.fromRGB(220, 160, 160)
+    if fuseHeaderBadge then
+        if #list == 0 then
+            fuseHeaderBadge.Text = "0 eligible"
+            fuseHeaderBadge.TextColor3 = Color3.fromRGB(160, 180, 210)
+        else
+            fuseHeaderBadge.Text = string.format("%d species eligible", #list)
+            fuseHeaderBadge.TextColor3 = Color3.fromRGB(120, 255, 180)
         end
+    end
+
+    if #list == 0 then
+        local emptyFrame = Instance.new("Frame")
+        emptyFrame.Size = UDim2.new(1, -4, 0, 68)
+        emptyFrame.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
+        emptyFrame.BorderSizePixel = 0
+        emptyFrame.Parent = fuseScroll
+        Instance.new("UICorner", emptyFrame).CornerRadius = UDim.new(0, 6)
+        local efStr = Instance.new("UIStroke", emptyFrame)
+        efStr.Color = Color3.fromRGB(45, 55, 80); efStr.Thickness = 1
+
+        local emptyIcon = Instance.new("TextLabel")
+        emptyIcon.Size = UDim2.new(1, -16, 0, 22); emptyIcon.Position = UDim2.new(0, 8, 0, 12)
+        emptyIcon.BackgroundTransparency = 1
+        emptyIcon.Text = "ℹ️ No unequipped pets with 3+ copies"
+        emptyIcon.TextColor3 = Color3.fromRGB(210, 225, 245)
+        emptyIcon.TextSize = 11; emptyIcon.Font = Enum.Font.GothamBold
+        emptyIcon.Parent = emptyFrame
+
+        local emptySub = Instance.new("TextLabel")
+        emptySub.Size = UDim2.new(1, -16, 0, 18); emptySub.Position = UDim2.new(0, 8, 0, 34)
+        emptySub.BackgroundTransparency = 1
+        emptySub.Text = "Equipped pets (18) are protected. Collect or hatch more pets to fuse!"
+        emptySub.TextColor3 = Color3.fromRGB(140, 160, 190)
+        emptySub.TextSize = 10; emptySub.Font = Enum.Font.Gotham
+        emptySub.Parent = emptyFrame
         return
     end
 
-    local ITEM_H = 38
-    fuseScroll.CanvasSize = UDim2.new(0, 0, 0, #list * (ITEM_H + 3) + 4)
+    for _, g in ipairs(list) do
+        local rarCol = (typeof(ALL_RARITY_COLORS) == "table" and ALL_RARITY_COLORS[g.rarity]) or Color3.fromRGB(200, 200, 200)
 
-    for _, p in ipairs(list) do
-        local isSelected = (selectedFuseSpecies == p.species)
-        local rarCol = (typeof(ALL_RARITY_COLORS) == "table" and ALL_RARITY_COLORS[p.rarity]) or Color3.fromRGB(200, 200, 200)
+        -- If none checked for this species yet, default to checking the 3 lightest (lowest weight)
+        local initialChecked = 0
+        for _, pet in ipairs(g.pets) do
+            if checkedPetUids[pet.uid] then initialChecked = initialChecked + 1 end
+        end
+        if initialChecked == 0 and #g.pets >= 3 then
+            checkedPetUids[g.pets[1].uid] = true
+            checkedPetUids[g.pets[2].uid] = true
+            checkedPetUids[g.pets[3].uid] = true
+        end
 
-        local itemFrame = Instance.new("Frame")
-        itemFrame.Size = UDim2.new(1, -6, 0, ITEM_H)
-        itemFrame.BackgroundColor3 = isSelected and Color3.fromRGB(36, 68, 115) or Color3.fromRGB(24, 30, 44)
-        itemFrame.BorderSizePixel = 0
-        itemFrame.ZIndex = 52
-        itemFrame.Parent = fuseScroll
-        Instance.new("UICorner", itemFrame).CornerRadius = UDim.new(0, 5)
+        -- Outer Group Card Container
+        local groupCard = Instance.new("Frame")
+        groupCard.Size = UDim2.new(1, -4, 0, 0)
+        groupCard.AutomaticSize = Enum.AutomaticSize.Y
+        groupCard.BackgroundColor3 = Color3.fromRGB(21, 26, 38)
+        groupCard.BorderSizePixel = 0
+        groupCard.Parent = fuseScroll
+        Instance.new("UICorner", groupCard).CornerRadius = UDim.new(0, 8)
+        local gcStroke = Instance.new("UIStroke", groupCard)
+        gcStroke.Color = Color3.fromRGB(45, 58, 85); gcStroke.Thickness = 1
 
-        -- Left rarity stripe
+        local groupCardLayout = Instance.new("UIListLayout")
+        groupCardLayout.Padding = UDim.new(0, 2)
+        groupCardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        groupCardLayout.Parent = groupCard
+
+        -- Group Header
+        local groupHeader = Instance.new("Frame")
+        groupHeader.Size = UDim2.new(1, 0, 0, 36)
+        groupHeader.BackgroundColor3 = Color3.fromRGB(28, 36, 52)
+        groupHeader.BorderSizePixel = 0
+        groupHeader.LayoutOrder = 1
+        groupHeader.Parent = groupCard
+        Instance.new("UICorner", groupHeader).CornerRadius = UDim.new(0, 8)
+
+        -- Left Rarity Stripe
         local strip = Instance.new("Frame")
-        strip.Size = UDim2.new(0, 3, 1, -4); strip.Position = UDim2.new(0, 3, 0, 2)
-        strip.BackgroundColor3 = rarCol; strip.BorderSizePixel = 0; strip.ZIndex = 53
-        strip.Parent = itemFrame
+        strip.Size = UDim2.new(0, 4, 1, -8); strip.Position = UDim2.new(0, 5, 0, 4)
+        strip.BackgroundColor3 = rarCol; strip.BorderSizePixel = 0
+        strip.Parent = groupHeader
         Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
 
-        -- Top row: Species Name + Count Badge
-        local nameLbl = Instance.new("TextLabel")
-        nameLbl.Size = UDim2.new(1, -125, 0, 18); nameLbl.Position = UDim2.new(0, 10, 0, 2)
-        nameLbl.BackgroundTransparency = 1
-        nameLbl.Text = p.species .. " (" .. p.rarity .. ")"
-        nameLbl.TextColor3 = isSelected and Color3.new(1, 1, 1) or Color3.fromRGB(225, 235, 255)
-        nameLbl.TextSize = 11; nameLbl.Font = Enum.Font.GothamBold
-        nameLbl.TextXAlignment = Enum.TextXAlignment.Left; nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
-        nameLbl.ZIndex = 53; nameLbl.Parent = itemFrame
+        -- Species Title + Count Badge
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.new(1, -170, 1, 0); titleLabel.Position = UDim2.new(0, 16, 0, 0)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Text = string.format("%s  [%s]  •  %d copies", g.species, g.rarity, g.count)
+        titleLabel.TextColor3 = Color3.fromRGB(235, 245, 255)
+        titleLabel.TextSize = 11; titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        titleLabel.Parent = groupHeader
 
-        local countBadge = Instance.new("TextLabel")
-        countBadge.Size = UDim2.new(0, 108, 0, 16); countBadge.Position = UDim2.new(1, -112, 0, 3)
-        countBadge.BackgroundColor3 = isSelected and Color3.fromRGB(50, 110, 190) or Color3.fromRGB(35, 45, 65)
-        countBadge.Text = "x" .. tostring(p.count) .. " unequipped"
-        countBadge.TextColor3 = Color3.fromRGB(180, 240, 210)
-        countBadge.TextSize = 9; countBadge.Font = Enum.Font.GothamBold
-        countBadge.ZIndex = 53; countBadge.Parent = itemFrame
-        Instance.new("UICorner", countBadge).CornerRadius = UDim.new(0, 4)
+        -- Auto 3 (Lightest) Button
+        local auto3Btn = Instance.new("TextButton")
+        auto3Btn.Size = UDim2.new(0, 58, 0, 24); auto3Btn.Position = UDim2.new(1, -162, 0.5, -12)
+        auto3Btn.BackgroundColor3 = Color3.fromRGB(40, 50, 72)
+        auto3Btn.Text = "Auto 3"
+        auto3Btn.TextColor3 = Color3.fromRGB(190, 220, 255)
+        auto3Btn.TextSize = 10; auto3Btn.Font = Enum.Font.GothamBold
+        auto3Btn.Parent = groupHeader
+        Instance.new("UICorner", auto3Btn).CornerRadius = UDim.new(0, 4)
 
-        -- Bottom row: Earn/s and Weight stats
-        local statsLbl = Instance.new("TextLabel")
-        statsLbl.Size = UDim2.new(1, -16, 0, 16); statsLbl.Position = UDim2.new(0, 10, 0, 20)
-        statsLbl.BackgroundTransparency = 1
-        statsLbl.Text = string.format("💰 Earn: %s   •   ⚖️ Weight: %s", tostring(p.earn or "--/s"), tostring(p.weight or "-- kg"))
-        statsLbl.TextColor3 = Color3.fromRGB(160, 200, 240)
-        statsLbl.TextSize = 9; statsLbl.Font = Enum.Font.Gotham
-        statsLbl.TextXAlignment = Enum.TextXAlignment.Left
-        statsLbl.ZIndex = 53; statsLbl.Parent = itemFrame
+        -- Fuse Button
+        local fuseGroupBtn = Instance.new("TextButton")
+        fuseGroupBtn.Size = UDim2.new(0, 96, 0, 24); fuseGroupBtn.Position = UDim2.new(1, -100, 0.5, -12)
+        fuseGroupBtn.TextSize = 10; fuseGroupBtn.Font = Enum.Font.GothamBold
+        fuseGroupBtn.Parent = groupHeader
+        Instance.new("UICorner", fuseGroupBtn).CornerRadius = UDim.new(0, 5)
+        local fbStroke = Instance.new("UIStroke", fuseGroupBtn)
+        fbStroke.Thickness = 1
 
-        -- Transparent full-size button overlay for easy clicking
-        local clickBtn = Instance.new("TextButton")
-        clickBtn.Size = UDim2.new(1, 0, 1, 0)
-        clickBtn.BackgroundTransparency = 1; clickBtn.Text = ""
-        clickBtn.ZIndex = 54; clickBtn.Parent = itemFrame
+        -- Table of row updater closures for instant, smooth check toggling
+        local rowUpdaterFns = {}
 
-        clickBtn.MouseButton1Click:Connect(function()
-            selectedFuseSpecies = p.species
-            selectFusePetBtn.Text = "🐾 " .. p.species .. " (" .. p.count .. " unequipped) ▾"
-            fuseNowBtn.Text = "⚡ Fuse 3x " .. p.species
-            fuseStateLabel.Text = "Ready: 3x " .. p.species
-            fuseStateLabel.TextColor3 = Color3.fromRGB(120, 255, 180)
-            fuseDropdownList.Visible = false
-            cardFuse.Size = UDim2.new(1, 0, 0, 126)
-            logAuto("🐾 Selected for Fuse: " .. p.species .. " [Earn: " .. tostring(p.earn) .. ", Weight: " .. tostring(p.weight) .. "] (3 of " .. p.count .. " unequipped)", Color3.fromRGB(200, 180, 255))
-        end)
-    end
-
-    if selectedFuseSpecies then
-        local found = false
-        for _, p in ipairs(list) do
-            if p.species == selectedFuseSpecies then
-                selectFusePetBtn.Text = "🐾 " .. p.species .. " (" .. p.count .. " unequipped) ▾"
-                fuseNowBtn.Text = "⚡ Fuse 3x " .. p.species
-                fuseStateLabel.Text = "Ready: 3x " .. p.species
-                fuseStateLabel.TextColor3 = Color3.fromRGB(120, 255, 180)
-                found = true
-                break
+        local function updateGroupFuseBtn()
+            local countChecked = 0
+            for _, p in ipairs(g.pets) do
+                if checkedPetUids[p.uid] then countChecked = countChecked + 1 end
+            end
+            if countChecked == 3 then
+                fuseGroupBtn.Text = "⚡ Fuse (3/3)"
+                fuseGroupBtn.BackgroundColor3 = Color3.fromRGB(115, 60, 185)
+                fuseGroupBtn.TextColor3 = Color3.new(1, 1, 1)
+                fbStroke.Color = Color3.fromRGB(170, 110, 255)
+            else
+                fuseGroupBtn.Text = string.format("Select 3 (%d/3)", countChecked)
+                fuseGroupBtn.BackgroundColor3 = Color3.fromRGB(44, 42, 56)
+                fuseGroupBtn.TextColor3 = Color3.fromRGB(160, 160, 180)
+                fbStroke.Color = Color3.fromRGB(65, 60, 80)
             end
         end
-        if not found then
-            selectedFuseSpecies = nil
-            selectFusePetBtn.Text = "🐾 Select Pet (>= 3 unequipped) ▾"
-            fuseNowBtn.Text = "⚡ Fuse Now"
-            fuseStateLabel.Text = "Fusery Ready"
-            fuseStateLabel.TextColor3 = Color3.fromRGB(180, 160, 240)
+
+        -- Individual Pet Rows Container
+        local rowsContainer = Instance.new("Frame")
+        rowsContainer.Size = UDim2.new(1, 0, 0, 0)
+        rowsContainer.AutomaticSize = Enum.AutomaticSize.Y
+        rowsContainer.BackgroundTransparency = 1
+        rowsContainer.BorderSizePixel = 0
+        rowsContainer.LayoutOrder = 2
+        rowsContainer.Parent = groupCard
+
+        local rowsLayout = Instance.new("UIListLayout")
+        rowsLayout.Padding = UDim.new(0, 2)
+        rowsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        rowsLayout.Parent = rowsContainer
+
+        local rcPad = Instance.new("UIPadding", rowsContainer)
+        rcPad.PaddingTop = UDim.new(0, 2); rcPad.PaddingBottom = UDim.new(0, 4)
+        rcPad.PaddingLeft = UDim.new(0, 6); rcPad.PaddingRight = UDim.new(0, 6)
+
+        for idx, pet in ipairs(g.pets) do
+            local shortUid = (#pet.uid > 8) and (pet.uid:sub(1, 8) .. "...") or pet.uid
+
+            local petRow = Instance.new("Frame")
+            petRow.Size = UDim2.new(1, 0, 0, 28)
+            petRow.BorderSizePixel = 0
+            petRow.LayoutOrder = idx
+            petRow.Parent = rowsContainer
+            Instance.new("UICorner", petRow).CornerRadius = UDim.new(0, 5)
+            local rowStroke = Instance.new("UIStroke", petRow)
+
+            -- Pet details label (index, weight, earn/s, short UID)
+            local rowLabel = Instance.new("TextLabel")
+            rowLabel.Size = UDim2.new(1, -38, 1, 0); rowLabel.Position = UDim2.new(0, 8, 0, 0)
+            rowLabel.BackgroundTransparency = 1
+            local detailText = string.format("#%d  ⚖️ %s", idx, pet.weight)
+            if pet.earn and pet.earn ~= "--/s" and pet.earn ~= "" then
+                detailText = detailText .. "  •  💰 " .. tostring(pet.earn)
+            end
+            detailText = detailText .. "  •  [" .. shortUid .. "]"
+            rowLabel.Text = detailText
+            rowLabel.TextSize = 10; rowLabel.Font = Enum.Font.Gotham
+            rowLabel.TextXAlignment = Enum.TextXAlignment.Left
+            rowLabel.TextTruncate = Enum.TextTruncate.AtEnd
+            rowLabel.Parent = petRow
+
+            -- Checkbox Button
+            local chkBtn = Instance.new("TextButton")
+            chkBtn.Size = UDim2.new(0, 20, 0, 20); chkBtn.Position = UDim2.new(1, -26, 0.5, -10)
+            chkBtn.TextSize = 13; chkBtn.Font = Enum.Font.GothamBold
+            chkBtn.Parent = petRow
+            Instance.new("UICorner", chkBtn).CornerRadius = UDim.new(0, 4)
+            local chkStroke = Instance.new("UIStroke", chkBtn)
+            chkStroke.Thickness = 1.2
+
+            local function refreshRowVisual()
+                local isChecked = (checkedPetUids[pet.uid] == true)
+                if isChecked then
+                    petRow.BackgroundColor3 = Color3.fromRGB(30, 46, 42)
+                    rowStroke.Color = Color3.fromRGB(48, 150, 95)
+                    rowStroke.Thickness = 1
+                    rowLabel.TextColor3 = Color3.fromRGB(205, 250, 225)
+                    chkBtn.BackgroundColor3 = Color3.fromRGB(35, 145, 80)
+                    chkBtn.TextColor3 = Color3.new(1, 1, 1)
+                    chkBtn.Text = "✓"
+                    chkStroke.Color = Color3.fromRGB(80, 220, 130)
+                else
+                    petRow.BackgroundColor3 = Color3.fromRGB(24, 29, 42)
+                    rowStroke.Color = Color3.fromRGB(38, 48, 68)
+                    rowStroke.Thickness = 0.8
+                    rowLabel.TextColor3 = Color3.fromRGB(170, 195, 230)
+                    chkBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+                    chkBtn.TextColor3 = Color3.new(0, 0, 0)
+                    chkBtn.Text = ""
+                    chkStroke.Color = Color3.fromRGB(60, 75, 105)
+                end
+            end
+
+            table.insert(rowUpdaterFns, refreshRowVisual)
+            refreshRowVisual()
+
+            local function togglePetCheck()
+                if checkedPetUids[pet.uid] then
+                    checkedPetUids[pet.uid] = nil
+                else
+                    local countChecked = 0
+                    for _, p in ipairs(g.pets) do
+                        if checkedPetUids[p.uid] then countChecked = countChecked + 1 end
+                    end
+                    if countChecked >= 3 then
+                        logAuto("⚠️ 3 pets already checked for " .. g.species .. ". Uncheck one to change selection.", Color3.fromRGB(255, 180, 80))
+                        return
+                    end
+                    checkedPetUids[pet.uid] = true
+                end
+                refreshRowVisual()
+                updateGroupFuseBtn()
+            end
+
+            -- Click anywhere on the row OR directly on the checkbox button to toggle
+            chkBtn.MouseButton1Click:Connect(togglePetCheck)
+
+            local clickOverlay = Instance.new("TextButton")
+            clickOverlay.Size = UDim2.new(1, -34, 1, 0); clickOverlay.Position = UDim2.new(0, 0, 0, 0)
+            clickOverlay.BackgroundTransparency = 1; clickOverlay.Text = ""
+            clickOverlay.Parent = petRow
+            clickOverlay.MouseButton1Click:Connect(togglePetCheck)
         end
+
+        updateGroupFuseBtn()
+
+        -- Auto 3 click handler: selects first 3 (lightest) pets of this species
+        auto3Btn.MouseButton1Click:Connect(function()
+            for _, p in ipairs(g.pets) do
+                checkedPetUids[p.uid] = nil
+            end
+            for i = 1, math.min(3, #g.pets) do
+                checkedPetUids[g.pets[i].uid] = true
+            end
+            for _, fn in ipairs(rowUpdaterFns) do fn() end
+            updateGroupFuseBtn()
+            logAuto("✓ Selected 3 lightest " .. g.species, Color3.fromRGB(140, 240, 180))
+        end)
+
+        -- Fuse Group button click handler
+        fuseGroupBtn.MouseButton1Click:Connect(function()
+            local selectedUids = {}
+            for _, p in ipairs(g.pets) do
+                if checkedPetUids[p.uid] then table.insert(selectedUids, p.uid) end
+            end
+            if #selectedUids ~= 3 then
+                logAuto(string.format("⚠️ Please check exactly 3 pets to fuse (%d/3 selected)", #selectedUids), Color3.fromRGB(255, 180, 80))
+                return
+            end
+            if isFusing then
+                logAuto("⏳ Fusery is busy. Please wait for current cycle to complete.", Color3.fromRGB(255, 200, 100))
+                return
+            end
+
+            isFusing = true
+            fuseGroupBtn.Text = "⏳ Fusing..."
+            fuseGroupBtn.BackgroundColor3 = Color3.fromRGB(65, 40, 105)
+
+            task.spawn(function()
+                local ok, res = pcall(function()
+                    return callFuseSpecificPets(g.species, selectedUids)
+                end)
+                isFusing = false
+                if not ok then
+                    logAuto("❌ Fuse exception: " .. tostring(res), Color3.fromRGB(255, 100, 100))
+                    if typeof(updateFuseSelectorUI) == "function" then
+                        updateFuseSelectorUI()
+                    end
+                end
+            end)
+        end)
     end
 end
 
-selectFusePetBtn.MouseButton1Click:Connect(function()
-    local willBeOpen = not fuseDropdownList.Visible
-    fuseDropdownList.Visible = willBeOpen
-    cardFuse.Size = willBeOpen and UDim2.new(1, 0, 0, 320) or UDim2.new(1, 0, 0, 126)
-    if willBeOpen then
-        updateFuseSelectorUI()
-    end
-end)
-
-refreshFusePetsBtn.MouseButton1Click:Connect(function()
+refreshFuseListBtn.MouseButton1Click:Connect(function()
     scanEligibleFusePets()
     updateFuseSelectorUI()
-    logAuto("🔄 Pet inventory scanned (filtered for >= 3 unequipped)", Color3.fromRGB(150, 220, 255))
+    logAuto("🔄 Candidate list refreshed", Color3.fromRGB(150, 220, 255))
 end)
 
 refreshInvBtn.MouseButton1Click:Connect(function()
     scanEligibleFusePets()
     updateFuseSelectorUI()
     logAuto("🔄 Inventory overview refreshed", Color3.fromRGB(150, 220, 255))
-end)
-
-fuseNowBtn.MouseButton1Click:Connect(function()
-    if selectedFuseSpecies then
-        local ok, res = callFuseSelectedPet(selectedFuseSpecies)
-        if ok then
-            logAuto("🧪 [Manual] Fused 3x " .. selectedFuseSpecies, Color3.fromRGB(180, 140, 255))
-        else
-            logAuto("❌ Fuse error: " .. tostring(res), Color3.fromRGB(255, 120, 120))
-        end
-    else
-        local ok, res = callBeginFuse()
-        if ok then
-            logAuto("🧪 [Manual] Fusery cycle initiated", Color3.fromRGB(180, 140, 255))
-        else
-            logAuto("❌ Fuse error: " .. tostring(res), Color3.fromRGB(255, 120, 120))
-        end
-    end
-end)
-
-fuseThresholdBtn.MouseButton1Click:Connect(function()
-    local curIdx = 1
-    for i, v in ipairs(FUSE_THRESHOLDS) do if v == fuseRarityThreshold then curIdx = i; break end end
-    curIdx = (curIdx % #FUSE_THRESHOLDS) + 1
-    fuseRarityThreshold = FUSE_THRESHOLDS[curIdx]
-    fuseThresholdBtn.Text = "Max Fuse: " .. fuseRarityThreshold .. " ▾"
-    logAuto("🧪 Fuse threshold: " .. fuseRarityThreshold, Color3.fromRGB(200, 160, 255))
 end)
 
 refreshPetCards = function()
@@ -3774,13 +4129,16 @@ end
 
 -- Background Automation Loop
 task.spawn(function()
-    logAuto("Fusery engine ready")
+    logAuto("Fusery candidate engine ready")
     scanEligibleFusePets()
+    if typeof(updateFuseSelectorUI) == "function" then
+        updateFuseSelectorUI()
+    end
     while not eggScannerStop and screenGui.Parent do
         if autoFuseEnabled then
             callBeginFuse()
         end
-        task.wait(1.5)
+        task.wait(2.5)
     end
 end)
 

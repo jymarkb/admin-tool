@@ -87,20 +87,26 @@ Tab 2 is streamlined exclusively for **Inventory Overview** and **Fusery Machine
      `🥚 Total Eggs: N in inventory`
    - **Instant Refresh (`🔄`)**: Immediately queries inventory remotes and updates both counts and the Fusery candidate list.
 
-2. **Fusery & Mutation Machine (`🧪 Fusery Machine`)**:
-   - **`Manual Pet Selector`**: Clean dropdown displaying strictly candidate species where the player owns **$\ge 3$ unequipped copies**.
-   - **`Equipped Pet Exclusion & Protection`**: Authoritative equipped queries via `RF/PenRoster/AskLiveSnapshot` and character models ensure all equipped pets are completely filtered out of both the count and candidate pool, preventing accidental loadout consumption.
-   - **`Earn/s & Weight Inspection`**: Every candidate pet in the dropdown list displays live statistics:
-     - Species Name & Rarity badge (`🐾 [Species] ([Rarity])`)
-     - Unequipped Count badge (`xN unequipped`)
-     - Earnings per second (`💰 Earn: [earn/s]`, e.g. `+1.2M/s`)
-     - Weight (`⚖️ Weight: [weight]`, e.g. `14.5 kg`)
-   - **`⚡ Fuse 3x [Species]` / `Fuse Now`**: Direct trigger that loads slots 1..3 with unequipped candidate UIDs via `RF/Fusery/LoadPet`, initiates fusion with `RF/Fusery/BeginFuse`, claims the reward via `RF/Fusery/FinishReveal`, and automatically refreshes inventory counts.
-   - **`Auto Fuse` Toggle**: Autonomous background loop that matches candidates below the configured `Max Fuse` rarity threshold.
-   - **`Max Fuse` Rarity Filter**: Restricts automated fusing candidates to designated rarity brackets (`Common`, `Uncommon`, `Rare`, `Epic`).
+2. **Fusery Candidates List (`🧪 Fusery Candidates (Select 3 to Fuse)`)**:
+   - **Dedicated Scrollable Candidate Cards**: Replaced legacy flat rows with collapsible/grouped species cards inside a permanent, responsive `ScrollingFrame` displaying all unequipped pet species that meet the fusion threshold ($\ge 3$ unequipped copies).
+   - **Equipped Pet Exclusion & Absolute Safety**: Authoritative equipped queries via `RF/PenRoster/AskLiveSnapshot`, `PlayerGui.ActivePets`, and character tool models strictly filter out all 18 equipped pets from both the count and candidate pool, guaranteeing equipped loadouts can never be consumed.
+   - **Grouped Candidate Header**:
+     - **Rarity Stripe & Badge**: Distinct visual stripe and badge colored according to rarity rank (`Common` through `Divine`).
+     - **Species Name & Mutation Badge**: Species display name with explicit mutation prefix tags (e.g., `[Rainbow] Snowy Owl`, `[Silver] Sabertooth Tiger`, `[Golden] Sacred Moth`) and unequipped copy count.
+     - **`Auto 3` Button**: One-click action to automatically select the 3 lightest (lowest weight) copies of that species.
+     - **`⚡ Fuse (3/3)` Action Button**: Dynamic button that enables when exactly 3 pets are checked. Displays `Select 3 (N/3)` when fewer than 3 are checked. Loads the 3 chosen UIDs via verified remote signature `RF/Fusery/LoadPet:InvokeServer(petUid, false)` (from `farmer/fuse.log`), triggers `RF/Fusery/BeginFuse` and `RF/Fusery/FinishReveal`, requests lightweight snapshot synchronization, and automatically re-renders the list.
+   - **Individual Pet Rows**: Below each species header, every single unequipped copy is individually listed:
+     - **Row Number & In-Game Weight**: Exact mass badge (e.g., `⚖️ 81,133Kg`, `⚖️ 5,921Kg`). Implements the game's authoritative formula:
+       $$\text{DisplayWeight} = \text{math.round}(\text{attrs.Weight} \times \text{attrs.Scale}^2)$$
+       Formatted with commas matching the in-game backpack display 1:1. Sorted ascending from lightest to heaviest so lower-stat copies appear first and high-stat/heavy pets are protected.
+     - **Earn Rate**: Real-time earnings rate `💰 $Y/s` when equipped or discovered in active pet registries.
+     - **Pet UID**: Truncated 8-character unique identifier preview (`[ab032962...]`).
+     - **Interactive Checkbox (`[✓]` / `[ ]`)**: Right-aligned toggle button on each row. Clicking the row or checkbox toggles selection with instant local visual updates (no scroll flicker). Gated to exactly 3 checked pets per species. Pre-checks the 3 lightest copies by default.
+   - **Empty State Notification**: When no species currently has 3+ unequipped copies, displays an informative placeholder card reassuring that the 18 equipped pets remain protected.
+   - **Instant Refresh (`🔄`)**: Header refresh button to instantly re-scan inventory and update candidates.
 
 3. **Live Fusery Activity Log (`📜 Fusery Activity Log`)**:
-   - Real-time scrolling telemetry terminal tracking scan results, pet selections, slot loading (slots 1..3), remote responses, and fusion completions.
+   - Real-time scrolling telemetry terminal tracking scan results, pet slot loading (slots 1..3 with short UID previews), remote responses, and fusion completions.
    - `Clear` button to purge output history.
 
 ---
@@ -330,5 +336,6 @@ All production farming and discovery scripts reside in the `farmer/` directory:
 | :--- | :--- |
 | [`farmer/EggGoToUI_v9_9.lua`](file:///home/arcobaleno/admin-tool/farmer/EggGoToUI_v9_9.lua) | Main autonomous egg farming, speed management, and delivery script |
 | [`farmer/targeted-discovery-scanner.lua`](file:///home/arcobaleno/admin-tool/farmer/targeted-discovery-scanner.lua) | Complete, uncapped read-only game discovery and telemetry scanner |
+| [`farmer/targeted-character-scanner.lua`](file:///home/arcobaleno/admin-tool/farmer/targeted-character-scanner.lua) | Dedicated local character, pet inventory, profile data, and PlayerGui scanner |
 | [`farmer/farm.json`](file:///home/arcobaleno/admin-tool/farmer/farm.json) | Reference configuration profile for egg priority and speed thresholds |
 | [`farmer/README.md`](file:///home/arcobaleno/admin-tool/farmer/README.md) | Technical architecture documentation and reference guide |
