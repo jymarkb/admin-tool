@@ -90,7 +90,8 @@ Tab 2 is streamlined exclusively for **Inventory Overview** and **Fusery Machine
    - **Instant Refresh (`🔄`)**: Immediately queries inventory remotes and updates both counts and the Fusery candidate list.
 
 2. **Fusery Candidates List (`🧪 Fusery Candidates (Select 3 to Fuse)`)**:
-   - **Dedicated Scrollable Candidate Cards**: Replaced legacy flat rows with collapsible/grouped species cards inside a permanent, responsive `ScrollingFrame` displaying all unequipped pet species that meet the fusion threshold ($\ge 3$ unequipped copies).
+   - **Manual Refresh & Deferred Candidate Loading**: To prevent startup lag, frame drops, and redundant `RF/PenRoster/AskLiveSnapshot` calls during UI switching, candidate cards are **not loaded automatically**. Upon opening Tab 2, a lightweight interactive placeholder displays `[🔄 Load Candidates]`. Candidates are only queried and parsed when the user explicitly triggers this load button or the header refresh button.
+   - **Dedicated Scrollable Candidate Cards**: Renders collapsible/grouped species cards inside a permanent, responsive `ScrollingFrame` displaying all unequipped pet species that meet the fusion threshold ($\ge 3$ unequipped copies).
    - **Equipped Pet Exclusion & Absolute Safety**: Authoritative equipped queries via `RF/PenRoster/AskLiveSnapshot`, `PlayerGui.ActivePets`, and character tool models strictly filter out all 18 equipped pets from both the count and candidate pool, guaranteeing equipped loadouts can never be consumed.
    - **Grouped Candidate Header**:
      - **Rarity Stripe & Badge**: Distinct visual stripe and badge colored according to rarity rank (`Common` through `Divine`).
@@ -120,34 +121,33 @@ Tab 3 is dedicated to the **Dr. Scramble Trade-In Machine** (`DrScrambleTradeIn`
    - **Row 1 (Y=5)**: Unobstructed title `🌀 Dr. Scramble Trade-In` (left) + diagnostic `🔍 State` button (right) + manual `🔄` refresh button (right). Buttons never overlap the title text.
    - **Row 2 (Y=32)**: Exact-second countdown timer `⏳ MMm SSs  •  Status` (left) + `[ON] Priority` toggle (right) + `[ON] Auto-Fuse` toggle (right).
    - **Exact-Second Server Rotation Countdown**: Synchronizes directly against `state.SecondsUntilRotation` returned by `AskState` (e.g. `792.7s`), updating `serverExpiresAt = os.time() + math.floor(state.SecondsUntilRotation)` with 1-second precision.
+   - **10-Second Performance Cadence**: Auto-trade checks and inventory egg scans are rate-limited to run at most once every 10 seconds (both in the background Tab 3 loop and during active `autoFarmLoop` cycles), eliminating FPS drops and CPU spikes caused by frequent `ProfileMirror` deserialization.
+   - **Event-Driven State Syncing**: Recipe requirements are authoritative and static throughout each banner cycle. `RF/ScrambleTradeIn/AskState` is queried once on initial load, when `RE/ScrambleTradeIn/BannerRotated` fires, or immediately after a successful trade-in, eliminating redundant network spam.
    - **AutoFarm Priority Toggle (`[ON] Priority` / `[OFF] Priority`)**: Toggles Scramble requirement targeting in the AutoFarm priority chain.
-   - **Autonomous Auto-Fuse Toggle (`[ON] Auto-Fuse` / `[OFF] Auto-Fuse`)**: Automatically executes trade-in / fusion the exact moment all required eggs for the active recipe enter inventory!
+   - **Autonomous Auto-Fuse Toggle (`[ON] Auto-Fuse` / `[OFF] Auto-Fuse`)**: Automatically executes trade-in / fusion the exact moment all required eggs for the active recipe enter inventory.
    - **Server Event Listener (`RE/ScrambleTradeIn/BannerRotated`)**: Connects to the server's live rotation event to instantly reload requirements whenever an in-game rotation occurs.
    - **State Inspector (`🔍 State`)**: Diagnostic button that introspects raw server response tables from `RF/ScrambleTradeIn/AskState` and prints key attributes to the activity log.
 
 2. **Bidirectional Species Aliasing Engine (`X.EGG_SPECIES_ALIASES`)**:
    - Server recipe requirements often use internal asset category names (e.g., `Galaxy Gecko`, `Cyclops Gorilla`, `Dream Axolotl`), while physical egg tools, map spawns, and GUI labels use user-facing display names (e.g., `Cosmic Gecko Egg`, `Cosmic Gorilla`, `Axolotl`).
+   - `loadEggSpeciesFromGame()` dynamically queries `ReplicatedStorage.Assets.Models.Eggs` for live species definitions, mapping them to canonical display names.
    - `X.EGG_SPECIES_ALIASES` establishes bidirectional mapping between internal categories and display names (`galaxy gecko` $\longleftrightarrow$ `cosmic gecko`, `cyclops gorilla` $\longleftrightarrow$ `cosmic gorilla`, `dream axolotl` $\longleftrightarrow$ `axolotl`, `holy peacock` $\longleftrightarrow$ `peacock`, `sacred moth` $\longleftrightarrow$ `moth`, `winged lamb` $\longleftrightarrow$ `lamb`, `warden` $\longleftrightarrow$ `king snake`).
    - `X.matchEggSpecies(nameA, nameB)` resolves aliases bidirectionally, guaranteeing that holding `Cosmic Gecko Egg` in inventory immediately satisfies the server requirement for `Galaxy Gecko` and marks it `1/1 (Ready)`.
 
 3. **Clean Requirement Cards with Manual "Get" Buttons (`📋 Requirements`)**:
    - **Tab 1 Card Architecture**: Full-width dark cards with left accent strips, Gotham typography, status badges, and compact action buttons. Title width is constrained so it never overlaps the filter button or badge.
    - **Controls Bar & Sizing**:
-     - **Dynamic Window Resizing**: Automatically expands main window from `380x520` to `560x580` when switching to the Scramble tab, and smoothly restores `380x520` when navigating back to Eggs or Pets.
-     - **Timer Badge**: Displays live countdown (`⏳ MMm SSs • Dr. Scramble`) synchronized with server rotation (`serverExpiresAt`).
-     - **Priority Toggle (`[ON]/[OFF] Priority`)**: Toggles AutoFarm Scramble priority chain (`X.prioritizeScrambleInAutoFarm`).
-     - **Auto-Trade Toggle (`[ON]/[OFF] Auto-Trade`)**: Gated auto-trade switch (`X.autoScrambleTrade`).
-     - **Manual Refresh (`🔄`)**: Force re-queries `AskState` and authoritative inventory.
+     - **Consistent Compact Window Geometry**: Retains the standard `380x520` window size across all tabs (Eggs, Pets, and Scramble) without disruptive window expansion.
+     - **Compact 2-Row Controls Bar**:
+       - Row 1: Live countdown timer badge (`⏳ MMm SSs • Dr. Scramble`) synchronized with server rotation (`serverExpiresAt`) and manual refresh button (`🔄`).
+       - Row 2: Priority Toggle (`[ON]/[OFF] Priority`), Auto-Trade Toggle (`[ON]/[OFF] Auto-Trade`), and Action Button (`⚡ Trade (X/3)`).
      - **Action Button (`⚡ Trade (X/3)`)**: Highlights green (`⚡ Auto-Ready (3/3)`) or purple (`⚡ Trade (3/3 Ready)`) when eligible, or indicates `⏳ Trading In...` during execution.
 
-4. **1:1 Standalone 3-Card Architecture (Imported from `scramble-autotrade.lua`)**:
-   - **Card 1: Dr. Scramble Recipe Requirements**:
+4. **Streamlined 2-Card Architecture**:
+   - **Card 1: Recipe Requirements**:
      - Dynamic height auto-sizing card rendering active server recipe slots.
-     - **Card Row Badges**: Each slot shows `[✓ OWNED]` (green strip/tint) or `[⚠️ MISSING]` (red strip/tint), internal species name, display name, required count, and total eligible matching copies in inventory.
-   - **Card 2: Matching Unplaced Eggs in Inventory (Eligible for Sacrifice)**:
-     - Always visible dedicated scrolling inventory card listing all unplaced satchel eggs matching active recipe requirements.
-     - Formatted entries: `#idx 🥚 DisplayName • ⚖️ Weight • [UID] (Source)` with `✓ Selected` badge for the lightest distinct copies picked for sacrifice.
-   - **Card 3: Live Telemetry & Network Log**:
+     - **Slot Badges & Counts**: Each slot shows `[✓ OWNED]` (green strip/tint) or `[⚠️ MISSING]` (red strip/tint), display name, required count, and owned inventory count (`Inventory: X copy/copies`). Redundant internal species labels and separate unplaced egg lists are eliminated for a clean, compact view.
+   - **Card 2: Live Telemetry & Log**:
      - Monospaced high-performance log terminal tracking server requests, snapshot calls, rotation events, and trade results.
      - **One-Click Clipboard Export**: `Copy` button exports entire log history directly to system clipboard via executor clipboard API with fallback to developer console (F9).
      - **Clear Button**: Instantly clears log buffer.
@@ -166,13 +166,16 @@ Tab 3 is dedicated to the **Dr. Scramble Trade-In Machine** (`DrScrambleTradeIn`
    - **Safe-Zone Carrying State Protection**:
      - All auto-trade executions are strictly gated on `weAreCarrying == false`, ensuring that carried eggs are safely delivered to the home base first.
 
-6. **AutoFarm Priority Chain & Strict Missing-Only Targeting**:
-   - Priority Chain Order:
+6. **AutoFarm 3-Option Independent Filter Architecture**:
+   - Target filtering supports 3 independent, simultaneous criteria:
+     1. **Option 1: Selected Egg Species**: Specific species selected in the dropdown (e.g. `Cosmic Gecko`, `Golden Goose`).
+     2. **Option 2: Selected Rarity**: Any egg matching enabled rarity toggles (`Divine`, `Eternal`, `Secret`, `Mythic`, etc.).
+     3. **Option 3: Scramble Recipe Requirements**: Eggs required by Dr. Scramble trade-in **only if currently missing from inventory storage**.
+   - **Resolution of Owned-Egg Exclusion**:
+     - Previously, enabling Scramble trade caused all eggs owned in storage to be globally rejected from the farm list, even if explicitly chosen in the Species or Rarity filters.
+     - In the new architecture, an egg matches if it satisfies **any** active option. Owned inventory checks are applied **strictly to the Scramble requirement branch**, allowing players to farm chosen species or high rarities unhindered while selectively fetching only missing Scramble eggs.
+   - **Priority Chain Order**:
      $$\text{Divine (Tier 1)} \longrightarrow \text{Eternal (Tier 2)} \longrightarrow \text{Secret (Tier 3)} \longrightarrow \mathbf{\text{Scramble Missing Requirements (Tier 4)}} \longrightarrow \text{Farther Eggs (Tier 5+)}$$
-   - **Strict Missing-Only Enforcement & Owned Egg Exclusion (`X.isEggAlreadyOwned`)**:
-     - When Scramble Trade or Priority is enabled (`X.autoScrambleTrade or X.prioritizeScrambleInAutoFarm`), any egg already in the player's inventory (satchel, trade inventory, or live backpack/character tools) is **strictly rejected** in `passesFilters(r)`.
-     - **Invisible on AutoFarm List**: Already-owned eggs are completely hidden from the Tab 1 egg card list and excluded from auto-farm target selection, pathing, and loose steal routines.
-     - **Instant Reactive Refresh**: Picking up an egg, toggling auto-trade/priority, or completing a trade immediately triggers `refilterAndRender()` to redraw the list in real-time.
 
 
 ---
@@ -243,6 +246,9 @@ Manual "Get" button clicks on individual egg cards directly execute `autoGetEgg(
    - Post-arrival delivery loop (`X.deliverWait`): waits until the carried egg is consumed by the game hitbox, restores default velocity (`X.resetVelocity()`), and triggers `X.requestEggRefresh()`.
 4. **Dropped Egg Auto-Recovery**:
    - If bumped or knocked loose during transit, manual get automatically detects the drop and re-fetches the egg via `dropRetry` just like auto farm.
+5. **Defensive Nil-Safety & Uid Shielding**:
+   - Universal guard clauses (`if not r or typeof(r) ~= "table" then return ... end`) across `passesFilters(r)`, `X.isGhost(r)`, `X.isUnverified(r)`, `X.eggTier(r)`, and `extPos(r)` eliminate `attempt to index nil with 'Uid'` runtime errors during map transitions, despawns, or sparse snapshot refreshes.
+   - `X.pickNearest` and `autoGetEgg` invocations within `autoFarmLoop` are wrapped in guarded `pcall` execution blocks, ensuring network dropouts or remote errors log warnings gracefully instead of halting the farming thread.
 
 ---
 
@@ -263,7 +269,7 @@ Fast recovery ensures zero downtime when hit by bosses, traps, or player pushes:
 ---
 
 ### ESP Carrier Tracking & Ghost Egg Blacklisting
-Prevents the bot from chasing phantom eggs or eggs already taken by competitors:
+Prevents the bot from chasing phantom eggs or eggs already taken by competitors while ensuring dropped or bumped eggs are immediately recoverable:
 - **Client Slot Ground Truth (`Workspace.AreaEggSlotsClient`)**:
   - The client's `AreaEggSlotsClient` folder is the authoritative representation of eggs actively sitting on nests.
   - Multi-pattern slot resolver (`X.findEggSlot`):
@@ -271,20 +277,21 @@ Prevents the bot from chasing phantom eggs or eggs already taken by competitors:
     2. Attribute / recursive identifier inspection (`Uid` / `EggUid`).
     3. Biome/Nest compound identifier matching (`FirstAreaEgg_<UserId>_<id>_Forest:Slot_005`).
     4. 3D World coordinate proximity matching ($\le 6$ studs from nest position).
-  - Uncapped slot cross-check (`X.updateSlotGhosts`): Evaluates all biomes without arbitrary population thresholds. If an egg's slot is missing across 2 consecutive scans ($\ge 2$s), it is flagged as an empty-nest ghost and hidden from both the UI list and auto-farm target queue.
+  - Uncapped slot cross-check (`X.updateSlotGhosts`): Evaluates all biomes without arbitrary population thresholds. If an egg's slot is missing across 3 consecutive scans and absent from the authoritative server snapshot, it is flagged as an empty-nest ghost and hidden from both the UI list and auto-farm target queue.
 - **Base Plot Render Introspection (`Workspace.PlacedEggRenders`)**:
   - Eggs placed or delivered into any player's base plot/nests are rendered as `<UserId>_<EggUid>` under `PlacedEggRenders`.
   - `X.isEggInBaseRenders(uid)` continuously checks this container. Any listed egg found in a base plot is immediately classified as delivered/stolen and filtered out.
-- **Carrier Detection (`Workspace.ClientRenderedAssets`)**:
+- **Live Carrier Tracking (`Workspace.ClientRenderedAssets`)**:
   - When any player picks up an egg, the game client renders `<UserId>_<EggUid>` under `ClientRenderedAssets`.
-  - The scanner continuously parses these model names. If an egg's `Uid` is carried by another player (`UserId ~= LocalPlayer.UserId`), it is **immediately blacklisted** from targeting.
-- **Competitor Delivery Tracking**:
-  - If a carrier model approaches within 50 studs of `SAFE_ZONE`, the egg is marked as successfully secured by an opponent and dropped from the active cache.
+  - The scanner continuously parses these model names. If an egg's `Uid` is carried by another player (`UserId ~= LocalPlayer.UserId`), it is marked as carried and temporarily paused from targeting.
+- **Competitor Drop & Bump Dislodgement Recovery**:
+  - When an opponent drops an egg (via death, bump collision, or manual drop), `ClientRenderedAssets.ChildRemoved` fires. Instead of falsely assuming delivery, the suite checks `PlacedEggRenders`. If the egg was NOT placed into a base plot, it is tagged as `looseUids[eggId] = true` and cleared of all stolen marks, making it immediately visible and farmable.
+  - `RE/EggWorld/OwnerDropped` is explicitly hooked to instantly clear carrier marks and restore loose eggs.
 - **Arrival Empty-Nest Verification (`autoGetEgg`)**:
-  - Immediately upon reaching an egg's location, a fresh snapshot and client slot inspection (`emptyNest`) are executed.
-  - If `AreaEggSlotsClient` is populated, the egg has no slot, and it is not an egg dropped by the local player, the bot aborts pickup immediately with `"Nest already empty"`, blacklists the ghost egg, requests a UI refresh, and advances to the next target without delay.
-- **Immunity Scope Clamp**:
-  - Only eggs dropped by the local player (`X.weDropped` within 60s or active `dropRetry`) are exempted from ghost filtering. Stale or competitor-moved eggs are never immunized.
+  - Immediately upon reaching an egg's location, a fresh snapshot and client slot inspection are executed.
+  - An egg is only abandoned if confirmed placed in a base plot (`isEggInBaseRenders`), actively held by an opponent, or absent from both the nest and the server snapshot (`eggCache.byUid`). Loose or bumped eggs that remain listed on the server snapshot are never falsely blacklisted.
+- **Multi-Bump & Drop Resilience**:
+  - `dropRetry` tracks up to 10 consecutive bump retries across a 60-second window before relinquishing a dropped egg target. Manual "Get" attempts similarly retry up to 8 bumps before releasing.
 
 ---
 

@@ -4750,7 +4750,6 @@ local function buildScrambleTabUI()
     -- ========================================================================
 
     local scrambleRequirements = {} -- { { slot="1", species="Galaxy Gecko", rawName="Galaxy Gecko", count=1 }, ... }
-    local ownedMatchingEggs    = {} -- list of all unplaced inventory eggs matching any active requirement
     local allInventoryEggs     = {} -- all unplaced eggs found in player satchel
     local isAutoTradeEnabled   = (X.autoScrambleTrade ~= false)
     local isTradingIn          = false
@@ -4790,7 +4789,7 @@ local function buildScrambleTabUI()
         Instance.new("UICorner", hFrame).CornerRadius = UDim.new(0, 7)
 
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -16, 1, 0); lbl.Position = UDim2.new(0, 8, 0, 0)
+        lbl.Size = UDim2.new(1, -106, 1, 0); lbl.Position = UDim2.new(0, 8, 0, 0)
         lbl.BackgroundTransparency = 1; lbl.Text = titleText
         lbl.TextColor3 = Color3.fromRGB(215, 230, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 10
         lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = hFrame
@@ -4799,17 +4798,18 @@ local function buildScrambleTabUI()
     end
 
     -- ========================================================================
-    -- 4. CONTROLS BAR (Row 0)
+    -- 4. CONTROLS BAR (Row 0: Compact 2-Row Layout)
     -- ========================================================================
 
     local controlsBar = Instance.new("Frame")
-    controlsBar.Size = UDim2.new(1, 0, 0, 32)
+    controlsBar.Size = UDim2.new(1, 0, 0, 56)
     controlsBar.BackgroundTransparency = 1
     controlsBar.LayoutOrder = 0
     controlsBar.Parent = tabScramble
 
+    -- Row 1: Rotation Countdown Timer (left) + Manual Refresh Button (right)
     local timerBadge = Instance.new("TextLabel")
-    timerBadge.Size = UDim2.new(0, 150, 1, 0); timerBadge.Position = UDim2.new(0, 0, 0, 0)
+    timerBadge.Size = UDim2.new(1, -34, 0, 26); timerBadge.Position = UDim2.new(0, 0, 0, 0)
     timerBadge.BackgroundColor3 = Color3.fromRGB(25, 29, 44); timerBadge.BorderSizePixel = 0
     timerBadge.Text = "⏳ Syncing timer..."
     timerBadge.TextColor3 = Color3.fromRGB(255, 215, 120); timerBadge.Font = Enum.Font.GothamBold; timerBadge.TextSize = 10
@@ -4818,8 +4818,17 @@ local function buildScrambleTabUI()
     local tbStroke = Instance.new("UIStroke", timerBadge)
     tbStroke.Color = Color3.fromRGB(60, 70, 100); tbStroke.Thickness = 1
 
+    local refreshBtn = Instance.new("TextButton")
+    refreshBtn.Size = UDim2.new(0, 28, 0, 26); refreshBtn.Position = UDim2.new(1, -28, 0, 0)
+    refreshBtn.BackgroundColor3 = Color3.fromRGB(38, 55, 85)
+    refreshBtn.Text = "🔄"; refreshBtn.TextColor3 = Color3.new(1, 1, 1)
+    refreshBtn.Font = Enum.Font.GothamBold; refreshBtn.TextSize = 12
+    refreshBtn.Parent = controlsBar
+    Instance.new("UICorner", refreshBtn).CornerRadius = UDim.new(0, 6)
+
+    -- Row 2: Priority Toggle + Auto-Trade Toggle + Trade Action Button
     local priorityToggleBtn = Instance.new("TextButton")
-    priorityToggleBtn.Size = UDim2.new(0, 76, 1, 0); priorityToggleBtn.Position = UDim2.new(0, 154, 0, 0)
+    priorityToggleBtn.Size = UDim2.new(0.32, -3, 0, 26); priorityToggleBtn.Position = UDim2.new(0, 0, 0, 30)
     priorityToggleBtn.BackgroundColor3 = X.prioritizeScrambleInAutoFarm and Color3.fromRGB(35, 80, 140) or Color3.fromRGB(45, 48, 60)
     priorityToggleBtn.Text = X.prioritizeScrambleInAutoFarm and "[ON] Priority" or "[OFF] Priority"
     priorityToggleBtn.TextColor3 = X.prioritizeScrambleInAutoFarm and Color3.fromRGB(180, 220, 255) or Color3.fromRGB(160, 165, 180)
@@ -4828,7 +4837,7 @@ local function buildScrambleTabUI()
     Instance.new("UICorner", priorityToggleBtn).CornerRadius = UDim.new(0, 6)
 
     local autoTradeToggleBtn = Instance.new("TextButton")
-    autoTradeToggleBtn.Size = UDim2.new(0, 88, 1, 0); autoTradeToggleBtn.Position = UDim2.new(0, 234, 0, 0)
+    autoTradeToggleBtn.Size = UDim2.new(0.34, -4, 0, 26); autoTradeToggleBtn.Position = UDim2.new(0.32, 2, 0, 30)
     autoTradeToggleBtn.BackgroundColor3 = isAutoTradeEnabled and Color3.fromRGB(35, 115, 70) or Color3.fromRGB(55, 58, 70)
     autoTradeToggleBtn.Text = isAutoTradeEnabled and "[ON] Auto-Trade" or "[OFF] Auto-Trade"
     autoTradeToggleBtn.TextColor3 = isAutoTradeEnabled and Color3.fromRGB(160, 255, 190) or Color3.fromRGB(180, 185, 200)
@@ -4836,31 +4845,23 @@ local function buildScrambleTabUI()
     autoTradeToggleBtn.Parent = controlsBar
     Instance.new("UICorner", autoTradeToggleBtn).CornerRadius = UDim.new(0, 6)
 
-    local refreshBtn = Instance.new("TextButton")
-    refreshBtn.Size = UDim2.new(0, 30, 1, 0); refreshBtn.Position = UDim2.new(0, 326, 0, 0)
-    refreshBtn.BackgroundColor3 = Color3.fromRGB(38, 55, 85)
-    refreshBtn.Text = "🔄"; refreshBtn.TextColor3 = Color3.new(1, 1, 1)
-    refreshBtn.Font = Enum.Font.GothamBold; refreshBtn.TextSize = 13
-    refreshBtn.Parent = controlsBar
-    Instance.new("UICorner", refreshBtn).CornerRadius = UDim.new(0, 6)
-
     local manualTradeBtn = Instance.new("TextButton")
-    manualTradeBtn.Size = UDim2.new(1, -360, 1, 0); manualTradeBtn.Position = UDim2.new(0, 360, 0, 0)
+    manualTradeBtn.Size = UDim2.new(0.34, -3, 0, 26); manualTradeBtn.Position = UDim2.new(0.66, 3, 0, 30)
     manualTradeBtn.BackgroundColor3 = Color3.fromRGB(50, 48, 65)
     manualTradeBtn.Text = "⚡ Trade (0/3)"
     manualTradeBtn.TextColor3 = Color3.fromRGB(160, 165, 185)
-    manualTradeBtn.Font = Enum.Font.GothamBold; manualTradeBtn.TextSize = 10
+    manualTradeBtn.Font = Enum.Font.GothamBold; manualTradeBtn.TextSize = 9.5
     manualTradeBtn.Parent = controlsBar
     Instance.new("UICorner", manualTradeBtn).CornerRadius = UDim.new(0, 6)
     local mtStroke = Instance.new("UIStroke", manualTradeBtn)
     mtStroke.Color = Color3.fromRGB(65, 60, 85); mtStroke.Thickness = 1
 
     -- ========================================================================
-    -- 5. CARDS (Requirements, Matching Inventory, Telemetry Log)
+    -- 5. CARDS (Requirements, Telemetry Log)
     -- ========================================================================
 
     -- CARD 1: ACTIVE RECIPE REQUIREMENTS
-    local cardReqs = createCard("📋 DR. SCRAMBLE RECIPE REQUIREMENTS", 135, 1)
+    local cardReqs = createCard("📋 RECIPE REQUIREMENTS", 32, 1)
     cardReqs.AutomaticSize = Enum.AutomaticSize.Y
     local reqsContainer = Instance.new("Frame")
     reqsContainer.Size = UDim2.new(1, -12, 0, 0); reqsContainer.Position = UDim2.new(0, 6, 0, 26)
@@ -4874,35 +4875,18 @@ local function buildScrambleTabUI()
     reqsPad.PaddingBottom = UDim.new(0, 6)
     reqsPad.Parent = reqsContainer
 
-    -- CARD 2: MATCHING INVENTORY EGGS
-    local cardInv = createCard("🎒 MATCHING UNPLACED EGGS IN INVENTORY (ELIGIBLE FOR SACRIFICE)", 150, 2)
-    local invScroll = Instance.new("ScrollingFrame")
-    invScroll.Size = UDim2.new(1, -12, 1, -30); invScroll.Position = UDim2.new(0, 6, 0, 26)
-    invScroll.BackgroundColor3 = Color3.fromRGB(14, 16, 24); invScroll.BorderSizePixel = 0
-    invScroll.ScrollBarThickness = 4; invScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    invScroll.CanvasSize = UDim2.new(0, 0, 0, 0); invScroll.Parent = cardInv
-    Instance.new("UICorner", invScroll).CornerRadius = UDim.new(0, 5)
-    local invLayout = Instance.new("UIListLayout")
-    invLayout.Padding = UDim.new(0, 3)
-    invLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    invLayout.Parent = invScroll
-    local invPad = Instance.new("UIPadding")
-    invPad.PaddingTop = UDim.new(0, 4); invPad.PaddingBottom = UDim.new(0, 4)
-    invPad.PaddingLeft = UDim.new(0, 4); invPad.PaddingRight = UDim.new(0, 4)
-    invPad.Parent = invScroll
-
-    -- CARD 3: ACTIVITY & LOG TERMINAL
-    local cardLog = createCard("📜 LIVE TELEMETRY & NETWORK LOG", 150, 3)
+    -- CARD 2: ACTIVITY & LOG TERMINAL
+    local cardLog = createCard("📜 LIVE TELEMETRY & LOG", 200, 2)
 
     local copyLogBtn = Instance.new("TextButton")
-    copyLogBtn.Size = UDim2.new(0, 50, 0, 18); copyLogBtn.Position = UDim2.new(1, -114, 0, 3)
+    copyLogBtn.Size = UDim2.new(0, 44, 0, 18); copyLogBtn.Position = UDim2.new(1, -98, 0, 3)
     copyLogBtn.BackgroundColor3 = Color3.fromRGB(45, 75, 115)
     copyLogBtn.Text = "Copy"; copyLogBtn.TextColor3 = Color3.fromRGB(220, 240, 255)
     copyLogBtn.Font = Enum.Font.GothamBold; copyLogBtn.TextSize = 9; copyLogBtn.Parent = cardLog
     Instance.new("UICorner", copyLogBtn).CornerRadius = UDim.new(0, 4)
 
     local clearLogBtn = Instance.new("TextButton")
-    clearLogBtn.Size = UDim2.new(0, 50, 0, 18); clearLogBtn.Position = UDim2.new(1, -58, 0, 3)
+    clearLogBtn.Size = UDim2.new(0, 44, 0, 18); clearLogBtn.Position = UDim2.new(1, -50, 0, 3)
     clearLogBtn.BackgroundColor3 = Color3.fromRGB(55, 60, 75)
     clearLogBtn.Text = "Clear"; clearLogBtn.TextColor3 = Color3.fromRGB(200, 215, 235)
     clearLogBtn.Font = Enum.Font.GothamBold; clearLogBtn.TextSize = 9; clearLogBtn.Parent = cardLog
@@ -5028,7 +5012,7 @@ local function buildScrambleTabUI()
     scanInventoryEggs = function(force)
         -- Cache check: prevent redundant FetchProfile spam within 1 second
         if not force and (os.clock() - lastInventoryScan) < 1.0 and #allInventoryEggs > 0 then
-            return allInventoryEggs, ownedMatchingEggs
+            return allInventoryEggs
         end
         lastInventoryScan = os.clock()
 
@@ -5160,28 +5144,11 @@ local function buildScrambleTabUI()
         allInventoryEggs = eggs
         X.ownedInventoryEggs = eggs
 
-        -- Filter to eggs matching active requirements
-        local matching = {}
-        for _, egg in ipairs(allInventoryEggs) do
-            for slotIdx, req in ipairs(scrambleRequirements) do
-                if matchEggSpecies(egg.species, req.species)
-                   or (egg.category and egg.category ~= "" and matchEggSpecies(egg.category, req.species))
-                   or (egg.displayName and egg.displayName ~= "" and matchEggSpecies(egg.displayName, req.species)) then
-                    local copy = table.clone(egg)
-                    copy.matchedSlot = slotIdx
-                    copy.matchedReq = req.species
-                    table.insert(matching, copy)
-                    break
-                end
-            end
-        end
-
-        ownedMatchingEggs = matching
         if refilterAndRender then
             X.listDirty = true
             pcall(refilterAndRender)
         end
-        return eggs, matching
+        return eggs
     end
 
     -- ========================================================================
@@ -5358,9 +5325,6 @@ local function buildScrambleTabUI()
         for _, c in ipairs(reqsContainer:GetChildren()) do
             if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
         end
-        for _, c in ipairs(invScroll:GetChildren()) do
-            if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
-        end
 
         -- Match unplaced eggs to slots (1 distinct egg per slot)
         local allReady, chosenUids, readySlotsCount, totalReq, slotMatches, usedEggUids = getTradeCandidates()
@@ -5405,67 +5369,29 @@ local function buildScrambleTabUI()
 
                 -- Text details
                 local titleL = Instance.new("TextLabel")
-                titleL.Size = UDim2.new(1, -110, 0, 16); titleL.Position = UDim2.new(0, 14, 0, 2)
+                titleL.Size = UDim2.new(1, -95, 0, 16); titleL.Position = UDim2.new(0, 14, 0, 2)
                 titleL.BackgroundTransparency = 1
                 titleL.Text = string.format("Slot #%s: %s (x%d)", tostring(req.slot), dispName, req.count)
                 titleL.TextColor3 = isOwned and Color3.fromRGB(220, 255, 235) or Color3.fromRGB(255, 230, 235)
                 titleL.Font = Enum.Font.GothamBold; titleL.TextSize = 10
-                titleL.TextXAlignment = Enum.TextXAlignment.Left; titleL.Parent = row
+                titleL.TextXAlignment = Enum.TextXAlignment.Left; titleL.TextTruncate = Enum.TextTruncate.AtEnd; titleL.Parent = row
 
                 local subL = Instance.new("TextLabel")
-                subL.Size = UDim2.new(1, -110, 0, 12); subL.Position = UDim2.new(0, 14, 0, 17)
+                subL.Size = UDim2.new(1, -95, 0, 12); subL.Position = UDim2.new(0, 14, 0, 17)
                 subL.BackgroundTransparency = 1
-                subL.Text = string.format("Internal: %s  •  Inventory: %d eligible copy/copies", req.species, totalCandidates)
+                subL.Text = string.format("Inventory: %d %s", totalCandidates, totalCandidates == 1 and "copy" or "copies")
                 subL.TextColor3 = isOwned and Color3.fromRGB(150, 225, 185) or Color3.fromRGB(200, 160, 170)
                 subL.Font = Enum.Font.Gotham; subL.TextSize = 8.5
-                subL.TextXAlignment = Enum.TextXAlignment.Left; subL.Parent = row
+                subL.TextXAlignment = Enum.TextXAlignment.Left; subL.TextTruncate = Enum.TextTruncate.AtEnd; subL.Parent = row
 
                 -- Status badge
                 local badge = Instance.new("TextLabel")
-                badge.Size = UDim2.new(0, 82, 0, 20); badge.Position = UDim2.new(1, -88, 0.5, -10)
+                badge.Size = UDim2.new(0, 75, 0, 20); badge.Position = UDim2.new(1, -80, 0.5, -10)
                 badge.BackgroundColor3 = isOwned and Color3.fromRGB(28, 75, 48) or Color3.fromRGB(75, 30, 36)
                 badge.Text = isOwned and "✓ OWNED" or "⚠️ MISSING"
                 badge.TextColor3 = isOwned and Color3.fromRGB(130, 255, 185) or Color3.fromRGB(255, 160, 140)
                 badge.Font = Enum.Font.GothamBold; badge.TextSize = 9; badge.Parent = row
                 Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 4)
-            end
-        end
-
-        -- 2. RENDER MATCHING INVENTORY EGGS
-        if #ownedMatchingEggs == 0 then
-            local noEggs = Instance.new("TextLabel")
-            noEggs.Size = UDim2.new(1, -8, 0, 32); noEggs.BackgroundTransparency = 1
-            noEggs.Text = "ℹ️ No unplaced matching eggs found in inventory satchel. Farm or collect required eggs!"; noEggs.TextColor3 = Color3.fromRGB(180, 190, 210)
-            noEggs.Font = Enum.Font.Gotham; noEggs.TextSize = 9.5; noEggs.Parent = invScroll
-        else
-            for idx, egg in ipairs(ownedMatchingEggs) do
-                local isChosen = (usedEggUids[egg.uid] == true)
-                local shortUid = (#egg.uid > 12) and (egg.uid:sub(1, 10) .. "...") or egg.uid
-
-                local card = Instance.new("Frame")
-                card.Size = UDim2.new(1, 0, 0, 28)
-                card.BackgroundColor3 = isChosen and Color3.fromRGB(26, 42, 34) or Color3.fromRGB(20, 24, 34)
-                card.BorderSizePixel = 0; card.LayoutOrder = idx; card.Parent = invScroll
-                Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
-                local cStr = Instance.new("UIStroke", card)
-                cStr.Color = isChosen and Color3.fromRGB(50, 150, 95) or Color3.fromRGB(36, 44, 62); cStr.Thickness = 1
-
-                local lineLbl = Instance.new("TextLabel")
-                lineLbl.Size = UDim2.new(1, -95, 1, 0); lineLbl.Position = UDim2.new(0, 8, 0, 0)
-                lineLbl.BackgroundTransparency = 1
-                lineLbl.Text = string.format("#%d  🥚 %s  •  ⚖️ %s  •  [%s] (%s)", idx, egg.displayName, egg.weightStr, shortUid, egg.source)
-                lineLbl.TextColor3 = isChosen and Color3.fromRGB(210, 255, 230) or Color3.fromRGB(175, 195, 225)
-                lineLbl.Font = Enum.Font.Gotham; lineLbl.TextSize = 9
-                lineLbl.TextXAlignment = Enum.TextXAlignment.Left; lineLbl.TextTruncate = Enum.TextTruncate.AtEnd
-                lineLbl.Parent = card
-
-                local pickBadge = Instance.new("TextLabel")
-                pickBadge.Size = UDim2.new(0, 82, 0, 18); pickBadge.Position = UDim2.new(1, -88, 0.5, -9)
-                pickBadge.BackgroundColor3 = isChosen and Color3.fromRGB(35, 115, 65) or Color3.fromRGB(40, 44, 58)
-                pickBadge.Text = isChosen and "✓ Selected" or "Available"
-                pickBadge.TextColor3 = isChosen and Color3.fromRGB(160, 255, 190) or Color3.fromRGB(170, 180, 200)
-                pickBadge.Font = Enum.Font.GothamBold; pickBadge.TextSize = 8.5; pickBadge.Parent = card
-                Instance.new("UICorner", pickBadge).CornerRadius = UDim.new(0, 4)
             end
         end
 
@@ -5978,7 +5904,7 @@ switchTab = function(tabName)
         tabBtnScramble.TextColor3 = Color3.fromRGB(160, 185, 220)
         if refreshPetCards then refreshPetCards() end
     elseif tabName == "Scramble" then
-        main.Size = UDim2.new(0, 560, 0, 580)
+        main.Size = UDim2.new(0, 380, 0, 520)
         if X.closeRarity then X.closeRarity() end
         if farmDropdownOpen then
             farmDropdownOpen = false
