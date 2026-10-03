@@ -260,7 +260,7 @@ local PET_RARITY_PRESETS = {
     ["Luminous Terra Snapper"]="Eternal", ["Luminous Cthulhu"]="Divine",
     -- Verified Ground Truth Additions & Category Cross-Mappings
     ["Toxic Rat"]="Common", ["Radcoon"]="Common", ["Sharkodile"]="Legendary",
-    ["Rhinobear"]="Mythic", ["Cave Dragon"]="Legendary", ["Stacked Turtle"]="Rare",
+    ["Rhinobear"]="Mythic", ["Cave Dragon"]="Secret", ["Stacked Turtle"]="Rare",
     ["TyrannosaurusRex"]="Secret", ["TRex"]="Secret",
     ["Cosmic Gecko"]="Legendary", ["Cosmic Gorilla"]="Mythic",
     ["Winged Lamb"]="Mythic", ["Sacred Moth"]="Cosmic", ["Holy Peacock"]="Cosmic",
@@ -463,6 +463,8 @@ X.EGG_SPECIES_ALIASES = {
     ["fennec"] = "fennecfox",
     ["scorcheddragon"] = "scorched dragon",  -- game scan uses no-space
     ["scorched dragon"] = "scorcheddragon",
+    ["cave dragon"] = "cosmic dragon",       -- Cave Dragon egg asset -> Cosmic Dragon pet display
+    ["cosmic dragon"] = "cave dragon",
     -- Lava Frog: scan has "Lava frog" (lowercase f) vs "Lava Frog"
     -- normalizeEggSpecies lowercases, so "lava frog" == "lava frog" -> handled by exact match
 }
@@ -485,6 +487,7 @@ X.CATEGORY_TO_DISPLAY = {
     ["Shark"] = "Mutant Shark",
     ["King Kong"] = "Gorilla King",      -- King Kong egg asset -> Gorilla King pet display
     ["ScorchedDragon"] = "Scorched Dragon", -- no-space variant from game scan
+    ["Cave Dragon"] = "Cosmic Dragon",   -- Cave Dragon egg asset -> Cosmic Dragon pet display
 }
 
 function X.getDisplayEggName(catOrRec)
