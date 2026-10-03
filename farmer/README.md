@@ -8,7 +8,8 @@ This documentation covers the architecture, control logic, networking hooks, and
 1. [EggGoToUI v9.9 - Automated Farming Suite](#1-egggotoui-v99---automated-farming-suite)
    - [Overview & High-Level Architecture](#overview--high-level-architecture)
    - [Sidebar Navigation & Multi-Tab Interface](#sidebar-navigation--multi-tab-interface)
-   - [Pet & Egg Automation Suite (Tab 2)](#pet--egg-automation-suite-tab-2)
+   - [Pet & Egg Automation Suite (Tab 2: Inventory & Fusery Focus)](#pet--egg-automation-suite-tab-2-inventory--fusery-focus)
+   - [Dr. Scramble Trade-In Suite (Tab 3: Egg Sacrifice & Hourly Trade Engine)](#dr-scramble-trade-in-suite-tab-3-egg-sacrifice--hourly-trade-engine)
    - [Dual-Velocity Physics Engine](#dual-velocity-physics-engine)
    - [Anti-Rubberband System & Dynamic Speed Step-Down](#anti-rubberband-system--dynamic-speed-step-down)
    - [Anti-Teleport & Micro-Snap Distance Gating](#anti-teleport--micro-snap-distance-gating)
@@ -70,7 +71,8 @@ The HUD features a vertical sidebar layout separating core modules into clean, d
 
 - **Navigation Rail (`46px` icon-only rail)**:
   - **`🥚` (Tab 1)**: Autonomous farming controls, dual-velocity inputs, recovery toggles, live speed metrics, species & rarity filters, JSON profile syncing, and the live egg list view.
-  - **`🐾` (Tab 2)**: Autonomous egg placement & incubation, pet satchel auto-selling, fusery & mutation automation, best pet auto-equipper, live telemetry logger, and species catalog with 1-click targeting.
+  - **`🐾` (Tab 2)**: Pet Inventory overview (free vs. equipped pets), 18 equipped pet protection, Pet Fusery automation (candidate grouping by species, $\ge 3$ unequipped threshold, authoritative in-game pet weight calculation, and 1-click 3-copy fusion).
+  - **`🌀` (Tab 3)**: Dr. Scramble Trade-In automation (server recipe discovery, hourly auto-refresh & countdown, live `RE/BannerRotated` sync, unplaced inventory egg listing sorted by weight, and 3-egg sacrifice trade execution).
 - **State Preservation**: Switching tabs preserves active auto-farming, background egg scanning threads, and velocity stabilization without UI interruption or reset.
 - **Auto-Close Dropdowns**: Navigating across tabs automatically collapses floating dropdowns (species and rarity selectors) to prevent UI overlapping.
 
@@ -108,6 +110,68 @@ Tab 2 is streamlined exclusively for **Inventory Overview** and **Fusery Machine
 3. **Live Fusery Activity Log (`📜 Fusery Activity Log`)**:
    - Real-time scrolling telemetry terminal tracking scan results, pet slot loading (slots 1..3 with short UID previews), remote responses, and fusion completions.
    - `Clear` button to purge output history.
+
+---
+
+### Dr. Scramble Trade-In Suite (Tab 3: Egg Sacrifice & Hourly Trade Engine)
+Tab 3 is dedicated to the **Dr. Scramble Trade-In Machine** (`DrScrambleTradeIn`), which functions as an egg-based sacrifice and recipe system. Players sacrifice 3 specific unplaced inventory eggs to receive exclusive rewards.
+
+1. **Clean 2-Row Control Bar (`Card 1`)**:
+   - **Row 1 (Y=5)**: Unobstructed title `🌀 Dr. Scramble Trade-In` (left) + diagnostic `🔍 State` button (right) + manual `🔄` refresh button (right). Buttons never overlap the title text.
+   - **Row 2 (Y=32)**: Exact-second countdown timer `⏳ MMm SSs  •  Status` (left) + `[ON] Priority` toggle (right) + `[ON] Auto-Fuse` toggle (right).
+   - **Exact-Second Server Rotation Countdown**: Synchronizes directly against `state.SecondsUntilRotation` returned by `AskState` (e.g. `792.7s`), updating `serverExpiresAt = os.time() + math.floor(state.SecondsUntilRotation)` with 1-second precision.
+   - **AutoFarm Priority Toggle (`[ON] Priority` / `[OFF] Priority`)**: Toggles Scramble requirement targeting in the AutoFarm priority chain.
+   - **Autonomous Auto-Fuse Toggle (`[ON] Auto-Fuse` / `[OFF] Auto-Fuse`)**: Automatically executes trade-in / fusion the exact moment all required eggs for the active recipe enter inventory!
+   - **Server Event Listener (`RE/ScrambleTradeIn/BannerRotated`)**: Connects to the server's live rotation event to instantly reload requirements whenever an in-game rotation occurs.
+   - **State Inspector (`🔍 State`)**: Diagnostic button that introspects raw server response tables from `RF/ScrambleTradeIn/AskState` and prints key attributes to the activity log.
+
+2. **Bidirectional Species Aliasing Engine (`X.EGG_SPECIES_ALIASES`)**:
+   - Server recipe requirements often use internal asset category names (e.g., `Galaxy Gecko`, `Cyclops Gorilla`, `Dream Axolotl`), while physical egg tools, map spawns, and GUI labels use user-facing display names (e.g., `Cosmic Gecko Egg`, `Cosmic Gorilla`, `Axolotl`).
+   - `X.EGG_SPECIES_ALIASES` establishes bidirectional mapping between internal categories and display names (`galaxy gecko` $\longleftrightarrow$ `cosmic gecko`, `cyclops gorilla` $\longleftrightarrow$ `cosmic gorilla`, `dream axolotl` $\longleftrightarrow$ `axolotl`, `holy peacock` $\longleftrightarrow$ `peacock`, `sacred moth` $\longleftrightarrow$ `moth`, `winged lamb` $\longleftrightarrow$ `lamb`, `warden` $\longleftrightarrow$ `king snake`).
+   - `X.matchEggSpecies(nameA, nameB)` resolves aliases bidirectionally, guaranteeing that holding `Cosmic Gecko Egg` in inventory immediately satisfies the server requirement for `Galaxy Gecko` and marks it `1/1 (Ready)`.
+
+3. **Clean Requirement Cards with Manual "Get" Buttons (`📋 Requirements`)**:
+   - **Tab 1 Card Architecture**: Full-width dark cards with left accent strips, Gotham typography, status badges, and compact action buttons. Title width is constrained so it never overlaps the filter button or badge.
+   - **Controls Bar & Sizing**:
+     - **Dynamic Window Resizing**: Automatically expands main window from `380x520` to `560x580` when switching to the Scramble tab, and smoothly restores `380x520` when navigating back to Eggs or Pets.
+     - **Timer Badge**: Displays live countdown (`⏳ MMm SSs • Dr. Scramble`) synchronized with server rotation (`serverExpiresAt`).
+     - **Priority Toggle (`[ON]/[OFF] Priority`)**: Toggles AutoFarm Scramble priority chain (`X.prioritizeScrambleInAutoFarm`).
+     - **Auto-Trade Toggle (`[ON]/[OFF] Auto-Trade`)**: Gated auto-trade switch (`X.autoScrambleTrade`).
+     - **Manual Refresh (`🔄`)**: Force re-queries `AskState` and authoritative inventory.
+     - **Action Button (`⚡ Trade (X/3)`)**: Highlights green (`⚡ Auto-Ready (3/3)`) or purple (`⚡ Trade (3/3 Ready)`) when eligible, or indicates `⏳ Trading In...` during execution.
+
+4. **1:1 Standalone 3-Card Architecture (Imported from `scramble-autotrade.lua`)**:
+   - **Card 1: Dr. Scramble Recipe Requirements**:
+     - Dynamic height auto-sizing card rendering active server recipe slots.
+     - **Card Row Badges**: Each slot shows `[✓ OWNED]` (green strip/tint) or `[⚠️ MISSING]` (red strip/tint), internal species name, display name, required count, and total eligible matching copies in inventory.
+   - **Card 2: Matching Unplaced Eggs in Inventory (Eligible for Sacrifice)**:
+     - Always visible dedicated scrolling inventory card listing all unplaced satchel eggs matching active recipe requirements.
+     - Formatted entries: `#idx 🥚 DisplayName • ⚖️ Weight • [UID] (Source)` with `✓ Selected` badge for the lightest distinct copies picked for sacrifice.
+   - **Card 3: Live Telemetry & Network Log**:
+     - Monospaced high-performance log terminal tracking server requests, snapshot calls, rotation events, and trade results.
+     - **One-Click Clipboard Export**: `Copy` button exports entire log history directly to system clipboard via executor clipboard API with fallback to developer console (F9).
+     - **Clear Button**: Instantly clears log buffer.
+
+5. **Autonomous Trade-In Engine & Multi-Signature Remote Cycle**:
+   - **Authoritative 3-Step Remote Cycle**:
+     1. `RF/ScrambleTradeIn/AskState` $\longrightarrow$ Queries active recipe, countdown, and auto-claims uncollected `PendingReward`.
+     2. `RF/ScrambleTradeIn/AskTradeIn` $\longrightarrow$ Submits ordered distinct 32-hex UIDs `finalUids` (`[1]=uid1, [2]=uid2, [3]=uid3`).
+     3. `RF/ScrambleTradeIn/AskFinishReveal` $\longrightarrow$ **Crucial claim step**: Claims hatched pet reward into satchel and advances recipe.
+     4. `ContentCreatorRemotes.Request("snapshot", { lightweight = true })` $\longrightarrow$ Fast profile sync.
+   - **Strict Egg Filter (Never Sacrifices Pets)**:
+     - ProfileMirror scan strictly filters `Placement == nil`.
+     - Physical tools scan strictly validates `attrs.DisplayName` / `t.Name` contains `"egg"`, `Category == "Egg"`, or `attrs.ItemType == "Egg"`. Excludes gear, bats, and all 200+ pets (`ItemType == "Asset"`).
+   - **Infinite Chain Execution (`PostTradeChain`)**:
+     - Auto-trades immediately when 3/3 eggs are met. Upon completion, immediately checks if the newly rolled recipe can also be completed and continues auto-trading without user intervention.
+   - **Safe-Zone Carrying State Protection**:
+     - All auto-trade executions are strictly gated on `weAreCarrying == false`, ensuring that carried eggs are safely delivered to the home base first.
+
+6. **AutoFarm Priority Chain & Strict Missing-Only Targeting**:
+   - Priority Chain Order:
+     $$\text{Divine (Tier 1)} \longrightarrow \text{Eternal (Tier 2)} \longrightarrow \text{Secret (Tier 3)} \longrightarrow \mathbf{\text{Scramble Missing Requirements (Tier 4)}} \longrightarrow \text{Farther Eggs (Tier 5+)}$$
+   - **Strict Missing-Only Enforcement (`X.isScrambleRequirement`)**: Checks normalized species names and aliases against `X.scrambleMissingSpecies`. If you already have the egg in inventory (`owned >= req.count`), it is **strictly excluded** from `X.scrambleMissingSpecies` and will **never** be farmed by AutoFarm. AutoFarm only targets eggs that are confirmed missing!
+   - Multi-source inventory checks authoritative `ProfileMirror.FetchProfile`, in-game `DrScrambleTradeInInventory` GUI, and physical tools in `Backpack` and `Character`.
+
 
 ---
 
@@ -335,6 +399,7 @@ All production farming and discovery scripts reside in the `farmer/` directory:
 | File | Purpose |
 | :--- | :--- |
 | [`farmer/EggGoToUI_v9_9.lua`](file:///home/arcobaleno/admin-tool/farmer/EggGoToUI_v9_9.lua) | Main autonomous egg farming, speed management, and delivery script |
+| [`farmer/scramble-autotrade.lua`](file:///home/arcobaleno/admin-tool/farmer/scramble-autotrade.lua) | Standalone Dr. Scramble recipe reader, egg inventory matcher, and autonomous auto-trade suite |
 | [`farmer/targeted-discovery-scanner.lua`](file:///home/arcobaleno/admin-tool/farmer/targeted-discovery-scanner.lua) | Complete, uncapped read-only game discovery and telemetry scanner |
 | [`farmer/targeted-character-scanner.lua`](file:///home/arcobaleno/admin-tool/farmer/targeted-character-scanner.lua) | Dedicated local character, pet inventory, profile data, and PlayerGui scanner |
 | [`farmer/farm.json`](file:///home/arcobaleno/admin-tool/farmer/farm.json) | Reference configuration profile for egg priority and speed thresholds |

@@ -256,6 +256,19 @@ local PET_RARITY_PRESETS = {
     ["Luminous Spike"]="Legendary", ["Luminous Spirit Manta"]="Mythic",
     ["Luminous Abyss Shark"]="Cosmic", ["Luminous Electric Eel"]="Secret",
     ["Luminous Terra Snapper"]="Eternal", ["Luminous Cthulhu"]="Divine",
+    -- Verified Ground Truth Additions & Category Cross-Mappings
+    ["Toxic Rat"]="Common", ["Radcoon"]="Common", ["Sharkodile"]="Legendary",
+    ["Rhinobear"]="Mythic", ["Cave Dragon"]="Legendary", ["Stacked Turtle"]="Rare",
+    ["TyrannosaurusRex"]="Secret", ["TRex"]="Secret",
+    ["Cosmic Gecko"]="Legendary", ["Cosmic Gorilla"]="Mythic",
+    ["Winged Lamb"]="Mythic", ["Sacred Moth"]="Cosmic", ["Holy Peacock"]="Cosmic",
+    ["Alien Skeleton Boss"]="Secret", ["Dark Gargoyle"]="Secret",
+    ["Dream Axolotl"]="Legendary", ["Warden"]="Secret",
+    ["Dragon"]="Eternal", ["Jellyfish"]="Secret", ["Mutant Shark"]="Legendary",
+    ["Nuclear Mantis"]="Divine", ["Nuceodille"]="Eternal", ["Toucax"]="Mythic",
+    ["Godzilla"]="Secret", ["King Kong"]="Secret", ["Irihorus"]="Secret",
+    ["Frogfly"]="Rare", ["Wheel Hamster"]="Rare", ["Finned Thresher"]="Legendary",
+    ["Mire Fox"]="Rare", ["Eye Bat"]="Rare", ["FennecFox"]="Uncommon",
 }
 
 -- ==================================================
@@ -405,6 +418,171 @@ X.selectedRarities = {}      -- set of ticked rarities (empty = rarity filter of
 X.RARITY_RANK  = { Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5, Mythic=6, Cosmic=7, Secret=8, Eternal=9, Divine=10 }
 X.RARITY_ORDER = { "Divine", "Eternal", "Secret", "Cosmic", "Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common" }
 X.PRIORITY_CHAIN = { "Divine", "Eternal", "Secret" }
+X.scrambleRequiredSpecies = {}       -- map of normalized species names currently required by Dr. Scramble
+X.scrambleMissingSpecies = {}        -- map of normalized species names STILL MISSING in inventory
+X.prioritizeScrambleInAutoFarm = true -- Divine -> Eternal -> Secret -> Scramble Requirements -> farther
+X.autoScrambleTrade = true            -- Automatically execute trade-in / fuse when all required eggs are in inventory
+X.scrambleShowMissingOnly = true       -- Only show eggs currently missing to fuse in the Scramble requirements list
+
+-- Bidirectional category/display-name aliases (e.g. Galaxy Gecko <-> Cosmic Gecko)
+X.EGG_SPECIES_ALIASES = {
+    ["galaxy gecko"] = "cosmic gecko",
+    ["cosmic gecko"] = "galaxy gecko",
+    ["cyclops gorilla"] = "cosmic gorilla",
+    ["cosmic gorilla"] = "cyclops gorilla",
+    ["dream axolotl"] = "axolotl",
+    ["axolotl"] = "dream axolotl",
+    ["holy peacock"] = "peacock",
+    ["peacock"] = "holy peacock",
+    ["sacred moth"] = "moth",
+    ["moth"] = "sacred moth",
+    ["winged lamb"] = "lamb",
+    ["lamb"] = "winged lamb",
+    ["warden"] = "king snake",
+    ["king snake"] = "warden",
+    ["alien skeleton boss"] = "cosmic skeleton boss",
+    ["cosmic skeleton boss"] = "alien skeleton boss",
+    ["dark gargoyle"] = "gargoyle",
+    ["gargoyle"] = "dark gargoyle",
+    ["tyrannosaurusrex"] = "trex",
+    ["trex"] = "tyrannosaurusrex",
+    ["t-rex"] = "tyrannosaurusrex",
+    ["dragon"] = "lava dragon",
+    ["lava dragon"] = "dragon",
+    ["jellyfish"] = "pure jellyfish",
+    ["pure jellyfish"] = "jellyfish",
+    ["shark"] = "mutant shark",
+    ["mutant shark"] = "shark",
+    ["godzilla"] = "kaiju",
+    ["kaiju"] = "godzilla",
+    ["king kong"] = "gorilla king",
+    ["gorilla king"] = "king kong",
+    ["fennecfox"] = "fennec",
+    ["fennec"] = "fennecfox",
+}
+
+-- Canonical map from server internal AssetCategory to player-facing display name
+X.CATEGORY_TO_DISPLAY = {
+    ["Galaxy Gecko"] = "Cosmic Gecko",
+    ["Cyclops Gorilla"] = "Cosmic Gorilla",
+    ["Lamb"] = "Winged Lamb",
+    ["Moth"] = "Sacred Moth",
+    ["Peacock"] = "Holy Peacock",
+    ["Dragon"] = "Lava Dragon",
+    ["TyrannosaurusRex"] = "TRex",
+    ["Alien Skeleton Boss"] = "Cosmic Skeleton Boss",
+    ["Dark Gargoyle"] = "Gargoyle",
+    ["Dream Axolotl"] = "Axolotl",
+    ["Warden"] = "King Snake",
+    ["Jellyfish"] = "Pure Jellyfish",
+    ["Shark"] = "Mutant Shark",
+}
+
+function X.getDisplayEggName(catOrRec)
+    local raw = (type(catOrRec) == "table" and (catOrRec.AssetCategory or catOrRec.DisplayName or catOrRec.displayName or catOrRec.species or catOrRec.Name)) or tostring(catOrRec or "")
+    if X.CATEGORY_TO_DISPLAY[raw] then
+        return X.CATEGORY_TO_DISPLAY[raw]
+    end
+    local low = raw:lower():gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
+    for cat, disp in pairs(X.CATEGORY_TO_DISPLAY) do
+        if cat:lower() == low then return disp end
+    end
+    return raw
+end
+
+function X.normalizeEggSpecies(s)
+    if not s or type(s) ~= "string" then return "" end
+    local str = s:lower():gsub("^%b[]%s*", ""):gsub("%s*%b()%s*$", "")
+    for _, mWord in ipairs({"rainbow", "golden", "silver", "gold"}) do
+        str = str:gsub("^" .. mWord .. "%s+", "")
+    end
+    str = str:gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
+    return str
+end
+
+function X.matchEggSpecies(nameA, nameB)
+    local a = X.normalizeEggSpecies(nameA)
+    local b = X.normalizeEggSpecies(nameB)
+    if a == "" or b == "" then return false end
+    if a == b then return true end
+    if string.find(a, b, 1, true) or string.find(b, a, 1, true) then return true end
+    if X.EGG_SPECIES_ALIASES then
+        local aliasA = X.EGG_SPECIES_ALIASES[a]
+        if aliasA and (aliasA == b or string.find(aliasA, b, 1, true) or string.find(b, aliasA, 1, true)) then
+            return true
+        end
+        local aliasB = X.EGG_SPECIES_ALIASES[b]
+        if aliasB and (aliasB == a or string.find(aliasB, a, 1, true) or string.find(a, aliasB, 1, true)) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Returns true if this species is one of the active Scramble recipe requirements
+function X.isScrambleRecipeSpecies(sp)
+    if not X.scrambleRequirements or #X.scrambleRequirements == 0 then return false end
+    for _, req in ipairs(X.scrambleRequirements) do
+        if X.matchEggSpecies(sp, req.species) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Checks in real-time whether a specific egg species is STILL NEEDED to satisfy Scramble requirements
+function X.isScrambleEggNeeded(sp)
+    if not X.scrambleRequirements or #X.scrambleRequirements == 0 then return false end
+    for _, req in ipairs(X.scrambleRequirements) do
+        if X.matchEggSpecies(sp, req.species) then
+            local countOwned = 0
+            if X.ownedInventoryEggs then
+                for _, egg in ipairs(X.ownedInventoryEggs) do
+                    if X.matchEggSpecies(egg.species, req.species)
+                       or (egg.category and egg.category ~= "" and X.matchEggSpecies(egg.category, req.species))
+                       or (egg.displayName and egg.displayName ~= "" and X.matchEggSpecies(egg.displayName, req.species)) then
+                        countOwned = countOwned + 1
+                    end
+                end
+            end
+            -- If we already have the required count (or more), we DO NOT need to farm it!
+            if countOwned >= (req.count or 1) then
+                return false
+            else
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function X.isScrambleRequirement(r)
+    if not X.prioritizeScrambleInAutoFarm then
+        return false
+    end
+    local sp = tostring(r and (r.AssetCategory or r.displayName or r.species or r.Name) or "")
+    if sp == "" then return false end
+
+    -- Ground truth inventory check: NEVER farm an egg if we already own enough in inventory!
+    if X.isScrambleEggNeeded and X.scrambleRequirements and #X.scrambleRequirements > 0 then
+        return X.isScrambleEggNeeded(sp)
+    end
+
+    local clean = X.normalizeEggSpecies(sp)
+    if X.scrambleMissingSpecies and X.scrambleMissingSpecies[clean] then return true end
+    if X.EGG_SPECIES_ALIASES then
+        local alias = X.EGG_SPECIES_ALIASES[clean]
+        if alias and X.scrambleMissingSpecies and X.scrambleMissingSpecies[alias] then return true end
+    end
+    if X.scrambleMissingSpecies then
+        for missingName in pairs(X.scrambleMissingSpecies) do
+            if X.matchEggSpecies(clean, missingName) then
+                return true
+            end
+        end
+    end
+    return false
+end
 X.ROW_H = 28
 X.ROW_GAP = 4
 X.ROW3_Y = 8 + (28 + 4) * 2
@@ -1462,10 +1640,11 @@ function X.autoHigher(rar)
     return rk >= minRank
 end
 
--- lower = picked first: Divine 1, Eternal 2, Secret 3, Mythic 4, everything else selected 5.xx (rarer first)
+-- lower = picked first: Divine 1, Eternal 2, Secret 3, Scramble Requirements 4, everything else selected 5.xx (rarer first)
 function X.eggTier(r)
     local rar = effectiveRarity(r)
     for i, n in ipairs(X.PRIORITY_CHAIN) do if n == rar then return i end end
+    if X.isScrambleRequirement(r) then return 4 end
     return 5 + (10 - (X.RARITY_RANK[rar] or 0)) / 100
 end
 
@@ -1489,20 +1668,51 @@ local function passesFilters(r)
     --   rarity OFF : "All" = everything; empty set = nothing; otherwise only selected species (as before)
     --   rarity ON  : an egg is a target if its rarity is ticked (or is a higher chain rarity), OR its species is
     --                selected. With Farm = "All" the species part does not restrict, so only the rarity applies.
+    local function matchSpeciesFilter(rawCat)
+        if selectedSpecies["All"] then return true end
+        if selectedSpecies[rawCat] == true then return true end
+        local disp = X.CATEGORY_TO_DISPLAY and X.CATEGORY_TO_DISPLAY[rawCat]
+        if disp and selectedSpecies[disp] == true then return true end
+        for sel in pairs(selectedSpecies) do
+            if X.matchEggSpecies(sel, rawCat) then return true end
+        end
+        return false
+    end
+
     local sOk = false
+    local catStr = tostring(r.AssetCategory or "")
     if X.hasRarity() then
         local rar = effectiveRarity(r)
         local rarMatch = X.selectedRarities[rar] == true or X.autoHigher(rar)
         if selectedSpecies["All"] then
             sOk = rarMatch
         else
-            sOk = rarMatch or selectedSpecies[tostring(r.AssetCategory or "")] == true
+            sOk = rarMatch or matchSpeciesFilter(catStr)
         end
     elseif selectedSpecies["All"] then
         sOk = true
     else
-        sOk = selectedSpecies[tostring(r.AssetCategory or "")] == true
+        sOk = matchSpeciesFilter(catStr)
     end
+
+    -- Scramble requirement eggs bypass species/rarity filter when Scramble AutoFarm Priority is enabled
+    -- Gated on whether the player STILL NEEDS this egg (if already owned, it will not bypass)
+    if X.prioritizeScrambleInAutoFarm and X.isScrambleRequirement(r) then
+        sOk = true
+    end
+
+    -- When Scramble Priority is active, NEVER farm an egg for a Scramble recipe slot that is ALREADY owned!
+    -- (Unless player explicitly ticked this specific egg species in Farm dropdown)
+    if X.prioritizeScrambleInAutoFarm and X.isScrambleRecipeSpecies and X.isScrambleRecipeSpecies(catStr) then
+        if not X.isScrambleEggNeeded(catStr) then
+            local explicitlySelected = (selectedSpecies[catStr] == true)
+                or (X.CATEGORY_TO_DISPLAY and selectedSpecies[X.CATEGORY_TO_DISPLAY[catStr]] == true)
+            if not explicitlySelected then
+                return false
+            end
+        end
+    end
+
     return mOk and sOk
 end
 
@@ -2365,7 +2575,7 @@ function X.pickNearest(records)
                         -- Close (< 80 studs) and pickable on the ground (loose / dropped / outside nest)
                         local isGround = X.looseUids[u] or (p - SAFE_ZONE).Magnitude <= 80 or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
                         if dEgg <= 80 and isGround then
-                            local tier = (hasR and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
+                            local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
                             if tier < bestStealTier or (tier == bestStealTier and dEgg < bestStealDist) then
                                 bestSteal, bestStealTier, bestStealDist = r, tier, dEgg
                             end
@@ -2380,7 +2590,7 @@ function X.pickNearest(records)
     end
 
     -- 2. Standard Selection:
-    -- Divine -> Eternal -> Secret -> farthest
+    -- Divine -> Eternal -> Secret -> Scramble Requirements -> farthest
     local best, bestTier, bestDist = nil, math.huge, 0
     for _, r in ipairs(records) do
         if passesFilters(r) then
@@ -2392,7 +2602,7 @@ function X.pickNearest(records)
                     local dy = p.Y - myPos.Y
                     local dz = p.Z - myPos.Z
                     local d = math.sqrt(dx*dx + dz*dz + dy*dy*0.25)
-                    local tier = (hasR and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
+                    local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
                     -- Within the same tier, always pick the FARTHEST egg (farthest gives more)
                     if tier < bestTier or (tier == bestTier and d > bestDist) then
                         best, bestTier, bestDist = r, tier, d
@@ -2454,6 +2664,36 @@ local function autoFarmLoop()
             dropRetry = nil
             X.resetVelocity()
             skip = true
+
+            -- Auto-fuse check immediately upon egg delivery to safe zone
+            if typeof(X.scanInventoryEggsForScramble) == "function" then
+                pcall(X.scanInventoryEggsForScramble)
+            end
+            if typeof(X.updateScrambleUI) == "function" then
+                pcall(X.updateScrambleUI)
+            end
+            if X.autoScrambleTrade and X.tryAutoScrambleTrade then
+                task.wait(0.25)
+                local okT, traded = pcall(X.tryAutoScrambleTrade)
+                if okT and traded then task.wait(1.5) end
+            end
+        end
+
+        if not skip then
+            if typeof(X.scanInventoryEggsForScramble) == "function" then
+                pcall(X.scanInventoryEggsForScramble)
+            end
+            if typeof(X.updateScrambleUI) == "function" then
+                pcall(X.updateScrambleUI)
+            end
+            -- Pre-scan auto-fuse check: if all requirements are ready in inventory, fuse before hunting more eggs!
+            if X.autoScrambleTrade and X.tryAutoScrambleTrade and not weAreCarrying then
+                local okT, traded = pcall(X.tryAutoScrambleTrade)
+                if okT and traded then
+                    task.wait(1.5)
+                    skip = true
+                end
+            end
         end
 
         if not skip then
@@ -2496,13 +2736,23 @@ local function autoFarmLoop()
                     task.wait(0.3)
                     skip = true
                 elseif not target and not skip then
-                    statusLabel.Text = "[AutoFarm] No matching eggs — waiting..."
-                    statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-                    local w = 0
-                    while w < AUTO_EMPTY_WAIT and autoFarmEnabled and autoFarmToken == myTok do
-                        task.wait(0.25); w = w + 0.25
+                    -- If no eggs on map match (e.g. user selected 'none' on farm egg and has the scramble eggs):
+                    if X.autoScrambleTrade and X.tryAutoScrambleTrade and not weAreCarrying then
+                        local okT, traded = pcall(X.tryAutoScrambleTrade)
+                        if okT and traded then
+                            task.wait(1.5)
+                            skip = true
+                        end
                     end
-                    skip = true
+                    if not skip then
+                        statusLabel.Text = "[AutoFarm] No matching eggs — waiting..."
+                        statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+                        local w = 0
+                        while w < AUTO_EMPTY_WAIT and autoFarmEnabled and autoFarmToken == myTok do
+                            task.wait(0.25); w = w + 0.25
+                        end
+                        skip = true
+                    end
                 elseif target and not skip then
                     local pos = extPos(target)
                     local uid = tostring(target.Uid or "")
@@ -2882,9 +3132,13 @@ local menuToggleBtn
 local closeBtn
 local tabEggs
 local tabPets
+local tabScramble
 local tabBtnEggs
 local tabBtnPets
+local tabBtnScramble
 local switchTab
+local refreshScrambleUI
+local logScramble
 local velToggleBtn
 local velInputBox
 local velInputStroke
@@ -3253,8 +3507,12 @@ local function scanEligibleFusePets()
                             seenUids[uidStr] = true
                             local rawName = attrs.DisplayName or attrs.Category or tool.Name
                             local cleanBase = rawName:gsub("^%b[]%s*", "")
-                            for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold"}) do
+                            for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold", "rainbow", "golden", "silver", "gold"}) do
                                 cleanBase = cleanBase:gsub("^" .. mWord .. "%s+", "")
+                            end
+                            cleanBase = cleanBase:gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
+                            if X.getDisplayEggName then
+                                cleanBase = X.getDisplayEggName(cleanBase)
                             end
 
                             local weightStr, weightNum = formatPetWeight(attrs.Weight, attrs.Scale)
@@ -3264,14 +3522,21 @@ local function scanEligibleFusePets()
                                 mut = attrs.BaseMutation
                             elseif type(attrs.Mutations) == "string" and attrs.Mutations ~= "" then
                                 mut = attrs.Mutations
+                            elseif type(attrs.Mutations) == "table" then
+                                for _, m in pairs(attrs.Mutations) do
+                                    if type(m) == "string" and m ~= "" then mut = m; break end
+                                end
+                            end
+                            if mut == "" then
+                                for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold"}) do
+                                    if string.find(tool.Name, "^" .. mWord) or string.find(rawName, "^" .. mWord) or string.find(tool.Name, "%[" .. mWord .. "%]") then
+                                        mut = mWord
+                                        break
+                                    end
+                                end
                             end
 
-                            local species = rawName
-                            if mut ~= "" and not string.find(species, mut) then
-                                species = string.format("[%s] %s", mut, species)
-                            end
-
-                            local rarity = attrs.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[attrs.DisplayName] or PET_RARITY_PRESETS[cleanBase] or PET_RARITY_PRESETS[rawName])) or "Common"
+                            local rarity = attrs.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[cleanBase] or PET_RARITY_PRESETS[rawName] or (attrs.Category and PET_RARITY_PRESETS[attrs.Category]))) or "Common"
 
                             local isEquip = equippedUids[uidStr] == true or attrs.Equipped == true
                             local earn = equippedEarnRates[uidStr] or "--/s"
@@ -3279,8 +3544,9 @@ local function scanEligibleFusePets()
                             table.insert(rawPets, {
                                 Id = uidStr,
                                 Uid = uidStr,
-                                Species = species,
+                                Species = cleanBase,
                                 BaseSpecies = cleanBase,
+                                DisplayName = rawName,
                                 Mutation = mut,
                                 Rarity = rarity,
                                 Equipped = isEquip,
@@ -3422,26 +3688,28 @@ local function scanEligibleFusePets()
     for _, pet in ipairs(rawPets) do
         totalPets = totalPets + 1
         local uid = tostring(pet.Id or pet.Uid or pet.UUID or pet.PetId or "")
-        local species = pet.Species or pet.Name or pet.PetType or "Unknown"
-        local cleanBase = (pet.BaseSpecies or species):gsub("^%b[]%s*", "")
-        for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold"}) do
-            cleanBase = cleanBase:gsub("^" .. mWord .. "%s+", "")
+        local cleanBase = pet.BaseSpecies or pet.Species or "Unknown"
+        if X.getDisplayEggName then
+            cleanBase = X.getDisplayEggName(cleanBase)
         end
-        local rarity = pet.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[species] or PET_RARITY_PRESETS[cleanBase])) or "Common"
+        local rarity = pet.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[cleanBase] or (pet.Species and PET_RARITY_PRESETS[pet.Species]))) or "Common"
 
         local isEquipped = (pet.Equipped == true)
             or (uid ~= "" and equippedUids[uid] == true)
-            or (equippedNames[species] and equippedNames[species] > 0)
+            or (equippedNames[cleanBase] and equippedNames[cleanBase] > 0)
+            or (pet.DisplayName and equippedNames[pet.DisplayName] and equippedNames[pet.DisplayName] > 0)
 
         if isEquipped then
             totalEquipped = totalEquipped + 1
-            if equippedNames[species] and equippedNames[species] > 0 then
-                equippedNames[species] = equippedNames[species] - 1
+            if equippedNames[cleanBase] and equippedNames[cleanBase] > 0 then
+                equippedNames[cleanBase] = equippedNames[cleanBase] - 1
+            elseif pet.DisplayName and equippedNames[pet.DisplayName] and equippedNames[pet.DisplayName] > 0 then
+                equippedNames[pet.DisplayName] = equippedNames[pet.DisplayName] - 1
             end
         else
-            if not unequippedGroups[species] then
-                unequippedGroups[species] = {
-                    species = species,
+            if not unequippedGroups[cleanBase] then
+                unequippedGroups[cleanBase] = {
+                    species = cleanBase,
                     baseSpecies = cleanBase,
                     mutation = pet.Mutation or "",
                     count = 0,
@@ -3449,21 +3717,26 @@ local function scanEligibleFusePets()
                     pets = {},
                     rarity = rarity,
                     earn = pet._earn or "--/s",
-                    weight = pet._weight or "-- kg"
+                    weight = pet._weight or "-- kg",
+                    mutCounts = {}
                 }
             end
             if pet._earn and pet._earn ~= "--/s" then
-                unequippedGroups[species].earn = pet._earn
+                unequippedGroups[cleanBase].earn = pet._earn
             end
             if pet._weight and pet._weight ~= "-- kg" then
-                unequippedGroups[species].weight = pet._weight
+                unequippedGroups[cleanBase].weight = pet._weight
             end
-            unequippedGroups[species].count = unequippedGroups[species].count + 1
-            table.insert(unequippedGroups[species].uids, uid)
-            table.insert(unequippedGroups[species].pets, {
+            unequippedGroups[cleanBase].count = unequippedGroups[cleanBase].count + 1
+            local mName = (pet.Mutation and pet.Mutation ~= "") and pet.Mutation or "Normal"
+            unequippedGroups[cleanBase].mutCounts[mName] = (unequippedGroups[cleanBase].mutCounts[mName] or 0) + 1
+
+            table.insert(unequippedGroups[cleanBase].uids, uid)
+            table.insert(unequippedGroups[cleanBase].pets, {
                 uid = uid,
-                species = species,
+                species = cleanBase,
                 baseSpecies = cleanBase,
+                displayName = pet.DisplayName or cleanBase,
                 mutation = pet.Mutation or "",
                 weightNum = pet._weightNum or 0,
                 weight = pet._weight or "-- kg",
@@ -3900,11 +4173,19 @@ updateFuseSelectorUI = function()
         strip.Parent = groupHeader
         Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
 
+        local mutSummaryList = {}
+        for mName, mCnt in pairs(g.mutCounts or {}) do
+            if mName ~= "" and mName ~= "Normal" then
+                table.insert(mutSummaryList, string.format("%d %s", mCnt, mName))
+            end
+        end
+        local mutSuffix = (#mutSummaryList > 0) and (" (" .. table.concat(mutSummaryList, ", ") .. ")") or ""
+
         -- Species Title + Count Badge
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Size = UDim2.new(1, -170, 1, 0); titleLabel.Position = UDim2.new(0, 16, 0, 0)
         titleLabel.BackgroundTransparency = 1
-        titleLabel.Text = string.format("%s  [%s]  •  %d copies", g.species, g.rarity, g.count)
+        titleLabel.Text = string.format("%s  [%s]  •  %d copies%s", g.baseSpecies, g.rarity, g.count, mutSuffix)
         titleLabel.TextColor3 = Color3.fromRGB(235, 245, 255)
         titleLabel.TextSize = 11; titleLabel.Font = Enum.Font.GothamBold
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -3980,11 +4261,12 @@ updateFuseSelectorUI = function()
             Instance.new("UICorner", petRow).CornerRadius = UDim.new(0, 5)
             local rowStroke = Instance.new("UIStroke", petRow)
 
-            -- Pet details label (index, weight, earn/s, short UID)
+            -- Pet details label (index, mutation badge, weight, earn/s, short UID)
             local rowLabel = Instance.new("TextLabel")
             rowLabel.Size = UDim2.new(1, -38, 1, 0); rowLabel.Position = UDim2.new(0, 8, 0, 0)
             rowLabel.BackgroundTransparency = 1
-            local detailText = string.format("#%d  ⚖️ %s", idx, pet.weight)
+            local mutTag = (pet.mutation and pet.mutation ~= "" and pet.mutation ~= "Normal") and ("[" .. pet.mutation .. "] ") or ""
+            local detailText = string.format("#%d  %s⚖️ %s", idx, mutTag, pet.weight)
             if pet.earn and pet.earn ~= "--/s" and pet.earn ~= "" then
                 detailText = detailText .. "  •  💰 " .. tostring(pet.earn)
             end
@@ -4019,7 +4301,15 @@ updateFuseSelectorUI = function()
                     petRow.BackgroundColor3 = Color3.fromRGB(24, 29, 42)
                     rowStroke.Color = Color3.fromRGB(38, 48, 68)
                     rowStroke.Thickness = 0.8
-                    rowLabel.TextColor3 = Color3.fromRGB(170, 195, 230)
+                    if pet.mutation == "Silver" then
+                        rowLabel.TextColor3 = Color3.fromRGB(180, 215, 245)
+                    elseif pet.mutation == "Golden" or pet.mutation == "Gold" then
+                        rowLabel.TextColor3 = Color3.fromRGB(255, 225, 120)
+                    elseif pet.mutation == "Rainbow" then
+                        rowLabel.TextColor3 = Color3.fromRGB(235, 160, 255)
+                    else
+                        rowLabel.TextColor3 = Color3.fromRGB(170, 195, 230)
+                    end
                     chkBtn.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
                     chkBtn.TextColor3 = Color3.new(0, 0, 0)
                     chkBtn.Text = ""
@@ -4143,6 +4433,1165 @@ task.spawn(function()
 end)
 
 
+end
+
+-- ==================================================
+-- TAB 3 BUILDER: DR. SCRAMBLE TRADE-IN SUITE
+-- ==================================================
+local function buildScrambleTabUI()
+    local tabScrambleLayout = Instance.new("UIListLayout")
+    tabScrambleLayout.Padding = UDim.new(0, 8)
+    tabScrambleLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    tabScrambleLayout.Parent = tabScramble
+
+    local tabScramblePad = Instance.new("UIPadding")
+    tabScramblePad.PaddingTop = UDim.new(0, 6)
+    tabScramblePad.PaddingBottom = UDim.new(0, 10)
+    tabScramblePad.PaddingLeft = UDim.new(0, 8)
+    tabScramblePad.PaddingRight = UDim.new(0, 8)
+    tabScramblePad.Parent = tabScramble
+
+    -- ========================================================================
+    -- 1. UTILITIES & NETWORKING
+    -- ========================================================================
+
+    local function getNetRemote(name)
+        local pkg = ReplicatedStorage:FindFirstChild("Packages")
+        local net = pkg and pkg:FindFirstChild("Networking")
+        if net then
+            local r = net:FindFirstChild(name)
+            if r then return r end
+        end
+        return ReplicatedStorage:FindFirstChild(name, true)
+    end
+
+    local function formatCommas(num)
+        local n = math.round(tonumber(num) or 0)
+        local s = tostring(math.abs(n))
+        local k
+        while true do
+            s, k = string.gsub(s, "^(-?%d+)(%d%d%d)", "%1,%2")
+            if k == 0 then break end
+        end
+        return (n < 0 and "-" or "") .. s
+    end
+
+    local function formatPetWeight(weightVal, scaleVal)
+        if type(weightVal) == "string" then
+            local kgStr = weightVal:match("([%d,]+)%s*[Kk][Gg]")
+            if kgStr then
+                local numOnly = kgStr:gsub(",", "")
+                local n = tonumber(numOnly)
+                if n then return formatCommas(n) .. " KG", n end
+            end
+        end
+        local w = tonumber(weightVal) or 0
+        local s = tonumber(scaleVal) or 1
+        local totalKg = math.round(w * (s * s))
+        return formatCommas(totalKg) .. " KG", totalKg
+    end
+
+    local function dumpTbl(tbl, maxDepth, indent)
+        maxDepth = maxDepth or 2
+        indent = indent or "  "
+        if type(tbl) ~= "table" then return tostring(tbl) end
+        if maxDepth <= 0 then return "{...}" end
+        local lines = {}
+        local count = 0
+        for k, v in pairs(tbl) do
+            count = count + 1
+            if count > 20 then
+                table.insert(lines, indent .. "... (truncated)")
+                break
+            end
+            if type(v) == "table" then
+                table.insert(lines, indent .. tostring(k) .. " = " .. dumpTbl(v, maxDepth - 1, indent .. "  "))
+            else
+                table.insert(lines, indent .. tostring(k) .. " = " .. tostring(v))
+            end
+        end
+        return "{\n" .. table.concat(lines, "\n") .. "\n" .. string.sub(indent, 1, math.max(0, #indent - 2)) .. "}"
+    end
+
+    -- ========================================================================
+    -- 2. SPECIES NORMALIZATION & EXACT ALIASING
+    -- ========================================================================
+
+    local EGG_SPECIES_ALIASES = {
+        ["galaxy gecko"] = "cosmic gecko",
+        ["cosmic gecko"] = "galaxy gecko",
+        ["cyclops gorilla"] = "cosmic gorilla",
+        ["cosmic gorilla"] = "cyclops gorilla",
+        ["dream axolotl"] = "axolotl",
+        ["axolotl"] = "dream axolotl",
+        ["holy peacock"] = "peacock",
+        ["peacock"] = "holy peacock",
+        ["sacred moth"] = "moth",
+        ["moth"] = "sacred moth",
+        ["winged lamb"] = "lamb",
+        ["lamb"] = "winged lamb",
+        ["warden"] = "king snake",
+        ["king snake"] = "warden",
+        ["alien skeleton boss"] = "cosmic skeleton boss",
+        ["cosmic skeleton boss"] = "alien skeleton boss",
+        ["dark gargoyle"] = "gargoyle",
+        ["gargoyle"] = "dark gargoyle",
+        ["tyrannosaurusrex"] = "trex",
+        ["trex"] = "tyrannosaurusrex",
+        ["t-rex"] = "tyrannosaurusrex",
+        ["dragon"] = "lava dragon",
+        ["lava dragon"] = "dragon",
+        ["jellyfish"] = "pure jellyfish",
+        ["pure jellyfish"] = "jellyfish",
+        ["shark"] = "mutant shark",
+        ["mutant shark"] = "shark",
+        ["godzilla"] = "kaiju",
+        ["kaiju"] = "godzilla",
+        ["king kong"] = "gorilla king",
+        ["gorilla king"] = "king kong",
+        ["fennecfox"] = "fennec",
+        ["fennec"] = "fennecfox",
+    }
+
+    local CATEGORY_TO_DISPLAY = {
+        ["Galaxy Gecko"] = "Cosmic Gecko",
+        ["Cyclops Gorilla"] = "Cosmic Gorilla",
+        ["Lamb"] = "Winged Lamb",
+        ["Moth"] = "Sacred Moth",
+        ["Peacock"] = "Holy Peacock",
+        ["Dragon"] = "Lava Dragon",
+        ["TyrannosaurusRex"] = "TRex",
+        ["Alien Skeleton Boss"] = "Cosmic Skeleton Boss",
+        ["Dark Gargoyle"] = "Gargoyle",
+        ["Dream Axolotl"] = "Axolotl",
+        ["Warden"] = "King Snake",
+        ["Jellyfish"] = "Pure Jellyfish",
+        ["Shark"] = "Mutant Shark",
+    }
+
+    local function normalizeEggSpecies(s)
+        if not s or type(s) ~= "string" then return "" end
+        local str = s:lower():gsub("^%b[]%s*", ""):gsub("%s*%b()%s*$", "")
+        for _, mWord in ipairs({"rainbow", "golden", "silver", "gold"}) do
+            str = str:gsub("^" .. mWord .. "%s+", "")
+        end
+        str = str:gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
+        return str
+    end
+
+    local function matchEggSpecies(nameA, nameB)
+        local a = normalizeEggSpecies(nameA)
+        local b = normalizeEggSpecies(nameB)
+        if a == "" or b == "" then return false end
+        if a == b then return true end
+        if EGG_SPECIES_ALIASES[a] == b or EGG_SPECIES_ALIASES[b] == a then return true end
+        return false
+    end
+
+    local function getDisplayEggName(rawName)
+        local s = tostring(rawName or "")
+        if CATEGORY_TO_DISPLAY[s] then return CATEGORY_TO_DISPLAY[s] end
+        local clean = normalizeEggSpecies(s)
+        for cat, disp in pairs(CATEGORY_TO_DISPLAY) do
+            if normalizeEggSpecies(cat) == clean then return disp end
+        end
+        return s
+    end
+
+    -- ========================================================================
+    -- 3. STATE & DATA STORES
+    -- ========================================================================
+
+    local scrambleRequirements = {} -- { { slot="1", species="Galaxy Gecko", rawName="Galaxy Gecko", count=1 }, ... }
+    local ownedMatchingEggs    = {} -- list of all unplaced inventory eggs matching any active requirement
+    local allInventoryEggs     = {} -- all unplaced eggs found in player satchel
+    local isAutoTradeEnabled   = (X.autoScrambleTrade ~= false)
+    local isTradingIn          = false
+    local serverExpiresAt      = nil
+    local scrambleBannerName   = "Dr. Scramble"
+    local lastTradeAttempt     = 0
+    local lastInventoryScan    = 0
+
+    local rfAskState   = getNetRemote("RF/ScrambleTradeIn/AskState")
+    local rfTradeIn    = getNetRemote("RF/ScrambleTradeIn/AskTradeIn") or getNetRemote("RF/ScrambleTradeIn/TradeIn")
+    local rfReveal     = getNetRemote("RF/ScrambleTradeIn/AskFinishReveal")
+    local reRotated    = getNetRemote("RE/ScrambleTradeIn/BannerRotated")
+    local rfProfile    = getNetRemote("RF/ProfileMirror/FetchProfile")
+
+    -- Forward declarations
+    local updateUI
+    local queryScrambleState
+    local scanInventoryEggs
+    local executeTradeIn
+    local checkAndAutoTrade
+
+    -- Helper to make section cards
+    local function createCard(titleText, defaultHeight, layoutOrder)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, defaultHeight)
+        card.BackgroundColor3 = Color3.fromRGB(20, 23, 34)
+        card.BorderSizePixel = 0
+        card.LayoutOrder = layoutOrder
+        card.Parent = tabScramble
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 7)
+        local cStroke = Instance.new("UIStroke", card)
+        cStroke.Color = Color3.fromRGB(42, 48, 70); cStroke.Thickness = 1
+
+        local hFrame = Instance.new("Frame")
+        hFrame.Size = UDim2.new(1, 0, 0, 24); hFrame.BackgroundColor3 = Color3.fromRGB(28, 32, 48)
+        hFrame.BorderSizePixel = 0; hFrame.Parent = card
+        Instance.new("UICorner", hFrame).CornerRadius = UDim.new(0, 7)
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -16, 1, 0); lbl.Position = UDim2.new(0, 8, 0, 0)
+        lbl.BackgroundTransparency = 1; lbl.Text = titleText
+        lbl.TextColor3 = Color3.fromRGB(215, 230, 255); lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 10
+        lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = hFrame
+
+        return card
+    end
+
+    -- ========================================================================
+    -- 4. CONTROLS BAR (Row 0)
+    -- ========================================================================
+
+    local controlsBar = Instance.new("Frame")
+    controlsBar.Size = UDim2.new(1, 0, 0, 32)
+    controlsBar.BackgroundTransparency = 1
+    controlsBar.LayoutOrder = 0
+    controlsBar.Parent = tabScramble
+
+    local timerBadge = Instance.new("TextLabel")
+    timerBadge.Size = UDim2.new(0, 150, 1, 0); timerBadge.Position = UDim2.new(0, 0, 0, 0)
+    timerBadge.BackgroundColor3 = Color3.fromRGB(25, 29, 44); timerBadge.BorderSizePixel = 0
+    timerBadge.Text = "⏳ Syncing timer..."
+    timerBadge.TextColor3 = Color3.fromRGB(255, 215, 120); timerBadge.Font = Enum.Font.GothamBold; timerBadge.TextSize = 10
+    timerBadge.Parent = controlsBar
+    Instance.new("UICorner", timerBadge).CornerRadius = UDim.new(0, 6)
+    local tbStroke = Instance.new("UIStroke", timerBadge)
+    tbStroke.Color = Color3.fromRGB(60, 70, 100); tbStroke.Thickness = 1
+
+    local priorityToggleBtn = Instance.new("TextButton")
+    priorityToggleBtn.Size = UDim2.new(0, 76, 1, 0); priorityToggleBtn.Position = UDim2.new(0, 154, 0, 0)
+    priorityToggleBtn.BackgroundColor3 = X.prioritizeScrambleInAutoFarm and Color3.fromRGB(35, 80, 140) or Color3.fromRGB(45, 48, 60)
+    priorityToggleBtn.Text = X.prioritizeScrambleInAutoFarm and "[ON] Priority" or "[OFF] Priority"
+    priorityToggleBtn.TextColor3 = X.prioritizeScrambleInAutoFarm and Color3.fromRGB(180, 220, 255) or Color3.fromRGB(160, 165, 180)
+    priorityToggleBtn.Font = Enum.Font.GothamBold; priorityToggleBtn.TextSize = 9.5
+    priorityToggleBtn.Parent = controlsBar
+    Instance.new("UICorner", priorityToggleBtn).CornerRadius = UDim.new(0, 6)
+
+    local autoTradeToggleBtn = Instance.new("TextButton")
+    autoTradeToggleBtn.Size = UDim2.new(0, 88, 1, 0); autoTradeToggleBtn.Position = UDim2.new(0, 234, 0, 0)
+    autoTradeToggleBtn.BackgroundColor3 = isAutoTradeEnabled and Color3.fromRGB(35, 115, 70) or Color3.fromRGB(55, 58, 70)
+    autoTradeToggleBtn.Text = isAutoTradeEnabled and "[ON] Auto-Trade" or "[OFF] Auto-Trade"
+    autoTradeToggleBtn.TextColor3 = isAutoTradeEnabled and Color3.fromRGB(160, 255, 190) or Color3.fromRGB(180, 185, 200)
+    autoTradeToggleBtn.Font = Enum.Font.GothamBold; autoTradeToggleBtn.TextSize = 9.5
+    autoTradeToggleBtn.Parent = controlsBar
+    Instance.new("UICorner", autoTradeToggleBtn).CornerRadius = UDim.new(0, 6)
+
+    local refreshBtn = Instance.new("TextButton")
+    refreshBtn.Size = UDim2.new(0, 30, 1, 0); refreshBtn.Position = UDim2.new(0, 326, 0, 0)
+    refreshBtn.BackgroundColor3 = Color3.fromRGB(38, 55, 85)
+    refreshBtn.Text = "🔄"; refreshBtn.TextColor3 = Color3.new(1, 1, 1)
+    refreshBtn.Font = Enum.Font.GothamBold; refreshBtn.TextSize = 13
+    refreshBtn.Parent = controlsBar
+    Instance.new("UICorner", refreshBtn).CornerRadius = UDim.new(0, 6)
+
+    local manualTradeBtn = Instance.new("TextButton")
+    manualTradeBtn.Size = UDim2.new(1, -360, 1, 0); manualTradeBtn.Position = UDim2.new(0, 360, 0, 0)
+    manualTradeBtn.BackgroundColor3 = Color3.fromRGB(50, 48, 65)
+    manualTradeBtn.Text = "⚡ Trade (0/3)"
+    manualTradeBtn.TextColor3 = Color3.fromRGB(160, 165, 185)
+    manualTradeBtn.Font = Enum.Font.GothamBold; manualTradeBtn.TextSize = 10
+    manualTradeBtn.Parent = controlsBar
+    Instance.new("UICorner", manualTradeBtn).CornerRadius = UDim.new(0, 6)
+    local mtStroke = Instance.new("UIStroke", manualTradeBtn)
+    mtStroke.Color = Color3.fromRGB(65, 60, 85); mtStroke.Thickness = 1
+
+    -- ========================================================================
+    -- 5. CARDS (Requirements, Matching Inventory, Telemetry Log)
+    -- ========================================================================
+
+    -- CARD 1: ACTIVE RECIPE REQUIREMENTS
+    local cardReqs = createCard("📋 DR. SCRAMBLE RECIPE REQUIREMENTS", 135, 1)
+    cardReqs.AutomaticSize = Enum.AutomaticSize.Y
+    local reqsContainer = Instance.new("Frame")
+    reqsContainer.Size = UDim2.new(1, -12, 0, 0); reqsContainer.Position = UDim2.new(0, 6, 0, 26)
+    reqsContainer.BackgroundTransparency = 1; reqsContainer.AutomaticSize = Enum.AutomaticSize.Y
+    reqsContainer.Parent = cardReqs
+    local reqsLayout = Instance.new("UIListLayout")
+    reqsLayout.Padding = UDim.new(0, 4)
+    reqsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    reqsLayout.Parent = reqsContainer
+    local reqsPad = Instance.new("UIPadding")
+    reqsPad.PaddingBottom = UDim.new(0, 6)
+    reqsPad.Parent = reqsContainer
+
+    -- CARD 2: MATCHING INVENTORY EGGS
+    local cardInv = createCard("🎒 MATCHING UNPLACED EGGS IN INVENTORY (ELIGIBLE FOR SACRIFICE)", 150, 2)
+    local invScroll = Instance.new("ScrollingFrame")
+    invScroll.Size = UDim2.new(1, -12, 1, -30); invScroll.Position = UDim2.new(0, 6, 0, 26)
+    invScroll.BackgroundColor3 = Color3.fromRGB(14, 16, 24); invScroll.BorderSizePixel = 0
+    invScroll.ScrollBarThickness = 4; invScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    invScroll.CanvasSize = UDim2.new(0, 0, 0, 0); invScroll.Parent = cardInv
+    Instance.new("UICorner", invScroll).CornerRadius = UDim.new(0, 5)
+    local invLayout = Instance.new("UIListLayout")
+    invLayout.Padding = UDim.new(0, 3)
+    invLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    invLayout.Parent = invScroll
+    local invPad = Instance.new("UIPadding")
+    invPad.PaddingTop = UDim.new(0, 4); invPad.PaddingBottom = UDim.new(0, 4)
+    invPad.PaddingLeft = UDim.new(0, 4); invPad.PaddingRight = UDim.new(0, 4)
+    invPad.Parent = invScroll
+
+    -- CARD 3: ACTIVITY & LOG TERMINAL
+    local cardLog = createCard("📜 LIVE TELEMETRY & NETWORK LOG", 150, 3)
+
+    local copyLogBtn = Instance.new("TextButton")
+    copyLogBtn.Size = UDim2.new(0, 50, 0, 18); copyLogBtn.Position = UDim2.new(1, -114, 0, 3)
+    copyLogBtn.BackgroundColor3 = Color3.fromRGB(45, 75, 115)
+    copyLogBtn.Text = "Copy"; copyLogBtn.TextColor3 = Color3.fromRGB(220, 240, 255)
+    copyLogBtn.Font = Enum.Font.GothamBold; copyLogBtn.TextSize = 9; copyLogBtn.Parent = cardLog
+    Instance.new("UICorner", copyLogBtn).CornerRadius = UDim.new(0, 4)
+
+    local clearLogBtn = Instance.new("TextButton")
+    clearLogBtn.Size = UDim2.new(0, 50, 0, 18); clearLogBtn.Position = UDim2.new(1, -58, 0, 3)
+    clearLogBtn.BackgroundColor3 = Color3.fromRGB(55, 60, 75)
+    clearLogBtn.Text = "Clear"; clearLogBtn.TextColor3 = Color3.fromRGB(200, 215, 235)
+    clearLogBtn.Font = Enum.Font.GothamBold; clearLogBtn.TextSize = 9; clearLogBtn.Parent = cardLog
+    Instance.new("UICorner", clearLogBtn).CornerRadius = UDim.new(0, 4)
+
+    local logScroll = Instance.new("ScrollingFrame")
+    logScroll.Size = UDim2.new(1, -12, 1, -30); logScroll.Position = UDim2.new(0, 6, 0, 26)
+    logScroll.BackgroundColor3 = Color3.fromRGB(10, 11, 16); logScroll.BorderSizePixel = 0
+    logScroll.ScrollBarThickness = 4; logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    logScroll.CanvasSize = UDim2.new(0, 0, 0, 0); logScroll.Parent = cardLog
+    Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0, 5)
+
+    local logTextLabel = Instance.new("TextLabel")
+    logTextLabel.Size = UDim2.new(1, -8, 0, 0); logTextLabel.Position = UDim2.new(0, 4, 0, 2)
+    logTextLabel.BackgroundTransparency = 1
+    logTextLabel.TextColor3 = Color3.fromRGB(195, 215, 245)
+    logTextLabel.Font = Enum.Font.Code; logTextLabel.TextSize = 10
+    logTextLabel.TextXAlignment = Enum.TextXAlignment.Left; logTextLabel.TextYAlignment = Enum.TextYAlignment.Top
+    logTextLabel.AutomaticSize = Enum.AutomaticSize.Y; logTextLabel.Parent = logScroll
+
+    local logEntries = {}
+    local MAX_LOGS = 180
+
+    local function logMsg(msg, color)
+        local ts = os.date("%H:%M:%S")
+        local line = ("[%s] %s"):format(ts, tostring(msg))
+        print("[ScrambleAutoTrade] " .. line)
+        table.insert(logEntries, line)
+        if #logEntries > MAX_LOGS then table.remove(logEntries, 1) end
+        if logTextLabel and logTextLabel.Parent then
+            logTextLabel.Text = table.concat(logEntries, "\n")
+            pcall(function() logScroll.CanvasPosition = Vector2.new(0, 99999) end)
+        end
+    end
+    logScramble = logMsg
+
+    copyLogBtn.MouseButton1Click:Connect(function()
+        local full = table.concat(logEntries, "\n")
+        local ok = false
+        if typeof(setclipboard) == "function" then
+            ok = pcall(setclipboard, full)
+        elseif typeof(toclipboard) == "function" then
+            ok = pcall(toclipboard, full)
+        end
+        if ok then
+            copyLogBtn.Text = "✓ Copied"
+            logMsg("📋 Activity log copied to system clipboard!", Color3.fromRGB(140, 255, 180))
+            task.delay(1.5, function() copyLogBtn.Text = "Copy" end)
+        else
+            logMsg("ℹ️ Clipboard not supported. Printed to developer console (F9).", Color3.fromRGB(255, 200, 100))
+        end
+    end)
+
+    clearLogBtn.MouseButton1Click:Connect(function()
+        logEntries = {}
+        logTextLabel.Text = "[Log cleared]"
+    end)
+
+    priorityToggleBtn.MouseButton1Click:Connect(function()
+        X.prioritizeScrambleInAutoFarm = not X.prioritizeScrambleInAutoFarm
+        if X.prioritizeScrambleInAutoFarm then
+            priorityToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 80, 140)
+            priorityToggleBtn.Text = "[ON] Priority"
+            priorityToggleBtn.TextColor3 = Color3.fromRGB(180, 220, 255)
+            logMsg("✓ Scramble AutoFarm Priority: ENABLED", Color3.fromRGB(140, 220, 255))
+        else
+            priorityToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 48, 60)
+            priorityToggleBtn.Text = "[OFF] Priority"
+            priorityToggleBtn.TextColor3 = Color3.fromRGB(160, 165, 180)
+            logMsg("ℹ️ Scramble AutoFarm Priority: DISABLED", Color3.fromRGB(180, 185, 200))
+        end
+    end)
+
+    autoTradeToggleBtn.MouseButton1Click:Connect(function()
+        isAutoTradeEnabled = not isAutoTradeEnabled
+        X.autoScrambleTrade = isAutoTradeEnabled
+        if isAutoTradeEnabled then
+            autoTradeToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 115, 70)
+            autoTradeToggleBtn.Text = "[ON] Auto-Trade"
+            autoTradeToggleBtn.TextColor3 = Color3.fromRGB(160, 255, 190)
+            logMsg("✓ Auto-Trade: ENABLED (Will auto-trade immediately when 3/3 matching eggs are in inventory)", Color3.fromRGB(140, 255, 180))
+            task.defer(function()
+                if not weAreCarrying then
+                    checkAndAutoTrade("ToggleOn")
+                end
+            end)
+        else
+            autoTradeToggleBtn.BackgroundColor3 = Color3.fromRGB(55, 58, 70)
+            autoTradeToggleBtn.Text = "[OFF] Auto-Trade"
+            autoTradeToggleBtn.TextColor3 = Color3.fromRGB(180, 185, 200)
+            logMsg("ℹ️ Auto-Trade: DISABLED (Manual trade button available)", Color3.fromRGB(200, 215, 235))
+        end
+    end)
+
+    refreshBtn.MouseButton1Click:Connect(function()
+        logMsg("🔄 Manual refresh requested...", Color3.fromRGB(180, 210, 255))
+        queryScrambleState()
+        scanInventoryEggs(true)
+        updateUI()
+        task.defer(function()
+            if not weAreCarrying then
+                checkAndAutoTrade("ManualRefresh")
+            end
+        end)
+    end)
+
+    manualTradeBtn.MouseButton1Click:Connect(function()
+        executeTradeIn(false)
+    end)
+
+    -- ========================================================================
+    -- 6. AUTHORITATIVE INVENTORY SCANNER (EGGS ONLY, STRICTLY NO PETS!)
+    -- ========================================================================
+
+    scanInventoryEggs = function(force)
+        -- Cache check: prevent redundant FetchProfile spam within 1 second
+        if not force and (os.clock() - lastInventoryScan) < 1.0 and #allInventoryEggs > 0 then
+            return allInventoryEggs, ownedMatchingEggs
+        end
+        lastInventoryScan = os.clock()
+
+        local eggs = {}
+        local seenUids = {}
+
+        -- 1. ProfileMirror EggInventory (Ground truth for unplaced eggs in satchel)
+        if not rfProfile then rfProfile = getNetRemote("RF/ProfileMirror/FetchProfile") end
+        if rfProfile then
+            local okP, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
+            if not okP or type(prof) ~= "table" or type(prof.EggInventory) ~= "table" then
+                okP, prof = pcall(function() return rfProfile:InvokeServer() end)
+            end
+
+            if okP and type(prof) == "table" and type(prof.EggInventory) == "table" then
+                for eggUid, eggData in pairs(prof.EggInventory) do
+                    local uidStr = tostring(eggUid)
+                    -- STRICT FILTER: Only unplaced eggs (Placement == nil)
+                    if not seenUids[uidStr] and type(eggData) == "table" and eggData.Placement == nil then
+                        seenUids[uidStr] = true
+                        local cat = tostring(eggData.AssetCategory or "Egg")
+                        local disp = getDisplayEggName(cat)
+                        local wStr, wNum = formatPetWeight(eggData.Weight or 0, eggData.AssetScale or 1)
+                        table.insert(eggs, {
+                            uid = uidStr,
+                            species = cat,
+                            category = cat,
+                            displayName = disp,
+                            weightStr = wStr,
+                            weightNum = wNum,
+                            source = "Satchel"
+                        })
+                    end
+                end
+            end
+        end
+
+        -- 2. DrScrambleTradeIn In-Game GUI inspection (PlayerGui)
+        pcall(function()
+            local pg = LocalPlayer:FindFirstChild("PlayerGui")
+            local scrGui = pg and (pg:FindFirstChild("DrScrambleTradeIn") or pg:FindFirstChild("DrScrambleTradeInNEW"))
+            local invFrame = scrGui and scrGui:FindFirstChild("DrScrambleTradeInInventory", true)
+            local scroll = invFrame and invFrame:FindFirstChild("ScrollingFrame", true)
+            if scroll then
+                for _, btn in ipairs(scroll:GetChildren()) do
+                    if (btn:IsA("ImageButton") or btn:IsA("TextButton")) and btn.Name:match("^Egg_(%x+)") then
+                        local rawUid = btn.Name:gsub("^Egg_", "")
+                        if rawUid and #rawUid == 32 and not seenUids[rawUid] then
+                            local spName = nil
+                            for _, d in ipairs(btn:GetDescendants()) do
+                                if d:IsA("TextLabel") and d.Text ~= "" and d.Text ~= "Unplaced" and not d.Text:match("^%b()") then
+                                    local low = d.Text:lower()
+                                    if not low:match("select") and not low:match("pet name") then
+                                        spName = d.Text
+                                        break
+                                    end
+                                end
+                            end
+                            if spName then
+                                seenUids[rawUid] = true
+                                local cleanSp = spName:gsub("%s*Egg%s*$", "")
+                                table.insert(eggs, {
+                                    uid = rawUid,
+                                    species = cleanSp,
+                                    category = cleanSp,
+                                    displayName = spName,
+                                    weightStr = "0 KG",
+                                    weightNum = 0,
+                                    source = "TradeGui"
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        -- 3. STRICT PHYSICAL TOOL INSPECTION (ONLY actual Egg tools, NEVER pets!)
+        local function checkTool(t, src)
+            if not t or not t:IsA("Tool") then return end
+            local attrs = t:GetAttributes() or {}
+            if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return end
+
+            local dName = tostring(attrs.DisplayName or t.Name)
+            local cat = tostring(attrs.Category or "")
+            local lowD = dName:lower()
+            local lowT = t.Name:lower()
+            local lowC = cat:lower()
+
+            -- STRICT EGG VALIDATION: Must contain the word "egg" in name/displayName or Category=="Egg"
+            -- This guarantees that pets (e.g. Snowy Owl, Cosmic Gecko with ItemType="Asset") are NEVER misclassified as eggs!
+            local isEgg = lowD:find("egg") ~= nil
+                or lowT:find("egg") ~= nil
+                or lowC == "egg"
+                or attrs.ItemType == "Egg"
+                or attrs.IsEgg == true
+
+            if not isEgg then return end
+
+            local rawUid = attrs.UID or attrs.Uid or attrs.Id or attrs.EggUID
+            if not rawUid then
+                local chUid = t:FindFirstChild("UID") or t:FindFirstChild("EggUID")
+                if chUid and chUid:IsA("ValueBase") then rawUid = chUid.Value end
+            end
+
+            local uidStr = rawUid and tostring(rawUid) or nil
+            if uidStr and #uidStr == 32 and not seenUids[uidStr] then
+                seenUids[uidStr] = true
+                local wStr, wNum = formatPetWeight(attrs.Weight, attrs.Scale)
+                local cleanSp = dName:gsub("%s*[Ee]gg%s*$", "")
+                table.insert(eggs, {
+                    uid = uidStr,
+                    species = cleanSp,
+                    category = cat ~= "" and cat or cleanSp,
+                    displayName = dName,
+                    weightStr = wStr,
+                    weightNum = wNum,
+                    source = src
+                })
+            end
+        end
+
+        local bp = LocalPlayer:FindFirstChild("Backpack")
+        if bp then for _, t in ipairs(bp:GetChildren()) do checkTool(t, "Backpack") end end
+        if LocalPlayer.Character then for _, t in ipairs(LocalPlayer.Character:GetChildren()) do checkTool(t, "Character") end end
+
+        -- Sort lightest to heaviest
+        table.sort(eggs, function(a, b) return (a.weightNum or 0) < (b.weightNum or 0) end)
+        allInventoryEggs = eggs
+        X.ownedInventoryEggs = eggs
+
+        -- Filter to eggs matching active requirements
+        local matching = {}
+        for _, egg in ipairs(allInventoryEggs) do
+            for slotIdx, req in ipairs(scrambleRequirements) do
+                if matchEggSpecies(egg.species, req.species)
+                   or (egg.category and egg.category ~= "" and matchEggSpecies(egg.category, req.species))
+                   or (egg.displayName and egg.displayName ~= "" and matchEggSpecies(egg.displayName, req.species)) then
+                    local copy = table.clone(egg)
+                    copy.matchedSlot = slotIdx
+                    copy.matchedReq = req.species
+                    table.insert(matching, copy)
+                    break
+                end
+            end
+        end
+
+        ownedMatchingEggs = matching
+        return eggs, matching
+    end
+
+    -- ========================================================================
+    -- 7. SCRAMBLE STATE & REQUIREMENTS QUERY
+    -- ========================================================================
+
+    local function parseScrambleRequirements(state)
+        local reqs = {}
+
+        local function addReq(slotKey, speciesName, count)
+            if not speciesName or type(speciesName) ~= "string" or speciesName == "" then return end
+            local lowCheck = speciesName:lower():gsub("%s+", "")
+            if lowCheck == "petname" or lowCheck == "eggname" or lowCheck == "rarity" then return end
+            local clean = speciesName:gsub("^%b[]%s*", "")
+            for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold"}) do
+                clean = clean:gsub("^" .. mWord .. "%s+", "")
+            end
+            table.insert(reqs, {
+                slot = tostring(slotKey),
+                species = clean,
+                rawName = speciesName,
+                count = tonumber(count) or 1
+            })
+        end
+
+        if type(state) == "table" then
+            local container = state.Requirements or state.Recipe or state.Inputs or state.Slots or state.Eggs or state.CurrentTrade or state.Trade or state.SacrificeInputs or state.Banner or state
+            if type(container) == "table" then
+                for k, v in pairs(container) do
+                    if type(v) == "string" then
+                        addReq(k, v, 1)
+                    elseif type(v) == "table" then
+                        local sp = v.Species or v.Egg or v.EggType or v.Name or v.Category or v.DisplayName or v.Target or v.Type or v.EggName
+                        local c = v.Count or v.Amount or v.Required or v.Quantity or 1
+                        if sp then addReq(k, sp, c) end
+                    end
+                end
+            end
+        end
+
+        -- Fallback: Inspect PlayerGui DrScrambleTradeIn GUI if AskState container empty
+        if #reqs == 0 then
+            local pg = LocalPlayer:FindFirstChild("PlayerGui")
+            local gui = pg and (pg:FindFirstChild("DrScrambleTradeIn") or pg:FindFirstChild("DrScrambleTradeInNEW"))
+            local inputs = gui and gui:FindFirstChild("SacrificeInputs", true)
+            if inputs then
+                for idx = 1, 3 do
+                    local inp = inputs:FindFirstChild("Input" .. idx) or inputs:FindFirstChild(tostring(idx))
+                    if inp then
+                        local spName = nil
+                        local attrs = inp:GetAttributes() or {}
+                        spName = attrs.Egg or attrs.Species or attrs.DisplayName or attrs.Category
+                        if not spName then
+                            local emptyNode = inp:FindFirstChild("Empty", true)
+                            local nameLbl = emptyNode and (emptyNode:FindFirstChild("Name") or emptyNode:FindFirstChild("Title") or emptyNode:FindFirstChild("EggName"))
+                            if nameLbl and nameLbl:IsA("TextLabel") and nameLbl.Text ~= "" then
+                                local nTxt = nameLbl.Text:lower():gsub("%s+", "")
+                                if nTxt ~= "petname" and nTxt ~= "eggname" and nTxt ~= "rarity" then
+                                    spName = nameLbl.Text
+                                end
+                            end
+                        end
+                        if spName then addReq(idx, spName, 1) end
+                    end
+                end
+            end
+        end
+
+        table.sort(reqs, function(a, b)
+            local numA = tonumber(a.slot) or 99
+            local numB = tonumber(b.slot) or 99
+            return numA < numB
+        end)
+
+        return reqs
+    end
+
+    queryScrambleState = function()
+        if not rfAskState then rfAskState = getNetRemote("RF/ScrambleTradeIn/AskState") end
+        local ok, state = false, nil
+        if rfAskState then
+            ok, state = pcall(function() return rfAskState:InvokeServer() end)
+        end
+
+        if ok and type(state) == "table" then
+            logMsg("✓ [AskState] Received active state from server", Color3.fromRGB(140, 255, 180))
+            scrambleBannerName = state.BannerDisplayName or state.BannerId or "Dr. Scramble"
+
+            -- Unclaimed PendingReward Auto-Claim
+            if not rfReveal then rfReveal = getNetRemote("RF/ScrambleTradeIn/AskFinishReveal") end
+            if state.PendingReward and type(state.PendingReward) == "table" and rfReveal then
+                logMsg("🎁 Detected unclaimed reward from previous trade! Calling AskFinishReveal...", Color3.fromRGB(255, 215, 120))
+                pcall(function() rfReveal:InvokeServer() end)
+                task.wait(0.4)
+                local ok2, state2 = pcall(function() return rfAskState:InvokeServer() end)
+                if ok2 and type(state2) == "table" then state = state2 end
+            end
+
+            -- Calculate exact expiry timestamp
+            local exp = state.ExpiresAt or state.NextRefresh or state.ResetTime or state.EndTime
+            if tonumber(exp) and tonumber(exp) > os.time() then
+                serverExpiresAt = tonumber(exp)
+            elseif tonumber(state.SecondsUntilRotation) then
+                serverExpiresAt = os.time() + math.floor(tonumber(state.SecondsUntilRotation))
+            elseif tonumber(state.TimeLeft) or tonumber(state.Remaining) then
+                serverExpiresAt = os.time() + (tonumber(state.TimeLeft) or tonumber(state.Remaining))
+            else
+                local secsIntoHour = os.time() % 3600
+                serverExpiresAt = os.time() + (3600 - secsIntoHour)
+            end
+        else
+            logMsg("⚠️ [AskState] Remote returned: " .. tostring(state) .. " (using fallback)", Color3.fromRGB(255, 180, 80))
+            local secsIntoHour = os.time() % 3600
+            serverExpiresAt = os.time() + (3600 - secsIntoHour)
+        end
+
+        scrambleRequirements = parseScrambleRequirements(state)
+        X.scrambleRequirements = scrambleRequirements
+
+        local reqMap = {}
+        for _, req in ipairs(scrambleRequirements) do
+            local n = normalizeEggSpecies(req.species)
+            if n ~= "" then reqMap[n] = true end
+        end
+        X.scrambleRequiredSpecies = reqMap
+
+        logMsg(string.format("📋 Loaded %d recipe requirements for [%s]:", #scrambleRequirements, scrambleBannerName), Color3.fromRGB(180, 220, 255))
+        for i, req in ipairs(scrambleRequirements) do
+            local disp = getDisplayEggName(req.species)
+            logMsg(string.format("  Slot #%s: %s (internal: %s)", tostring(req.slot), disp, req.species), Color3.fromRGB(200, 225, 255))
+        end
+    end
+
+    -- ========================================================================
+    -- 8. UI RENDERER (REQUIREMENTS & INVENTORY LIST)
+    -- ========================================================================
+
+    local function getTradeCandidates()
+        local finalUids = {}
+        local usedUids = {}
+        local readySlotsCount = 0
+        local slotMatches = {}
+        local totalReq = #scrambleRequirements
+
+        if totalReq == 0 then
+            return false, finalUids, 0, 0, slotMatches, usedUids
+        end
+
+        for slotIdx, req in ipairs(scrambleRequirements) do
+            slotMatches[slotIdx] = {}
+            for _, egg in ipairs(allInventoryEggs) do
+                local matches = matchEggSpecies(egg.species, req.species)
+                    or (egg.category and egg.category ~= "" and matchEggSpecies(egg.category, req.species))
+                    or (egg.displayName and egg.displayName ~= "" and matchEggSpecies(egg.displayName, req.species))
+                if matches then
+                    table.insert(slotMatches[slotIdx], egg)
+                    if not finalUids[slotIdx] and not usedUids[egg.uid] then
+                        finalUids[slotIdx] = egg.uid
+                        usedUids[egg.uid] = true
+                    end
+                end
+            end
+            if finalUids[slotIdx] then
+                readySlotsCount = readySlotsCount + 1
+            end
+        end
+
+        local allReady = (readySlotsCount == totalReq and totalReq > 0)
+        return allReady, finalUids, readySlotsCount, totalReq, slotMatches, usedUids
+    end
+
+    updateUI = function()
+        -- Clear current rows
+        for _, c in ipairs(reqsContainer:GetChildren()) do
+            if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
+        end
+        for _, c in ipairs(invScroll:GetChildren()) do
+            if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
+        end
+
+        -- Match unplaced eggs to slots (1 distinct egg per slot)
+        local allReady, chosenUids, readySlotsCount, totalReq, slotMatches, usedEggUids = getTradeCandidates()
+
+        -- Sync missing species to X for AutoFarm
+        local missingMap = {}
+        for slotIdx, req in ipairs(scrambleRequirements) do
+            if not chosenUids[slotIdx] then
+                local n = normalizeEggSpecies(req.species)
+                if n ~= "" then missingMap[n] = true end
+            end
+        end
+        X.scrambleMissingSpecies = missingMap
+
+        -- 1. RENDER REQUIREMENTS
+        if #scrambleRequirements == 0 then
+            local emptyLbl = Instance.new("TextLabel")
+            emptyLbl.Size = UDim2.new(1, 0, 0, 28); emptyLbl.BackgroundTransparency = 1
+            emptyLbl.Text = "ℹ️ No requirements loaded. Click 🔄 to query server."; emptyLbl.TextColor3 = Color3.fromRGB(180, 190, 210)
+            emptyLbl.Font = Enum.Font.Gotham; emptyLbl.TextSize = 10; emptyLbl.Parent = reqsContainer
+        else
+            for slotIdx, req in ipairs(scrambleRequirements) do
+                local isOwned = (chosenUids[slotIdx] ~= nil)
+                local totalCandidates = #(slotMatches[slotIdx] or {})
+                local dispName = getDisplayEggName(req.species)
+
+                local row = Instance.new("Frame")
+                row.Size = UDim2.new(1, 0, 0, 32)
+                row.BackgroundColor3 = isOwned and Color3.fromRGB(22, 36, 28) or Color3.fromRGB(34, 25, 30)
+                row.BorderSizePixel = 0; row.LayoutOrder = slotIdx; row.Parent = reqsContainer
+                Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+                local rStroke = Instance.new("UIStroke", row)
+                rStroke.Color = isOwned and Color3.fromRGB(45, 130, 85) or Color3.fromRGB(120, 55, 65)
+                rStroke.Thickness = 1
+
+                -- Left color strip
+                local strip = Instance.new("Frame")
+                strip.Size = UDim2.new(0, 4, 1, -6); strip.Position = UDim2.new(0, 3, 0, 3)
+                strip.BackgroundColor3 = isOwned and Color3.fromRGB(70, 230, 140) or Color3.fromRGB(255, 110, 80)
+                strip.BorderSizePixel = 0; strip.Parent = row
+                Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
+
+                -- Text details
+                local titleL = Instance.new("TextLabel")
+                titleL.Size = UDim2.new(1, -110, 0, 16); titleL.Position = UDim2.new(0, 14, 0, 2)
+                titleL.BackgroundTransparency = 1
+                titleL.Text = string.format("Slot #%s: %s (x%d)", tostring(req.slot), dispName, req.count)
+                titleL.TextColor3 = isOwned and Color3.fromRGB(220, 255, 235) or Color3.fromRGB(255, 230, 235)
+                titleL.Font = Enum.Font.GothamBold; titleL.TextSize = 10
+                titleL.TextXAlignment = Enum.TextXAlignment.Left; titleL.Parent = row
+
+                local subL = Instance.new("TextLabel")
+                subL.Size = UDim2.new(1, -110, 0, 12); subL.Position = UDim2.new(0, 14, 0, 17)
+                subL.BackgroundTransparency = 1
+                subL.Text = string.format("Internal: %s  •  Inventory: %d eligible copy/copies", req.species, totalCandidates)
+                subL.TextColor3 = isOwned and Color3.fromRGB(150, 225, 185) or Color3.fromRGB(200, 160, 170)
+                subL.Font = Enum.Font.Gotham; subL.TextSize = 8.5
+                subL.TextXAlignment = Enum.TextXAlignment.Left; subL.Parent = row
+
+                -- Status badge
+                local badge = Instance.new("TextLabel")
+                badge.Size = UDim2.new(0, 82, 0, 20); badge.Position = UDim2.new(1, -88, 0.5, -10)
+                badge.BackgroundColor3 = isOwned and Color3.fromRGB(28, 75, 48) or Color3.fromRGB(75, 30, 36)
+                badge.Text = isOwned and "✓ OWNED" or "⚠️ MISSING"
+                badge.TextColor3 = isOwned and Color3.fromRGB(130, 255, 185) or Color3.fromRGB(255, 160, 140)
+                badge.Font = Enum.Font.GothamBold; badge.TextSize = 9; badge.Parent = row
+                Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 4)
+            end
+        end
+
+        -- 2. RENDER MATCHING INVENTORY EGGS
+        if #ownedMatchingEggs == 0 then
+            local noEggs = Instance.new("TextLabel")
+            noEggs.Size = UDim2.new(1, -8, 0, 32); noEggs.BackgroundTransparency = 1
+            noEggs.Text = "ℹ️ No unplaced matching eggs found in inventory satchel. Farm or collect required eggs!"; noEggs.TextColor3 = Color3.fromRGB(180, 190, 210)
+            noEggs.Font = Enum.Font.Gotham; noEggs.TextSize = 9.5; noEggs.Parent = invScroll
+        else
+            for idx, egg in ipairs(ownedMatchingEggs) do
+                local isChosen = (usedEggUids[egg.uid] == true)
+                local shortUid = (#egg.uid > 12) and (egg.uid:sub(1, 10) .. "...") or egg.uid
+
+                local card = Instance.new("Frame")
+                card.Size = UDim2.new(1, 0, 0, 28)
+                card.BackgroundColor3 = isChosen and Color3.fromRGB(26, 42, 34) or Color3.fromRGB(20, 24, 34)
+                card.BorderSizePixel = 0; card.LayoutOrder = idx; card.Parent = invScroll
+                Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
+                local cStr = Instance.new("UIStroke", card)
+                cStr.Color = isChosen and Color3.fromRGB(50, 150, 95) or Color3.fromRGB(36, 44, 62); cStr.Thickness = 1
+
+                local lineLbl = Instance.new("TextLabel")
+                lineLbl.Size = UDim2.new(1, -95, 1, 0); lineLbl.Position = UDim2.new(0, 8, 0, 0)
+                lineLbl.BackgroundTransparency = 1
+                lineLbl.Text = string.format("#%d  🥚 %s  •  ⚖️ %s  •  [%s] (%s)", idx, egg.displayName, egg.weightStr, shortUid, egg.source)
+                lineLbl.TextColor3 = isChosen and Color3.fromRGB(210, 255, 230) or Color3.fromRGB(175, 195, 225)
+                lineLbl.Font = Enum.Font.Gotham; lineLbl.TextSize = 9
+                lineLbl.TextXAlignment = Enum.TextXAlignment.Left; lineLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                lineLbl.Parent = card
+
+                local pickBadge = Instance.new("TextLabel")
+                pickBadge.Size = UDim2.new(0, 82, 0, 18); pickBadge.Position = UDim2.new(1, -88, 0.5, -9)
+                pickBadge.BackgroundColor3 = isChosen and Color3.fromRGB(35, 115, 65) or Color3.fromRGB(40, 44, 58)
+                pickBadge.Text = isChosen and "✓ Selected" or "Available"
+                pickBadge.TextColor3 = isChosen and Color3.fromRGB(160, 255, 190) or Color3.fromRGB(170, 180, 200)
+                pickBadge.Font = Enum.Font.GothamBold; pickBadge.TextSize = 8.5; pickBadge.Parent = card
+                Instance.new("UICorner", pickBadge).CornerRadius = UDim.new(0, 4)
+            end
+        end
+
+        -- Update Manual / Auto Trade Button
+        if isTradingIn then
+            manualTradeBtn.BackgroundColor3 = Color3.fromRGB(80, 50, 120)
+            manualTradeBtn.Text = "⏳ Trading In..."
+            manualTradeBtn.TextColor3 = Color3.new(1, 1, 1)
+            mtStroke.Color = Color3.fromRGB(150, 100, 220)
+        elseif allReady and totalReq > 0 then
+            if isAutoTradeEnabled then
+                manualTradeBtn.BackgroundColor3 = Color3.fromRGB(35, 115, 70)
+                manualTradeBtn.Text = string.format("⚡ Auto-Ready (%d/%d)", readySlotsCount, totalReq)
+                manualTradeBtn.TextColor3 = Color3.fromRGB(160, 255, 190)
+                mtStroke.Color = Color3.fromRGB(70, 210, 130)
+            else
+                manualTradeBtn.BackgroundColor3 = Color3.fromRGB(115, 60, 185)
+                manualTradeBtn.Text = string.format("⚡ Trade (%d/%d Ready)", readySlotsCount, totalReq)
+                manualTradeBtn.TextColor3 = Color3.new(1, 1, 1)
+                mtStroke.Color = Color3.fromRGB(170, 110, 255)
+            end
+        else
+            manualTradeBtn.BackgroundColor3 = Color3.fromRGB(50, 48, 65)
+            manualTradeBtn.Text = string.format("⚡ Trade (%d/%d)", readySlotsCount, totalReq)
+            manualTradeBtn.TextColor3 = Color3.fromRGB(160, 165, 185)
+            mtStroke.Color = Color3.fromRGB(65, 60, 85)
+        end
+    end
+
+    -- ========================================================================
+    -- 9. TRADE-IN EXECUTION PIPELINE & AUTO-TRADE ENGINE
+    -- ========================================================================
+
+    checkAndAutoTrade = function(source)
+        if not isAutoTradeEnabled then return false end
+        if isTradingIn then return false end
+        if weAreCarrying then return false end
+        if os.clock() - lastTradeAttempt < 1.5 then return false end
+        if not scrambleRequirements or #scrambleRequirements == 0 then return false end
+
+        local allReady, finalUids, readyCount, totalReq = getTradeCandidates()
+        if allReady and #finalUids == #scrambleRequirements and #finalUids > 0 then
+            logMsg(string.format("⚡ [Auto-Trade] All slots ready (%d/%d)! Auto-executing (%s)...", readyCount, totalReq, tostring(source or "auto")), Color3.fromRGB(120, 255, 180))
+            return executeTradeIn(true, finalUids)
+        end
+        return false
+    end
+
+    executeTradeIn = function(isAuto, candidateUids)
+        if isTradingIn then
+            if not isAuto then
+                logMsg("⏳ Trade already in progress...", Color3.fromRGB(255, 180, 80))
+            end
+            return false
+        end
+
+        if isAuto and not isAutoTradeEnabled then return false end
+        if weAreCarrying then return false end
+        if os.clock() - lastTradeAttempt < 1.5 then return false end
+
+        -- Select 1 distinct egg per requirement slot
+        local finalUids = candidateUids
+        if not finalUids then
+            scanInventoryEggs(false)
+            local allReady, uids = getTradeCandidates()
+            if not allReady then
+                if not isAuto then
+                    logMsg(string.format("⚠️ Missing eggs for trade (%d/%d slots ready). Cannot execute.", #uids, #scrambleRequirements), Color3.fromRGB(255, 180, 80))
+                end
+                return false
+            end
+            finalUids = uids
+        end
+
+        if not scrambleRequirements or #scrambleRequirements == 0 or #finalUids < #scrambleRequirements or #finalUids == 0 then
+            if not isAuto then
+                logMsg(string.format("⚠️ Missing eggs for trade (%d/%d slots ready). Cannot execute.", #finalUids, #scrambleRequirements), Color3.fromRGB(255, 180, 80))
+            end
+            return false
+        end
+
+        if not rfTradeIn then
+            rfTradeIn = getNetRemote("RF/ScrambleTradeIn/AskTradeIn") or getNetRemote("RF/ScrambleTradeIn/TradeIn")
+        end
+        if not rfTradeIn then
+            logMsg("❌ Remote RF/ScrambleTradeIn/AskTradeIn NOT FOUND!", Color3.fromRGB(255, 100, 100))
+            return false
+        end
+
+        lastTradeAttempt = os.clock()
+        isTradingIn = true
+        manualTradeBtn.Text = "⏳ Trading In..."
+        manualTradeBtn.BackgroundColor3 = Color3.fromRGB(80, 50, 120)
+
+        task.spawn(function()
+            local modeTag = isAuto and "[AUTO-TRADE]" or "[MANUAL TRADE]"
+            logMsg(string.format("🌀 %s Offering %d unplaced eggs to Dr. Scramble...", modeTag, #finalUids), Color3.fromRGB(190, 150, 255))
+            for i, u in ipairs(finalUids) do
+                local req = scrambleRequirements[i]
+                local disp = req and getDisplayEggName(req.species) or "Egg"
+                local shortU = (#u > 10) and (u:sub(1, 8) .. "...") or u
+                logMsg(string.format("  Slot #%d [%s]: Offering UID %s", i, disp, shortU), Color3.fromRGB(170, 195, 235))
+            end
+
+            -- STEP 1: Invoke AskTradeIn({ [1]=uid1, [2]=uid2, [3]=uid3 })
+            local ok, res, reward = pcall(function()
+                return rfTradeIn:InvokeServer(finalUids)
+            end)
+
+            local resSummary = type(res) == "table" and dumpTbl(res, 2) or tostring(res)
+            logMsg("⚡ [AskTradeIn] Result: " .. resSummary, (ok and res ~= false) and Color3.fromRGB(120, 255, 180) or Color3.fromRGB(255, 160, 90))
+
+            if not ok or res == false then
+                logMsg("❌ Server rejected trade-in. Check eggs or try again.", Color3.fromRGB(255, 110, 110))
+                isTradingIn = false
+                updateUI()
+                return
+            end
+
+            -- STEP 2: Invoke AskFinishReveal to claim reward & unlock next recipe
+            task.wait(0.5)
+            if not rfReveal then rfReveal = getNetRemote("RF/ScrambleTradeIn/AskFinishReveal") end
+            if rfReveal then
+                logMsg("🎁 Calling AskFinishReveal to claim pet reward...", Color3.fromRGB(180, 215, 255))
+                local okRev, resRev = pcall(function()
+                    return rfReveal:InvokeServer()
+                end)
+                logMsg("✨ [AskFinishReveal] Result: " .. tostring(resRev), (okRev and resRev ~= false) and Color3.fromRGB(130, 255, 180) or Color3.fromRGB(255, 180, 80))
+            end
+
+            -- Lightweight snapshot synchronization
+            task.wait(0.3)
+            pcall(function()
+                local ccReq = ReplicatedStorage:FindFirstChild("ContentCreatorRemotes")
+                if ccReq and ccReq:FindFirstChild("Request") then
+                    ccReq.Request:InvokeServer("snapshot", { lightweight = true })
+                end
+            end)
+
+            isTradingIn = false
+            logMsg("✅ Trade-In complete! Refreshing recipe...", Color3.fromRGB(140, 255, 180))
+
+            task.wait(0.5)
+            queryScrambleState()
+            scanInventoryEggs(true)
+            updateUI()
+
+            -- Immediately chain next trade if eligible!
+            if isAutoTradeEnabled and not weAreCarrying then
+                task.defer(function()
+                    checkAndAutoTrade("PostTradeChain")
+                end)
+            end
+        end)
+
+        return true
+    end
+
+    -- ========================================================================
+    -- 10. EXTERNAL INTERFACES FOR AUTOFARM SUITE
+    -- ========================================================================
+
+    refreshScrambleUI = function()
+        queryScrambleState()
+        scanInventoryEggs(true)
+        updateUI()
+    end
+
+    X.scanInventoryEggsForScramble = function()
+        return scanInventoryEggs(true)
+    end
+
+    X.updateScrambleUI = function()
+        updateUI()
+    end
+
+    X.tryAutoScrambleTrade = function()
+        if not isAutoTradeEnabled then return false end
+        if isTradingIn then return false end
+        if weAreCarrying then return false end
+        return checkAndAutoTrade("AutoFarmHook")
+    end
+
+    -- ========================================================================
+    -- 11. EVENT LISTENERS & BACKGROUND WORKER
+    -- ========================================================================
+
+    local function bindBackpackListeners()
+        local bp = LocalPlayer:FindFirstChild("Backpack")
+        if bp then
+            bp.ChildAdded:Connect(function()
+                task.defer(function()
+                    scanInventoryEggs(true)
+                    updateUI()
+                    if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
+                        checkAndAutoTrade("BackpackAdded")
+                    end
+                end)
+            end)
+            bp.ChildRemoved:Connect(function()
+                task.defer(function()
+                    scanInventoryEggs(true)
+                    updateUI()
+                end)
+            end)
+        end
+    end
+    pcall(bindBackpackListeners)
+    LocalPlayer.ChildAdded:Connect(function(child)
+        if child.Name == "Backpack" then pcall(bindBackpackListeners) end
+    end)
+
+    -- Server Trade Rotation Event (RE/ScrambleTradeIn/BannerRotated)
+    if reRotated and reRotated:IsA("RemoteEvent") then
+        reRotated.OnClientEvent:Connect(function(...)
+            logMsg("🔄 [RE/BannerRotated] Server rotated trade recipe! Reloading...", Color3.fromRGB(150, 220, 255))
+            task.wait(0.5)
+            queryScrambleState()
+            scanInventoryEggs(true)
+            updateUI()
+            task.defer(function()
+                if not weAreCarrying then
+                    checkAndAutoTrade("BannerRotatedEvent")
+                end
+            end)
+        end)
+    end
+
+    -- Main Background Worker Loop
+    task.spawn(function()
+        logMsg("🌀 Dr. Scramble Standalone Auto-Trade Engine Started")
+        queryScrambleState()
+        scanInventoryEggs(true)
+        updateUI()
+
+        -- Trigger auto-trade immediately on launch if eligible
+        task.defer(function()
+            if not weAreCarrying then
+                checkAndAutoTrade("Startup")
+            end
+        end)
+
+        local lastLoopScan = 0
+        while screenGui and screenGui.Parent do
+            local now = os.time()
+            local diff = 0
+            if serverExpiresAt then
+                diff = math.max(0, serverExpiresAt - now)
+                if diff <= 0 then
+                    logMsg("⏰ Hourly timer expired! Querying next rotation...", Color3.fromRGB(255, 200, 100))
+                    queryScrambleState()
+                    scanInventoryEggs(true)
+                    updateUI()
+                    task.defer(function()
+                        if not weAreCarrying then
+                            checkAndAutoTrade("TimerExpired")
+                        end
+                    end)
+                    local secsIntoHour = os.time() % 3600
+                    serverExpiresAt = os.time() + (3600 - secsIntoHour)
+                    diff = 3600 - secsIntoHour
+                end
+            else
+                local secsIntoHour = os.time() % 3600
+                diff = 3600 - secsIntoHour
+            end
+
+            local m = math.floor(diff / 60)
+            local s = diff % 60
+            timerBadge.Text = string.format("⏳ %02dm %02ds  •  %s", m, s, scrambleBannerName)
+
+            -- Periodic evaluation every 1.2 seconds
+            if os.clock() - lastLoopScan >= 1.2 then
+                lastLoopScan = os.clock()
+                scanInventoryEggs(true)
+                updateUI()
+
+                if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
+                    checkAndAutoTrade("LoopCheck")
+                end
+            end
+
+            task.wait(0.5)
+        end
+    end)
 end
 
 -- ==================================================
@@ -4272,6 +5721,18 @@ tabBtnPets.Font = Enum.Font.GothamBold
 tabBtnPets.Parent = sidebar
 Instance.new("UICorner", tabBtnPets).CornerRadius = UDim.new(0, 6)
 
+tabBtnScramble = Instance.new("TextButton")
+tabBtnScramble.Name = "TabBtnScramble"
+tabBtnScramble.Size = UDim2.new(0, 34, 0, 34)
+tabBtnScramble.Position = UDim2.new(0.5, -17, 0, 90)
+tabBtnScramble.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+tabBtnScramble.Text = "🌀"
+tabBtnScramble.TextColor3 = Color3.fromRGB(160, 185, 220)
+tabBtnScramble.TextSize = 18
+tabBtnScramble.Font = Enum.Font.GothamBold
+tabBtnScramble.Parent = sidebar
+Instance.new("UICorner", tabBtnScramble).CornerRadius = UDim.new(0, 6)
+
 local contentContainer = Instance.new("Frame")
 contentContainer.Name = "ContentContainer"
 contentContainer.Size = UDim2.new(1, -SIDEBAR_W, 1, -36)
@@ -4306,17 +5767,36 @@ tabPets.ClipsDescendants = true
 tabPets.Visible = false
 tabPets.Parent = contentContainer
 
+-- Tab 3: Scramble Trade-In Suite
+tabScramble = Instance.new("ScrollingFrame")
+tabScramble.Name = "TabScramble"
+tabScramble.Size = UDim2.new(1, 0, 1, 0)
+tabScramble.Position = UDim2.new(0, 0, 0, 0)
+tabScramble.BackgroundTransparency = 1
+tabScramble.BorderSizePixel = 0
+tabScramble.ScrollBarThickness = 5
+tabScramble.CanvasSize = UDim2.new(0, 0, 0, 0)
+tabScramble.AutomaticCanvasSize = Enum.AutomaticSize.Y
+tabScramble.ClipsDescendants = true
+tabScramble.Visible = false
+tabScramble.Parent = contentContainer
+
 refreshPetCards = nil
 
 switchTab = function(tabName)
     if tabName == "Eggs" then
+        main.Size = UDim2.new(0, 380, 0, 520)
         tabEggs.Visible = true
         tabPets.Visible = false
+        tabScramble.Visible = false
         tabBtnEggs.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
         tabBtnEggs.TextColor3 = Color3.new(1, 1, 1)
         tabBtnPets.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnPets.TextColor3 = Color3.fromRGB(160, 185, 220)
+        tabBtnScramble.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnScramble.TextColor3 = Color3.fromRGB(160, 185, 220)
     elseif tabName == "Pets" then
+        main.Size = UDim2.new(0, 380, 0, 520)
         if X.closeRarity then X.closeRarity() end
         if farmDropdownOpen then
             farmDropdownOpen = false
@@ -4328,15 +5808,40 @@ switchTab = function(tabName)
         end
         tabEggs.Visible = false
         tabPets.Visible = true
+        tabScramble.Visible = false
         tabBtnEggs.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnEggs.TextColor3 = Color3.fromRGB(160, 185, 220)
         tabBtnPets.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
         tabBtnPets.TextColor3 = Color3.new(1, 1, 1)
+        tabBtnScramble.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnScramble.TextColor3 = Color3.fromRGB(160, 185, 220)
         if refreshPetCards then refreshPetCards() end
+    elseif tabName == "Scramble" then
+        main.Size = UDim2.new(0, 560, 0, 580)
+        if X.closeRarity then X.closeRarity() end
+        if farmDropdownOpen then
+            farmDropdownOpen = false
+            if farmDropdownList then
+                farmDropdownList.Visible = false
+                farmDropdownList.Size = UDim2.new(0, 258, 0, 0)
+            end
+            if typeof(updateFarmBtnText) == "function" then updateFarmBtnText() end
+        end
+        tabEggs.Visible = false
+        tabPets.Visible = false
+        tabScramble.Visible = true
+        tabBtnEggs.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnEggs.TextColor3 = Color3.fromRGB(160, 185, 220)
+        tabBtnPets.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnPets.TextColor3 = Color3.fromRGB(160, 185, 220)
+        tabBtnScramble.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
+        tabBtnScramble.TextColor3 = Color3.new(1, 1, 1)
+        if refreshScrambleUI then refreshScrambleUI() end
     end
 end
 tabBtnEggs.MouseButton1Click:Connect(function() switchTab("Eggs") end)
 tabBtnPets.MouseButton1Click:Connect(function() switchTab("Pets") end)
+tabBtnScramble.MouseButton1Click:Connect(function() switchTab("Scramble") end)
 
 local COL_W = 152; local COL_GAP = 12; local ROW_H = 28; local ROW_GAP = 4
 
@@ -4481,6 +5986,11 @@ farmDropScroll.ScrollBarThickness=4; farmDropScroll.CanvasSize=UDim2.new(0,0,0,0
 farmDropScroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
 farmDropScroll.Parent=farmDropdownList
 
+local farmDropListLayout = Instance.new("UIListLayout")
+farmDropListLayout.Padding = UDim.new(0, 2)
+farmDropListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+farmDropListLayout.Parent = farmDropScroll
+
 local MAX_FARM_DD_HEIGHT = 200
 
 -- Row 4: JSON textbox
@@ -4589,6 +6099,8 @@ end)
 
     -- Populate Tab 2
     buildPetsTabUI()
+    -- Populate Tab 3 (Dr. Scramble Trade-In)
+    buildScrambleTabUI()
 end
 buildMainUI()
 -- ==================================================
@@ -4598,7 +6110,8 @@ local CARD_HEIGHT = 34   -- compact row height
 
 local function createEggCard(idx, r)
     local uid     = tostring(r.Uid or "")
-    local sp      = tostring(r.AssetCategory or "Unknown")
+    local rawCat  = tostring(r.AssetCategory or "Unknown")
+    local dispName = (X.getDisplayEggName and X.getDisplayEggName(rawCat)) or rawCat
     local slot    = tostring(r.NestId or "?")
     local area    = tostring(r.AreaId or "?")
     local pos     = extPos(r)
@@ -4632,7 +6145,7 @@ local function createEggCard(idx, r)
     nm.Size               = UDim2.new(1, -(LEFT + 82), 0, 18)
     nm.Position           = UDim2.new(0, LEFT, 0, 2)
     nm.BackgroundTransparency = 1
-    nm.Text               = ("#%d  %s"):format(idx, sp)
+    nm.Text               = ("#%d  %s"):format(idx, dispName)
     nm.TextColor3         = hl and Color3.fromRGB(255, 195, 195) or Color3.fromRGB(215, 225, 255)
     nm.TextSize           = 12
     nm.Font               = Enum.Font.GothamBold
@@ -4640,8 +6153,11 @@ local function createEggCard(idx, r)
     nm.TextTruncate       = Enum.TextTruncate.AtEnd
     nm.Parent             = card
 
-    -- secondary line: area · nest · mutation
+    -- secondary line: area · nest · [internal category if different] · mutation
     local subParts = { area, slot }
+    if dispName ~= rawCat and rawCat ~= "Unknown" then
+        table.insert(subParts, "[" .. rawCat .. "]")
+    end
     if mut then table.insert(subParts, mut) end
     local sub = Instance.new("TextLabel")
     sub.Size               = UDim2.new(1, -(LEFT + 82), 0, 13)
@@ -4698,8 +6214,14 @@ local function ingestSpecies(records)
     local changed = false
     for _, r in ipairs(records) do
         local s = r.AssetCategory
-        if typeof(s)=="string" and s~="" and not speciesSeen[s] then
-            speciesSeen[s]=true; table.insert(speciesOrder,s); changed=true
+        if typeof(s)=="string" and s~="" then
+            local disp = (X.getDisplayEggName and X.getDisplayEggName(s)) or s
+            if not speciesSeen[disp] then
+                speciesSeen[disp]=true; table.insert(speciesOrder,disp); changed=true
+            end
+            if disp ~= s and not speciesSeen[s] then
+                speciesSeen[s]=true; table.insert(speciesOrder,s); changed=true
+            end
         end
     end
     if changed then
@@ -4852,10 +6374,13 @@ function rebuildFarmDropdownItems()
     end
     local q = farmSearchBox.Text:lower():gsub("^%s+",""):gsub("%s+$","")
 
+    local idx = 0
     for _, sp in ipairs(speciesOrder) do
         if q == "" or string.find(string.lower(sp), q, 1, true) then
+            idx = idx + 1
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1,-4,0,22)
+            btn.LayoutOrder = idx
             local checked
             if sp == "All" then
                 checked = selectedSpecies["All"] == true
@@ -4911,8 +6436,9 @@ local function toggleFarmDropdown()
     farmDropdownOpen = not farmDropdownOpen
     farmDropdownList.Visible = farmDropdownOpen
     if farmDropdownOpen then
-        local fh = #speciesOrder * 22
-        local sh = math.min(fh, X.MAX_FARM_DD_HEIGHT)
+        local fh = #speciesOrder * 24
+        local maxH = X.MAX_FARM_DD_HEIGHT or MAX_FARM_DD_HEIGHT or 200
+        local sh = math.min(fh, maxH)
         farmDropScroll.Size = UDim2.new(1,0,0,sh)
         farmDropdownList.Size = UDim2.new(0,258,0,56+sh)
         farmDropdownBtn.Text = selectedSpecies["All"] and "All ▲" or (farmDropdownBtn.Text:gsub("▼","▲"))
