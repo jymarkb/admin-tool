@@ -169,8 +169,10 @@ Tab 3 is dedicated to the **Dr. Scramble Trade-In Machine** (`DrScrambleTradeIn`
 6. **AutoFarm Priority Chain & Strict Missing-Only Targeting**:
    - Priority Chain Order:
      $$\text{Divine (Tier 1)} \longrightarrow \text{Eternal (Tier 2)} \longrightarrow \text{Secret (Tier 3)} \longrightarrow \mathbf{\text{Scramble Missing Requirements (Tier 4)}} \longrightarrow \text{Farther Eggs (Tier 5+)}$$
-   - **Strict Missing-Only Enforcement (`X.isScrambleRequirement`)**: Checks normalized species names and aliases against `X.scrambleMissingSpecies`. If you already have the egg in inventory (`owned >= req.count`), it is **strictly excluded** from `X.scrambleMissingSpecies` and will **never** be farmed by AutoFarm. AutoFarm only targets eggs that are confirmed missing!
-   - Multi-source inventory checks authoritative `ProfileMirror.FetchProfile`, in-game `DrScrambleTradeInInventory` GUI, and physical tools in `Backpack` and `Character`.
+   - **Strict Missing-Only Enforcement & Owned Egg Exclusion (`X.isEggAlreadyOwned`)**:
+     - When Scramble Trade or Priority is enabled (`X.autoScrambleTrade or X.prioritizeScrambleInAutoFarm`), any egg already in the player's inventory (satchel, trade inventory, or live backpack/character tools) is **strictly rejected** in `passesFilters(r)`.
+     - **Invisible on AutoFarm List**: Already-owned eggs are completely hidden from the Tab 1 egg card list and excluded from auto-farm target selection, pathing, and loose steal routines.
+     - **Instant Reactive Refresh**: Picking up an egg, toggling auto-trade/priority, or completing a trade immediately triggers `refilterAndRender()` to redraw the list in real-time.
 
 
 ---

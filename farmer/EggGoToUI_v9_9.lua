@@ -536,15 +536,39 @@ function X.isScrambleEggNeeded(sp)
     for _, req in ipairs(X.scrambleRequirements) do
         if X.matchEggSpecies(sp, req.species) then
             local countOwned = 0
+            local seenUids = {}
             if X.ownedInventoryEggs then
                 for _, egg in ipairs(X.ownedInventoryEggs) do
                     if X.matchEggSpecies(egg.species, req.species)
                        or (egg.category and egg.category ~= "" and X.matchEggSpecies(egg.category, req.species))
                        or (egg.displayName and egg.displayName ~= "" and X.matchEggSpecies(egg.displayName, req.species)) then
                         countOwned = countOwned + 1
+                        if egg.uid then seenUids[tostring(egg.uid)] = true end
                     end
                 end
             end
+            -- Also check Backpack & Character tools for immediate pickup detection
+            local lp = Players.LocalPlayer
+            local function checkTool(t)
+                if not t or not t:IsA("Tool") then return end
+                local attrs = t:GetAttributes() or {}
+                if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return end
+                local dName = tostring(attrs.DisplayName or t.Name)
+                local isEgg = dName:lower():find("egg") ~= nil or t.Name:lower():find("egg") ~= nil or attrs.ItemType == "Egg" or attrs.IsEgg == true
+                if not isEgg then return end
+                local u = tostring(attrs.UID or attrs.Uid or attrs.EggUID or t.Name)
+                if not seenUids[u] and (X.matchEggSpecies(dName, req.species) or X.matchEggSpecies(t.Name, req.species)) then
+                    seenUids[u] = true
+                    countOwned = countOwned + 1
+                end
+            end
+            if lp and lp:FindFirstChild("Backpack") then
+                for _, t in ipairs(lp.Backpack:GetChildren()) do checkTool(t) end
+            end
+            if lp and lp.Character then
+                for _, t in ipairs(lp.Character:GetChildren()) do checkTool(t) end
+            end
+
             -- If we already have the required count (or more), we DO NOT need to farm it!
             if countOwned >= (req.count or 1) then
                 return false
@@ -556,8 +580,67 @@ function X.isScrambleEggNeeded(sp)
     return false
 end
 
+-- Checks whether this egg (or an equivalent species) is already in the player's inventory
+function X.isEggAlreadyOwned(r)
+    local rawCat = tostring(type(r) == "table" and (r.AssetCategory or r.DisplayName or r.displayName or r.Name) or r or "")
+    if rawCat == "" then return false end
+
+    -- 1. Scramble recipe slot check: If this egg matches a Scramble recipe requirement,
+    -- and we already own enough copies for that slot, it is confirmed already owned!
+    if X.isScrambleRecipeSpecies and X.isScrambleRecipeSpecies(rawCat) then
+        if X.isScrambleEggNeeded and not X.isScrambleEggNeeded(rawCat) then
+            return true
+        end
+    end
+
+    -- 2. General Satchel/Inventory scan (ProfileMirror / in-game trade GUI):
+    if X.ownedInventoryEggs and #X.ownedInventoryEggs > 0 then
+        for _, egg in ipairs(X.ownedInventoryEggs) do
+            if X.matchEggSpecies(rawCat, egg.species)
+               or (egg.category and egg.category ~= "" and X.matchEggSpecies(rawCat, egg.category))
+               or (egg.displayName and egg.displayName ~= "" and X.matchEggSpecies(rawCat, egg.displayName)) then
+                return true
+            end
+        end
+    end
+
+    -- 3. Live Physical Backpack & Character tools check (instant real-time ground truth):
+    local lp = Players.LocalPlayer
+    local function checkTool(t)
+        if not t or not t:IsA("Tool") then return false end
+        local attrs = t:GetAttributes() or {}
+        if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return false end
+        local dName = tostring(attrs.DisplayName or t.Name)
+        local cName = tostring(attrs.Category or "")
+        local isEgg = dName:lower():find("egg") ~= nil
+            or t.Name:lower():find("egg") ~= nil
+            or cName:lower() == "egg"
+            or attrs.ItemType == "Egg"
+            or attrs.IsEgg == true
+        if not isEgg then return false end
+        if X.matchEggSpecies(rawCat, dName) or X.matchEggSpecies(rawCat, cName) or X.matchEggSpecies(rawCat, t.Name) then
+            return true
+        end
+        return false
+    end
+
+    local bp = lp and lp:FindFirstChild("Backpack")
+    if bp then
+        for _, t in ipairs(bp:GetChildren()) do
+            if checkTool(t) then return true end
+        end
+    end
+    if lp and lp.Character then
+        for _, t in ipairs(lp.Character:GetChildren()) do
+            if checkTool(t) then return true end
+        end
+    end
+
+    return false
+end
+
 function X.isScrambleRequirement(r)
-    if not X.prioritizeScrambleInAutoFarm then
+    if not (X.prioritizeScrambleInAutoFarm or X.autoScrambleTrade) then
         return false
     end
     local sp = tostring(r and (r.AssetCategory or r.displayName or r.species or r.Name) or "")
@@ -1695,21 +1778,16 @@ local function passesFilters(r)
         sOk = matchSpeciesFilter(catStr)
     end
 
-    -- Scramble requirement eggs bypass species/rarity filter when Scramble AutoFarm Priority is enabled
+    -- Scramble requirement eggs bypass species/rarity filter when Scramble AutoFarm Priority or Auto-Trade is enabled
     -- Gated on whether the player STILL NEEDS this egg (if already owned, it will not bypass)
-    if X.prioritizeScrambleInAutoFarm and X.isScrambleRequirement(r) then
+    if (X.prioritizeScrambleInAutoFarm or X.autoScrambleTrade) and X.isScrambleRequirement(r) then
         sOk = true
     end
 
-    -- When Scramble Priority is active, NEVER farm an egg for a Scramble recipe slot that is ALREADY owned!
-    -- (Unless player explicitly ticked this specific egg species in Farm dropdown)
-    if X.prioritizeScrambleInAutoFarm and X.isScrambleRecipeSpecies and X.isScrambleRecipeSpecies(catStr) then
-        if not X.isScrambleEggNeeded(catStr) then
-            local explicitlySelected = (selectedSpecies[catStr] == true)
-                or (X.CATEGORY_TO_DISPLAY and selectedSpecies[X.CATEGORY_TO_DISPLAY[catStr]] == true)
-            if not explicitlySelected then
-                return false
-            end
+    -- When Scramble Trade or Priority is enabled, NEVER show or farm any egg that the player ALREADY OWNS!
+    if (X.autoScrambleTrade or X.prioritizeScrambleInAutoFarm) then
+        if X.isEggAlreadyOwned and X.isEggAlreadyOwned(r) then
+            return false
         end
     end
 
@@ -4827,6 +4905,10 @@ local function buildScrambleTabUI()
             priorityToggleBtn.TextColor3 = Color3.fromRGB(160, 165, 180)
             logMsg("ℹ️ Scramble AutoFarm Priority: DISABLED", Color3.fromRGB(180, 185, 200))
         end
+        if refilterAndRender then
+            X.listDirty = true
+            pcall(refilterAndRender)
+        end
     end)
 
     autoTradeToggleBtn.MouseButton1Click:Connect(function()
@@ -4847,6 +4929,10 @@ local function buildScrambleTabUI()
             autoTradeToggleBtn.Text = "[OFF] Auto-Trade"
             autoTradeToggleBtn.TextColor3 = Color3.fromRGB(180, 185, 200)
             logMsg("ℹ️ Auto-Trade: DISABLED (Manual trade button available)", Color3.fromRGB(200, 215, 235))
+        end
+        if refilterAndRender then
+            X.listDirty = true
+            pcall(refilterAndRender)
         end
     end)
 
@@ -5022,6 +5108,10 @@ local function buildScrambleTabUI()
         end
 
         ownedMatchingEggs = matching
+        if refilterAndRender then
+            X.listDirty = true
+            pcall(refilterAndRender)
+        end
         return eggs, matching
     end
 
