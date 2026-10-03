@@ -211,7 +211,7 @@ local PET_RARITY_PRESETS = {
     ["Lava Gecko"]="Rare", ["Lava Frog"]="Epic", ["Flaming Bull"]="Legendary",
     ["Lava Iguana"]="Legendary", ["Chillin Chilli"]="Mythic", ["Cerberus"]="Secret",
     ["Phoenix"]="Eternal", ["Lava Dragon"]="Eternal", ["Parrotfish"]="Rare",
-    ["Swordfish"]="Epic", ["Shark"]="Legendary", ["Orca"]="Mythic",
+    ["Swordfish"]="Epic", ["Shark"]="Legendary", ["Mutant Shark"]="Legendary", ["Orca"]="Mythic",
     ["Whale Shark"]="Cosmic", ["Beluga Whale"]="Cosmic", ["Kraken"]="Secret",
     ["El Maja"]="Eternal", ["Dodo"]="Rare", ["Pterodactyl"]="Legendary",
     ["Ankylosaurus"]="Mythic", ["Triceratops"]="Cosmic", ["Bronto"]="Cosmic",
@@ -222,9 +222,10 @@ local PET_RARITY_PRESETS = {
     ["Unicorn"]="Divine", ["Crane"]="Epic", ["Salamander"]="Legendary",
     ["Red Panda"]="Mythic", ["Koi"]="Cosmic", ["Snowy Owl"]="Cosmic",
     ["Stag"]="Secret", ["Oni Tiger"]="Eternal", ["Kitsune"]="Divine",
-    ["Crab"]="Legendary", ["Kaiju Spider"]="Legendary", ["Blade Head"]="Mythic", ["Mantis"] = "Cosmic",
-    ["Mantaris"]="Cosmic", ["Rhino"]="Cosmic", ["Shark"]="Secret",
-    ["Gorilla King"]="Eternal", ["Nightflame"]="Divine", ["Dove"]="Legendary",
+    ["Crab"]="Legendary", ["Kaiju Spider"]="Legendary", ["Blade Head"]="Mythic", ["Mantis"]="Cosmic",
+    ["Rhino"]="Cosmic",
+    ["Gorilla King"]="Eternal", ["King Kong"]="Eternal", -- King Kong egg asset -> Gorilla King (Eternal)
+    ["Nightflame"]="Divine", ["Dove"]="Legendary",
     ["Lamb"]="Mythic", ["Moth"]="Cosmic", ["Peacock"]="Cosmic",
     ["Pure Jellyfish"]="Secret", ["Centaur"]="Secret", ["Pegasus"]="Eternal",
     ["ArchAngel"]="Divine", ["Flame Sprite"]="Legendary", ["Toro"]="Mythic",
@@ -232,7 +233,8 @@ local PET_RARITY_PRESETS = {
     ["RazorFang"]="Secret", ["Skeleton Horse"]="Eternal", ["World Burner"]="Divine",
     ["Equinox"]="Eternal", ["Aetheron"]="Divine",
     ["Baby Aurora Dragon"]="Legendary", ["Shadow Dragon"]="Mythic",
-    ["Scorched Dragon"]="Secret", ["Drilla"]="Cosmic",
+    ["Scorched Dragon"]="Secret", ["ScorchedDragon"]="Secret", -- both spellings (scan uses no-space)
+    ["Drilla"]="Cosmic",
     ["Abyss Overlord"]="Secret", ["Void Dragon"]="Eternal",
     ["Ember Dragon"]="Secret", ["Nibbles #013"]="Cosmic",
     ["Experiment #001"]="Secret", ["Rift Eye"]="Legendary",
@@ -264,11 +266,21 @@ local PET_RARITY_PRESETS = {
     ["Winged Lamb"]="Mythic", ["Sacred Moth"]="Cosmic", ["Holy Peacock"]="Cosmic",
     ["Alien Skeleton Boss"]="Secret", ["Dark Gargoyle"]="Secret",
     ["Dream Axolotl"]="Legendary", ["Warden"]="Secret",
-    ["Dragon"]="Eternal", ["Jellyfish"]="Secret", ["Mutant Shark"]="Legendary",
+    ["Dragon"]="Eternal", ["Jellyfish"]="Secret",
     ["Nuclear Mantis"]="Divine", ["Nuceodille"]="Eternal", ["Toucax"]="Mythic",
-    ["Godzilla"]="Secret", ["King Kong"]="Secret", ["Irihorus"]="Secret",
+    ["Godzilla"]="Secret", ["Irihorus"]="Secret",
     ["Frogfly"]="Rare", ["Wheel Hamster"]="Rare", ["Finned Thresher"]="Legendary",
     ["Mire Fox"]="Rare", ["Eye Bat"]="Rare", ["FennecFox"]="Uncommon",
+    -- Newly discovered egg assets from game scan (new-full-scan-3.log)
+    ["Hellhound"]="Legendary", ["Rattlesnake"]="Legendary",
+    ["Burrowing Owl"]="Rare", ["Citadel Snail"]="Epic",
+    ["Colossal Mammoth"]="Cosmic", ["Ascended Vermilion Phoenix"]="Divine",
+    ["Balrog"]="Eternal", ["Basilisk"]="Secret",
+    ["Archdemon Dragon"]="Divine", ["Ash Gecko"]="Epic",
+    ["DesertLark"]="Rare", ["Uncoiled Armadillo"]="Epic",
+    ["DeathstalkerScorpion"]="Mythic", ["Ringlord"]="Secret",
+    ["Toxic Crocodile"]="Epic", ["Toxic Hedgehog"]="Rare",
+    ["Riptide Octopus"]="Eternal", ["Depths Riptide Octopus"]="Divine",
 }
 
 -- ==================================================
@@ -433,9 +445,10 @@ X.EGG_SPECIES_ALIASES = {
     ["cosmic skeleton boss"] = "alien skeleton boss",
     ["dark gargoyle"] = "gargoyle",
     ["gargoyle"] = "dark gargoyle",
+    -- T-Rex / TyrannosaurusRex: three spellings, all chained bidirectionally
     ["tyrannosaurusrex"] = "trex",
     ["trex"] = "tyrannosaurusrex",
-    ["t-rex"] = "tyrannosaurusrex",
+    ["t-rex"] = "trex",         -- t-rex -> trex (then trex alias -> tyrannosaurusrex covers the rest)
     ["dragon"] = "lava dragon",
     ["lava dragon"] = "dragon",
     ["jellyfish"] = "pure jellyfish",
@@ -448,7 +461,12 @@ X.EGG_SPECIES_ALIASES = {
     ["gorilla king"] = "king kong",
     ["fennecfox"] = "fennec",
     ["fennec"] = "fennecfox",
+    ["scorcheddragon"] = "scorched dragon",  -- game scan uses no-space
+    ["scorched dragon"] = "scorcheddragon",
+    -- Lava Frog: scan has "Lava frog" (lowercase f) vs "Lava Frog"
+    -- normalizeEggSpecies lowercases, so "lava frog" == "lava frog" -> handled by exact match
 }
+
 
 -- Canonical map from server internal AssetCategory to player-facing display name
 X.CATEGORY_TO_DISPLAY = {
@@ -465,6 +483,8 @@ X.CATEGORY_TO_DISPLAY = {
     ["Warden"] = "King Snake",
     ["Jellyfish"] = "Pure Jellyfish",
     ["Shark"] = "Mutant Shark",
+    ["King Kong"] = "Gorilla King",      -- King Kong egg asset -> Gorilla King pet display
+    ["ScorchedDragon"] = "Scorched Dragon", -- no-space variant from game scan
 }
 
 function X.getDisplayEggName(catOrRec)
@@ -494,19 +514,21 @@ function X.matchEggSpecies(nameA, nameB)
     local b = X.normalizeEggSpecies(nameB)
     if a == "" or b == "" then return false end
     if a == b then return true end
-    if string.find(a, b, 1, true) or string.find(b, a, 1, true) then return true end
+    -- NOTE: substring matching removed — it caused false positives between distinct gorilla species
+    -- (e.g. "gorilla" matched "cosmic gorilla", "cyclops gorilla", "gorilla king").
+    -- All legitimate cross-name pairs are covered by EGG_SPECIES_ALIASES with exact equality.
+    -- We resolve aliases for BOTH sides and cross-compare all combinations, which handles
+    -- 3-way chains like T-Rex <-> TRex <-> TyrannosaurusRex correctly.
     if X.EGG_SPECIES_ALIASES then
-        local aliasA = X.EGG_SPECIES_ALIASES[a]
-        if aliasA and (aliasA == b or string.find(aliasA, b, 1, true) or string.find(b, aliasA, 1, true)) then
-            return true
-        end
-        local aliasB = X.EGG_SPECIES_ALIASES[b]
-        if aliasB and (aliasB == a or string.find(aliasB, a, 1, true) or string.find(a, aliasB, 1, true)) then
-            return true
-        end
+        local aliasA = X.EGG_SPECIES_ALIASES[a]   -- e.g. "t-rex" -> "trex"
+        local aliasB = X.EGG_SPECIES_ALIASES[b]   -- e.g. "tyrannosaurusrex" -> "trex"
+        if aliasA and aliasA == b then return true end   -- a's alias == b
+        if aliasB and aliasB == a then return true end   -- b's alias == a
+        if aliasA and aliasB and aliasA == aliasB then return true end  -- both alias to same name
     end
     return false
 end
+
 
 -- Dynamic Game Discovery for Egg Species (ReplicatedStorage.Assets.Models.Eggs)
 -- Falls back to canonical PET_RARITY_PRESETS cleanly without duplicate aliases
@@ -1614,10 +1636,10 @@ end
 local walkToken = 0
 local SLOW_ZONE      = 25
 local TELEPORT_ZONE  = 8
-local SNAP_RADIUS    = 50    -- autofarm: once within this many studs (XZ) of the egg, CFrame-snap onto it
+local SNAP_RADIUS    = 60    -- autofarm: once within this many studs (XZ) of the egg, CFrame-snap onto it
 local SNAP_Y_OFFSET  = 3     -- stand slightly above the egg centre so we don't clip into the ground
 local SAFE_ARRIVE_RADIUS = 8   -- counts as "arrived" at the safe zone within this many studs (XZ)
-local SAFE_SNAP_RADIUS   = 50  -- within this many studs of the safe zone, CFrame-snap onto it
+local SAFE_SNAP_RADIUS   = 60  -- within this many studs of the safe zone, CFrame-snap onto it
 
 local function getBesideOffset(targetPos, currentPos, dist)
     dist = dist or 2.8
