@@ -39,12 +39,14 @@ In "Steal an Egg", egg names vary across server recipes, inventory profile recor
    - Maps internal game category tokens to user-facing names bidirectionally:
      - `Galaxy Gecko` $\longleftrightarrow$ `Cosmic Gecko`
      - `Cyclops Gorilla` $\longleftrightarrow$ `Cosmic Gorilla`
+     - `Cave Dragon` $\longleftrightarrow$ `Cosmic Dragon`
      - `Dream Axolotl` $\longleftrightarrow$ `Axolotl`
      - `Holy Peacock` $\longleftrightarrow$ `Peacock`
      - `Warden` $\longleftrightarrow$ `King Snake`
      - `Sacred Moth` $\longleftrightarrow$ `Moth`
      - `Winged Lamb` $\longleftrightarrow$ `Lamb`
-   - Guarantees that server recipe requirements (e.g. `Galaxy Gecko`) instantly recognize satchel inventory eggs (`Cosmic Gecko Egg`) and map world spawns.
+     - `King Kong` $\longleftrightarrow$ `Gorilla King`
+   - Guarantees that server recipe requirements (e.g. `Galaxy Gecko`, `Cave Dragon`) instantly recognize satchel inventory eggs (`Cosmic Gecko Egg`, `Cosmic Dragon Egg`) and map world spawns.
 
 ---
 

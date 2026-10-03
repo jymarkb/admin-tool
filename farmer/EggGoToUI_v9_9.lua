@@ -972,6 +972,13 @@ function X.getCarrier(uid)
     local cached = X.carrierPlayer[uStr]
     if cached then return cached end
 
+    local rec = eggCache and eggCache.byUid and eggCache.byUid[uStr]
+    if rec and typeof(rec) == "table" and rec.CarrierUserId then
+        local cStr = tostring(rec.CarrierUserId)
+        X.carrierPlayer[uStr] = cStr
+        return cStr
+    end
+
     local cra = Workspace:FindFirstChild("ClientRenderedAssets")
     if cra then
         for _, m in ipairs(cra:GetChildren()) do
@@ -990,8 +997,27 @@ function X.getCarrier(uid)
     return nil
 end
 
-function X.isCarriedByOther(uid)
-    local c = X.getCarrier(uid)
+function X.isCarriedByOther(uid, r)
+    local uStr = tostring(uid or "")
+    if uStr == "" then return false end
+    if uStr == carryUid or uStr == X.ownUid then return false end
+
+    -- 1. Direct record check (authoritative server snapshot fields)
+    local rec = r or (eggCache and eggCache.byUid and eggCache.byUid[uStr])
+    if rec and typeof(rec) == "table" then
+        if rec.State == "Carried" then
+            local cId = rec.CarrierUserId or X.carrierPlayer[uStr]
+            if not cId or tostring(cId) ~= tostring(LocalPlayer.UserId) then
+                return true
+            end
+        end
+        if rec.CarrierUserId and tostring(rec.CarrierUserId) ~= tostring(LocalPlayer.UserId) then
+            return true
+        end
+    end
+
+    -- 2. Cached carrier from FieldEggShifted / OwnerShifted / ClientRenderedAssets
+    local c = X.carrierPlayer[uStr] or X.getCarrier(uStr)
     if not c then return false end
     return tostring(c) ~= tostring(LocalPlayer.UserId)
 end
@@ -1274,8 +1300,22 @@ function X.isGhost(r)
     if not r or typeof(r) ~= "table" then return false end
     local uid = tostring(r.Uid or "")
     if uid == "" or uid == X.ownUid then return false end
-    -- If the egg is loose on the ground (bumped / dropped), it is NOT a ghost!
-    if X.looseUids[uid] then return false end
+
+    -- Authoritative server states:
+    local st = tostring(r.State or "")
+    if st == "Claimed" then return true, "claimed in base plot" end
+    if st == "Carried" then
+        local cId = r.CarrierUserId or X.carrierPlayer[uid]
+        if cId and tostring(cId) ~= tostring(LocalPlayer.UserId) then
+            return true, "carried by another player (server State=Carried)"
+        end
+        if uid ~= carryUid then
+            return true, "carried by another player"
+        end
+    end
+    if r.CarrierUserId and tostring(r.CarrierUserId) ~= tostring(LocalPlayer.UserId) then
+        return true, "carried by another player"
+    end
 
     -- 1. Blacklisted takes absolute priority (e.g. pickup failed, nest was empty, player delivery)
     local b = X.badUids[uid]
@@ -1288,12 +1328,17 @@ function X.isGhost(r)
     -- 3. Delivered eggs (safe zone or competitor base)
     if X.deliveredUids[uid] then return true, "delivered by player" end
     -- 4. Carried by another player
-    if X.isCarriedByOther(uid) then return true, "carried by another player" end
-    -- 5. FieldEggGone / FieldEggCarry network events
-    if X.goneActive(uid) then return true, "Gone/Carry event" end
+    if X.isCarriedByOther(uid, r) then return true, "carried by another player" end
+    -- 5. FieldEggGone / FieldEggShifted network events
+    if X.goneActive(uid) then return true, "Gone/Shifted event" end
     -- 6. Taken signals (stolen, moving between scans, etc.)
     local ts = X.takenSignal(uid)
     if ts then return true, ts end
+
+    -- If the egg is loose on the ground (bumped / dropped), it is NOT a ghost!
+    -- NOTE: checked AFTER carrier and base plot checks so picked-up loose eggs are not faked
+    if X.looseUids[uid] then return false end
+
     -- 7. Eggs WE dropped or are retrying pickup for are exempt from missing slot ghosting
     local mine = (dropRetry and dropRetry.uid == uid) or (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60)
     if mine then return false end
@@ -1419,6 +1464,98 @@ function X.startReappearMonitor()
     end)
 end
 X.startReappearMonitor()
+
+-- Real-time push monitor for RE/EggWorld/FieldEggShifted and FieldEggBatchShifted:
+-- Captures state changes (Carried, Claimed, Dropped, Slot) and CarrierUserId as they happen
+function X.startShiftedMonitor()
+    local net = ReplicatedStorage:FindFirstChild("Packages")
+        and ReplicatedStorage.Packages:FindFirstChild("Networking")
+    if not net then return end
+
+    local function onEggShifted(pl)
+        if typeof(pl) ~= "table" then return end
+        local u = tostring(pl.Uid or pl.EggUid or "")
+        if u == "" then return end
+
+        local st = tostring(pl.State or "")
+        local carrier = pl.CarrierUserId
+
+        if st == "Claimed" then
+            -- Egg claimed / redeemed into a player's base plot: stolen/gone
+            X.deliveredUids[u] = true
+            X.badUids[u] = os.clock() + 300
+            X.carrierPlayer[u] = nil
+            X.looseUids[u] = nil
+            X.listDirty = true
+            if eggCache and eggCache.byUid and eggCache.byUid[u] then
+                eggCache.byUid[u].State = "Claimed"
+            end
+        elseif st == "Carried" then
+            local isMe = (carrier and tostring(carrier) == tostring(LocalPlayer.UserId)) or (u == carryUid) or (u == X.ownUid)
+            if isMe then
+                X.carrierPlayer[u] = nil
+            else
+                -- Another player picked it up!
+                local cStr = tostring(carrier or "other")
+                X.carrierPlayer[u] = cStr
+                X.looseUids[u] = nil
+                X.goneUids[u] = os.clock()
+                X.gonePos[u] = X.recPos(pl) or X.lastPos[u] or X.nestPos[u]
+                X.listDirty = true
+                if eggCache and eggCache.byUid and eggCache.byUid[u] then
+                    eggCache.byUid[u].State = "Carried"
+                    eggCache.byUid[u].CarrierUserId = carrier
+                end
+            end
+        elseif st == "Dropped" then
+            -- Egg dropped on the ground (loose / pickable again!)
+            X.carrierPlayer[u] = nil
+            X.looseUids[u] = true
+            X.clearMarks(u)
+            local isMe = (pl.UserId and tostring(pl.UserId) == tostring(LocalPlayer.UserId)) or (u == carryUid)
+            if isMe then
+                X.weDropped[u] = os.clock()
+                dropRetry = { uid = u, t = os.clock(), n = ((dropRetry and dropRetry.uid == u) and dropRetry.n or 0) + 1 }
+            end
+            X.listDirty = true
+            if eggCache and eggCache.byUid and eggCache.byUid[u] then
+                eggCache.byUid[u].State = "Dropped"
+                if pl.BoundsCFrame then eggCache.byUid[u].BoundsCFrame = pl.BoundsCFrame end
+                if pl.BottomCFrame then eggCache.byUid[u].BottomCFrame = pl.BottomCFrame end
+            end
+        elseif st == "Slot" then
+            -- Egg is sitting in its nest slot
+            X.carrierPlayer[u] = nil
+            X.deliveredUids[u] = nil
+            X.badUids[u] = nil
+            X.goneUids[u] = nil
+            X.listDirty = true
+            if eggCache and eggCache.byUid and eggCache.byUid[u] then
+                eggCache.byUid[u].State = "Slot"
+            end
+        end
+    end
+
+    local evShift = net:FindFirstChild("RE/EggWorld/FieldEggShifted")
+    if evShift and evShift:IsA("RemoteEvent") then
+        addConnection(evShift.OnClientEvent:Connect(onEggShifted))
+    end
+
+    local evBatch = net:FindFirstChild("RE/EggWorld/FieldEggBatchShifted")
+    if evBatch and evBatch:IsA("RemoteEvent") then
+        addConnection(evBatch.OnClientEvent:Connect(function(batch)
+            if typeof(batch) == "table" then
+                local recs = batch.Records or batch
+                if typeof(recs) == "table" then
+                    for _, pl in pairs(recs) do
+                        onEggShifted(pl)
+                    end
+                end
+            end
+        end))
+    end
+end
+X.startShiftedMonitor()
 
 -- Live carrier monitor: watches Workspace.ClientRenderedAssets for other players holding eggs
 function X.startCarrierMonitor()
@@ -1845,8 +1982,26 @@ end
 local function passesFilters(r)
     if not r or typeof(r) ~= "table" then return false end
     local u = tostring(r.Uid or "")
+    if u == "" then return false end
+
+    -- Authoritative server state checks (from AskFieldEggSnapshot / FieldEggShifted)
+    local st = tostring(r.State or "")
+    if st == "Claimed" then return false end
+    if st == "Carried" then
+        local cId = r.CarrierUserId or X.carrierPlayer[u]
+        if cId and tostring(cId) ~= tostring(LocalPlayer.UserId) then
+            return false
+        end
+        if u ~= carryUid and u ~= X.ownUid then
+            return false
+        end
+    end
+    if r.CarrierUserId and tostring(r.CarrierUserId) ~= tostring(LocalPlayer.UserId) then
+        return false
+    end
+
     if X.isGhost(r) then return false end      -- v9.1: taken / empty nest
-    if X.isCarriedByOther(u) then return false end
+    if X.isCarriedByOther(u, r) then return false end
     if X.deliveredUids[u] then return false end
     if X.isEggInBaseRenders(u) then return false end
 
@@ -1953,8 +2108,32 @@ local function refreshEggCache(timeout)
         X.scanApplied = issue
         local by = {}
         for _, r in ipairs(recs) do
-            local u = typeof(r) == "table" and tostring(r.Uid or "") or ""
-            if u ~= "" then by[u] = r end
+            if typeof(r) == "table" then
+                local u = tostring(r.Uid or "")
+                if u ~= "" then
+                    by[u] = r
+                    local st = tostring(r.State or "")
+                    local carrier = r.CarrierUserId
+                    if st == "Claimed" then
+                        X.deliveredUids[u] = true
+                        X.looseUids[u] = nil
+                        X.carrierPlayer[u] = nil
+                    elseif st == "Carried" then
+                        if carrier and tostring(carrier) ~= tostring(LocalPlayer.UserId) then
+                            X.carrierPlayer[u] = tostring(carrier)
+                            X.looseUids[u] = nil
+                        elseif not carrier and u ~= carryUid and u ~= X.ownUid then
+                            X.carrierPlayer[u] = "other"
+                            X.looseUids[u] = nil
+                        end
+                    elseif st == "Dropped" then
+                        X.carrierPlayer[u] = nil
+                        X.looseUids[u] = true
+                    elseif st == "Slot" then
+                        X.carrierPlayer[u] = nil
+                    end
+                end
+            end
         end
         eggCache.records, eggCache.byUid, eggCache.t, eggCache.tIssue, eggCache.err = recs, by, os.clock(), tIssue, nil
         eggCache.seq = eggCache.seq + 1
@@ -2291,13 +2470,17 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             if rec0 then print(tag .. "egg record:", describeVal(rec0, 14)) end
         end
 
-        -- Listen BEFORE invoking so an early FieldEggGone/Carry event can't be missed
+        -- Listen BEFORE invoking so an early FieldEggShifted / Gone event can't be missed
         local gotGone, conns = false, {}
-        for _, pth in ipairs({"RE/EggWorld/FieldEggGone","RE/EggWorld/FieldEggCarry"}) do
+        for _, pth in ipairs({"RE/EggWorld/FieldEggShifted", "RE/EggWorld/FieldEggGone", "RE/EggWorld/FieldEggCarry"}) do
             local eok, ev = pcall(function() return ReplicatedStorage.Packages.Networking[pth] end)
             if eok and ev and ev:IsA("RemoteEvent") then
                 table.insert(conns, ev.OnClientEvent:Connect(function(pl)
-                    if typeof(pl) == "table" and tostring(pl.Uid or pl.EggUid or "") == uid then gotGone = true end
+                    if typeof(pl) == "table" and tostring(pl.Uid or pl.EggUid or "") == uid then
+                        if pl.State == "Carried" or pl.State == "Claimed" or not pl.State then
+                            gotGone = true
+                        end
+                    end
                 end))
             end
         end
@@ -2763,12 +2946,12 @@ function X.pickNearest(records)
         for _, r in ipairs(records) do
             if typeof(r) == "table" and passesFilters(r) then
                 local u = tostring(r.Uid or "")
-                if not X.isCarriedByOther(u) then
+                if not X.isCarriedByOther(u, r) then
                     local p = extPos(r)
                     if p then
                         local dEgg = Vector3.new(p.X - myPos.X, 0, p.Z - myPos.Z).Magnitude
                         -- Close (< 80 studs) and pickable on the ground (loose / dropped / outside nest)
-                        local isGround = X.looseUids[u] or (p - SAFE_ZONE).Magnitude <= 80 or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
+                        local isGround = (r.State == "Dropped") or X.looseUids[u] or (p - SAFE_ZONE).Magnitude <= 80 or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
                         if dEgg <= 80 and isGround then
                             local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
                             if tier < bestStealTier or (tier == bestStealTier and dEgg < bestStealDist) then
@@ -2790,7 +2973,7 @@ function X.pickNearest(records)
     for _, r in ipairs(records) do
         if typeof(r) == "table" and passesFilters(r) then
             local u = tostring(r.Uid or "")
-            if not X.isCarriedByOther(u) then
+            if not X.isCarriedByOther(u, r) then
                 local p = extPos(r)
                 if p then
                     local dx = p.X - myPos.X
