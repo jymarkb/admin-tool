@@ -421,8 +421,9 @@ X.RARITY_ORDER = { "Divine", "Eternal", "Secret", "Cosmic", "Mythic", "Legendary
 X.PRIORITY_CHAIN = { "Divine", "Eternal", "Secret" }
 X.scrambleRequiredSpecies = {}       -- map of normalized species names currently required by Dr. Scramble
 X.scrambleMissingSpecies = {}        -- map of normalized species names STILL MISSING in inventory
-X.prioritizeScrambleInAutoFarm = true -- Divine -> Eternal -> Secret -> Scramble Requirements -> farther
-X.autoScrambleTrade = true            -- Automatically execute trade-in / fuse when all required eggs are in inventory
+X.scrambleInventoryLoaded = false     -- true once initial inventory scan has completed (even if 0 eggs owned)
+X.prioritizeScrambleInAutoFarm = false -- Divine -> Eternal -> Secret -> Scramble Requirements -> farther
+X.autoScrambleTrade = false            -- Automatically execute trade-in / fuse when all required eggs are in inventory
 X.scrambleShowMissingOnly = true       -- Only show eggs currently missing to fuse in the Scramble requirements list
 
 -- Bidirectional category/display-name aliases (e.g. Galaxy Gecko <-> Cosmic Gecko)
@@ -580,201 +581,31 @@ do
     end
 end
 
--- Returns true if this species is one of the active Scramble recipe requirements
-function X.isScrambleRecipeSpecies(sp)
-    if not X.scrambleRequirements or #X.scrambleRequirements == 0 then return false end
-    for _, req in ipairs(X.scrambleRequirements) do
-        if X.matchEggSpecies(sp, req.species) then
-            return true
-        end
-    end
-    return false
-end
+-- Returns true if this egg matches any missing Scramble requirement species (when prioritizeScramble is enabled)
+function X.isScrambleMissingEgg(rawCat)
+    if not X.prioritizeScrambleInAutoFarm or not X.scrambleMissingSpecies then return false end
+    if not rawCat or rawCat == "" then return false end
 
--- Checks in real-time whether a specific egg species is STILL NEEDED to satisfy Scramble requirements
-function X.isScrambleEggNeeded(sp)
-    if not (X.prioritizeScrambleInAutoFarm or X.autoScrambleTrade) then return false end
-    if not X.scrambleRequirements or #X.scrambleRequirements == 0 then return false end
-    if not sp or sp == "" then return false end
-
-    -- Lazy inventory fetch if cache is uninitialized
-    if (not X.ownedInventoryEggs or #X.ownedInventoryEggs == 0) and typeof(X.scanInventoryEggsForScramble) == "function" then
-        pcall(X.scanInventoryEggsForScramble)
+    -- Lazy initial inventory sync if never loaded
+    if not X.scrambleInventoryLoaded and typeof(X.scanInventoryEggsForScramble) == "function" then
+        X.scrambleInventoryLoaded = true
+        task.defer(function()
+            pcall(X.scanInventoryEggsForScramble)
+        end)
     end
 
-    -- 1. Gather all owned candidate eggs from all sources (Satchel + Backpack + Character)
-    local owned = {}
-    local seenUids = {}
-
-    -- Source A: Satchel (ProfileMirror via X.ownedInventoryEggs)
-    if X.ownedInventoryEggs then
-        for _, egg in ipairs(X.ownedInventoryEggs) do
-            local u = egg.uid and tostring(egg.uid)
-            if u and not seenUids[u] then
-                seenUids[u] = true
-                table.insert(owned, {
-                    uid = u,
-                    species = egg.species or "",
-                    category = egg.category or "",
-                    displayName = egg.displayName or ""
-                })
-            end
-        end
-    end
-
-    -- Source B: Physical Backpack & Character tools (real-time live ground truth)
-    local lp = Players.LocalPlayer
-    local function checkTool(t)
-        if not t or not t:IsA("Tool") then return end
-        local okAttrs, attrs = pcall(function() return t:GetAttributes() end)
-        if not okAttrs or type(attrs) ~= "table" then attrs = {} end
-        if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return end
-        local dName = tostring(attrs.DisplayName or t.Name)
-        local cat = tostring(attrs.Category or "")
-        local isEgg = dName:lower():find("egg") ~= nil or t.Name:lower():find("egg") ~= nil or cat:lower() == "egg" or attrs.ItemType == "Egg" or attrs.IsEgg == true
-        if not isEgg then return end
-        local u = tostring(attrs.UID or attrs.Uid or attrs.EggUID or t.Name)
-        if not seenUids[u] then
-            seenUids[u] = true
-            table.insert(owned, {
-                uid = u,
-                species = dName,
-                category = cat,
-                displayName = dName
-            })
-        end
-    end
-    if lp and lp:FindFirstChild("Backpack") then
-        for _, t in ipairs(lp.Backpack:GetChildren()) do checkTool(t) end
-    end
-    if lp and lp.Character then
-        for _, t in ipairs(lp.Character:GetChildren()) do checkTool(t) end
-    end
-
-    -- 2. Check if sp matches ANY requirement in X.scrambleRequirements
-    local matchesAnyReq = false
-    for _, req in ipairs(X.scrambleRequirements) do
-        if X.matchEggSpecies(sp, req.species) then
-            matchesAnyReq = true
-            break
-        end
-    end
-    if not matchesAnyReq then return false end
-
-    -- 3. Optimal Slot-Assignment: Match owned eggs to recipe slots 1-to-1
-    local usedUids = {}
-    local slotFilled = {}
-    for slotIdx, req in ipairs(X.scrambleRequirements) do
-        slotFilled[slotIdx] = false
-        for _, egg in ipairs(owned) do
-            if not usedUids[egg.uid] then
-                if X.matchEggSpecies(egg.species, req.species)
-                   or (egg.category ~= "" and X.matchEggSpecies(egg.category, req.species))
-                   or (egg.displayName ~= "" and X.matchEggSpecies(egg.displayName, req.species)) then
-                    usedUids[egg.uid] = true
-                    slotFilled[slotIdx] = true
-                    break
-                end
-            end
-        end
-    end
-
-    -- 4. Check if there is ANY slot matching sp that is STILL UNFILLED
-    for slotIdx, req in ipairs(X.scrambleRequirements) do
-        if not slotFilled[slotIdx] and X.matchEggSpecies(sp, req.species) then
-            return true -- At least one recipe slot needing this egg is still unsatisfied!
-        end
-    end
-
-    return false -- All recipe slots requiring this egg are fully satisfied!
-end
-
--- Checks whether this egg (or an equivalent species) is already in the player's inventory
-function X.isEggAlreadyOwned(r)
-    local rawCat = tostring(type(r) == "table" and (r.AssetCategory or r.DisplayName or r.displayName or r.Name) or r or "")
-    if rawCat == "" then return false end
-
-    -- 1. Scramble recipe slot check: If this egg matches a Scramble recipe requirement,
-    -- and we already own enough copies for that slot, it is confirmed already owned!
-    if X.isScrambleRecipeSpecies and X.isScrambleRecipeSpecies(rawCat) then
-        if X.isScrambleEggNeeded and not X.isScrambleEggNeeded(rawCat) then
-            return true
-        end
-    end
-
-    -- 2. General Satchel/Inventory scan (ProfileMirror / in-game trade GUI):
-    if X.ownedInventoryEggs and #X.ownedInventoryEggs > 0 then
-        for _, egg in ipairs(X.ownedInventoryEggs) do
-            if X.matchEggSpecies(rawCat, egg.species)
-               or (egg.category and egg.category ~= "" and X.matchEggSpecies(rawCat, egg.category))
-               or (egg.displayName and egg.displayName ~= "" and X.matchEggSpecies(rawCat, egg.displayName)) then
-                return true
-            end
-        end
-    end
-
-    -- 3. Live Physical Backpack & Character tools check (instant real-time ground truth):
-    local lp = Players.LocalPlayer
-    local function checkTool(t)
-        if not t or not t:IsA("Tool") then return false end
-        local attrs = t:GetAttributes() or {}
-        if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return false end
-        local dName = tostring(attrs.DisplayName or t.Name)
-        local cName = tostring(attrs.Category or "")
-        local isEgg = dName:lower():find("egg") ~= nil
-            or t.Name:lower():find("egg") ~= nil
-            or cName:lower() == "egg"
-            or attrs.ItemType == "Egg"
-            or attrs.IsEgg == true
-        if not isEgg then return false end
-        if X.matchEggSpecies(rawCat, dName) or X.matchEggSpecies(rawCat, cName) or X.matchEggSpecies(rawCat, t.Name) then
-            return true
-        end
-        return false
-    end
-
-    local bp = lp and lp:FindFirstChild("Backpack")
-    if bp then
-        for _, t in ipairs(bp:GetChildren()) do
-            if checkTool(t) then return true end
-        end
-    end
-    if lp and lp.Character then
-        for _, t in ipairs(lp.Character:GetChildren()) do
-            if checkTool(t) then return true end
-        end
-    end
-
-    return false
-end
-
-function X.isScrambleRequirement(r)
-    if not (X.prioritizeScrambleInAutoFarm or X.autoScrambleTrade) then
-        return false
-    end
-    local sp = tostring(r and (r.AssetCategory or r.displayName or r.species or r.Name) or "")
-    if sp == "" then return false end
-
-    -- Ground truth inventory check: NEVER farm an egg if we already own enough in inventory!
-    if X.isScrambleEggNeeded and X.scrambleRequirements and #X.scrambleRequirements > 0 then
-        return X.isScrambleEggNeeded(sp)
-    end
-
-    local clean = X.normalizeEggSpecies(sp)
-    if X.scrambleMissingSpecies and X.scrambleMissingSpecies[clean] then return true end
+    local clean = X.normalizeEggSpecies(rawCat)
+    if X.scrambleMissingSpecies[clean] then return true end
     if X.EGG_SPECIES_ALIASES then
         local alias = X.EGG_SPECIES_ALIASES[clean]
-        if alias and X.scrambleMissingSpecies and X.scrambleMissingSpecies[alias] then return true end
+        if alias and X.scrambleMissingSpecies[alias] then return true end
     end
-    if X.scrambleMissingSpecies then
-        for missingName in pairs(X.scrambleMissingSpecies) do
-            if X.matchEggSpecies(clean, missingName) then
-                return true
-            end
-        end
+    for missing in pairs(X.scrambleMissingSpecies) do
+        if X.matchEggSpecies(missing, rawCat) then return true end
     end
     return false
 end
+
 X.ROW_H = 28
 X.ROW_GAP = 4
 X.ROW3_Y = 8 + (28 + 4) * 2
@@ -2046,7 +1877,7 @@ function X.eggTier(r)
     local rar = effectiveRarity(r)
     for i, n in ipairs(X.PRIORITY_CHAIN) do if n == rar then return i end end
     local catStr = tostring(r.AssetCategory or "")
-    if (X.prioritizeScrambleInAutoFarm or X.autoScrambleTrade) and X.isScrambleEggNeeded and X.isScrambleEggNeeded(catStr) then
+    if X.isScrambleMissingEgg and X.isScrambleMissingEgg(catStr) then
         return 4
     end
     return 5 + (10 - (X.RARITY_RANK[rar] or 0)) / 100
@@ -2092,8 +1923,9 @@ local function passesFilters(r)
     local catStr = tostring(r.AssetCategory or "")
     local rar = effectiveRarity(r)
 
-    -- Option 1: Selected Egg (Species filter)
+    -- Option 1: Selected Egg (Species filter & Scramble Auto-Priority)
     local function matchSpeciesFilter(rawCat)
+        if X.isScrambleMissingEgg and X.isScrambleMissingEgg(rawCat) then return true end
         if selectedSpecies["All"] then return true end
         if selectedSpecies[rawCat] == true then return true end
         local disp = X.getDisplayEggName and X.getDisplayEggName(rawCat)
@@ -2105,7 +1937,9 @@ local function passesFilters(r)
     end
 
     local isSpeciesSelected = false
-    if selectedSpecies["All"] then
+    if X.isScrambleMissingEgg and X.isScrambleMissingEgg(catStr) then
+        isSpeciesSelected = true
+    elseif selectedSpecies["All"] then
         if not X.hasRarity() then
             isSpeciesSelected = true
         end
@@ -2119,15 +1953,7 @@ local function passesFilters(r)
         isRarityMatch = (X.selectedRarities[rar] == true or X.autoHigher(rar))
     end
 
-    -- Option 3: Scramble Requirement (ONLY add to list if missing in storage)
-    local isScrambleMissing = false
-    if (X.prioritizeScrambleInAutoFarm or X.autoScrambleTrade) then
-        if X.isScrambleEggNeeded and X.isScrambleEggNeeded(catStr) then
-            isScrambleMissing = true
-        end
-    end
-
-    return isSpeciesSelected or isRarityMatch or isScrambleMissing
+    return isSpeciesSelected or isRarityMatch
 end
 
 -- ==================================================
@@ -3002,7 +2828,6 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     pcall(X.updateScrambleUI)
                 end
                 X.listDirty = true
-                if refilterAndRender then pcall(refilterAndRender) end
             end)
         end                                     -- (not arrived: the loop's gate finishes the delivery)
         X.requestEggRefresh()                   -- redraw the egg list now instead of waiting for luck
@@ -3150,32 +2975,18 @@ local function autoFarmLoop()
             X.resetVelocity()
             skip = true
 
-            -- Inventory sync & auto-fuse check immediately upon egg delivery to safe zone (rate-limited to 2s)
-            if (X.autoScrambleTrade or X.prioritizeScrambleInAutoFarm) and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 2) then
+            -- Auto-trade check immediately upon egg delivery to safe zone (rate-limited to 2s)
+            if X.autoScrambleTrade and X.tryAutoScrambleTrade and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 2) then
                 X.lastAutoFarmTradeCheck = os.clock()
-                if typeof(X.scanInventoryEggsForScramble) == "function" then
-                    pcall(X.scanInventoryEggsForScramble)
-                end
-                if typeof(X.updateScrambleUI) == "function" then
-                    pcall(X.updateScrambleUI)
-                end
-                if X.autoScrambleTrade and X.tryAutoScrambleTrade then
-                    local okT, traded = pcall(X.tryAutoScrambleTrade)
-                    if okT and traded then task.wait(1.5) end
-                end
+                local okT, traded = pcall(X.tryAutoScrambleTrade)
+                if okT and traded then task.wait(1.5) end
             end
         end
 
         if not skip then
-            -- Pre-scan auto-fuse check: rate-limited to 10s per performance requirement
-            if X.autoScrambleTrade and X.tryAutoScrambleTrade and not weAreCarrying and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 10) then
+            -- Pre-scan auto-trade check: rate-limited to 15s
+            if X.autoScrambleTrade and X.tryAutoScrambleTrade and not weAreCarrying and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 15) then
                 X.lastAutoFarmTradeCheck = os.clock()
-                if typeof(X.scanInventoryEggsForScramble) == "function" then
-                    pcall(X.scanInventoryEggsForScramble)
-                end
-                if typeof(X.updateScrambleUI) == "function" then
-                    pcall(X.updateScrambleUI)
-                end
                 local okT, traded = pcall(X.tryAutoScrambleTrade)
                 if okT and traded then
                     task.wait(1.5)
@@ -3228,7 +3039,7 @@ local function autoFarmLoop()
                     skip = true
                 elseif not target and not skip then
                     -- If no eggs on map match (e.g. user selected 'none' on farm egg and has the scramble eggs):
-                    if X.autoScrambleTrade and X.tryAutoScrambleTrade and not weAreCarrying and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 10) then
+                    if X.autoScrambleTrade and X.tryAutoScrambleTrade and not weAreCarrying and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 15) then
                         X.lastAutoFarmTradeCheck = os.clock()
                         local okT, traded = pcall(X.tryAutoScrambleTrade)
                         if okT and traded then
@@ -5225,17 +5036,24 @@ local function buildScrambleTabUI()
     logTextLabel.AutomaticSize = Enum.AutomaticSize.Y; logTextLabel.Parent = logScroll
 
     local logEntries = {}
-    local MAX_LOGS = 180
+    local MAX_LOGS = 60
+    local logUpdateScheduled = false
 
     local function logMsg(msg, color)
         local ts = os.date("%H:%M:%S")
         local line = ("[%s] %s"):format(ts, tostring(msg))
         print("[ScrambleAutoTrade] " .. line)
         table.insert(logEntries, line)
-        if #logEntries > MAX_LOGS then table.remove(logEntries, 1) end
-        if logTextLabel and logTextLabel.Parent then
-            logTextLabel.Text = table.concat(logEntries, "\n")
-            pcall(function() logScroll.CanvasPosition = Vector2.new(0, 99999) end)
+        while #logEntries > MAX_LOGS do table.remove(logEntries, 1) end
+        if not logUpdateScheduled then
+            logUpdateScheduled = true
+            task.defer(function()
+                logUpdateScheduled = false
+                if logTextLabel and logTextLabel.Parent then
+                    logTextLabel.Text = table.concat(logEntries, "\n")
+                    pcall(function() logScroll.CanvasPosition = Vector2.new(0, 99999) end)
+                end
+            end)
         end
     end
     logScramble = logMsg
@@ -5269,18 +5087,13 @@ local function buildScrambleTabUI()
             priorityToggleBtn.Text = "[ON] Priority"
             priorityToggleBtn.TextColor3 = Color3.fromRGB(180, 220, 255)
             logMsg("✓ Scramble AutoFarm Priority: ENABLED", Color3.fromRGB(140, 220, 255))
-            scanInventoryEggs(true)
-            updateUI()
         else
             priorityToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 48, 60)
             priorityToggleBtn.Text = "[OFF] Priority"
             priorityToggleBtn.TextColor3 = Color3.fromRGB(160, 165, 180)
             logMsg("ℹ️ Scramble AutoFarm Priority: DISABLED", Color3.fromRGB(180, 185, 200))
         end
-        if refilterAndRender then
-            X.listDirty = true
-            pcall(refilterAndRender)
-        end
+        X.listDirty = true
     end)
 
     autoTradeToggleBtn.MouseButton1Click:Connect(function()
@@ -5302,21 +5115,21 @@ local function buildScrambleTabUI()
             autoTradeToggleBtn.TextColor3 = Color3.fromRGB(180, 185, 200)
             logMsg("ℹ️ Auto-Trade: DISABLED (Manual trade button available)", Color3.fromRGB(200, 215, 235))
         end
-        if refilterAndRender then
-            X.listDirty = true
-            pcall(refilterAndRender)
-        end
+        X.listDirty = true
     end)
 
     refreshBtn.MouseButton1Click:Connect(function()
+        if refreshBtn.Text == "⏳" then return end
+        refreshBtn.Text = "⏳"
         logMsg("🔄 Manual refresh requested...", Color3.fromRGB(180, 210, 255))
-        queryScrambleState()
-        scanInventoryEggs(true)
-        updateUI()
-        task.defer(function()
+        task.spawn(function()
+            queryScrambleState()
+            scanInventoryEggs(true)
+            updateUI()
             if not weAreCarrying then
                 checkAndAutoTrade("ManualRefresh")
             end
+            refreshBtn.Text = "🔄"
         end)
     end)
 
@@ -5329,8 +5142,8 @@ local function buildScrambleTabUI()
     -- ========================================================================
 
     scanInventoryEggs = function(force)
-        -- Cache check: prevent redundant FetchProfile spam within 1 second
-        if not force and (os.clock() - lastInventoryScan) < 1.0 and #allInventoryEggs > 0 then
+        -- Cache check: prevent redundant FetchProfile spam within 3.0 seconds
+        if not force and (os.clock() - lastInventoryScan) < 3.0 and X.scrambleInventoryLoaded then
             return allInventoryEggs
         end
         lastInventoryScan = os.clock()
@@ -5462,11 +5275,8 @@ local function buildScrambleTabUI()
         table.sort(eggs, function(a, b) return (a.weightNum or 0) < (b.weightNum or 0) end)
         allInventoryEggs = eggs
         X.ownedInventoryEggs = eggs
-
-        if refilterAndRender then
-            X.listDirty = true
-            pcall(refilterAndRender)
-        end
+        X.scrambleInventoryLoaded = true
+        X.listDirty = true
         return eggs
     end
 
@@ -5639,16 +5449,13 @@ local function buildScrambleTabUI()
         return allReady, finalUids, readySlotsCount, totalReq, slotMatches, usedUids
     end
 
-    updateUI = function()
-        -- Clear current rows
-        for _, c in ipairs(reqsContainer:GetChildren()) do
-            if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
-        end
+    local slotRowFrames = {}
 
+    updateUI = function()
         -- Match unplaced eggs to slots (1 distinct egg per slot)
         local allReady, chosenUids, readySlotsCount, totalReq, slotMatches, usedEggUids = getTradeCandidates()
 
-        -- Sync missing species to X for AutoFarm
+        -- Sync missing species to X for AutoFarm (Data level sync always runs)
         local missingMap = {}
         for slotIdx, req in ipairs(scrambleRequirements) do
             if not chosenUids[slotIdx] then
@@ -5657,62 +5464,6 @@ local function buildScrambleTabUI()
             end
         end
         X.scrambleMissingSpecies = missingMap
-
-        -- 1. RENDER REQUIREMENTS
-        if #scrambleRequirements == 0 then
-            local emptyLbl = Instance.new("TextLabel")
-            emptyLbl.Size = UDim2.new(1, 0, 0, 28); emptyLbl.BackgroundTransparency = 1
-            emptyLbl.Text = "ℹ️ No requirements loaded. Click 🔄 to query server."; emptyLbl.TextColor3 = Color3.fromRGB(180, 190, 210)
-            emptyLbl.Font = Enum.Font.Gotham; emptyLbl.TextSize = 10; emptyLbl.Parent = reqsContainer
-        else
-            for slotIdx, req in ipairs(scrambleRequirements) do
-                local isOwned = (chosenUids[slotIdx] ~= nil)
-                local totalCandidates = #(slotMatches[slotIdx] or {})
-                local dispName = getDisplayEggName(req.species)
-
-                local row = Instance.new("Frame")
-                row.Size = UDim2.new(1, 0, 0, 32)
-                row.BackgroundColor3 = isOwned and Color3.fromRGB(22, 36, 28) or Color3.fromRGB(34, 25, 30)
-                row.BorderSizePixel = 0; row.LayoutOrder = slotIdx; row.Parent = reqsContainer
-                Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
-                local rStroke = Instance.new("UIStroke", row)
-                rStroke.Color = isOwned and Color3.fromRGB(45, 130, 85) or Color3.fromRGB(120, 55, 65)
-                rStroke.Thickness = 1
-
-                -- Left color strip
-                local strip = Instance.new("Frame")
-                strip.Size = UDim2.new(0, 4, 1, -6); strip.Position = UDim2.new(0, 3, 0, 3)
-                strip.BackgroundColor3 = isOwned and Color3.fromRGB(70, 230, 140) or Color3.fromRGB(255, 110, 80)
-                strip.BorderSizePixel = 0; strip.Parent = row
-                Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
-
-                -- Text details
-                local titleL = Instance.new("TextLabel")
-                titleL.Size = UDim2.new(1, -95, 0, 16); titleL.Position = UDim2.new(0, 14, 0, 2)
-                titleL.BackgroundTransparency = 1
-                titleL.Text = string.format("Slot #%s: %s (x%d)", tostring(req.slot), dispName, req.count)
-                titleL.TextColor3 = isOwned and Color3.fromRGB(220, 255, 235) or Color3.fromRGB(255, 230, 235)
-                titleL.Font = Enum.Font.GothamBold; titleL.TextSize = 10
-                titleL.TextXAlignment = Enum.TextXAlignment.Left; titleL.TextTruncate = Enum.TextTruncate.AtEnd; titleL.Parent = row
-
-                local subL = Instance.new("TextLabel")
-                subL.Size = UDim2.new(1, -95, 0, 12); subL.Position = UDim2.new(0, 14, 0, 17)
-                subL.BackgroundTransparency = 1
-                subL.Text = string.format("Inventory: %d %s", totalCandidates, totalCandidates == 1 and "copy" or "copies")
-                subL.TextColor3 = isOwned and Color3.fromRGB(150, 225, 185) or Color3.fromRGB(200, 160, 170)
-                subL.Font = Enum.Font.Gotham; subL.TextSize = 8.5
-                subL.TextXAlignment = Enum.TextXAlignment.Left; subL.TextTruncate = Enum.TextTruncate.AtEnd; subL.Parent = row
-
-                -- Status badge
-                local badge = Instance.new("TextLabel")
-                badge.Size = UDim2.new(0, 75, 0, 20); badge.Position = UDim2.new(1, -80, 0.5, -10)
-                badge.BackgroundColor3 = isOwned and Color3.fromRGB(28, 75, 48) or Color3.fromRGB(75, 30, 36)
-                badge.Text = isOwned and "✓ OWNED" or "⚠️ MISSING"
-                badge.TextColor3 = isOwned and Color3.fromRGB(130, 255, 185) or Color3.fromRGB(255, 160, 140)
-                badge.Font = Enum.Font.GothamBold; badge.TextSize = 9; badge.Parent = row
-                Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 4)
-            end
-        end
 
         -- Update Manual / Auto Trade Button
         if isTradingIn then
@@ -5737,6 +5488,110 @@ local function buildScrambleTabUI()
             manualTradeBtn.Text = string.format("⚡ Trade (%d/%d)", readySlotsCount, totalReq)
             manualTradeBtn.TextColor3 = Color3.fromRGB(160, 165, 185)
             mtStroke.Color = Color3.fromRGB(65, 60, 85)
+        end
+
+        -- Virtualization / Visibility Gate: Skip DOM updates if Tab 3 is hidden
+        if not tabScramble or not tabScramble.Visible then return end
+
+        -- 1. RENDER REQUIREMENTS (In-place recycling to avoid Destroy/Instance churn)
+        if #scrambleRequirements == 0 then
+            for _, item in ipairs(slotRowFrames) do item.frame.Visible = false end
+            local emptyLbl = reqsContainer:FindFirstChild("EmptyLabel")
+            if not emptyLbl then
+                emptyLbl = Instance.new("TextLabel")
+                emptyLbl.Name = "EmptyLabel"
+                emptyLbl.Size = UDim2.new(1, 0, 0, 28)
+                emptyLbl.BackgroundTransparency = 1
+                emptyLbl.Text = "ℹ️ No requirements loaded. Click 🔄 to query server."
+                emptyLbl.TextColor3 = Color3.fromRGB(180, 190, 210)
+                emptyLbl.Font = Enum.Font.Gotham
+                emptyLbl.TextSize = 10
+                emptyLbl.Parent = reqsContainer
+            end
+            emptyLbl.Visible = true
+        else
+            local emptyLbl = reqsContainer:FindFirstChild("EmptyLabel")
+            if emptyLbl then emptyLbl.Visible = false end
+
+            for slotIdx, req in ipairs(scrambleRequirements) do
+                local isOwned = (chosenUids[slotIdx] ~= nil)
+                local totalCandidates = #(slotMatches[slotIdx] or {})
+                local dispName = getDisplayEggName(req.species)
+
+                local item = slotRowFrames[slotIdx]
+                if not item then
+                    local row = Instance.new("Frame")
+                    row.Size = UDim2.new(1, 0, 0, 32)
+                    row.BorderSizePixel = 0
+                    row.LayoutOrder = slotIdx
+                    row.Parent = reqsContainer
+                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+                    local rStroke = Instance.new("UIStroke", row)
+                    rStroke.Thickness = 1
+
+                    local strip = Instance.new("Frame")
+                    strip.Size = UDim2.new(0, 4, 1, -6)
+                    strip.Position = UDim2.new(0, 3, 0, 3)
+                    strip.BorderSizePixel = 0
+                    strip.Parent = row
+                    Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
+
+                    local titleL = Instance.new("TextLabel")
+                    titleL.Size = UDim2.new(1, -95, 0, 16)
+                    titleL.Position = UDim2.new(0, 14, 0, 2)
+                    titleL.BackgroundTransparency = 1
+                    titleL.Font = Enum.Font.GothamBold
+                    titleL.TextSize = 10
+                    titleL.TextXAlignment = Enum.TextXAlignment.Left
+                    titleL.TextTruncate = Enum.TextTruncate.AtEnd
+                    titleL.Parent = row
+
+                    local subL = Instance.new("TextLabel")
+                    subL.Size = UDim2.new(1, -95, 0, 12)
+                    subL.Position = UDim2.new(0, 14, 0, 17)
+                    subL.BackgroundTransparency = 1
+                    subL.Font = Enum.Font.Gotham
+                    subL.TextSize = 8.5
+                    subL.TextXAlignment = Enum.TextXAlignment.Left
+                    subL.TextTruncate = Enum.TextTruncate.AtEnd
+                    subL.Parent = row
+
+                    local badge = Instance.new("TextLabel")
+                    badge.Size = UDim2.new(0, 75, 0, 20)
+                    badge.Position = UDim2.new(1, -80, 0.5, -10)
+                    badge.Font = Enum.Font.GothamBold
+                    badge.TextSize = 9
+                    badge.Parent = row
+                    Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 4)
+
+                    item = {
+                        frame = row,
+                        stroke = rStroke,
+                        strip = strip,
+                        title = titleL,
+                        sub = subL,
+                        badge = badge
+                    }
+                    slotRowFrames[slotIdx] = item
+                end
+
+                item.frame.Visible = true
+                item.frame.LayoutOrder = slotIdx
+                item.frame.BackgroundColor3 = isOwned and Color3.fromRGB(22, 36, 28) or Color3.fromRGB(34, 25, 30)
+                item.stroke.Color = isOwned and Color3.fromRGB(45, 130, 85) or Color3.fromRGB(120, 55, 65)
+                item.strip.BackgroundColor3 = isOwned and Color3.fromRGB(70, 230, 140) or Color3.fromRGB(255, 110, 80)
+                item.title.Text = string.format("Slot #%s: %s (x%d)", tostring(req.slot), dispName, req.count)
+                item.title.TextColor3 = isOwned and Color3.fromRGB(220, 255, 235) or Color3.fromRGB(255, 230, 235)
+                item.sub.Text = string.format("Inventory: %d %s", totalCandidates, totalCandidates == 1 and "copy" or "copies")
+                item.sub.TextColor3 = isOwned and Color3.fromRGB(150, 225, 185) or Color3.fromRGB(200, 160, 170)
+                item.badge.BackgroundColor3 = isOwned and Color3.fromRGB(28, 75, 48) or Color3.fromRGB(75, 30, 36)
+                item.badge.Text = isOwned and "✓ OWNED" or "⚠️ MISSING"
+                item.badge.TextColor3 = isOwned and Color3.fromRGB(130, 255, 185) or Color3.fromRGB(255, 160, 140)
+            end
+
+            for i = #scrambleRequirements + 1, #slotRowFrames do
+                slotRowFrames[i].frame.Visible = false
+            end
         end
     end
 
@@ -5873,16 +5728,19 @@ local function buildScrambleTabUI()
     -- 10. EXTERNAL INTERFACES FOR AUTOFARM SUITE
     -- ========================================================================
 
-    refreshScrambleUI = function()
-        if not scrambleRequirements or #scrambleRequirements == 0 then
-            queryScrambleState()
-        end
-        scanInventoryEggs(true)
-        updateUI()
+    refreshScrambleUI = function(force)
+        if updateUI then updateUI() end
+        task.spawn(function()
+            if not scrambleRequirements or #scrambleRequirements == 0 then
+                queryScrambleState()
+            end
+            scanInventoryEggs(force == true)
+            updateUI()
+        end)
     end
 
-    X.scanInventoryEggsForScramble = function()
-        return scanInventoryEggs(true)
+    X.scanInventoryEggsForScramble = function(force)
+        return scanInventoryEggs(force == true)
     end
 
     X.updateScrambleUI = function()
@@ -5900,80 +5758,84 @@ local function buildScrambleTabUI()
     -- 11. EVENT LISTENERS & BACKGROUND WORKER
     -- ========================================================================
 
-    local function bindBackpackListeners()
-        local bp = LocalPlayer:FindFirstChild("Backpack")
-        if bp then
-            bp.ChildAdded:Connect(function()
-                task.defer(function()
-                    scanInventoryEggs(true)
-                    updateUI()
-                    if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
-                        checkAndAutoTrade("BackpackAdded")
-                    end
-                end)
-            end)
-            bp.ChildRemoved:Connect(function()
-                task.defer(function()
-                    scanInventoryEggs(true)
-                    updateUI()
-                end)
-            end)
+    local backpackDebounceThread = nil
+    local function onBackpackChanged(triggerSrc)
+        if backpackDebounceThread then
+            task.cancel(backpackDebounceThread)
+            backpackDebounceThread = nil
         end
-    end
-    pcall(bindBackpackListeners)
-    LocalPlayer.ChildAdded:Connect(function(child)
-        if child.Name == "Backpack" then pcall(bindBackpackListeners) end
-    end)
-
-    -- Server Trade Rotation Event (RE/ScrambleTradeIn/BannerRotated)
-    if reRotated and reRotated:IsA("RemoteEvent") then
-        reRotated.OnClientEvent:Connect(function(...)
-            logMsg("🔄 [RE/BannerRotated] Server rotated trade recipe! Reloading...", Color3.fromRGB(150, 220, 255))
-            task.wait(0.5)
-            queryScrambleState()
-            scanInventoryEggs(true)
-            updateUI()
-            task.defer(function()
-                if not weAreCarrying then
-                    checkAndAutoTrade("BannerRotatedEvent")
+        backpackDebounceThread = task.delay(2.5, function()
+            backpackDebounceThread = nil
+            task.spawn(function()
+                scanInventoryEggs(false)
+                updateUI()
+                if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
+                    checkAndAutoTrade(triggerSrc or "BackpackDebounced")
                 end
             end)
         end)
     end
 
+    local function bindBackpackListeners()
+        local bp = LocalPlayer:FindFirstChild("Backpack")
+        if bp then
+            addConnection(bp.ChildAdded:Connect(function() onBackpackChanged("BackpackAdded") end))
+            addConnection(bp.ChildRemoved:Connect(function() onBackpackChanged("BackpackRemoved") end))
+        end
+    end
+    pcall(bindBackpackListeners)
+    addConnection(LocalPlayer.ChildAdded:Connect(function(child)
+        if child.Name == "Backpack" then pcall(bindBackpackListeners) end
+    end))
+
+    -- Server Trade Rotation Event (RE/ScrambleTradeIn/BannerRotated)
+    if reRotated and reRotated:IsA("RemoteEvent") then
+        addConnection(reRotated.OnClientEvent:Connect(function(...)
+            logMsg("🔄 [RE/BannerRotated] Server rotated trade recipe! Reloading...", Color3.fromRGB(150, 220, 255))
+            task.delay(0.5, function()
+                task.spawn(function()
+                    queryScrambleState()
+                    scanInventoryEggs(true)
+                    updateUI()
+                    if not weAreCarrying then
+                        checkAndAutoTrade("BannerRotatedEvent")
+                    end
+                end)
+            end)
+        end))
+    end
+
     -- Main Background Worker Loop
     task.spawn(function()
         logMsg("🌀 Dr. Scramble Standalone Auto-Trade Engine Started")
-        queryScrambleState()
-        scanInventoryEggs(true)
-        updateUI()
-
-        -- Trigger auto-trade immediately on launch if eligible
-        task.defer(function()
+        task.spawn(function()
+            queryScrambleState()
+            scanInventoryEggs(true)
+            updateUI()
             if not weAreCarrying then
                 checkAndAutoTrade("Startup")
             end
         end)
 
         local lastLoopScan = 0
-        while screenGui and screenGui.Parent do
+        while screenGui and screenGui.Parent and not _G.EggGoToUI_Stop do
             local now = os.time()
             local diff = 0
             if serverExpiresAt then
                 diff = math.max(0, serverExpiresAt - now)
                 if diff <= 0 then
+                    local secsIntoHour = os.time() % 3600
+                    serverExpiresAt = os.time() + math.max(15, 3600 - secsIntoHour)
                     logMsg("⏰ Hourly timer expired! Querying next rotation...", Color3.fromRGB(255, 200, 100))
-                    queryScrambleState()
-                    scanInventoryEggs(true)
-                    updateUI()
-                    task.defer(function()
+                    task.spawn(function()
+                        queryScrambleState()
+                        scanInventoryEggs(true)
+                        updateUI()
                         if not weAreCarrying then
                             checkAndAutoTrade("TimerExpired")
                         end
                     end)
-                    local secsIntoHour = os.time() % 3600
-                    serverExpiresAt = os.time() + (3600 - secsIntoHour)
-                    diff = 3600 - secsIntoHour
+                    diff = math.max(0, serverExpiresAt - os.time())
                 end
             else
                 local secsIntoHour = os.time() % 3600
@@ -5984,15 +5846,16 @@ local function buildScrambleTabUI()
             local s = diff % 60
             timerBadge.Text = string.format("⏳ %02dm %02ds  •  %s", m, s, scrambleBannerName)
 
-            -- Periodic evaluation every 10s per performance requirement (Req 2 & 3)
-            if os.clock() - lastLoopScan >= 10 then
+            -- Periodic evaluation every 15s per performance requirement
+            if os.clock() - lastLoopScan >= 15 then
                 lastLoopScan = os.clock()
-                scanInventoryEggs(true)
-                updateUI()
-
-                if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
-                    checkAndAutoTrade("10sPoll")
-                end
+                task.spawn(function()
+                    scanInventoryEggs(false)
+                    updateUI()
+                    if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
+                        checkAndAutoTrade("15sPoll")
+                    end
+                end)
             end
 
             task.wait(1)
