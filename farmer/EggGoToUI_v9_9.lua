@@ -593,53 +593,100 @@ end
 
 -- Checks in real-time whether a specific egg species is STILL NEEDED to satisfy Scramble requirements
 function X.isScrambleEggNeeded(sp)
+    if not (X.prioritizeScrambleInAutoFarm or X.autoScrambleTrade) then return false end
     if not X.scrambleRequirements or #X.scrambleRequirements == 0 then return false end
-    for _, req in ipairs(X.scrambleRequirements) do
-        if X.matchEggSpecies(sp, req.species) then
-            local countOwned = 0
-            local seenUids = {}
-            if X.ownedInventoryEggs then
-                for _, egg in ipairs(X.ownedInventoryEggs) do
-                    if X.matchEggSpecies(egg.species, req.species)
-                       or (egg.category and egg.category ~= "" and X.matchEggSpecies(egg.category, req.species))
-                       or (egg.displayName and egg.displayName ~= "" and X.matchEggSpecies(egg.displayName, req.species)) then
-                        countOwned = countOwned + 1
-                        if egg.uid then seenUids[tostring(egg.uid)] = true end
-                    end
-                end
-            end
-            -- Also check Backpack & Character tools for immediate pickup detection
-            local lp = Players.LocalPlayer
-            local function checkTool(t)
-                if not t or not t:IsA("Tool") then return end
-                local okAttrs, attrs = pcall(function() return t:GetAttributes() end)
-                if not okAttrs or type(attrs) ~= "table" then attrs = {} end
-                if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return end
-                local dName = tostring(attrs.DisplayName or t.Name)
-                local isEgg = dName:lower():find("egg") ~= nil or t.Name:lower():find("egg") ~= nil or attrs.ItemType == "Egg" or attrs.IsEgg == true
-                if not isEgg then return end
-                local u = tostring(attrs.UID or attrs.Uid or attrs.EggUID or t.Name)
-                if not seenUids[u] and (X.matchEggSpecies(dName, req.species) or X.matchEggSpecies(t.Name, req.species)) then
-                    seenUids[u] = true
-                    countOwned = countOwned + 1
-                end
-            end
-            if lp and lp:FindFirstChild("Backpack") then
-                for _, t in ipairs(lp.Backpack:GetChildren()) do checkTool(t) end
-            end
-            if lp and lp.Character then
-                for _, t in ipairs(lp.Character:GetChildren()) do checkTool(t) end
-            end
+    if not sp or sp == "" then return false end
 
-            -- If we already have the required count (or more), we DO NOT need to farm it!
-            if countOwned >= (req.count or 1) then
-                return false
-            else
-                return true
+    -- Lazy inventory fetch if cache is uninitialized
+    if (not X.ownedInventoryEggs or #X.ownedInventoryEggs == 0) and typeof(X.scanInventoryEggsForScramble) == "function" then
+        pcall(X.scanInventoryEggsForScramble)
+    end
+
+    -- 1. Gather all owned candidate eggs from all sources (Satchel + Backpack + Character)
+    local owned = {}
+    local seenUids = {}
+
+    -- Source A: Satchel (ProfileMirror via X.ownedInventoryEggs)
+    if X.ownedInventoryEggs then
+        for _, egg in ipairs(X.ownedInventoryEggs) do
+            local u = egg.uid and tostring(egg.uid)
+            if u and not seenUids[u] then
+                seenUids[u] = true
+                table.insert(owned, {
+                    uid = u,
+                    species = egg.species or "",
+                    category = egg.category or "",
+                    displayName = egg.displayName or ""
+                })
             end
         end
     end
-    return false
+
+    -- Source B: Physical Backpack & Character tools (real-time live ground truth)
+    local lp = Players.LocalPlayer
+    local function checkTool(t)
+        if not t or not t:IsA("Tool") then return end
+        local okAttrs, attrs = pcall(function() return t:GetAttributes() end)
+        if not okAttrs or type(attrs) ~= "table" then attrs = {} end
+        if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return end
+        local dName = tostring(attrs.DisplayName or t.Name)
+        local cat = tostring(attrs.Category or "")
+        local isEgg = dName:lower():find("egg") ~= nil or t.Name:lower():find("egg") ~= nil or cat:lower() == "egg" or attrs.ItemType == "Egg" or attrs.IsEgg == true
+        if not isEgg then return end
+        local u = tostring(attrs.UID or attrs.Uid or attrs.EggUID or t.Name)
+        if not seenUids[u] then
+            seenUids[u] = true
+            table.insert(owned, {
+                uid = u,
+                species = dName,
+                category = cat,
+                displayName = dName
+            })
+        end
+    end
+    if lp and lp:FindFirstChild("Backpack") then
+        for _, t in ipairs(lp.Backpack:GetChildren()) do checkTool(t) end
+    end
+    if lp and lp.Character then
+        for _, t in ipairs(lp.Character:GetChildren()) do checkTool(t) end
+    end
+
+    -- 2. Check if sp matches ANY requirement in X.scrambleRequirements
+    local matchesAnyReq = false
+    for _, req in ipairs(X.scrambleRequirements) do
+        if X.matchEggSpecies(sp, req.species) then
+            matchesAnyReq = true
+            break
+        end
+    end
+    if not matchesAnyReq then return false end
+
+    -- 3. Optimal Slot-Assignment: Match owned eggs to recipe slots 1-to-1
+    local usedUids = {}
+    local slotFilled = {}
+    for slotIdx, req in ipairs(X.scrambleRequirements) do
+        slotFilled[slotIdx] = false
+        for _, egg in ipairs(owned) do
+            if not usedUids[egg.uid] then
+                if X.matchEggSpecies(egg.species, req.species)
+                   or (egg.category ~= "" and X.matchEggSpecies(egg.category, req.species))
+                   or (egg.displayName ~= "" and X.matchEggSpecies(egg.displayName, req.species)) then
+                    usedUids[egg.uid] = true
+                    slotFilled[slotIdx] = true
+                    break
+                end
+            end
+        end
+    end
+
+    -- 4. Check if there is ANY slot matching sp that is STILL UNFILLED
+    for slotIdx, req in ipairs(X.scrambleRequirements) do
+        if not slotFilled[slotIdx] and X.matchEggSpecies(sp, req.species) then
+            return true -- At least one recipe slot needing this egg is still unsatisfied!
+        end
+    end
+
+    return false -- All recipe slots requiring this egg are fully satisfied!
 end
 
 -- Checks whether this egg (or an equivalent species) is already in the player's inventory
@@ -1244,6 +1291,10 @@ X.deliveredUids = {} -- v9.8: uid -> true: it rests at the delivery zone (anothe
 X.slotLostSince = {} -- v9.8: uid -> time its slot was first seen missing (after having existed)
 X.weDropped  = {}    -- v9.8: uid -> time WE dropped it
 
+local walkToken = 0
+local lastFailReason = nil
+X.currentWalkingEggUid = nil
+
 function X.clearMarks(u)
     X.goneUids[u] = nil; X.badUids[u] = nil; X.failCount[u] = nil; X.missCount[u] = nil
     X.gonePos[u] = nil; X.slotGoneAt[u] = nil; X.slotBackN[u] = nil
@@ -1490,6 +1541,12 @@ function X.startShiftedMonitor()
             if eggCache and eggCache.byUid and eggCache.byUid[u] then
                 eggCache.byUid[u].State = "Claimed"
             end
+            if X.currentWalkingEggUid == u then
+                walkToken = walkToken + 1
+                lastFailReason = "[AutoFarm] Egg claimed in base plot — next..."
+                X.blacklistStolen(u)
+                X.requestEggRefresh()
+            end
         elseif st == "Carried" then
             local isMe = (carrier and tostring(carrier) == tostring(LocalPlayer.UserId)) or (u == carryUid) or (u == X.ownUid)
             if isMe then
@@ -1505,6 +1562,12 @@ function X.startShiftedMonitor()
                 if eggCache and eggCache.byUid and eggCache.byUid[u] then
                     eggCache.byUid[u].State = "Carried"
                     eggCache.byUid[u].CarrierUserId = carrier
+                end
+                if X.currentWalkingEggUid == u then
+                    walkToken = walkToken + 1
+                    lastFailReason = "[AutoFarm] Egg carried by another player — next..."
+                    X.blacklistStolen(u)
+                    X.requestEggRefresh()
                 end
             end
         elseif st == "Dropped" then
@@ -1773,7 +1836,7 @@ end
 -- ==================================================
 -- MOVEMENT
 -- ==================================================
-local walkToken = 0
+walkToken = walkToken or 0
 local SLOW_ZONE      = 25
 local TELEPORT_ZONE  = 8
 local SNAP_RADIUS    = 60    -- autofarm: once within this many studs (XZ) of the egg, CFrame-snap onto it
@@ -1926,6 +1989,16 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                 end
             end
         end
+        -- Halt Humanoid immediately on cancellation / token increment
+        pcall(function()
+            local ch = LocalPlayer.Character
+            local h = ch and ch:FindFirstChildOfClass("Humanoid")
+            local r = ch and ch:FindFirstChild("HumanoidRootPart")
+            if h and r then
+                h:Move(Vector3.zero)
+                h.WalkToPoint = r.Position
+            end
+        end)
     end)
 end
 
@@ -2078,7 +2151,7 @@ local DROP_CONFIRM         = 0.6   -- seconds the carried object must be gone be
 weAreCarrying        = false
 carryUid             = nil
 carryMarkers         = nil    -- objects that appeared when WE picked the egg up (or nil if none seen)
-local lastFailReason = nil    -- shown by the loop instead of the generic "failed/skipped" text
+lastFailReason = nil    -- shown by the loop instead of the generic "failed/skipped" text
 dropRetry            = nil    -- { uid, t, n }: an egg we dropped -> fetch THIS one again first
 
 -- ---------- LIVE EGG CACHE: one scanner, constant 1s cadence ----------
@@ -2359,6 +2432,7 @@ end
 local function autoGetEgg(uid, startPos, myTok, isManual)
     X.resetVelocity()             -- v9: every new target egg starts at the default velocity
     X.ownUid = nil                -- v9.1: not ours until we actually start the pickup
+    X.currentWalkingEggUid = uid  -- Track targeted egg for instant network push cancellation
     local completed, result = false, false
     local phase   = "walking"     -- walking -> carrying -> done
     local livePos = startPos
@@ -2367,6 +2441,9 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
     local function finish(ok)
         if completed then return end
         completed = true; phase = "done"; result = ok
+        if X.currentWalkingEggUid == uid then
+            X.currentWalkingEggUid = nil
+        end
     end
 
     walkToken = walkToken + 1
@@ -2387,17 +2464,35 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             if os.clock() - t0 > WALK_TIMEOUT then
                 walkToken = walkToken + 1; finish(false); break
             end
-            -- v9.1: the game told us it is gone / its slot vanished -> don't walk to an empty nest
-            if X.goneActive(uid) or X.takenSignal(uid) then
+
+            -- Fast check every 0.15s: if egg was stolen, claimed, carried by another player, or marked ghost, abort!
+            local curRec = eggCache.byUid and eggCache.byUid[uid]
+            local st = curRec and tostring(curRec.State or "") or ""
+            local carrier = curRec and (curRec.CarrierUserId or X.carrierPlayer[uid]) or X.carrierPlayer[uid]
+            local isCarriedByOther = (st == "Carried" and carrier and tostring(carrier) ~= tostring(LocalPlayer.UserId))
+                or (carrier and tostring(carrier) ~= tostring(LocalPlayer.UserId))
+                or X.isCarriedByOther(uid, curRec)
+            local isClaimed = (st == "Claimed") or X.deliveredUids[uid] or X.isEggInBaseRenders(uid)
+            local isGhostEgg = curRec and X.isGhost(curRec)
+
+            if isCarriedByOther or isClaimed or isGhostEgg or X.goneActive(uid) or X.takenSignal(uid) then
                 walkToken = walkToken + 1
-                lastFailReason = tag .. "Egg taken by someone else — next..."
+                lastFailReason = tag .. (isCarriedByOther and "Egg carried by someone else — next..." or (isClaimed and "Egg claimed into base plot — next..." or "Egg taken by someone else — next..."))
                 if not isManual then X.blacklistStolen(uid) end
                 finish(false); break
             end
+
             if eggCache.seq ~= lastSeq then
                 lastSeq = eggCache.seq
                 local found = eggCache.byUid[uid]
                 if found then
+                    -- Verify found passes filters! If it doesn't pass filters (e.g. state changed to Carried/Claimed), abort!
+                    if not passesFilters(found) and not (dropRetry and dropRetry.uid == uid) then
+                        walkToken = walkToken + 1
+                        lastFailReason = tag .. "Egg no longer valid (stolen/filtered) — next..."
+                        if not isManual then X.blacklistStolen(uid) end
+                        finish(false); break
+                    end
                     missing = 0
                     local np = extPos(found)
                     if np then livePos = np end
@@ -2414,7 +2509,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     end
                 else
                     missing = missing + 1
-                    local lim = (X.looseUids[uid] or (dropRetry and dropRetry.uid == uid)) and 4 or 2   -- v9.4: dropped eggs re-list late
+                    local lim = (X.looseUids[uid] or (dropRetry and dropRetry.uid == uid)) and 3 or 2   -- v9.4: dropped eggs re-list late
                     if missing >= lim then        -- gone on 2 scans in a row: someone else took it
                         walkToken = walkToken + 1
                         lastFailReason = tag .. "Egg gone before pickup — next..."
@@ -2897,6 +2992,18 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             X.resetVelocity()                   -- v9.6: delivered -> back to the default velocity right away
             statusLabel.Text = tag .. "Safe zone ✓"
             statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+            -- Immediately refresh inventory & scramble requirements so delivered egg is recognized as owned:
+            task.spawn(function()
+                task.wait(0.3)
+                if typeof(X.scanInventoryEggsForScramble) == "function" then
+                    pcall(X.scanInventoryEggsForScramble)
+                end
+                if typeof(X.updateScrambleUI) == "function" then
+                    pcall(X.updateScrambleUI)
+                end
+                X.listDirty = true
+                if refilterAndRender then pcall(refilterAndRender) end
+            end)
         end                                     -- (not arrived: the loop's gate finishes the delivery)
         X.requestEggRefresh()                   -- redraw the egg list now instead of waiting for luck
         finish(arrived)
@@ -3043,8 +3150,8 @@ local function autoFarmLoop()
             X.resetVelocity()
             skip = true
 
-            -- Auto-fuse check immediately upon egg delivery to safe zone (rate-limited to 10s)
-            if X.autoScrambleTrade and X.tryAutoScrambleTrade and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 10) then
+            -- Inventory sync & auto-fuse check immediately upon egg delivery to safe zone (rate-limited to 2s)
+            if (X.autoScrambleTrade or X.prioritizeScrambleInAutoFarm) and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 2) then
                 X.lastAutoFarmTradeCheck = os.clock()
                 if typeof(X.scanInventoryEggsForScramble) == "function" then
                     pcall(X.scanInventoryEggsForScramble)
@@ -3052,8 +3159,10 @@ local function autoFarmLoop()
                 if typeof(X.updateScrambleUI) == "function" then
                     pcall(X.updateScrambleUI)
                 end
-                local okT, traded = pcall(X.tryAutoScrambleTrade)
-                if okT and traded then task.wait(1.5) end
+                if X.autoScrambleTrade and X.tryAutoScrambleTrade then
+                    local okT, traded = pcall(X.tryAutoScrambleTrade)
+                    if okT and traded then task.wait(1.5) end
+                end
             end
         end
 
@@ -5160,6 +5269,8 @@ local function buildScrambleTabUI()
             priorityToggleBtn.Text = "[ON] Priority"
             priorityToggleBtn.TextColor3 = Color3.fromRGB(180, 220, 255)
             logMsg("✓ Scramble AutoFarm Priority: ENABLED", Color3.fromRGB(140, 220, 255))
+            scanInventoryEggs(true)
+            updateUI()
         else
             priorityToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 48, 60)
             priorityToggleBtn.Text = "[OFF] Priority"
@@ -5238,10 +5349,10 @@ local function buildScrambleTabUI()
             if okP and type(prof) == "table" and type(prof.EggInventory) == "table" then
                 for eggUid, eggData in pairs(prof.EggInventory) do
                     local uidStr = tostring(eggUid)
-                    -- STRICT FILTER: Only unplaced eggs (Placement == nil)
-                    if not seenUids[uidStr] and type(eggData) == "table" and eggData.Placement == nil then
+                    -- STRICT FILTER: Only unplaced eggs (Placement == nil or Placement == false or Placement == "")
+                    if not seenUids[uidStr] and type(eggData) == "table" and (eggData.Placement == nil or eggData.Placement == false or eggData.Placement == "") then
                         seenUids[uidStr] = true
-                        local cat = tostring(eggData.AssetCategory or "Egg")
+                        local cat = tostring(eggData.AssetCategory or eggData.Category or eggData.Species or eggData.Name or eggData.DisplayName or eggData.EggType or "Egg")
                         local disp = getDisplayEggName(cat)
                         local wStr, wNum = formatPetWeight(eggData.Weight or 0, eggData.AssetScale or 1)
                         table.insert(eggs, {
