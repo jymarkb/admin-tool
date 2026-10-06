@@ -73,6 +73,8 @@ V.__mul=function(a,b)
   return vnew(a.x*b.x,a.y*b.y,a.z*b.z)
 end
 V.__unm=function(a) return vnew(-a.x,-a.y,-a.z) end
+V.__div=function(a,b) if type(b)=="number" then return vnew(a.x/b,a.y/b,a.z/b) end
+  return vnew(a.x/b.x,a.y/b.y,a.z/b.z) end
 V.Dot=function(a,b) return a.x*b.x+a.y*b.y+a.z*b.z end
 V.Cross=function(a,b) return vnew(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x) end
 V.__tostring=function(a) return string.format("(%.3f, %.3f, %.3f)",a.x,a.y,a.z) end
@@ -98,6 +100,9 @@ function CFrame.Angles(rx, ry, rz)
   return setmetatable({p=vnew(0,0,0),
     r=vnew(cy, 0, -sy), u=vnew(0,1,0), b=vnew(sy, 0, cy)}, C)
 end
+C.PointToObjectSpace=function(cf, p)
+  local d = p - cf.p
+  return vnew(d:Dot(cf.r), d:Dot(cf.u), d:Dot(cf.b)) end
 function C.__sub(a) return setmetatable({p=vnew(0,0,0),r=a.r,u=a.u,b=a.b},C) end
 function C.__add(a,b) return setmetatable({p=a.p+b,r=a.r,u=a.u,b=a.b},C) end
 function C.__mul(a,b)
@@ -139,7 +144,7 @@ local EVENTS = {MouseButton1Click=1,FocusLost=1,InputBegan=1,InputEnded=1,
 
 -- Proxy over a backing table, so __newindex fires on EVERY assignment.
 local function newInstance(class)
-  local data = {ClassName=class, _sig={}}
+  local data = {ClassName=class, _sig={}, Size=vnew(4,2,4)}
   local proxy = {}
   local mt = {
     __index=function(_,k)
@@ -177,20 +182,48 @@ local function newInstance(class)
       if k=="GetConnectedParts" then return function() return {} end end
       if k=="GetState" then return function() return data._state or "Running" end end
       if k=="Raycast" then return function(_, origin, dir, params)
-            -- A segment table lets the test describe real terrain, including the
-            -- gaps that the path scan must refuse to fly over.
-            if data._segments and #data._segments > 0 then
+            -- Two kinds of probe, because they answer different questions:
+            --   pointing DOWN  -> ground height (path scan / descent target)
+            --   pointing SIDEWAYS -> anything solid crossing the route at height
+            if dir.Y < -0.5 then
+              if data._segments and #data._segments > 0 then
+                local x = origin.X
+                local best = nil
+                for _, seg in ipairs(data._segments) do
+                  if x >= seg[1] and x <= seg[2] and seg[3] ~= false then
+                    if not best or seg[3] > best then best = seg[3] end
+                  end
+                end
+                if best then return {Position=vnew(x, best, origin.Z), Instance=nil} end
+                return nil
+              end
+              return data._rayHit
+            end
+            -- horizontal: a barrier is a wall spanning [yMin,yMax] at plane x=bx
+            if data._barriers then
               local x = origin.X
-              local best = nil
-              for _, seg in ipairs(data._segments) do
-                if x >= seg[1] and x <= seg[2] and seg[3] ~= false then
-                  if not best or seg[3] > best then best = seg[3] end
+              -- the script passes dir * PROBE_LEN, so dir is NOT a unit vector.
+              -- Normalise before using it, or every distance is multiplied by
+              -- the ray length (that read "at ~18000 studs" for a wall 600 away).
+              local rayLen = dir.Magnitude
+              local ux = rayLen > 0 and dir.X / rayLen or 0
+              local step = ux > 0 and 1 or -1
+              local bestAt, bestInst = nil, nil
+              for _, b in ipairs(data._barriers) do
+                local bx, yMin, yMax = b[1], b[2], b[3]
+                local crosses = (step > 0 and bx > x) or (step < 0 and bx < x)
+                local at = math.abs(bx - x)
+                if crosses and at <= rayLen
+                   and origin.Y >= yMin and origin.Y <= yMax then
+                  if not bestAt or at < bestAt then bestAt, bestInst = at, b[4] end
                 end
               end
-              if best then return {Position=vnew(x, best, origin.Z)} end
-              return nil            -- outside every segment = no ground
+              if bestAt then
+                return {Position=vnew(origin.X + ux * bestAt, origin.Y, origin.Z),
+                        Instance=bestInst}
+              end
             end
-            return data._rayHit
+            return nil
           end end
       if EVENTS[k] then return sigOf(data,k) end
       if k=="Position" and data.CFrame then return data.CFrame.Position end
@@ -254,7 +287,14 @@ killBrick.Name = "LavaKillBrick"; killBrick.CanCollide = false
 killBrick.Material = "Neon"; killBrick.Position = vnew(1000,100,0)
 killBrick.Parent = true
 WORKSPACE.GetPartBoundsInRadius = function(_, pos, radius, params)
-  return {killBrick} end
+  local out = {killBrick}
+  if WORKSPACE._guards then
+    for _, g in ipairs(WORKSPACE._guards) do table.insert(out, g) end
+  end
+  if WORKSPACE._slabs then
+    for _, sl in ipairs(WORKSPACE._slabs) do table.insert(out, sl) end
+  end
+  return out end
 
 game = {GetService=function(_,name)
   if name=="Players" then return {LocalPlayer=player} end
@@ -312,6 +352,43 @@ return {CREATED=CREATED, fire=fire, char=char, hum=hum, root=root, torso=torso,
           WORKSPACE._segments = WORKSPACE._segments or {}
           table.insert(WORKSPACE._segments, {xFrom,xTo,y}) end,
         clearGrounds=function() WORKSPACE._segments = {} end,
+        addBarrier=function(bx,yMin,yMax,name,part)
+          WORKSPACE._barriers = WORKSPACE._barriers or {}
+          table.insert(WORKSPACE._barriers, {bx,yMin,yMax,part or killBrick})
+          if name then (part or killBrick).Name = name end end,
+        clearBarriers=function() WORKSPACE._barriers = nil end,
+        -- a solid slab: lets the landing-containment check be exercised
+        slab=function(y,size)
+          local p = newInstance("Part")
+          p.Name = "BOTTOMS.Part"
+          p.CanCollide = true
+          p.Material = "Plastic"
+          p.Size = size or vnew(4000, 4, 4000)
+          p.CFrame = CFrame.new(0, y - (size and size.Y/2 or 2), 0)
+          p.Position = vnew(0, y - (size and size.Y/2 or 2), 0)
+          return p end,
+        addSlab=function(cx,cy,cz,sx,sy,sz)
+          local p = newInstance("Part")
+          p.Name = "BOTTOMS.Part"
+          p.CanCollide = true
+          p.Material = "Plastic"
+          p.Size = vnew(sx,sy,sz)
+          p.CFrame = CFrame.new(cx,cy,cz)
+          p.Position = vnew(cx,cy,cz)
+          WORKSPACE._slabs = WORKSPACE._slabs or {}
+          table.insert(WORKSPACE._slabs, p)
+          return p end,
+        clearSlabs=function() WORKSPACE._slabs = nil end,
+        guardVolume=function(name, pos)
+          local g = newInstance("Part")
+          g.Name = name
+          g.CanCollide = false
+          g.Material = "SmoothPlastic"
+          g.CFrame = CFrame.new(pos)
+          g.Position = pos
+          WORKSPACE._guards = WORKSPACE._guards or {}
+          table.insert(WORKSPACE._guards, g)
+          return g end,
         fireDied=function() return fire(hum, "Died") end,
         fireHealth=function(v)
           local prev = hum.Health
@@ -397,6 +474,11 @@ def set_noclip(on):
         fire(noclipBtn, "MouseButton1Click")
 
 def flat(t): return t is False or t == False
+
+def lastline(txt, needle):
+    """The log accumulates across flights, so always read the LAST match."""
+    hits = [l for l in txt.splitlines() if needle in l]
+    return hits[-1] if hits else "(no line with %r)" % needle
 
 def stat():
     """The status TextLabel is the last one created."""
@@ -761,21 +843,76 @@ chk("log gives its name and class",
     "LavaKillBrick" in txt and "class=Part" in txt, "")
 H["stepN"](400)
 
-print("\n=== T26: landing inside solid geometry is called out ===")
-H["clearGrounds"]()
+print("\n=== T26: the false positive is gone (field log reported dist=70.5) ===")
+H["clearGrounds"](); H["clearSlabs"]()
 H["addGround"](-1200, 1200, 70)
+# a huge world slab whose CENTRE is far away but whose bounds overlap the point -
+# exactly what produced "LANDING INSIDE SOLID | dist=70.5" in the field
+H["addSlab"](0, 66, 0, 4000, 4, 4000)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
-H["killBrick"]()["CanCollide"] = True
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
-H["stepN"](400)
+H["stepN"](60)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
-chk("log warns about landing inside solid", "LANDING INSIDE SOLID" in txt, "")
-H["killBrick"]()["CanCollide"] = False
+chk("standing on a big slab is NOT 'inside solid'", "LANDING INSIDE SOLID" not in txt,
+    lastline(txt, "LANDING"))
+chk("says landing is clear", "LANDING CLEAR" in txt, "")
 H["stepN"](300)
 
+print("\n=== T27: a genuine embed IS still reported ===")
+H["clearGrounds"](); H["clearSlabs"]()
+H["addGround"](-1200, 1200, 70)
+# a block the landing point really is inside: root lands at y=73
+H["addSlab"](-1000, 73, 0, 2000, 30, 2000)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](60)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("real embed reported", "LANDING INSIDE SOLID" in txt,
+    lastline(txt, "LANDING"))
+H["stepN"](300)
+
+print("\n=== T28: barriers crossing the route are found and named ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
+H["addGround"](-1200, 1200, 70)
+# an anti-cheat style wall spanning the cruise altitude, 400 studs along
+H["addBarrier"](400, 80, 200, "FrozenWallRight")
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("barrier count reported", "barriers | 1 crossing" in txt,
+    lastline(txt, "barriers |"))
+chk("barrier is NAMED", "BARRIER |" in txt and "FrozenWallRight" in txt,
+    lastline(txt, "BARRIER |"))
+chk("says it is report-only by default", "report only" in txt, "")
+H["stepN"](400)
+chk("still flew the full distance (STOP_AT_BARRIER false)",
+    "DONE" in str(H["clipboard"]()), "")
+
+print("\n=== T29: guard regions at the landing are called out ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
+H["addGround"](-1200, 1200, 70)
+H["guardVolume"]("Area", H["vnew"](-1000, 73, 0))
+H["guardVolume"]("Bounds", H["vnew"](-1000, 73, 0))
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](60)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("guard region named", "GUARD REGION |" in txt,
+    lastline(txt, "GUARD REGION"))
+chk("guard warning given", "GUARD WARNING" in txt, "")
+H["stepN"](300)
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
     print("FAILED: " + ", ".join(FAILED))

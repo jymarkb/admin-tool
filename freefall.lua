@@ -83,6 +83,15 @@ local POST_WATCH_S = 4.0
 local TRAIL_MAX    = 600        -- rolling (time, pos, hp, state) history
 local TRAIL_PRINT  = 18         -- how many entries to print on death
 
+-- Barrier / guarded-region detection. The field logs land inside
+-- Workspace.World.Areas.GuardAreas.* and touch COLLISIONS.COLL GUARD.* parts,
+-- and one log showed FrozenWallRight / GUARD NO COLLIDE walls 42 studs ahead.
+-- Report them by default; STOP_AT_BARRIER makes the flight end short instead.
+local SCAN_BARRIER    = true
+local STOP_AT_BARRIER = false   -- false = report only, still fly the full distance
+local BARRIER_MARGIN  = 25
+local PROBE_LEN       = 30      -- studs between forward probes at cruise altitude
+
 local NOCLIP       = false      -- explicit toggle, OFF by default
 local DIR_MODE     = "facing"
 local GUI_NAME     = "FreeFallTravelV3"
@@ -330,27 +339,94 @@ local function watchTouches(ch)
 	end
 end
 
--- is the landing spot inside solid geometry? Landing inside a wall is a strong
--- candidate for what kills you, and nothing else in the log would show it.
+-- Is this point genuinely INSIDE a part? The first version used
+-- GetPartBoundsInRadius and printed the distance to each part's CENTRE, which
+-- for a huge world slab is 70+ studs - so it claimed "LANDING INSIDE SOLID |
+-- dist=70.5" for a character standing normally on the floor. Bounds may overlap
+-- a small sphere while the point is nowhere near the part; only a real
+-- containment test answers the question.
+local function pointInsidePart(p, pos)
+	local ok, localPos = pcall(function() return p.CFrame:PointToObjectSpace(pos) end)
+	if not ok or not localPos then return false end
+	local ok2, size = pcall(function() return p.Size end)
+	if not ok2 or not size then return false end
+	local hx, hy, hz = size.X / 2, size.Y / 2, size.Z / 2
+	return math.abs(localPos.X) <= hx
+		and math.abs(localPos.Y) <= hy
+		and math.abs(localPos.Z) <= hz
+end
+
+local function isGuardNamed(name)
+	local n = tostring(name):lower()
+	return n:find("guard", 1, true) ~= nil or n:find("bounds", 1, true) ~= nil
+end
+
 local function checkLandingInside(pos)
 	local ch = LocalPlayer.Character
 	local ok, parts = pcall(function()
 		local params = OverlapParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = { ch }
-		return workspace:GetPartBoundsInRadius(pos, 4, params)
+		return workspace:GetPartBoundsInRadius(pos, 8, params)
 	end)
 	if not ok or not parts then return end
-	local hits = 0
+
+	local inside, guards, seen = 0, 0, {}
 	for _, p in ipairs(parts) do
-		if p.CanCollide then
-			hits = hits + 1
-			logLine(("LANDING INSIDE SOLID | %s | class=%s | dist=%.1f | material=%s")
-				:format(p:GetFullName(), p.ClassName,
-					(p.Position - pos).Magnitude, tostring(p.Material)))
+		local name = p:GetFullName()
+		if not seen[name] then
+			seen[name] = true
+			if p.CanCollide and pointInsidePart(p, pos) then
+				inside = inside + 1
+				logLine(("LANDING INSIDE SOLID | %s | class=%s | material=%s")
+					:format(name, p.ClassName, tostring(p.Material)))
+			end
+			if isGuardNamed(name) then
+				guards = guards + 1
+				logLine(("GUARD REGION | %s | class=%s | collide=%s | dist=%.1f")
+					:format(name, p.ClassName, tostring(p.CanCollide),
+						(p.Position - pos).Magnitude))
+			end
 		end
 	end
-	if hits == 0 then logLine("LANDING CLEAR | no solid part within 4 studs") end
+	if inside == 0 then
+		logLine("LANDING CLEAR | not inside any collidable part")
+	end
+	if guards > 0 then
+		logLine(("GUARD WARNING | landing is inside/next to %d guarded volume(s). ")
+			:format(guards) .. "Guarded areas are plausibly where a kill or "
+			.. "teleport-back comes from - try STOP_AT_BARRIER, or a shorter run.")
+	end
+end
+
+-- Probe forward along the route at cruise altitude. A collidable part crossing
+-- the path at cruise height is a wall, not terrain - and flying through it (with
+-- or without noclip) is exactly the sort of thing an anti-cheat reacts to.
+local function findBarriers(startPos, dir, total, cruiseY)
+	local found, seen = {}, {}
+	local d = 0
+	while d < total do
+		local from = Vector3.new(startPos.X + dir.X * d, cruiseY, startPos.Z + dir.Z * d)
+		local ok, hit = pcall(function()
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = { LocalPlayer.Character }
+			return workspace:Raycast(from, dir * PROBE_LEN, params)
+		end)
+		if ok and hit and hit.Instance then
+			local key = hit.Instance:GetFullName()
+			if not seen[key] then
+				seen[key] = true
+				found[#found + 1] = {
+					at = d + (hit.Position - from).Magnitude,
+					name = key, class = hit.Instance.ClassName,
+					collide = hit.Instance.CanCollide,
+				}
+			end
+		end
+		d = d + PROBE_LEN
+	end
+	return found
 end
 
 -- what is around the body when it dies
@@ -718,6 +794,23 @@ local function startFlight(requested)
 		cruiseY = math.max(scan.maxGround + CLEARANCE, r.Position.Y + 13)
 	end
 
+	-- anything solid crossing the route at cruise altitude?
+	local barriers = {}
+	if SCAN_BARRIER then
+		barriers = findBarriers(r.Position, dir, total, cruiseY)
+	end
+	local stoppedShort = nil
+	if STOP_AT_BARRIER then
+		local nearest = nil
+		for _, b in ipairs(barriers) do
+			if b.collide and (not nearest or b.at < nearest.at) then nearest = b end
+		end
+		if nearest and nearest.at > BARRIER_MARGIN then
+			stoppedShort = nearest.at - BARRIER_MARGIN
+			total = math.min(total, stoppedShort)
+		end
+	end
+
 	local startPos = r.Position
 	local autoRotate = h.AutoRotate
 	pcall(function() h.AutoRotate = false end)
@@ -732,6 +825,7 @@ local function startFlight(requested)
 		cruiseY = cruiseY, rampFrames = 5,
 		currentTarget = startPos, errors = 0, lowestY = startPos.Y,
 		autoRotate = autoRotate, destGround = scan.destGround, scan = scan,
+		barriers = barriers,
 	}
 	flightCount = flightCount + 1
 	lastObstacle = nil
@@ -743,6 +837,20 @@ local function startFlight(requested)
 		logLine(("  scanned | maxGround=%.1f | clearance=%.1f | destGround=%s")
 			:format(scan.maxGround, cruiseY - scan.maxGround,
 				scan.destGround and ("%.1f"):format(scan.destGround) or "NONE"))
+	end
+	if #barriers > 0 then
+		logLine(("  barriers | %d crossing the route at cruise altitude:"):format(#barriers))
+		for _, b in ipairs(barriers) do
+			logLine(("    BARRIER | %s | class=%s | collide=%s | at ~%.0f studs")
+				:format(b.name, b.class, tostring(b.collide), b.at))
+		end
+		if stoppedShort then
+			logLine(("  stopping short at %.0f studs to stay clear"):format(total))
+		else
+			logLine("  (report only - flying through them anyway; set STOP_AT_BARRIER = true to stop)")
+		end
+	elseif SCAN_BARRIER then
+		logLine("  barriers | none crossing the route at cruise altitude")
 	end
 	logLine(("  void floor=%.1f | guard at %.1f"):format(deathFloor(), deathFloor() + VOID_MARGIN))
 
