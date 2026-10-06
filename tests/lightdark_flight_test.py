@@ -1,21 +1,29 @@
-"""Black-box test for lightdark-flight.lua (the 35-stud / 0.5s flight test).
+"""Black-box test for lightdark-flight.lua (the lightdark path, 35 studs / 0.5s).
 
-The real file is loaded against a small stubbed Roblox API and then driven by
-firing Heartbeat with a fake clock, exactly the way the engine would. What is
-asserted is what the script printed: the step lines, the per-step verdicts, and
-the summary. That is also the only thing the player reads, so the test and the
-real use agree by construction.
+The real file is loaded against a stubbed Roblox API - UI, instances, Vector3,
+CFrame and the engine signals - and then driven exactly as the player drives it:
+by clicking FLY and firing Heartbeat with a fake clock. What is asserted is what
+the script printed (the console and the on-screen log get the same lines).
 
-Three scenarios, one Lua state each:
-  * kept    - the server holds every write  -> every check must say HELD
-  * reverted- the server puts us back       -> every check must say REVERTED
-  * death   - hp is SET to -1000 mid-flight -> the -1000 detector must fire
+Scenarios, one fresh Lua state each:
+  * kept      - the server holds every write  -> every check must say HELD
+  * reverted  - the server puts us back       -> checks say REVERTED and the
+                                                flight gives up after 5 in a row
+  * death     - hp is SET to -1000            -> the external-kill detector fires
+  * snap      - started far from the route    -> one write to the first waypoint
 
-Also checked: the cadence really is one write per 0.5s, the step arithmetic is
-35 studs per step along the character's facing, and noclip is restored.
+Also checked: the path in the file is the path in lightdark.log, the 23+1
+waypoints are in the right order, one write per 0.5s, 35 studs per write, the
+write is a bare root.CFrame (with the yaw preserved), noclip is restored, and the
+code never makes the -1000 calls.
 
     pip install --break-system-packages lupa
     python3 tests/lightdark_flight_test.py
+
+Stub pitfalls already paid for elsewhere: Vector3.Magnitude/.Unit are properties;
+UI objects are a proxy over a backing table so __newindex fires; event names must
+resolve through __index; lupa raw-sets, so every flag a closure reads must exist
+BEFORE the metatable is built.
 """
 import lupa, sys, os, re
 
@@ -35,12 +43,14 @@ print = function(...)
   LOG[#LOG + 1] = table.concat(t, "\t")
 end
 warn = print
+setclipboard = function(s) CLIP = s end
 
 local FAKE_T = 0
 os.clock = function() return FAKE_T end
 task = { wait = function() end, delay = function() end, spawn = function() end }
+math.clamp = function(v, lo, hi) if v < lo then return lo end if v > hi then return hi end return v end
 
--- ---- Vector3 -------------------------------------------------------------
+-- ---- Vector3 / Vector2 ---------------------------------------------------
 local V = {}
 local function vnew(x,y,z) return setmetatable({x=x or 0,y=y or 0,z=z or 0},V) end
 local function vmag(v) return math.sqrt(v.x^2+v.y^2+v.z^2) end
@@ -53,17 +63,18 @@ V.__index = function(t,k)
                        return vnew(t.x/m,t.y/m,t.z/m) end
   return V[k]
 end
-V.__sub = function(a,b) return vnew(a.x-b.x,a.y-b.y,a.z-b.z) end
 V.__add = function(a,b) return vnew(a.x+b.x,a.y+b.y,a.z+b.z) end
-V.Dot = function(a,b) return a.x*b.x+a.y*b.y+a.z*b.z end
+V.__sub = function(a,b) return vnew(a.x-b.x,a.y-b.y,a.z-b.z) end
 V.__mul = function(a,b)
   if type(b)=="number" then return vnew(a.x*b,a.y*b,a.z*b) end
   if type(a)=="number" then return vnew(a*b.x,a*b.y,a*b.z) end
   return vnew(a.x*b.x,a.y*b.y,a.z*b.z)
 end
 V.__div = function(a,b) return vnew(a.x/b,a.y/b,a.z/b) end
+V.Dot = function(a,b) return a.x*b.x+a.y*b.y+a.z*b.z end
 V.__tostring = function(a) return string.format("(%.3f, %.3f, %.3f)",a.x,a.y,a.z) end
 Vector3 = { new = vnew, zero = vnew(0,0,0) }
+Vector2 = { new = function(x,y) return {X=x or 0, Y=y or 0} end }
 
 -- ---- CFrame --------------------------------------------------------------
 local CF = {}
@@ -78,13 +89,41 @@ CF.__index = function(t,k)
   if k == "Position" then return rawget(t,"p") end
   return nil
 end
--- the script preserves yaw, so CFrame.Angles and CFrame*CFrame have to work
 CFrame.Angles = function() return setmetatable({p=vnew(0,0,0), look=vnew(0,0,-1)}, CF) end
 CF.__mul = function(a, b) return setmetatable({p=a.p, look=a.look}, CF) end
 
--- ---- signals -------------------------------------------------------------
+-- ---- engine + UI ---------------------------------------------------------
+local CREATED = {}
+local PROXY_DATA = {}
+local CLIP = nil
+-- Declared up here, BEFORE newInstance's metatable closure reads them. Left
+-- below, the closure writes a GLOBAL while DRIVE reads the local - the revert
+-- driver then silently does nothing.
+local ALLPARTS = {}
+local LASTWRITE = nil
+OWNER = nil
+
+local EVENTS = {MouseButton1Click=1, FocusLost=1, InputBegan=1, InputEnded=1,
+                InputChanged=1, Changed=1, Heartbeat=1, PreSimulation=1,
+                PostSimulation=1, PreRender=1, Died=1, CharacterAdded=1,
+                StateChanged=1, Touched=1}
+
+Enum = {
+  HumanoidStateType = {Physics="Physics", Running="Running", Freefall="Freefall", Landed="Landed"},
+  Material = {Plastic="Plastic", Air="Air"},
+  Font = {Gotham="Gotham", GothamBold="GothamBold", Code="Code"},
+  SortOrder = {LayoutOrder="LayoutOrder"},
+  TextXAlignment = {Left="Left", Center="Center"},
+  TextYAlignment = {Top="Top"},
+  UserInputType = {MouseButton1="MouseButton1", Touch="Touch", MouseMovement="MouseMovement"},
+  ZIndexBehavior = {Sibling="Sibling"},
+}
+Color3 = { fromRGB = function(r,g,b) return {r=r,g=g,b=b} end }
+UDim2 = { new = function(xs,xo,ys,yo) return {X={Scale=xs,Offset=xo},Y={Scale=ys,Offset=yo}} end }
+UDim  = { new = function(s,o) return {Scale=s,Offset=o} end }
+
 local function signal()
-  local s = {_fns={}}
+  local s = {_fns={}, _conns={}}
   s.Connect = function(self, fn)
     table.insert(self._fns, fn)
     return {Disconnect=function()
@@ -93,108 +132,180 @@ local function signal()
   end
   return s
 end
-local function fire(s, ...)
+local function sigOf(data, name)
+  if not data._sig[name] then data._sig[name] = signal() end
+  return data._sig[name]
+end
+local function fire(data, name, ...)
+  local s = data._sig[name]
+  if not s then return 0 end
   local snap = {}
   for i,f in ipairs(s._fns) do snap[i] = f end
-  for _,fn in ipairs(snap) do fn(...) end
+  local n = 0
+  for _,fn in ipairs(snap) do n = n + 1; fn(...) end
+  return n
 end
 
--- ---- parts ---------------------------------------------------------------
-local LASTWRITE = nil
-local REVERT = false
-local ALLPARTS = {}
+local function newInstance(class)
+  local data = {ClassName=class, _sig={}}
+  local proxy = {}
+  local mt = {
+    __index = function(_, k)
+      if k == "Destroy" then return function() data._destroyed = true end end
+      if k == "GetPropertyChangedSignal" then return function(_, p) return sigOf(data, p) end end
+      if k == "IsA" then return function(_, c)
+            return data.ClassName == c or (c == "BasePart" and data.ClassName == "Part") end end
+      if k == "WaitForChild" then return function(_, n)
+            data[n] = data[n] or newInstance(n)
+            return data[n] end end
+      if k == "FindFirstChild" then return function(_, n) return data[n] end end
+      if k == "FindFirstChildOfClass" then return function(_, c)
+            for _, v in pairs(data) do
+              if type(v) == "table" and v.ClassName == c then return v end
+            end end end
+      if k == "GetDescendants" then return function()
+            -- de-duplicated: a part reachable both directly and through _parts
+            -- used to be listed twice, which made every "save the old value"
+            -- loop save its own result
+            local out, seen = {}, {}
+            local function add(v)
+              if type(v) == "table" and v.ClassName and not seen[v] then
+                seen[v] = true
+                table.insert(out, v)
+              end
+            end
+            for _, v in pairs(data) do add(v) end
+            if data._parts then for _, p in ipairs(data._parts) do add(p) end end
+            return out end end
+      if k == "GetNetworkOwner" then return function() return OWNER end end
+      if k == "GetState" then return function() return "Enum.HumanoidStateType." .. data._state end end
+      if EVENTS[k] then return sigOf(data, k) end      -- events must resolve or :Connect fails
+      local s = data._sig[k]
+      if s then return s end
+      return data[k]
+    end,
+    __newindex = function(_, k, v)
+      data[k] = v
+      if k == "CFrame" and data._isRoot then
+        LASTWRITE = { before = vnew(data.Position.x, data.Position.y, data.Position.z),
+                      after = vnew(v.p.x, v.p.y, v.p.z) }
+        data.Position = vnew(v.p.x, v.p.y, v.p.z)
+      end
+      local s = data._sig[k]
+      if s then for _, fn in ipairs(s._fns) do fn(v) end end
+    end,
+  }
+  setmetatable(proxy, mt)
+  PROXY_DATA[proxy] = data
+  CREATED[class] = CREATED[class] or {}
+  table.insert(CREATED[class], proxy)
+  return proxy
+end
+Instance = { new = function(c) return newInstance(c) end }
+
+-- ---- the world -----------------------------------------------------------
 
 local function mkPart(name, x, y, z)
-  local o = {}
-  local h = { Name=name, CanCollide=true, Position=vnew(x,y,z),
-              Orientation=vnew(0,0,0), AssemblyLinearVelocity=vnew(0,0,0) }
-  ALLPARTS[#ALLPARTS+1] = o
-  h.IsA = function(self, cls) return cls == "BasePart" end
-  h.GetNetworkOwner = function(self) return OWNER end
-  h.GetDescendants = function(self) return {} end
-  h.Parent = true                                  -- inside a character
-  setmetatable(o, {
-    __index = function(t,k)
-      if k == "CFrame" then return CFrame.new(h.Position) end
-      return h[k]
-    end,
-    __newindex = function(t,k,v)
-      if k == "CFrame" then
-        LASTWRITE = { before = h.Position, after = v.p }
-        h.Position = v.p
-      elseif k == "Position" then
-        h.Position = v
-      else
-        h[k] = v
-      end
-    end,
-  })
-  return o
+  local p = newInstance("Part")
+  p.Name = name
+  p.CanCollide = true
+  p.Orientation = vnew(0, 0, 0)
+  p.Position = vnew(x, y, z)
+  p.AssemblyLinearVelocity = vnew(0, 0, 0)
+  p.Parent = true
+  local d = PROXY_DATA[p]
+  d._isRoot = (name == "HumanoidRootPart")
+  ALLPARTS[#ALLPARTS + 1] = p
+  return p
 end
 
-OWNER = nil                                    -- set below, before mkPart runs
-local ROOT = mkPart("HumanoidRootPart", 100, 50, 100)
-local TORSO = mkPart("Torso", 100, 50, 100)
-local H = {}
+local ROOT = mkPart("HumanoidRootPart", 5666.3, 70.7, -331.9)
+local TORSO = mkPart("Torso", 5666.3, 70.7, -331.9)
 
-local hp = 100
-local state = "Running"
-local humanoid
-humanoid = (function()
-  local o, h = {}, { _hp = 100 }
-  h.GetState = function(self) return "Enum.HumanoidStateType." .. state end
-  h.FloorMaterial = "Enum.Material.Plastic"
-  h.Health = 100
-  h.MaxHealth = 100
-  setmetatable(o, {
-    __index = function(t,k) return h[k] end,
-    __newindex = function(t,k,v) h[k] = v end,
-  })
-  return o
-end)()
+local humanoid = newInstance("Humanoid")
+humanoid.Health = 100
+humanoid.MaxHealth = 100
+humanoid.FloorMaterial = "Enum.Material.Plastic"
+PROXY_DATA[humanoid]._state = "Running"
 
-local character = {}
-local ch = {}
-ch.FindFirstChildOfClass = function(self, cls) return cls == "Humanoid" and humanoid or nil end
-ch.FindFirstChild = function(self, name) return name == "HumanoidRootPart" and ROOT or nil end
-ch.GetDescendants = function(self) return ALLPARTS end
-setmetatable(character, { __index = function(t,k) return ch[k] end,
-                          __newindex = function(t,k,v) ch[k] = v end })
+local character = newInstance("Model")
+character.Name = "Tester"
+PROXY_DATA[character].Humanoid = humanoid
+PROXY_DATA[character].HumanoidRootPart = ROOT
+PROXY_DATA[character].Torso = TORSO
+PROXY_DATA[character]._parts = ALLPARTS
 
-PLAYER = { Character = character }                    -- global: mkPart reads it
-OWNER = PLAYER                                 -- the client owns its own parts
-function SETOWNER(v) OWNER = v end
-PLAYERS = { LocalPlayer = PLAYER }
-RUNSERVICE = { Heartbeat = signal() }
+PLAYER = newInstance("Player")
+PLAYER.Name = "Tester"
+PLAYER.Character = character
+PROXY_DATA[PLAYER].PlayerGui = newInstance("PlayerGui")
+OWNER = PLAYER
+
+local RUNSERVICE = newInstance("RunService")
+local UIS = newInstance("UserInputService")
 
 game = { GetService = function(self, n)
-  if n == "Players" then return PLAYERS end
+  if n == "Players" then return { LocalPlayer = PLAYER } end
   if n == "RunService" then return RUNSERVICE end
-  return {}
+  if n == "UserInputService" then return UIS end
+  return newInstance(n)
 end }
 
 -- ---- driver --------------------------------------------------------------
+local REVERT = false
 function DRIVE(seconds)
   local n = math.floor(seconds * 60 + 0.5)
   for i = 1, n do
     FAKE_T = FAKE_T + 1/60
     if REVERT and LASTWRITE then
-      -- the server puts the character back where it was before the write
       local P = LASTWRITE.before
       local lw = LASTWRITE
       LASTWRITE = nil
-      ROOT.Position = vnew(P.x, P.y, P.z)
+      PROXY_DATA[ROOT].Position = vnew(P.x, P.y, P.z)
       LASTWRITE = lw
     end
-    fire(RUNSERVICE.Heartbeat, 1/60)
+    fire(PROXY_DATA[RUNSERVICE], "Heartbeat", 1/60)
   end
 end
-function SETHP(v) hp = v; humanoid.Health = v end
-function PLACE(x,y,z) ROOT.Position = vnew(x,y,z) end      -- stand somewhere
+function SETHP(v) humanoid.Health = v end
+function PLACE(x, y, z)
+  local p = vnew(x, y, z)
+  PROXY_DATA[ROOT].Position = p
+  if TORSO then PROXY_DATA[TORSO].Position = p end
+end
 function SETREVERT(v) REVERT = v end
-function SETSTATE(v) state = v end
+function SETOWNER(v) OWNER = v end
+function CLICK(text)
+  for _, btn in ipairs(CREATED.TextButton or {}) do
+    if string.find(tostring(PROXY_DATA[btn].Text or ""), text, 1, true) then
+      fire(PROXY_DATA[btn], "MouseButton1Click")
+      return true
+    end
+  end
+  return false
+end
+function LABELSTART(prefix)
+  for _, l in ipairs(CREATED.TextLabel or {}) do
+    local t = tostring(PROXY_DATA[l].Text or "")
+    if string.sub(t, 1, #prefix) == prefix then return t end
+  end
+  return ""
+end
+function LABEL(text)
+  for _, l in ipairs(CREATED.TextLabel or {}) do
+    local t = tostring(PROXY_DATA[l].Text or "")
+    if string.find(t, text, 1, true) then return t end
+  end
+  return ""
+end
+function BUTTONS()
+  local out = {}
+  for _, b in ipairs(CREATED.TextButton or {}) do out[#out+1] = tostring(PROXY_DATA[b].Text or "") end
+  return table.concat(out, " | ")
+end
 function LOGDUMP() return table.concat(LOG, "\n") end
-function CLEARLOG() LOG = {} end
+function LOGCOUNT() return #LOG end
+function ONSCREEN() return #(CREATED.TextLabel or {}) end
 function PARTS() return ALLPARTS end
 '''
 
@@ -207,48 +318,48 @@ def chk(name, cond, detail=""):
     global PASS, FAIL
     if cond:
         PASS += 1
-        print(f"  PASS  {name:<52} {str(detail)[:110]}")
+        print(f"  PASS  {name:<54} {str(detail)[:105]}")
     else:
         FAIL += 1
         FAILED.append(name)
-        print(f"  FAIL  {name:<52} {str(detail)[:110]}")
+        print(f"  FAIL  {name:<54} {str(detail)[:105]}")
 
 
-def run(revert=False, seconds=30, hp_at=None, hp_value=-1000.0, start=(100, 50, 100),
-        server_owns=False):
-    """Load the script fresh, drive it, return (log text, lua globals)."""
+def run(seconds=30, revert=False, hp_at=None, start=None, click=True, server_owns=False):
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
     g = lua.globals()
     lua.execute(STUB)
-    lua.execute("PLACE(%.1f, %.1f, %.1f)" % start)
+    if start is not None:
+        lua.execute("PLACE(%.1f, %.1f, %.1f)" % start)
     lua.execute(normalise(SCRIPT))
     if revert:
         lua.execute("SETREVERT(true)")
     if server_owns:
         lua.execute("SETOWNER(nil)")
+    if click:
+        assert g["CLICK"]("FLY"), "no FLY button was created"
     if hp_at is not None:
-        # run to the moment of the kill, then hand the rest to the same driver
         lua.execute(f"DRIVE({hp_at})")
-        lua.execute(f"SETHP({hp_value})")
+        lua.execute("SETHP(-1000)")
     lua.execute(f"DRIVE({max(0.0, seconds - (hp_at or 0))})")
     return g["LOGDUMP"](), g
 
 
-def lines(txt, needle):
-    return [l for l in txt.splitlines() if needle in l]
-
-
-STEP_RE = re.compile(r"^\[[\d:]+\.[\d]+\] step \d{3} \|")
-CHECK_RE = re.compile(r"^\[[\d:]+\.[\d]+\] check \d{3} \|")
+STEP_RE = re.compile(r"^\[[\d:.]+\] step \d{3} \|")
+CHECK_RE = re.compile(r"^\[[\d:.]+\] check \d{3} \|")
 
 
 def step_lines(txt):
-    """Only real write lines - the progress lines say 'step 20 of 145' too."""
+    """Only real write lines - PROGRESS lines say 'step 20 of 146' too."""
     return [l for l in txt.splitlines() if STEP_RE.match(l)]
 
 
 def check_lines(txt):
     return [l for l in txt.splitlines() if CHECK_RE.match(l)]
+
+
+def lines(txt, needle):
+    return [l for l in txt.splitlines() if needle in l]
 
 
 ASKED_RE = re.compile(r"asked \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)")
@@ -259,149 +370,209 @@ def asked_xyz(line):
     return tuple(float(v) for v in m.groups()) if m else None
 
 
-PAD = (5666.3, 70.7, -331.9)
-LAND = (612.2, 70.7, -325.0)
+FLIGHT_SECS = 146 * 0.5 + 3
 
-print("=== T1: the route is the lightdark one, and the pace is 35 studs / 0.5s ===")
-txt, g = run(seconds=1.0, start=(5666.3, 70.7, -331.9))
-chk("the route is named end to end", "route     | lightdark pad -> forest landing" in txt,
-    lines(txt, "route     |")[:1])
-chk("the three legs are the measured ones",
-    "path      | launch 423.3 | cruise 4573.5 | drop 72.7 | total 5069.5 studs" in txt,
-    lines(txt, "path      |")[:1])
-chk("145 steps of 35 studs, 72.5s", "config    | 35.0 studs every 0.50s x 145 steps = 72.5s" in txt,
-    lines(txt, "config    |")[:1])
-chk("standing on the pad, no snap write", "snap      | already at the lightdark pad" in txt,
-    lines(txt, "snap      |")[:1])
-chk("it says the -1000 pair is not called",
-    "ChangeState(Freefall) and AutoRotate stay untouched" in txt, "")
+print("=== T1: the UI is there, and FLY is what starts it ===")
+txt, g = run(seconds=0.2, click=False)
+chk("a panel with buttons was built", len(g["BUTTONS"]()) > 20, g["BUTTONS"]()[:80])
+chk("the close X is there", "X" in g["BUTTONS"](), g["BUTTONS"]()[:80])
+chk("STOP is there", "STOP" in g["BUTTONS"](), "")
+chk("COPY LOG is there", "COPY LOG" in g["BUTTONS"](), "")
+chk("CLEAR is there", "CLEAR" in g["BUTTONS"](), "")
+chk("nothing flies until FLY is pressed", not step_lines(txt), f"{len(step_lines(txt))} writes")
+chk("not even a write marker", "step 001" not in txt, "")
+chk("it says so", "press FLY. Nothing is written until you do." in txt, "")
+chk("the route is summarised on the panel",
+    "waypoints" in g["LABEL"]("ROUTE") and "studs" in g["LABEL"]("ROUTE"),
+    g["LABEL"]("ROUTE"))
+chk("the status line starts idle", "idle" in g["LABEL"]("STATUS"), g["LABEL"]("STATUS"))
+chk("progress starts at zero", "step 0 of 146" in g["LABEL"]("PROGRESS"),
+    g["LABEL"]("PROGRESS"))
+chk("FLY is what starts it", g["CLICK"]("FLY"), "")
+g["DRIVE"](1.2)
+txt1 = g["LOGDUMP"]()
+chk("after FLY the writes begin", len(step_lines(txt1)) >= 2, f"{len(step_lines(txt1))} writes")
+chk("the status now says flying", "flying" in g["LABEL"]("STATUS"), g["LABEL"]("STATUS"))
+chk("progress moved", re.search(r"step [23] of 146", g["LABEL"]("PROGRESS")) is not None,
+    g["LABEL"]("PROGRESS"))
 
-print("\n=== T2: the first writes climb the launch leg ===")
-steps = step_lines(txt)
-chk("the first write is 35 studs along the launch", "s=0.0 -> 35.0 of 5069.5 (0%)" in steps[0],
-    steps[0][:100])
-chk("...towards the cruise start, gaining height",
-    "(-1.0, 0.1, 0.0)" not in steps[0] and "asked (5631.5, 74.2, -331.9)" in steps[0],
-    steps[0][:120])
-chk("the leg it is on is named", "cruise start" in steps[0], steps[0][-40:])
-chk("where it landed is reported", "landed (5631.5, 74.2, -331.9)" in steps[0], steps[0][:120])
-chk("the world line comes with it",
-    "state=Enum.HumanoidStateType.Running | grounded=" in txt, lines(txt, "state=Enum")[:1])
-
-print("\n=== T3: cadence - one write per 0.5s, not one per frame ===")
-chk("two writes in the first second, 0.5s apart", len(steps) == 3,
-    f"{len(steps)} writes in 1.0s of frames (60 frames)")
-txt10, _ = run(seconds=10, start=PAD)
-n10 = len(step_lines(txt10))
-chk("about 20 writes in 10s of flight (600 frames)", 19 <= n10 <= 22,
-    f"{n10} writes in 10s")
-
-print("\n=== T4: the whole path, with the server KEEPING every write ===")
-flight_secs = 3 + 145 * 0.5 + 2
-txt_all, g_all = run(seconds=flight_secs + 10, start=PAD)
-allsteps = step_lines(txt_all)
-chk("145 writes - the whole path", len(allsteps) == 145, f"{len(allsteps)} writes")
-chk("the last write lands exactly on the pad",
-    "asked (612.2, 70.7, -325.0)" in allsteps[-1] and "landed (612.2, 70.7, -325.0)" in allsteps[-1],
-    allsteps[-1][:120])
-chk("the last step is the partial one", "s=5040.0 -> 5069.5 of 5069.5 (100%)" in allsteps[-1],
-    allsteps[-1][:110])
-chk("it climbed to cruise and came back down",
-    "asked (5631.5, 74.2," in allsteps[0] and "asked (612.2, 70.7," in allsteps[-1], "")
-chk("every write is checked, one each", len(check_lines(txt_all)) == 145,
-    f"{len(check_lines(txt_all))} verdicts for {len(allsteps)} writes")
-chk("not one write was undone",
-    not lines(txt_all, "REVERTED - the server") and not lines(txt_all, "MOVED ELSEWHERE"), "")
-chk("progress is reported along the way",
-    len(lines(txt_all, "PROGRESS   |")) >= 6, f"{len(lines(txt_all, 'PROGRESS   |'))} progress lines")
-chk("it knows it landed", "LANDED    | at the forest landing (612.2, 70.7, -325.0)" in txt_all,
-    lines(txt_all, "LANDED")[:1])
-chk("landed on the pad itself", "0.0 studs from the pad" in txt_all, lines(txt_all, "LANDED")[:1])
-chk("the walked distance is the path", "walked    | 5069.5 of 5069.5 studs of path (100%)" in txt_all,
-    lines(txt_all, "walked    |")[:1])
-chk("the net ground distance is the reference's 5054.1",
-    "net       | 5054.1 studs across the ground" in txt_all, lines(txt_all, "net       |")[:1])
-chk("the verdict names the outcome", "verdict   | THE WRITES STICK" in txt_all,
-    lines(txt_all, "verdict   |")[:1])
-chk("it stops because it arrived", "stopped   | landed at the forest landing" in txt_all,
-    lines(txt_all, "stopped   |")[:1])
-chk("noclip is restored, not leaked",
-    "restored CanCollide on 2 part(s) - nothing leaked" in txt_all, lines(txt_all, "noclip    |")[-1:])
-ys = [asked_xyz(l)[1] for l in allsteps if asked_xyz(l)]
-chk("the altitude profile is the reference's: +42 up, then -42 down",
-    ys and ys[0] == 74.2 and max(ys) == 112.7 and ys[-1] == 70.7,
-    f"first {ys[0]}, peak {max(ys)}, last {ys[-1]}")
-chk("it holds the cruise, it does not balloon",
-    ys.count(112.7) > 100, f"{ys.count(112.7)} writes at cruise altitude")
-parts = g_all["PARTS"]()
-chk("every part is collidable again after the flight",
-    all(p.CanCollide for p in parts.values()), "")
-
-print("\n=== T5: a write that does not hold is retried from where we really are ===")
-txt_rev, _ = run(revert=True, seconds=12, start=PAD)
-chk("the undone write is named", "REVERTED - the server put us back" in txt_rev,
-    lines(txt_rev, "REVERTED")[:1])
-chk("it shows both positions", "then (5666.3, 70.7, -331.9)" in txt_rev,
-    lines(txt_rev, "then ")[:1])
-chk("the next write is measured from the truth, not from the failed target",
-    "s=0.0 -> 35.0" in step_lines(txt_rev)[-1], step_lines(txt_rev)[-1][:90])
-chk("it gives up after 5 in a row",
-    "5 writes in a row were undone" in txt_rev, lines(txt_rev, "stopped   |")[:1])
-chk("the summary still prints", "============ PATH FLIGHT SUMMARY ============" in txt_rev, "")
-chk("it says the writes never survived", "verdict   | THE SERVER IS UNDOING THEM" in txt_rev,
-    lines(txt_rev, "verdict   |")[:1])
-
-print("\n=== T6: it starts with one write to the pad when we are not standing on it ===")
-txt_snap, _ = run(seconds=6, start=(0, 50, 0))
-chk("the snap is announced with the distance",
-    "snap      | " in txt_snap and "studs from the lightdark pad - one write to the start line" in txt_snap,
-    lines(txt_snap, "snap      |")[:1])
-chk("the snap reports whether it held", "snap      | wrote (5666.3, 70.7, -331.9)" in txt_snap,
-    lines(txt_snap, "snap      |")[1:2])
-chk("then the path starts from the pad", "s=0.0 -> 35.0" in step_lines(txt_snap)[0],
-    step_lines(txt_snap)[:1])
-
-print("\n=== T6b: the ownership readout says who really owns the root ===")
-# A nil GetNetworkOwner() means the SERVER owns it, and then every client write is
-# a request. This is the readout that tells those two worlds apart, so it has to
-# print the truth rather than a table address.
-chk("a client-owned root reads as you", "owner=you" in txt_snap, lines(txt_snap, "owner=")[:1])
-chk("no table address leaks into the log", "owner=table:" not in txt_snap, "")
-txt_srv, _ = run(seconds=4, start=PAD, server_owns=True)
-chk("a server-owned root reads as server", "owner=server" in txt_srv, lines(txt_srv, "owner=")[:1])
-
-print("\n=== T7: a -1000 kill stops the flight and says what it was ===")
-txt_hp, _ = run(seconds=12, hp_at=3.0, start=PAD)
-chk("the death is logged", "DEATH      | hp=-1000.0" in txt_hp, lines(txt_hp, "DEATH")[:1])
-chk("it is called an external kill",
-    "EXTERNAL KILL: hp was SET, this is not damage" in txt_hp, lines(txt_hp, "DEATH")[:1])
-chk("the flight stops there", "stopped   | the character died at step" in txt_hp,
-    lines(txt_hp, "stopped   |")[:1])
-chk("the summary still prints", "============ PATH FLIGHT SUMMARY ============" in txt_hp, "")
-
-print("\n=== T8: the route in the file is the measured one (static check) ===")
+print("\n=== T2: the path IS the lightdark.log path (static check) ===")
 block = SCRIPT.split("local PATH = {", 1)[1].split("\n}", 1)[0]
 pts = []
 for line in block.splitlines():
     if "pos = Vector3.new" in line:
         nums = line.split("Vector3.new(", 1)[1].split(")", 1)[0]
         pts.append(tuple(float(n) for n in nums.split(",")))
-chk("four waypoints", len(pts) == 4, str(pts))
-chk("it starts on the lightdark pad", pts and pts[0] == PAD, str(pts[:1]))
-chk("it cruises at 112.7 (+42.0 from 70.7)",
-    pts and pts[1][1] == 112.7 and round(pts[1][1] - pts[0][1], 1) == 42.0, str(pts[1:2]))
-chk("it lands on the forest pad", pts and pts[-1] == LAND, str(pts[-1:]))
-chk("the drop is -42.0", pts and round(pts[-1][1] - pts[-2][1], 1) == -42.0, str(pts[-2:]))
+chk("24 waypoints: 23 write landings + the landing", len(pts) == 24, f"{len(pts)}")
+chk("it starts where the log starts", pts[0] == (5666.0, 70.7, -327.4), str(pts[:1]))
+chk("the launch hop lands where the log's does", pts[1] == (5411.6, 96.1, -331.5), str(pts[1:2]))
+chk("cruise start is the log's +42.0", pts[2] == (5245.1, 112.7, -331.3), str(pts[2:3]))
+chk("the mid-course hops are the log's 460/421",
+    (3981.5, 112.7, -329.6) in pts and (1033.4, 112.7, -325.6) in pts, "")
+chk("it ends on the forest pad at 70.7", pts[-1] == (612.2, 70.7, -325.0), str(pts[-1:]))
+chk("the drop is the -42.0 landing", round(pts[-1][1] - pts[-2][1], 1) == -42.0, str(pts[-2:]))
+path_len = sum(((pts[i][0]-pts[i+1][0])**2 + (pts[i][1]-pts[i+1][1])**2 + (pts[i][2]-pts[i+1][2])**2) ** 0.5
+               for i in range(len(pts)-1))
+chk("the path is 5097.9 studs -> 146 steps", abs(path_len - 5097.9) < 0.5,
+    f"{path_len:.1f} studs")
 
-print("\n=== T9: the script never makes the -1000 calls (static check) ===")
+print("\n=== T3: it flies the path at 35 studs every 0.5s ===")
+txt_all, g_all = run(seconds=FLIGHT_SECS)
+steps = step_lines(txt_all)
+chk("config states the pace", "35.0 studs every 0.50s x 146 steps = 73.0s" in txt_all,
+    lines(txt_all, "config    |")[:1])
+chk("145 writes landed by step 145", len(steps) == 146, f"{len(steps)} writes")
+chk("the first write is 35 studs along the route", "s=0.0 -> 35.0 of 5097.9" in steps[0],
+    steps[0][:100])
+chk("the last write lands on the pad",
+    asked_xyz(steps[-1]) == (612.2, 70.7, -325.0), str(asked_xyz(steps[-1])))
+chk("the last step is the partial one (22.9 studs, not 35)",
+    "s=5075.0 -> 5097.9 of 5097.9 (100%)" in steps[-1], steps[-1][:110])
+chk("each step names the reference's own time for that point",
+    "ref t+1.26s" in steps[6] or "ref t+" in steps[6], steps[6][-30:])
+chk("one write per 0.5s, not per frame", 146 <= len(steps) <= 150, f"{len(steps)} writes")
+txt10, _ = run(seconds=10)
+n10 = len(step_lines(txt10))
+chk("about 20 writes in 10s of 60fps frames", 19 <= n10 <= 22, f"{n10} writes in 10s")
+
+print("\n=== T4: with the server keeping every write, it walks the whole route ===")
+ys = [asked_xyz(l)[1] for l in steps if asked_xyz(l)]
+chk("it climbs to cruise: the reference's +42.0",
+    ys[0] == 74.2 and max(ys) == 112.7, f"first {ys[0]}, peak {max(ys)}")
+chk("it comes back down for the landing", ys[-1] == 70.7, f"last {ys[-1]}")
+# the log's own cruise positions wobble 112.5-112.7 (gravity between writes),
+# so the faithful check is the band, not one exact value
+cruise_band = sum(1 for y in ys if 112.4 <= y <= 112.8)
+chk("it holds cruise altitude all the way across",
+    cruise_band > 100 and max(ys) == 112.7, f"{cruise_band} writes in 112.4-112.8, peak {max(ys)}")
+chk("the yaw was preserved on every write", "; yaw" not in txt_all, "")
+# fidelity: the flight must pass through EVERY waypoint of the log's path. The
+# walk is 35-stud samples along the polyline, so a vertex is never more than half
+# a step (17.5 studs) from the nearest write - if the route had been simplified or
+# straightened, some waypoint would sit far off and this is what catches it.
+asked_pts = [asked_xyz(l) for l in steps if asked_xyz(l)]
+worst, worst_pt = 0.0, None
+for wp in pts[1:]:                      # pts[0] is the start line: you stand
+    d = min(((wp[0]-a[0])**2 + (wp[1]-a[1])**2 + (wp[2]-a[2])**2) ** 0.5 for a in asked_pts)
+    if d > worst:
+        worst, worst_pt = d, wp
+chk("the flight passes within half a step of every waypoint on the route",
+    worst <= 17.6, f"worst {worst:.1f} studs at {worst_pt}")
+start_pt = (5666.3, 70.7, -331.9)       # where the stub stands, 4.5 off the start line
+chk("and it begins at the start line",
+    min(((pts[0][0]-x)**2 + (pts[0][1]-y)**2 + (pts[0][2]-z)**2) ** 0.5
+        for x, y, z in [start_pt]) <= 60, f"start {start_pt} vs log start {pts[0]}")
+chk("the launch climb is reflown, not cut across",
+    any(a[1] > 90 for a in asked_pts), "the route gains the +42 height")
+chk("the landing drop is reflown",
+    any(abs(a[0]-612.2) < 1 and a[1] == 70.7 for a in asked_pts), "it comes down onto the pad")
+
+chk("every write is checked, one each", len(check_lines(txt_all)) == 146,
+    f"{len(check_lines(txt_all))} verdicts")
+chk("not one write was undone",
+    not lines(txt_all, "REVERTED - the server") and not lines(txt_all, "MOVED ELSEWHERE"), "")
+chk("the checks are 0.5s after their write",
+    all(abs(float(l.split("|")[1].strip().split("s")[0]) - 0.5) < 0.01
+        for l in check_lines(txt_all)[:20]), check_lines(txt_all)[0][:70])
+chk("progress is reported along the way", len(lines(txt_all, "PROGRESS   |")) >= 6,
+    f"{len(lines(txt_all, 'PROGRESS   |'))} progress lines")
+chk("it knows it landed", "LANDED    | at the forest pad (612.2, 70.7, -325.0)" in txt_all,
+    lines(txt_all, "LANDED")[:1])
+chk("landed on the pad itself", "0.0 studs from it" in txt_all, lines(txt_all, "LANDED")[:1])
+chk("the walked distance is the whole path",
+    "walked    | 5097.9 of 5097.9 studs of path (100%)" in txt_all, lines(txt_all, "walked    |")[:1])
+# started 4.5 studs from the first waypoint, so the net is the reference's own
+chk("the net ground distance is the reference's",
+    "net       | 5054.1 studs across the ground" in txt_all, lines(txt_all, "net       |")[:1])
+chk("the verdict names the outcome", "verdict   | THE WRITES STICK" in txt_all,
+    lines(txt_all, "verdict   |")[:1])
+chk("it stops because it arrived", "stopped   | landed at the forest pad" in txt_all,
+    lines(txt_all, "stopped   |")[:1])
+chk("noclip is restored, not leaked",
+    "restored CanCollide on 2 part(s) - nothing leaked" in txt_all, lines(txt_all, "noclip    |")[-1:])
+chk("every part is collidable again", all(p.CanCollide for p in g_all["PARTS"]().values()), "")
+chk("the panel agrees at the end", "THE WRITES STICK" in g_all["LABELSTART"]("STATUS"),
+    g_all["LABELSTART"]("STATUS"))
+chk("the counters agree", "146 held | 0 reverted" in g_all["LABELSTART"]("WRITES"),
+    g_all["LABELSTART"]("WRITES"))
+
+print("\n=== T5: COPY LOG copies what is on screen ===")
+chk("copy was reachable", g_all["CLICK"]("COPY LOG"), "")
+clip = g_all["CLIP"] if "CLIP" in g_all else None
+chk("the clipboard got the log", clip is not None and "PATH FLIGHT SUMMARY" in clip,
+    (clip or "")[:60])
+
+print("\n=== T6: a write that does not hold is retried from where we really are ===")
+txt_rev, _ = run(seconds=12, revert=True)
+chk("the undone write is named", "REVERTED - the server put us back" in txt_rev,
+    lines(txt_rev, "REVERTED")[:1])
+chk("it shows both positions",
+    "| wrote (5631.2, 74.2, -328.0) then (5666.3, 70.7, -331.9)" in txt_rev,
+    lines(txt_rev, "| wrote ")[:1])
+chk("it quotes the reference's time for that point", "ref reached this at t+" in txt_rev, "")
+chk("the next write is measured from the truth",
+    "s=0.0 -> 35.0" in step_lines(txt_rev)[-1], step_lines(txt_rev)[-1][:80])
+chk("it gives up after 5 in a row", "5 writes in a row were undone" in txt_rev,
+    lines(txt_rev, "stopped   |")[:1])
+chk("the verdict says so", "verdict   | THE SERVER IS UNDOING THEM" in txt_rev,
+    lines(txt_rev, "verdict   |")[:1])
+chk("the summary still prints", "============ PATH FLIGHT SUMMARY ============" in txt_rev, "")
+
+print("\n=== T7: STOP stops it ===")
+lua = lupa.LuaRuntime(unpack_returned_tuples=True)
+g = lua.globals()
+lua.execute(STUB)
+lua.execute(normalise(SCRIPT))
+g["CLICK"]("FLY")
+lua.execute("DRIVE(5)")
+before = len(step_lines(g["LOGDUMP"]()))
+g["CLICK"]("STOP")
+lua.execute("DRIVE(3)")
+txt_stop = g["LOGDUMP"]()
+chk("writes stop after STOP", len(step_lines(txt_stop)) - before <= 1,
+    f"{len(step_lines(txt_stop)) - before} more writes")
+chk("it says it was stopped", "stopped   | stopped" in txt_stop, lines(txt_stop, "stopped   |")[:1])
+chk("the summary still prints", "PATH FLIGHT SUMMARY" in txt_stop, "")
+
+print("\n=== T8: a -1000 kill stops the flight and says what it was ===")
+txt_hp, g_hp = run(seconds=12, hp_at=3.0)
+chk("the death is logged", "DEATH      | hp=-1000.0" in txt_hp, lines(txt_hp, "DEATH")[:1])
+chk("it is called an external kill",
+    "EXTERNAL KILL: hp was SET, this is not damage" in txt_hp, lines(txt_hp, "DEATH")[:1])
+chk("it names the step it died on", "DEATH" in txt_hp and "at step" in txt_hp, "")
+chk("the flight stops there", "stopped   | the character died at step" in txt_hp,
+    lines(txt_hp, "stopped   |")[:1])
+chk("the summary still prints", "PATH FLIGHT SUMMARY" in txt_hp, "")
+
+print("\n=== T9: started away from the route, it writes itself to the first waypoint ===")
+txt_snap, _ = run(seconds=6, start=(0, 50, 0))
+chk("the snap is announced with the distance",
+    "studs from the first waypoint - one write to it" in txt_snap, lines(txt_snap, "snap      |")[:1])
+chk("it reports whether the snap held",
+    "snap      | wrote (5666.0, 70.7, -327.4)" in txt_snap, lines(txt_snap, "snap      |")[1:2])
+chk("then the route starts from the beginning", "s=0.0 -> 35.0" in step_lines(txt_snap)[0],
+    step_lines(txt_snap)[:1])
+
+print("\n=== T10: the ownership readout says who really owns the root ===")
+chk("a client-owned root reads as you", "owner=you" in txt_snap, lines(txt_snap, "owner=")[:1])
+chk("no table address leaks into the log", "owner=table:" not in txt_snap, "")
+txt_srv, _ = run(seconds=4, server_owns=True)
+chk("a server-owned root reads as server", "owner=server" in txt_srv, lines(txt_srv, "owner=")[:1])
+
+print("\n=== T11: the script never makes the -1000 calls (static check) ===")
 code = re.sub(r"--\[\[.*?\]\]", "", SCRIPT, flags=re.S)      # drop the header block
-code = re.sub(r"--[^\n]*", "", code)                            # drop line comments
+code = re.sub(r"--[^\n]*", "", code)                         # drop line comments
 chk("no ChangeState call in the code", ":ChangeState" not in code, "")
 chk("AutoRotate is never set", not re.search(r"AutoRotate\s*=", code), "")
 chk("no velocity is written", not re.search(r"AssemblyLinearVelocity\s*=", code), "")
-chk("the write is a direct root.CFrame assignment",
-    "root.CFrame = CFrame.new(target)" in code, "")
+chk("the write is a direct root.CFrame assignment", "root.CFrame = CFrame.new(target)" in code, "")
+chk("no PivotTo either - the log shows direct CFrame writes", "PivotTo" not in code, "")
 chk("it does not move the humanoid state either", "SetStateEnabled" not in code, "")
+
+print("\n=== T12: the log lines also reach the on-screen list ===")
+chk("the panel built labels from the log", g_all["ONSCREEN"]() > 100,
+    f"{g_all['ONSCREEN']()} labels")
+chk("the log list holds the step lines", len(step_lines(txt_all)) == 146, "")
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
