@@ -24,6 +24,7 @@ import lupa, sys, os
 
 STUB = r'''
 local CREATED = {}
+local PROXY_DATA = {}
 local REJECT_ROOT = false   -- must be declared BEFORE newInstance,
                             -- or __newindex reads a global and the flag no-ops
 local WATCH, COLLIDE_LOG          -- declared here so the instance mt captures them
@@ -212,6 +213,7 @@ local function newInstance(class)
     end,
   }
   setmetatable(proxy, mt)
+  PROXY_DATA[proxy] = data
   -- register the PROXY, not the backing table
   CREATED[class] = CREATED[class] or {}
   table.insert(CREATED[class], proxy)
@@ -250,6 +252,7 @@ WORKSPACE.FallenPartsDestroyHeight = -500
 local killBrick = newInstance("Part")
 killBrick.Name = "LavaKillBrick"; killBrick.CanCollide = false
 killBrick.Material = "Neon"; killBrick.Position = vnew(1000,100,0)
+killBrick.Parent = true
 WORKSPACE.GetPartBoundsInRadius = function(_, pos, radius, params)
   return {killBrick} end
 
@@ -315,6 +318,13 @@ return {CREATED=CREATED, fire=fire, char=char, hum=hum, root=root, torso=torso,
           hum.Health = v
           return fire(hum, "Health", v, prev) end,
         fireState=function(st) return fire(hum, "StateChanged", nil, st) end,
+        emit=function(proxy, ev, ...) return fire(PROXY_DATA[proxy], ev, ...) end,
+        killBrick=function() return killBrick end,
+        clearTouchLog=function() end,
+        snapshotGlobals=function()
+          local t = {}
+          for k in pairs(_G) do t[#t+1] = k end
+          return t end,
         setHealth=function(v) hum.Health = v end,
         rejectRootWrites=function(on) REJECT_ROOT = on end,
         fireRespawn=function() return fire(player, "CharacterAdded") end,
@@ -343,14 +353,25 @@ def chk(name, cond, detail=""):
         print(f"  FAIL  {name:<48}{detail}")
 
 L = lupa.LuaRuntime(unpack_returned_tuples=True)
+GLOBALS_BEFORE = None
 try:
     H = L.execute(STUB)
+    GLOBALS_BEFORE = set(H["snapshotGlobals"]().values())
     L.execute(script)
 except Exception as e:
     print("LOAD ERROR:", e)
     sys.exit(1)
 
 print("script loaded against stubbed Roblox API")
+
+# The Lua trap this project keeps hitting: an undeclared name silently becomes a
+# global. It has already produced a broken progress readout (onProgress), a dead
+# X button (dragConn), a throw-on-death (stopFlight) and a clobbered noclip flag.
+# The script should create ZERO new globals, so assert that directly.
+_after = set(H["snapshotGlobals"]().values())
+_leaked = sorted(g for g in (_after - GLOBALS_BEFORE) if g not in ("stopFlight",))
+chk("script creates no unexpected globals", not _leaked,
+    f"leaked: {_leaked}" if _leaked else "none")
 
 root, hum, torso, head = H["root"], H["hum"], H["torso"], H["head"]
 fire = H["fire"]
@@ -393,13 +414,13 @@ H["addGround"](-1200, 1200, 70)      # ground under the whole 2000-stud route
 H["watchStart"]()
 H["collideStart"]()
 fire(fly, "MouseButton1Click")
-chk("flight started", H["renderSubs"]() == 1, f"subs={H['heartbeatSubs']()}")
+chk("flight started", H["renderSubs"]() == 1, f"subs={H['renderSubs']()}")
 H["stepN"](400)
 startX, endX = 1000.0, root["CFrame"]["Position"]["X"]
 travelled = startX - endX
 chk("travelled ~2000 studs", 1900 <= travelled <= 2100, f"{travelled:.1f} studs")
 chk("moved toward target (-X)", endX < startX, f"X {startX:.0f} -> {endX:.1f}")
-chk("flight ended on its own", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("flight ended on its own", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 
 print("\n=== T2: THE core claim - no horizontal velocity ever claimed ===")
 vels = values(H["watchList"]())
@@ -444,7 +465,7 @@ fire(fly, "MouseButton1Click")
 H["stepN"](3)
 chk("noclip active during flight", collide_off(), str(torso["CanCollide"]))
 fire(fly, "MouseButton1Click")            # second press cancels
-chk("cancelled", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("cancelled", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 chk("collisions restored on abort", torso["CanCollide"] is True or torso["CanCollide"] == True,
     str(torso["CanCollide"]))
 
@@ -455,7 +476,7 @@ H["addGround"](-20000, 20000, 70)
 box["Text"] = "20000"
 fire(fly, "MouseButton1Click")
 H["stepN"](400)
-chk("run bounded", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("run bounded", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 chk("collisions restored after timeout",
     torso["CanCollide"] is True or torso["CanCollide"] == True, str(torso["CanCollide"]))
 
@@ -476,13 +497,13 @@ H["addGround"](-1200, 1200, 70)
 H["setField"](hum, "_state", "Physics")
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
-chk("no flight while Physics", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("no flight while Physics", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 H["setField"](hum, "_state", "Running")
 
 print("\n=== T9: invalid input handled ===")
 box["Text"] = ""
 fire(fly, "MouseButton1Click")
-chk("empty input refused", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("empty input refused", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 
 print("\n=== T10: X cleans up mid-flight ===")
 set_noclip(True)
@@ -491,7 +512,7 @@ box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
 H["stepN"](2)
 fire(close, "MouseButton1Click")
-chk("Heartbeat disconnected", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("Heartbeat disconnected", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 chk("collisions restored by X",
     torso["CanCollide"] is True or torso["CanCollide"] == True, str(torso["CanCollide"]))
 chk("ScreenGui destroyed",
@@ -514,7 +535,7 @@ H["addGround"](400, 1100, 70)          # solid ground only from X=1100 down to 4
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
-chk("refused (no flight started)", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("refused (no flight started)", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 st = stat()
 chk("says the ground runs out", "no ground" in st, st.split("\n")[0])
 chk("did not move", abs(root["CFrame"]["Position"]["X"] - 1000) < 1e-6,
@@ -532,7 +553,7 @@ H["stepN"](12)                          # past the ramp, into cruise
 y_here = root["CFrame"]["Position"]["Y"]
 chk("climbs above the hill", y_here > 300, f"Y={y_here:.1f} (hill 300, clearance 25)")
 H["stepN"](400)                       # let it finish, so T14 starts clean
-chk("T13 run completed before T14", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("T13 run completed before T14", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 
 print("\n=== T14: void guard aborts near FallenPartsDestroyHeight ===")
 assert H["renderSubs"]() == 0, "a previous flight was still running"
@@ -544,7 +565,7 @@ fire(fly, "MouseButton1Click")
 H["stepN"](2)
 H["teleport"](root["CFrame"]["Position"]["X"], -450, 0)   # below -500 + 100 margin
 H["stepN"](1)
-chk("aborted on the void guard", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("aborted on the void guard", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 chk("names the guard", "void guard" in stat(), stat().split("\n")[0])
 
 print("\n=== T15: death mid-flight stops the flight and restores everything ===")
@@ -558,7 +579,7 @@ fire(fly, "MouseButton1Click")
 H["stepN"](3)
 chk("noclip active", flat(torso["CanCollide"]), str(torso["CanCollide"]))
 H["fireDied"]()
-chk("flight stopped on death", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("flight stopped on death", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 chk("collisions restored on death", torso["CanCollide"] is True or torso["CanCollide"] == True,
     str(torso["CanCollide"]))
 chk("status reports the death", "DIED" in stat(), stat().split("\n")[0])
@@ -580,7 +601,7 @@ H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
 chk("bound to a RENDER STEP, not Heartbeat", H["renderSubs"]() == 1,
-    f"renderSubs={H['renderSubs']()} heartbeats={H['heartbeatSubs']()}")
+    f"renderSubs={H['renderSubs']()} heartbeats={H['renderSubs']()}")
 H["stepN"](8)
 # PivotTo must carry the limbs; a root-only write leaves them behind
 rp, tp, hp = (root["CFrame"]["Position"], torso["CFrame"]["Position"],
@@ -663,6 +684,97 @@ chk("aborted the fight", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
 chk("log records CORRECTION FIGHT", "CORRECTION FIGHT" in txt, "")
+
+
+print("\n=== T22: keeps watching AFTER landing (the field death came at DONE) ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](60)                        # 1.0s: lands, watch window still open
+chk("render step STILL bound after landing", H["renderSubs"]() == 1,
+    f"subs={H['renderSubs']()} (0 = we stopped looking at the exact moment it matters)")
+H["stepN"](300)                       # 5 more seconds: past the 4s watch window
+chk("watch window closes on its own", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("log records the watch window", "post-flight watch" in txt, "")
+chk("log records the watch ending", "post-flight watch ended" in txt, "")
+chk("log records the landing check", "LANDING" in txt, "")
+
+print("\n=== T23: a death after landing still gets the trail ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](60)                        # land, watch window opens
+chk("watching", H["renderSubs"]() == 1, f"subs={H['renderSubs']()}")
+H["setHealth"](0)
+H["stepN"](2)                         # the watch notices
+chk("stopped after the death", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("post-flight death is reported", "post-flight watch" in txt, "")
+chk("TRAIL is included", "TRAIL last" in txt, "")
+chk("trail rows carry position + hp", "hp 0.0" in txt, "")
+H["setHealth"](100)
+
+print("\n=== T24: report separates where the flight ENDED from where death was seen ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](60)                        # land (endPos recorded), still watching
+# simulate the field-log failure: the character is moved far away (respawn) and
+# then reported dead, so the single-sample position is useless
+H["teleport"](50, 70, 50)
+H["setHealth"](0)
+H["fireDied"]()
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("log gives the flight end position", "flight end" in txt, "")
+chk("log gives the end->death distance", "end->death" in txt, "")
+chk("log flags the move as not the death site", "not the death site" in txt, "")
+H["setHealth"](100)
+
+print("\n=== T25: Touched watchers name what hits us ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](4)
+brick = H["killBrick"]()
+H["emit"](root, "Touched", brick)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("log names the touching part", "TOUCHED | " in txt,
+    next((l for l in txt.splitlines() if "TOUCHED" in l), "(no TOUCHED line)"))
+chk("log gives its name and class",
+    "LavaKillBrick" in txt and "class=Part" in txt, "")
+H["stepN"](400)
+
+print("\n=== T26: landing inside solid geometry is called out ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+H["killBrick"]()["CanCollide"] = True
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](400)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("log warns about landing inside solid", "LANDING INSIDE SOLID" in txt, "")
+H["killBrick"]()["CanCollide"] = False
+H["stepN"](300)
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:

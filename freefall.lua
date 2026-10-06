@@ -76,6 +76,13 @@ local CLEARANCE    = 25
 local ALLOW_VOID   = false
 local VOID_MARGIN  = 100
 
+-- The death in the field log happened in the SAME SECOND as DONE, and we used to
+-- unbind right at landing - i.e. we stopped looking exactly when it mattered. So
+-- keep watching for a few seconds after arrival.
+local POST_WATCH_S = 4.0
+local TRAIL_MAX    = 600        -- rolling (time, pos, hp, state) history
+local TRAIL_PRINT  = 18         -- how many entries to print on death
+
 local NOCLIP       = false      -- explicit toggle, OFF by default
 local DIR_MODE     = "facing"
 local GUI_NAME     = "FreeFallTravelV3"
@@ -96,6 +103,12 @@ local deathRecorded = false   -- record only the first death, not one per watche
 
 local logLines = {}
 local MAX_LOG  = 400
+
+local trail      = {}           -- rolling history: the thing that was missing
+local touchConns = {}           -- character part Touched watchers
+local touchLog   = {}           -- what has been touching us
+local watchUntil = nil          -- post-flight watch deadline
+local endPos     = nil          -- where the flight actually finished
 
 -- Declared HERE, above the watchers. The Died / Health handlers below reference
 -- stopFlight, and a `local` introduced after them would not be visible inside
@@ -255,6 +268,91 @@ local function checkAhead(pos, dir)
 			tostring(inst.CanCollide), tostring(inst.Material)))
 end
 
+-- ---------------------------------------------------------------
+-- ROLLING TRAIL
+-- ---------------------------------------------------------------
+-- The field log reported the death at the SPAWN, 2000 studs from where the
+-- flight ended, because by the time Died fires the character has already been
+-- respawned or moved. Sampling once at death is therefore useless: we need the
+-- history. This records every frame and prints the tail on death.
+local function recordTrail(h, r)
+	if not (h and r) then return end
+	local p = r.Position
+	trail[#trail + 1] = {
+		t = os.clock(), x = p.X, y = p.Y, z = p.Z,
+		hp = h.Health, st = tostring(h:GetState()),
+	}
+	while #trail > TRAIL_MAX do table.remove(trail, 1) end
+end
+
+local function clearTrail() trail = {} end
+
+local function dumpTrail()
+	logLine(("TRAIL last %d frames (oldest first):"):format(math.min(#trail, TRAIL_PRINT)))
+	local from = math.max(1, #trail - TRAIL_PRINT + 1)
+	local t0 = trail[from] and trail[from].t or 0
+	for i = from, #trail do
+		local e = trail[i]
+		logLine(("  +%.2fs | %.1f, %.1f, %.1f | hp %.1f | %s")
+			:format(e.t - t0, e.x, e.y, e.z, e.hp, e.st))
+	end
+end
+
+-- ---------------------------------------------------------------
+-- TOUCH WATCHERS
+-- ---------------------------------------------------------------
+-- A kill brick deals damage on touch, and nothing in the log would name it.
+-- Connect every part of the character and record what hits us.
+local function clearTouches()
+	for _, c in ipairs(touchConns) do pcall(function() c:Disconnect() end) end
+	touchConns = {}
+end
+
+local function watchTouches(ch)
+	clearTouches()
+	if not ch then return end
+	for _, part in ipairs(ch:GetDescendants()) do
+		if part:IsA("BasePart") then
+			local conn = part.Touched:Connect(function(other)
+				if not other or not other.Parent then return end
+				local last = touchLog[#touchLog]
+				if last and last.name == other:GetFullName() then return end  -- dedupe
+				touchLog[#touchLog + 1] = {name = other:GetFullName(),
+					class = other.ClassName}
+				while #touchLog > 40 do table.remove(touchLog, 1) end
+				logLine(("TOUCHED | %s | class=%s | collide=%s | material=%s | my part=%s")
+					:format(other:GetFullName(), other.ClassName,
+						tostring(other.CanCollide), tostring(other.Material),
+						part.Name))
+			end)
+			touchConns[#touchConns + 1] = conn
+		end
+	end
+end
+
+-- is the landing spot inside solid geometry? Landing inside a wall is a strong
+-- candidate for what kills you, and nothing else in the log would show it.
+local function checkLandingInside(pos)
+	local ch = LocalPlayer.Character
+	local ok, parts = pcall(function()
+		local params = OverlapParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { ch }
+		return workspace:GetPartBoundsInRadius(pos, 4, params)
+	end)
+	if not ok or not parts then return end
+	local hits = 0
+	for _, p in ipairs(parts) do
+		if p.CanCollide then
+			hits = hits + 1
+			logLine(("LANDING INSIDE SOLID | %s | class=%s | dist=%.1f | material=%s")
+				:format(p:GetFullName(), p.ClassName,
+					(p.Position - pos).Magnitude, tostring(p.Material)))
+		end
+	end
+	if hits == 0 then logLine("LANDING CLEAR | no solid part within 4 studs") end
+end
+
 -- what is around the body when it dies
 local function nearbyParts(pos, radius)
 	local ch = LocalPlayer.Character
@@ -296,7 +394,22 @@ local function recordDeath(reason)
 		logLine(("progress    | %.0f / %.0f studs | %.2fs"):format(
 			flight.traveled, flight.total, flight.elapsed or 0))
 	end
+	-- the field log reported the death at the SPAWN, 2000 studs from where the
+	-- flight finished. Make that discrepancy explicit instead of having to diff
+	-- timestamps to notice it.
+	if endPos and pos then
+		local delta = (Vector3.new(pos.X, 0, pos.Z) - Vector3.new(endPos.X, 0, endPos.Z)).Magnitude
+		logLine(("flight end  | %s"):format(fmt(endPos)))
+		logLine(("end->death  | %.0f studs%s"):format(delta,
+			delta > 200 and "  <- MOVED before we sampled: this is not the death site" or ""))
+	end
 	if pos then nearbyParts(pos, 30) end
+	logLine(("touches seen| %d"):format(#touchLog))
+	for i = math.max(1, #touchLog - 5), #touchLog do
+		logLine(("  TOUCHED | %s | class=%s"):format(touchLog[i].name, touchLog[i].class))
+	end
+	logLine("--- last frames before death ----------------")
+	dumpTrail()
 	logLine("=======================================")
 end
 
@@ -375,7 +488,6 @@ stopFlight = function(reason)
 	if not flying and not f then return end
 	flying = false
 	flight = nil
-	unbind()
 	restoreCollisions()
 
 	local ch, h, r = getState()
@@ -398,15 +510,27 @@ stopFlight = function(reason)
 			local p = r.Position
 			landed = (Vector3.new(p.X - f.startPos.X, 0, p.Z - f.startPos.Z)).Magnitude
 			finalY = p.Y
+			endPos = p
 		end
 		lastRun = {studs = landed, secs = f.elapsed or 0}
 		logLine(("DONE | %.0f studs | %.2fs | Y %.1f"):format(landed, f.elapsed or 0, finalY))
+		if r then checkLandingInside(r.Position) end
+		-- keep watching: the field death came in the same second as DONE, and we
+		-- used to unbind exactly here
+		watchUntil = os.clock() + POST_WATCH_S
+		logLine(("post-flight watch | %s | %.1fs"):format(fmt(r and r.Position), POST_WATCH_S))
 		if setStatus then
-			local spd = (f.elapsed or 0) > 0 and (landed / f.elapsed) or 0
-			setStatus(("landed #%d | %.0f studs | %.2fs\n%.0f studs/s | Y %.1f")
-				:format(flightCount, landed, f.elapsed or 0, spd, finalY),
+			setStatus(("landed #%d | %.0f studs | watching %.0fs")
+				:format(flightCount, landed, POST_WATCH_S),
 				Color3.fromRGB(120, 255, 150))
 		end
+	end
+	-- on a clean landing the render step stays bound for the watch window; on any
+	-- abort or death we stop immediately
+	if reason or not f then
+		unbind()
+		clearTouches()
+		watchUntil = nil
 	end
 	if updateButtons then updateButtons() end
 end
@@ -415,7 +539,35 @@ end
 -- then correction-fight check, then the phase machine.
 local function renderStep(dt)
 	local f = flight
-	if not f or not flying or f.token ~= token then return end
+
+	-- ---- post-flight watch ------------------------------------------
+	-- The field log's death landed in the same second as DONE, 2000 studs from
+	-- where the flight finished. Sampling once at Died is therefore useless, so
+	-- keep recording after arrival and print the trail if anything goes wrong.
+	if not flying then
+		if watchUntil then
+			local _, wh, wr = getState()
+			if wh and wr then
+				recordTrail(wh, wr)
+				if wh.Health <= 0 then
+					recordDeath("died during the post-flight watch")
+					watchUntil = nil
+					clearTouches()
+					unbind()
+					return
+				end
+			end
+			if os.clock() >= watchUntil then
+				logLine("post-flight watch ended | nothing happened")
+				watchUntil = nil
+				clearTouches()
+				unbind()
+			end
+		end
+		return
+	end
+
+	if not f or f.token ~= token then return end
 
 	local ch, h, r = getState()
 	if not (ch and ch.Parent and h and h.Parent and r and r.Parent) then
@@ -429,6 +581,7 @@ local function renderStep(dt)
 	end
 
 	f.elapsed = os.clock() - f.t0
+	recordTrail(h, r)
 
 	-- void guard
 	local curY = r.Position.Y
@@ -594,6 +747,10 @@ local function startFlight(requested)
 	logLine(("  void floor=%.1f | guard at %.1f"):format(deathFloor(), deathFloor() + VOID_MARGIN))
 
 	watch(h)
+	watchTouches(ch)
+	clearTrail()
+	endPos = nil
+	watchUntil = nil
 	unbind()
 	RunService:BindToRenderStep(RENDER_STEP_NAME, RENDER_STEP_PRIORITY, renderStep)
 	return true, total
