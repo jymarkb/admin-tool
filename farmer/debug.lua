@@ -44,6 +44,16 @@ local TOUCH_DEDUPE_S        = 0.5    -- do not repeat the same Touched part
 local VOID_WARN_STUDS       = 50     -- warn this close to FallenPartsDestroyHeight
 local OBSTACLE_AHEAD_STUDS  = 30     -- raycast this far ahead while moving fast
 
+-- Flight write ledger (V9). The scanner could see that the character MOVED; it
+-- could not see what it was asked to do, or whether the server kept it.
+local FLIGHT_TRACE_DEFAULT  = true    -- record every write the replay makes
+local WRITE_CONFIRM_STUDS   = 2.0     -- within this of the target = the write held
+local LOST_WRITE_WARN_S     = 0.15    -- rate limit for "the server pushed us back"
+local FLIGHT_FRAME_S        = 0.045   -- per-frame trace rate (~22/s at 60 fps)
+local FLIGHT_FRAME_MAX      = 60      -- ...capped at this many lines per flight
+local PHYSICS_SAMPLE_S      = 1.0     -- physics sample interval during a flight
+local OWNERSHIP_POLL_S      = 0.5     -- how often to look for an ownership change
+
 local RENDER_STEP_NAME = "ReferenceFreefallReplayV7"
 local RENDER_STEP_PRIORITY = Enum.RenderPriority.Character.Value + 1
 local REPLAY_CORRECTION_TOLERANCE = 25.0
@@ -88,7 +98,7 @@ screenGui.Parent = playerGui
 
 local frame = Instance.new("Frame")
 frame.Name = "SpeedFrame"
-frame.Size = UDim2.new(0, 360, 0, 520)
+frame.Size = UDim2.new(0, 360, 0, 548)
 frame.Position = UDim2.new(0, 20, 0, 20)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 frame.BackgroundTransparency = 0.12
@@ -183,7 +193,7 @@ logTitle.Parent = frame
 
 local logScroll = Instance.new("ScrollingFrame")
 logScroll.Name = "LogScroll"
-logScroll.Size = UDim2.new(1, -20, 0, 230)
+logScroll.Size = UDim2.new(1, -20, 0, 240)
 logScroll.Position = UDim2.new(0, 10, 0, 132)
 logScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 logScroll.BackgroundTransparency = 0.3
@@ -200,8 +210,8 @@ logList.Padding = UDim.new(0, 2)
 logList.Parent = logScroll
 
 local buttonFrame = Instance.new("Frame")
-buttonFrame.Size = UDim2.new(1, -20, 0, 102)
-buttonFrame.Position = UDim2.new(0, 10, 1, -112)
+buttonFrame.Size = UDim2.new(1, -20, 0, 130)
+buttonFrame.Position = UDim2.new(0, 10, 1, -140)
 buttonFrame.BackgroundTransparency = 1
 buttonFrame.Parent = frame
 
@@ -262,6 +272,28 @@ forensicsBtn.TextSize = 11
 forensicsBtn.Parent = buttonFrame
 Instance.new("UICorner", forensicsBtn).CornerRadius = UDim.new(0, 6)
 
+local traceBtn = Instance.new("TextButton")
+traceBtn.Size = UDim2.new(0, 156, 0, 26)
+traceBtn.Position = UDim2.new(0, 0, 0, 98)
+traceBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 70)
+traceBtn.Text = "FLIGHT TRACE: ON"
+traceBtn.TextColor3 = Color3.fromRGB(220, 255, 230)
+traceBtn.Font = Enum.Font.GothamBold
+traceBtn.TextSize = 11
+traceBtn.Parent = buttonFrame
+Instance.new("UICorner", traceBtn).CornerRadius = UDim.new(0, 6)
+
+local ownerBtn = Instance.new("TextButton")
+ownerBtn.Size = UDim2.new(0, 134, 0, 26)
+ownerBtn.Position = UDim2.new(0, 164, 0, 98)
+ownerBtn.BackgroundColor3 = Color3.fromRGB(60, 70, 120)
+ownerBtn.Text = "OWNERSHIP"
+ownerBtn.TextColor3 = Color3.fromRGB(225, 230, 255)
+ownerBtn.Font = Enum.Font.GothamBold
+ownerBtn.TextSize = 11
+ownerBtn.Parent = buttonFrame
+Instance.new("UICorner", ownerBtn).CornerRadius = UDim.new(0, 6)
+
 local snapshotBtn = Instance.new("TextButton")
 snapshotBtn.Size = UDim2.new(0, 120, 0, 26)
 snapshotBtn.Position = UDim2.new(0, 178, 0, 70)
@@ -275,7 +307,7 @@ Instance.new("UICorner", snapshotBtn).CornerRadius = UDim.new(0, 6)
 
 local feedback = Instance.new("TextLabel")
 feedback.Size = UDim2.new(0, 200, 0, 18)
-feedback.Position = UDim2.new(0, 10, 1, -134)
+feedback.Position = UDim2.new(0, 10, 1, -162)
 feedback.BackgroundTransparency = 1
 feedback.Text = ""
 feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
@@ -379,6 +411,12 @@ local lastTouchLogged = {}
 local netSamples, lastNetLog, lastFastAt, lastVoidWarn = {}, 0, 0, 0
 local lastRigWarn, rigBaseline = 0, nil
 local restChecked = true
+-- flight write ledger - also reset by clearLog() below, so it must live here
+local flightTrace = nil
+local flightTraceEnabled = FLIGHT_TRACE_DEFAULT
+local lastWrite, lastLostWarn, writeSeq = nil, 0, 0
+local lastOwnerSeen, lastOwnerPoll = nil, 0
+local autoRotateConnection
 
 local function clearLog()
 	logEntries = {}
@@ -392,6 +430,8 @@ local function clearLog()
 	pendingJump, rigBaseline, lastTouchLogged = nil, nil, {}
 	netSamples, lastNetLog, lastFastAt, lastVoidWarn = {}, 0, 0, 0
 	lastRigWarn, restChecked = 0, true
+	flightTrace, lastWrite, lastLostWarn, writeSeq = nil, nil, 0, 0
+	lastOwnerSeen, lastOwnerPoll = nil, 0
 end
 
 -- ================================================================
@@ -434,6 +474,226 @@ local function setPhase(newPhase, humanoid, root)
 			timestamp(), oldPhase, activePhase, safeState(humanoid), formatPos(root.Position), formatVec3(root.AssemblyLinearVelocity)
 		))
 	end
+end
+
+-- ================================================================
+-- FLIGHT WRITE LEDGER (V9)
+-- ================================================================
+-- Why this exists: the log could show `dP=(1978.0, ...)` but not what the script
+-- had ASKED for, or whether the server kept it. Those two facts are the whole
+-- difference between "the flight worked" and "the client wrote and the server
+-- put us back". Every position write now goes through noteWrite(), and the
+-- character is checked against that target a frame later.
+local function ownerName(part)
+	if not part then return "?" end
+	local ok, owner = pcall(function() return part:GetNetworkOwnership() end)
+	if not ok then return "<error>" end
+	if owner == nil then return "server" end
+	if owner == player then return "you" end
+	local okName, name = pcall(function() return owner.Name end)
+	return okName and name or "?"
+end
+
+-- nil return from GetNetworkOwnership MEANS the server owns it. If the server
+-- owns the assembly, a client CFrame write is a request, not a fact.
+local function ownershipLine(character, root)
+	if not character then return "no character | root=" .. ownerName(root) end
+	local tally, order = {}, {}
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			local o = ownerName(part)
+			if not tally[o] then tally[o] = 0; order[#order + 1] = o end
+			tally[o] += 1
+		end
+	end
+	local bits = {}
+	for _, o in ipairs(order) do
+		bits[#bits + 1] = string.format("%s x%d", o, tally[o])
+	end
+	return string.format("root=%s | parts: %s", ownerName(root), table.concat(bits, ", "))
+end
+
+local function grounded(part)
+	local ok, g = pcall(function() return part:IsGrounded() end)
+	if not ok then return "?" end
+	return tostring(g)
+end
+
+-- How long since this part last received a network update. A spike here means
+-- the client is out of touch with the server, which is when writes get undone.
+local function receiveAge(part)
+	local ok, age = pcall(function() return part.ReceiveAge end)
+	if not ok or age == nil then return "?" end
+	return string.format("%.2f", age)
+end
+
+local function physicsLine()
+	local out = {}
+	local function add(label, fn)
+		local ok, v = pcall(fn)
+		out[#out + 1] = string.format("%s=%s", label, ok and tostring(v) or "<err>")
+	end
+	add("realFPS", function() return string.format("%.1f", workspace:GetRealPhysicsFPS()) end)
+	add("throttle", function() return string.format("%.0f%%", workspace:GetPhysicsThrottling()) end)
+	add("gravity", function() return string.format("%.1f", workspace.Gravity) end)
+	add("awake", function() return tostring(workspace:GetNumAwakeParts()) end)
+	add("ping", function() return string.format("%.3fs", player:GetNetworkPing()) end)
+	return table.concat(out, " | ")
+end
+
+-- The exact numbers of the reference profile, in the log, so a trace is
+-- self-contained: this is what a replication has to reproduce.
+local function logReplayParams()
+	local deltas, times, total = {}, {}, 0
+	for i, dx in ipairs(FREEFALL_X_DELTAS) do
+		deltas[#deltas + 1] = string.format("%.1f", dx)
+		times[#times + 1] = string.format("%.3f", FREEFALL_CHUNK_TIMES[i] or 0.045)
+		total += math.abs(dx)
+	end
+	local launch = LAUNCH_PROFILE[#LAUNCH_PROFILE]
+	local launchDist = Vector3.new(launch.dx, launch.dy, launch.dz).Magnitude
+	addLogEntry(string.format(
+		"[%s] REPLAY PARAMS | launch=%d steps (%.1f studs) | chunks=%d (%.1f studs) | dropOffsetY=%.1f",
+		timestamp(), #LAUNCH_PROFILE, launchDist, #FREEFALL_X_DELTAS, total, DROP_OFFSET_Y))
+	addLogEntry(string.format("[%s]   dx = %s", timestamp(), table.concat(deltas, ",")))
+	addLogEntry(string.format("[%s]   dt = %s", timestamp(), table.concat(times, ",")))
+	addLogEntry(string.format(
+		"[%s]   tolerance=%.1f | minFreefallY=%.1f | renderPriority=%d | expected total=%.1f studs",
+		timestamp(), REPLAY_CORRECTION_TOLERANCE, REPLAY_MIN_FREEFALL_Y,
+		RENDER_STEP_PRIORITY, launchDist + total))
+	return launchDist + total
+end
+
+local function beginFlightTrace(name, humanoid, root, startPos, requestedStuds)
+	if not flightTraceEnabled then return end
+	local now = os.clock()
+	flightTrace = {
+		name = name, startTime = now, startPos = startPos, requested = requestedStuds,
+		writes = 0, lost = 0, held = 0, frames = 0, events = 0,
+		lastFrameAt = 0, lastPhysicsAt = now, lastTarget = nil,
+	}
+	addLogEntry(string.format("[%s] ============ FLIGHT TRACE START | %s ============",
+		timestamp(), name))
+	addLogEntry(string.format(
+		"[%s]   from=(%s) | state=%s | hp=%.1f | floor=%s | noclip=on",
+		timestamp(), formatPos(startPos), safeState(humanoid), humanoid.Health, safeFloor(humanoid)))
+	addLogEntry(string.format("[%s]   owner | %s", timestamp(),
+		ownershipLine(player.Character, root)))
+	local okMass, mass = pcall(function() return root.AssemblyMass end)
+	addLogEntry(string.format("[%s]   root  | grounded=%s | receiveAge=%s | anchored=%s | mass=%.1f",
+		timestamp(), grounded(root), receiveAge(root), tostring(root.Anchored),
+		okMass and mass or -1))
+	addLogEntry(string.format("[%s]   physics | %s", timestamp(), physicsLine()))
+end
+
+-- Called from forceTransform() - the single place the replay writes a position.
+local function noteWrite(kind, target)
+	writeSeq += 1
+	lastWrite = { seq = writeSeq, kind = kind, target = target, time = os.clock(), bad = false }
+	if flightTrace then
+		flightTrace.writes += 1
+		flightTrace.lastTarget = target
+	end
+end
+
+-- Anything the replay DOES that is not a position write. ChangeState/AutoRotate
+-- were completely invisible in the log before this - and they are the -1000.
+local function noteEvent(root, kind, detail)
+	if flightTrace then flightTrace.events += 1 end
+	addLogEntry(string.format(
+		"[%s] ACTION | %s%s | phase=%s | t+%.3fs | pos=(%s) | owner=%s",
+		timestamp(), kind, detail and (" | " .. detail) or "", activePhase,
+		flightTrace and (os.clock() - flightTrace.startTime) or 0,
+		root and formatPos(root.Position) or "?", ownerName(root)))
+end
+
+-- Hysteresis: count one "episode" each time the character leaves the target the
+-- replay asked for, and one recovery each time it comes back. A flapping
+-- character therefore reads as N episodes rather than N log lines.
+local function checkWriteOutcome(humanoid, root, now)
+	if not lastWrite or not lastWrite.target or not root then return end
+	local err = (root.Position - lastWrite.target).Magnitude
+	local off = err > WRITE_CONFIRM_STUDS
+	if off and not lastWrite.bad then
+		lastWrite.bad = true
+		if flightTrace then flightTrace.lost += 1 end
+		if (now - lastLostWarn) > LOST_WRITE_WARN_S then
+			lastLostWarn = now
+			addLogEntry(string.format(
+				"[%s] WRITE REJECTED | #%d %s | asked=(%s) | character at (%s) | off by %.1f studs",
+				timestamp(), lastWrite.seq, lastWrite.kind, formatPos(lastWrite.target),
+				formatPos(root.Position), err))
+			addLogEntry(string.format(
+				"[%s]   owner=%s | state=%s | vel=(%s) | grounded=%s | phase=%s",
+				timestamp(), ownerName(root), safeState(humanoid),
+				formatVec3(root.AssemblyLinearVelocity), grounded(root), activePhase))
+		end
+	elseif not off and lastWrite.bad then
+		lastWrite.bad = false
+		if flightTrace then flightTrace.held += 1 end
+		addLogEntry(string.format(
+			"[%s] WRITE HELD AGAIN | #%d | back within %.1f studs of (%s) after %.2fs",
+			timestamp(), lastWrite.seq, WRITE_CONFIRM_STUDS, formatPos(lastWrite.target),
+			now - lastWrite.time))
+	end
+end
+
+-- Bounded per-frame record: asked vs actual, per frame, so the flight can be
+-- replayed from the log alone.
+local function traceFrame(humanoid, root, now)
+	if not flightTrace or not root then return end
+	if flightTrace.frames >= FLIGHT_FRAME_MAX then return end
+	if (now - flightTrace.lastFrameAt) < FLIGHT_FRAME_S then return end
+	flightTrace.lastFrameAt = now
+	flightTrace.frames += 1
+	local target = flightTrace.lastTarget
+	addLogEntry(string.format(
+		"[%s] FRAME %03d | t+%.3fs | pos=(%s) | asked=(%s) | off=%.1f | state=%s | vel=(%s) | grounded=%s | owner=%s",
+		timestamp(), flightTrace.frames, now - flightTrace.startTime, formatPos(root.Position),
+		target and formatPos(target) or "-",
+		target and (root.Position - target).Magnitude or -1,
+		safeState(humanoid), formatVec3(root.AssemblyLinearVelocity),
+		grounded(root), ownerName(root)))
+end
+
+local function endFlightTrace(reason, humanoid, root)
+	if not flightTrace then return end
+	local t = flightTrace
+	local now = os.clock()
+	local pos = root and root.Position or t.startPos
+	local net = (pos - t.startPos).Magnitude
+	local dur = math.max(now - t.startTime, 1e-3)
+	addLogEntry(string.format("[%s] ============ FLIGHT TRACE END | %s ============",
+		timestamp(), reason or "done"))
+	addLogEntry(string.format(
+		"[%s]   duration  | %.2fs | %d writes (%.0f/s) | %d frame samples | %d action(s)",
+		timestamp(), dur, t.writes, t.writes / dur, t.frames, t.events))
+	addLogEntry(string.format("[%s]   requested | %s studs | profile expected",
+		timestamp(), t.requested and string.format("%.0f", t.requested) or "?"))
+	addLogEntry(string.format("[%s]   achieved  | %.1f studs net | (%s) -> (%s)",
+		timestamp(), net, formatPos(t.startPos), formatPos(pos)))
+	addLogEntry(string.format(
+		"[%s]   writes    | %d off-target episode(s) | %d recovered | tolerance %.1f studs",
+		timestamp(), t.lost, t.held, WRITE_CONFIRM_STUDS))
+	local verdict
+	if t.writes == 0 then
+		verdict = "NOTHING WAS WRITTEN - the replay never reached a write"
+	elseif net < 1 then
+		verdict = "THE CHARACTER DID NOT MOVE - writes are not sticking"
+	elseif t.lost == 0 then
+		verdict = "ALL WRITES HELD - the server accepted every write"
+	elseif t.lost <= 2 then
+		verdict = string.format(
+			"%d pushback episode(s) but the flight still moved %.0f studs", t.lost, net)
+	else
+		verdict = string.format("THE SERVER FOUGHT BACK %d TIMES - expect rubberbanding", t.lost)
+	end
+	addLogEntry(string.format("[%s]   verdict   | %s", timestamp(), verdict))
+	addLogEntry(string.format("[%s]   owner     | %s", timestamp(),
+		ownershipLine(player.Character, root)))
+	addLogEntry(string.format("[%s]   physics   | %s", timestamp(), physicsLine()))
+	flightTrace = nil
+	lastWrite = nil
 end
 
 -- ================================================================
@@ -490,14 +750,22 @@ local function replicateFreefall()
 		timestamp(), formatPos(startPos), formatPos(launchEnd), #FREEFALL_X_DELTAS, noclipChanged
 	))
 
+	local expectedStuds = logReplayParams()
+	beginFlightTrace("replicateFreefall", humanoid, root, startPos, expectedStuds)
+
 	feedback.Text = "Replaying ld-p3 (sticky)..."
 	feedback.TextColor3 = Color3.fromRGB(255, 160, 90)
 	feedback.Visible = true
 
 	setPhase("LAUNCH", humanoid, root)
 
-	-- Force Freefall early so the humanoid fights less
+	-- Force Freefall early so the humanoid fights less.
+	-- These two lines are the known -1000 trigger and they used to leave NO trace
+	-- in the log at all: a replay that died 0.03s in looked identical to one that
+	-- never started. They are recorded now.
+	noteEvent(root, "ChangeState(Freefall)", "the -1000 trigger")
 	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+	noteEvent(root, "AutoRotate=false", "the -1000 trigger")
 	humanoid.AutoRotate = false
 
 	local startClock = os.clock()
@@ -518,6 +786,8 @@ local function replicateFreefall()
 		root.CFrame = cf
 		-- Keep velocity near zero so physics doesn't drag us
 		root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+		-- the one place this replay writes a position: record the intent
+		noteWrite("PivotTo+CFrame", pos)
 		return true
 	end
 
@@ -578,6 +848,7 @@ local function replicateFreefall()
 					freefallStarted = true
 					freefallClock = os.clock()
 					setPhase("FREEFALL", humanoid, root)
+					noteEvent(root, "ChangeState(Freefall)", "again, at freefall start")
 					humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 					addLogEntry(string.format(
 						"[%s] FREEFALL START | pos=(%s) | state=%s",
@@ -631,6 +902,7 @@ local function replicateFreefall()
 	end
 
 	safeUnbind()
+	endFlightTrace(abortedReason or "flight complete", humanoid, root)
 	setNoclip(character, false)
 	if humanoid and humanoid.Parent then
 		humanoid.AutoRotate = originalAutoRotate
@@ -995,6 +1267,36 @@ local function forensicsTick(humanoid, root)
 	local pos = root.Position
 	local speed = root.AssemblyLinearVelocity.Magnitude
 
+	-- A change of network ownership explains both a refused write and a
+	-- rubberband, and it was never visible anywhere in the log.
+	if (now - lastOwnerPoll) > OWNERSHIP_POLL_S then
+		lastOwnerPoll = now
+		local mine = (ownerName(root) == "you")
+		if lastOwnerSeen == nil then
+			lastOwnerSeen = mine
+		elseif lastOwnerSeen ~= mine then
+			lastOwnerSeen = mine
+			addLogEntry(string.format(
+				"[%s] OWNERSHIP | root is now %s | %s | phase=%s | pos=(%s)",
+				timestamp(), mine and "client-owned (writes are authoritative)"
+					or "SERVER-OWNED (writes are only requests)",
+				ownershipLine(player.Character, root), activePhase, formatPos(pos)))
+		end
+	end
+
+	-- ---- the flight write ledger -----------------------------------------
+	if flightTrace or lastWrite then
+		checkWriteOutcome(humanoid, root, now)
+		traceFrame(humanoid, root, now)
+	end
+	if flightTrace and (now - flightTrace.lastPhysicsAt) > PHYSICS_SAMPLE_S then
+		flightTrace.lastPhysicsAt = now
+		addLogEntry(string.format(
+			"[%s] PHYSICS | t+%.2fs | %s | owner=%s | vel=(%s) | state=%s",
+			timestamp(), now - flightTrace.startTime, physicsLine(), ownerName(root),
+			formatVec3(root.AssemblyLinearVelocity), safeState(humanoid)))
+	end
+
 	-- ---- did the last big jump STICK? ----------------------------------
 	evaluatePendingJump(humanoid, root, now)
 
@@ -1067,10 +1369,11 @@ evaluatePendingJump = function(humanoid, root, now)
 end
 
 local function disconnectForensics()
-	for _, conn in ipairs({deathConnection, anchoredConnection}) do
+	for _, conn in ipairs({deathConnection, anchoredConnection, autoRotateConnection}) do
 		if conn then conn:Disconnect() end
 	end
-	deathConnection, anchoredConnection = nil, nil
+	deathConnection, anchoredConnection, autoRotateConnection = nil, nil, nil
+	flightTrace, lastWrite = nil, nil
 	if touchConnection then
 		for _, c in ipairs(touchConnection) do c:Disconnect() end
 		touchConnection = nil
@@ -1154,6 +1457,14 @@ local function startTracking(character)
 		end
 	end)
 
+	-- AutoRotate=false is half of the known -1000 trigger. If anything sets it -
+	-- this script, another script, or the server - the log should say so.
+	autoRotateConnection = humanoid:GetPropertyChangedSignal("AutoRotate"):Connect(function()
+		addLogEntry(string.format("[%s] AUTOROTATE | %s -> %s | phase=%s | state=%s",
+			timestamp(), tostring(not humanoid.AutoRotate), tostring(humanoid.AutoRotate),
+			activePhase, safeState(humanoid)))
+	end)
+
 	deathConnection = humanoid.Died:Connect(function()
 		logDeath("Humanoid.Died fired", humanoid, root)
 	end)
@@ -1178,6 +1489,10 @@ local function startTracking(character)
 		"[%s]   watches | bigJump=%.0f | revert=%.0f in %.1fs | rigStretch=%.1f | net=%.1fs @ %.0f+ studs/s",
 		timestamp(), BIG_JUMP_STUDS, REVERT_MIN_STUDS, REVERT_WINDOW_S,
 		RIG_STRETCH_STUDS, NET_WINDOW_S, NET_MIN_SPEED))
+	addLogEntry(string.format(
+		"[%s]   flightTrace=%s | frame=%.3fs (max %d) | writes are checked against the ask by %.1f studs",
+		timestamp(), tostring(flightTraceEnabled), FLIGHT_FRAME_S, FLIGHT_FRAME_MAX,
+		WRITE_CONFIRM_STUDS))
 end
 
 -- ================================================================
@@ -1219,6 +1534,36 @@ clearBtn.MouseButton1Click:Connect(function()
 	feedback.TextColor3 = Color3.fromRGB(255, 180, 80)
 	feedback.Visible = true
 	task.delay(1.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
+end)
+
+traceBtn.MouseButton1Click:Connect(function()
+	flightTraceEnabled = not flightTraceEnabled
+	traceBtn.Text = flightTraceEnabled and "FLIGHT TRACE: ON" or "FLIGHT TRACE: OFF"
+	traceBtn.BackgroundColor3 = flightTraceEnabled
+		and Color3.fromRGB(35, 110, 70) or Color3.fromRGB(90, 55, 55)
+	addLogEntry(string.format(
+		"[%s] FLIGHT TRACE | %s | frame=%.3fs (max %d lines) | confirm=%.1f studs | physics=%.1fs",
+		timestamp(), flightTraceEnabled and "ON" or "OFF", FLIGHT_FRAME_S,
+		FLIGHT_FRAME_MAX, WRITE_CONFIRM_STUDS, PHYSICS_SAMPLE_S))
+	if not flightTraceEnabled then flightTrace, lastWrite = nil, nil end
+	feedback.Text = flightTraceEnabled and "Flight trace ON" or "Flight trace OFF"
+	feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
+	feedback.Visible = true
+	task.delay(1.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
+end)
+
+ownerBtn.MouseButton1Click:Connect(function()
+	-- On demand: who owns the character right now, and can we see the server?
+	local char = player.Character
+	local rt = char and char:FindFirstChild("HumanoidRootPart")
+	addLogEntry(string.format("[%s] ---- OWNERSHIP -------------------------", timestamp()))
+	addLogEntry(string.format("[%s]   root      | %s", timestamp(), ownerName(rt)))
+	addLogEntry(string.format("[%s]   character | %s", timestamp(), ownershipLine(char, rt)))
+	addLogEntry(string.format("[%s]   root      | receiveAge=%s | grounded=%s | anchored=%s",
+		timestamp(), receiveAge(rt), grounded(rt),
+		rt and tostring(rt.Anchored) or "?"))
+	addLogEntry(string.format("[%s]   physics   | %s", timestamp(), physicsLine()))
+	addLogEntry(string.format("[%s] ----------------------------------------", timestamp()))
 end)
 
 forensicsBtn.MouseButton1Click:Connect(function()

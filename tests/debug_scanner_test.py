@@ -38,6 +38,10 @@ print = function(...)
   LOG[#LOG + 1] = table.concat(t, "\t")
 end
 
+local PUMP = nil          -- RunService.Heartbeat:Wait() advances the world
+local PUMP_BUDGET = 0
+local REVERT_TO = nil     -- when set, the "server" puts the character back
+
 local function signal()
   local s = {_fns={}}
   s.Connect = function(self, fn)
@@ -46,7 +50,16 @@ local function signal()
       for i, f in ipairs(s._fns) do if f == fn then table.remove(s._fns, i) break end end
     end}
   end
-  s.Wait = function() end
+  s.Wait = function()
+    -- In the real engine Wait() yields to the next Heartbeat, which is what lets
+    -- the replay's blocking loop advance. A no-op here would spin forever.
+    if not PUMP then return end
+    PUMP_BUDGET = PUMP_BUDGET - 1
+    if PUMP_BUDGET <= 0 then
+      error("pump budget exhausted: the flight never finished", 2)
+    end
+    PUMP()
+  end
   return s
 end
 local function sigOf(data, name)
@@ -213,6 +226,9 @@ local function newInstance(class)
             data.CFrame = cf; return true end end
       if k=="GetFullName" then return function() return tostring(data.Name) end end
       if k=="GetConnectedParts" then return function() return {} end end
+      if k=="GetNetworkOwnership" then return function() return data._owner end end
+      if k=="IsGrounded" then return function() return data._grounded or false end end
+      if k=="SetNetworkOwner" then return function() end end
       if k=="Raycast" then return function(_, origin, dir, params)
             -- _ground = nil means nothing below (a void); a number is the distance
             local g = data._ground
@@ -232,6 +248,11 @@ local function newInstance(class)
     __newindex=function(_, k, v)
       local prev = data[k]
       data[k] = v
+      -- a real Part's Position follows its CFrame; without this the replay's
+      -- PivotTo would look like a failed write on every single frame
+      if k == "CFrame" and type(v) == "table" and v.p then
+        rawset(data, "Position", v.p)
+      end
       local s = data._sig[k]
       if s then for _, fn in ipairs(s._fns) do fn(v, prev) end end
     end,
@@ -246,6 +267,7 @@ Instance = {new=function(c) return newInstance(c) end}
 
 -- ---- scene ---------------------------------------------------------------
 local player = newInstance("Player"); player.Name = "Tester"; player.UserId = 1
+player.GetNetworkPing = function() return 0.042 end
 local playerGui = newInstance("PlayerGui"); player.PlayerGui = playerGui
 local RUNSERVICE = newInstance("RunService")
 
@@ -260,6 +282,8 @@ hum.AutoRotate = true; hum.FloorMaterial = "Plastic"; hum._state = "Running"
 root.CFrame = CFrame.new(0, 100, 0); root.Position = vnew(0,100,0)
 root.AssemblyLinearVelocity = vnew(0,0,0)
 root.AssemblyAngularVelocity = vnew(0,0,0)
+root.ReceiveAge = 0.01
+root.AssemblyMass = 12.0
 root.Orientation = vnew(0,0,0)
 torso.CFrame = CFrame.new(0, 99, 0); torso.Position = vnew(0,99,0)
 head.CFrame  = CFrame.new(0, 103, 0); head.Position = vnew(0,103,0)
@@ -274,8 +298,14 @@ torso.Parent = true; head.Parent = true
 player.Character = char
 
 local WORKSPACE = newInstance("Workspace")
+-- network ownership: the script distinguishes nil (server-owned) from LocalPlayer
+function WORKSPACE.GetRealPhysicsFPS() return 60.0 end
+function WORKSPACE.GetPhysicsThrottling() return 100 end
+function WORKSPACE.GetNumAwakeParts() return 3 end
+function WORKSPACE.SetNetworkOwner(self, who) self._networkOwner = who end
 WORKSPACE.CurrentCamera = newInstance("Camera")
 WORKSPACE.FallenPartsDestroyHeight = -500
+WORKSPACE.Gravity = 196.2
 WORKSPACE._overlap = {}
 
 game = {GetService=function(_, name)
@@ -331,6 +361,38 @@ H.place = function(x, y, z)
   end
   return p
 end
+H.renderOnce = function(dt)
+  dt = dt or 1/60
+  FAKE_T = FAKE_T + dt
+  local snap = {}
+  for name, fn in pairs(RENDER) do snap[#snap + 1] = fn end
+  for _, fn in ipairs(snap) do fn(dt) end
+end
+H.renderCount = function()
+  local n = 0
+  for _ in pairs(RENDER) do n = n + 1 end
+  return n
+end
+-- Wait() -> render step -> revert (if any) -> Heartbeat, i.e. one frame
+H.installPump = function(budget)
+  PUMP_BUDGET = budget or 20000  -- a stalled flight fails the test, never hangs it
+  PUMP = function()
+    H.renderOnce(1/60)
+    if REVERT_TO then
+      local p = vnew(REVERT_TO.x, REVERT_TO.y, REVERT_TO.z)
+      local d = PROXY_DATA[root]
+      rawset(d, "Position", p)
+      rawset(d, "CFrame", CFrame.new(p))
+    end
+    fire(RUNSERVICE, "Heartbeat", 1/60)
+  end
+end
+H.setRevert = function(x, y, z)
+  if x == nil then REVERT_TO = nil else REVERT_TO = {x=x, y=y, z=z} end
+end
+H.setState = function(st) rawset(PROXY_DATA[hum], "_state", st) end
+H.setOwner = function(part, who) PROXY_DATA[part]._owner = who end
+H.setGrounded = function(part, v) PROXY_DATA[part]._grounded = v end
 H.setGround = function(distance, part)
   local d = PROXY_DATA[WORKSPACE]
   d._ground = distance
@@ -731,6 +793,122 @@ txt = H["log"]()
 chk("STATE logged", "STATE |" in txt, lastline(txt, "STATE |"))
 chk("shows old -> new", "-> Freefall" in txt, "")
 chk("includes nc and floor", "nc=" in txt and "floor=" in txt, "")
+
+print("\n=== T18: a flight that WORKS is traced write by write ===")
+H["clearLog"]()
+H["setOwner"](root, H["player"])            # client-owned: writes are authoritative
+H["setOwner"](torso, H["player"])
+H["setOwner"](H["head"], H["player"])
+H["setGrounded"](root, False)
+H["setVel"](0, 0, 0)
+H["place"](0, 200, 0)
+H["setGround"](400)
+H["installPump"](20000)
+replay = buttons("REPLAY REFERENCE")[0]
+fire(replay, "MouseButton1Click")
+txt = H["log"]()
+chk("the flight trace starts", "FLIGHT TRACE START" in txt, "")
+chk("the reference profile is written out",
+    "REPLAY PARAMS" in txt and "dx =" in txt and "dt =" in txt, lastline(txt, "REPLAY PARAMS"))
+chk("expected distance is computed", "expected total=" in txt, lastline(txt, "expected total"))
+chk("ownership is recorded before the flight", "owner | root=" in txt,
+    lastline(txt, "owner | root="))
+chk("physics state is recorded", "physics | realFPS=" in txt, lastline(txt, "physics |"))
+chk("every frame shows asked vs actual", "asked=(" in txt, lastline(txt, "FRAME 0"))
+chk("the render step is unbound at the end", H["renderCount"]() == 0,
+    f"{H['renderCount']()} render step(s) still bound")
+chk("the trace ends with a verdict", "FLIGHT TRACE END" in txt, lastline(txt, "verdict"))
+chk("ALL WRITES HELD for a clean flight", "ALL WRITES HELD" in txt,
+    lastline(txt, "verdict"))
+chk("achieved distance is reported", "achieved  |" in txt, lastline(txt, "achieved  |"))
+frames = [l for l in txt.splitlines() if "FRAME " in l]
+chk("the per-frame trace is capped", len(frames) <= 60, f"{len(frames)} FRAME lines")
+chk("the trace summarises writes and actions",
+    "writes (%.0f/s)" in txt or "writes (" in txt, lastline(txt, "duration  |"))
+
+print("\n=== T19: the -1000 trigger calls are now VISIBLE in the log ===")
+chk("ChangeState is recorded as an action",
+    "ACTION | ChangeState(Freefall)" in txt,
+    lastline(txt, "ChangeState"))
+chk("AutoRotate is recorded as an action",
+    "ACTION | AutoRotate=false" in txt, lastline(txt, "AutoRotate=false"))
+chk("actions carry a timestamp relative to the flight", "t+0." in txt, "")
+chk("the -1000 triggers are labelled as such", "the -1000 trigger" in txt,
+    lastline(txt, "the -1000 trigger"))
+# ordering matters: a flight that died 0.03s in must show the action BEFORE the death
+lines = txt.splitlines()
+act = [i for i, l in enumerate(lines) if "ACTION | ChangeState" in l]
+dead = [i for i, l in enumerate(lines) if "DEATH" in l or "ABORTED" in l]
+chk("the action is logged before any abort/death",
+    not dead or not act or act[0] < dead[0],
+    f"action@{act[0] if act else '-'} death@{dead[0] if dead else '-'}")
+
+print("\n=== T20: a flight the server UNDOES is reported as such ===")
+H["clearLog"]()
+H["place"](0, 200, 0)
+H["setVel"](0, 0, 0)
+H["setGround"](400)
+H["setRevert"](0, 200, 0)                   # the server holds us in place
+H["installPump"](20000)
+fire(replay, "MouseButton1Click")
+txt = H["log"]()
+chk("the rejected write is named", "WRITE REJECTED" in txt, lastline(txt, "WRITE REJECTED"))
+chk("shows where the character actually is", "character at (" in txt, "")
+chk("shows the offset", "off by" in txt, lastline(txt, "off by"))
+chk("records the owner at that moment", "owner=" in txt, lastline(txt, "owner="))
+chk("the flight still ends with a verdict", "verdict" in txt, lastline(txt, "verdict"))
+chk("the character not moving is called out",
+    "DID NOT MOVE" in txt or "FOUGHT BACK" in txt or "pushback" in txt,
+    lastline(txt, "verdict"))
+chk("the trace ends even when the flight is fought", "FLIGHT TRACE END" in txt, "")
+
+# The flight's own correction detector cannot fire, and this is why it never
+# showed up in the field logs: it re-applies the sticky target at the top of every
+# frame and THEN measures the error, so the error it measures is its own write.
+# The server reverts between frames, where the flight is not looking.
+chk("the flight's own CORRECTION FIGHT stays silent",
+    "CORRECTION FIGHT" not in txt, "(it measures its own write)")
+chk("the ledger catches what the flight cannot", "WRITE REJECTED" in txt,
+    lastline(txt, "WRITE REJECTED"))
+rejects = [l for l in txt.splitlines() if "WRITE REJECTED" in l]
+chk("rejections are rate limited, not one per frame", len(rejects) <= 12,
+    f"{len(rejects)} rejection line(s)")
+H["setRevert"](None)
+
+print("\n=== T21: FLIGHT TRACE can be turned off ===")
+H["clearLog"]()
+tb = buttons("FLIGHT TRACE")[0]
+fire(tb, "MouseButton1Click")
+chk("toggle reports OFF", "FLIGHT TRACE | OFF" in H["log"](),
+    lastline(H["log"](), "FLIGHT TRACE |"))
+H["clearLog"]()
+H["place"](0, 200, 0)
+H["installPump"](20000)
+fire(replay, "MouseButton1Click")
+chk("no trace lines while off", "FLIGHT TRACE START" not in H["log"](), "")
+fire(tb, "MouseButton1Click")
+chk("toggle reports ON again", "FLIGHT TRACE | ON" in H["log"](),
+    lastline(H["log"](), "FLIGHT TRACE |"))
+
+print("\n=== T22: the OWNERSHIP button answers \"who owns me right now?\" ===")
+H["clearLog"]()
+ob = buttons("OWNERSHIP")[0]
+fire(ob, "MouseButton1Click")
+txt = H["log"]()
+chk("ownership bundle printed", "---- OWNERSHIP" in txt, "")
+chk("reports the root owner", "root      |" in txt, lastline(txt, "root      |"))
+chk("reports receiveAge", "receiveAge=" in txt, "")
+chk("reports physics", "realFPS=" in txt, "")
+
+print("\n=== T23: a change of ownership is announced ===")
+H["clearLog"]()
+H["setOwner"](root, None)                   # nil = the server owns it
+H["advance"](1.0); H["tick"](0.1)
+H["advance"](1.0); H["tick"](0.1)
+txt = H["log"]()
+chk("ownership change is logged", "OWNERSHIP |" in txt, lastline(txt, "OWNERSHIP |"))
+chk("explains what server-owned means", "SERVER-OWNED" in txt, lastline(txt, "SERVER-OWNED"))
+H["setOwner"](root, H["player"])
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
