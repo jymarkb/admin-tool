@@ -624,18 +624,24 @@ chk("says the ground runs out", "no ground" in st, st.split("\n")[0])
 chk("did not move", abs(root["CFrame"]["Position"]["X"] - 1000) < 1e-6,
     f"X={root['CFrame']['Position']['X']:.1f}")
 
-print("\n=== T13: cruise altitude clears the HIGHEST terrain, not the start Y ===")
-H["clearGrounds"]()
+print("\n=== T13: tall ground stops the run short instead of climbing ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
 H["addGround"](-1200, 1200, 70)
 H["addGround"](200, 600, 300)          # a 300-stud hill in the middle of the route
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
 box["Text"] = "2000"
-H["watchStart"]()
 fire(fly, "MouseButton1Click")
-H["stepN"](12)                          # past the ramp, into cruise
-y_here = root["CFrame"]["Position"]["Y"]
-chk("climbs above the hill", y_here > 300, f"Y={y_here:.1f} (hill 300, clearance 25)")
-H["stepN"](400)                       # let it finish, so T14 starts clean
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("reports the high terrain", "HIGH TERRAIN" in txt, lastline(txt, "HIGH TERRAIN"))
+chk("stops short rather than climbing", "stopping short" in txt,
+    lastline(txt, "stopping short"))
+H["stepN"](400)
+# and the altitude actually obeyed the cap
+alt = lastline(str(H["clipboard"]()), "altitude |")
+chk("altitude line is logged", "altitude |" in alt, alt)
+H["stepN"](300)
 chk("T13 run completed before T14", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 
 print("\n=== T14: void guard aborts near FallenPartsDestroyHeight ===")
@@ -863,10 +869,10 @@ chk("standing on a big slab is NOT 'inside solid'", "LANDING INSIDE SOLID" not i
 chk("says landing is clear", "LANDING CLEAR" in txt, "")
 H["stepN"](300)
 
-print("\n=== T27: a genuine embed IS still reported ===")
-H["clearGrounds"](); H["clearSlabs"]()
+print("\n=== T27: it REFUSES to drop into a wall (the 4000-stud death) ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
 H["addGround"](-1200, 1200, 70)
-# a block the landing point really is inside: root lands at y=73
+# solid everywhere around the landing point, too wide to shift clear of
 H["addSlab"](-1000, 73, 0, 2000, 30, 2000)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
@@ -875,9 +881,52 @@ fire(fly, "MouseButton1Click")
 H["stepN"](60)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
-chk("real embed reported", "LANDING INSIDE SOLID" in txt,
-    lastline(txt, "LANDING"))
+chk("landing reported blocked", "LANDING BLOCKED" in txt, lastline(txt, "LANDING BLOCKED"))
+chk("says it held altitude", "held altitude" in txt, lastline(txt, "ABORTED"))
+chk("did NOT drop into the wall", "LANDING INSIDE SOLID" not in txt, "")
+# and the character is still up at cruise, not embedded
+y_here = root["CFrame"]["Position"]["Y"]
+chk("character stayed at cruise altitude", y_here > 100,
+    f"Y={y_here:.1f} (cruise, not inside the slab at 73)")
 H["stepN"](300)
+
+print("\n=== T35: it shifts to a clear spot when one is nearby ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
+H["addGround"](-1200, 1200, 70)
+# A wall covering the ACTUAL landing point. Note the flight lands ~22 studs short
+# of the nominal target, because remain <= STOP_WITHIN (25) stops the approach -
+# so a slab centred on the target would miss it entirely and the test would pass
+# for the wrong reason.
+H["addSlab"](-990, 73, 0, 60, 30, 60)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](80)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("shifted to a clear spot", "LANDING SHIFT" in txt, lastline(txt, "LANDING SHIFT"))
+chk("did not embed", "LANDING INSIDE SOLID" not in txt, "")
+chk("still completed the flight", "DONE" in txt, lastline(txt, "DONE"))
+H["stepN"](300)
+
+print("\n=== T36: the climb is capped by MAX_CRUISE_RISE ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
+H["addGround"](-1200, 1200, 70)         # flat ground: no reason to climb
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](10)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+import re as _re
+m = _re.search(r"rise=(-?[\d.]+) \| cap=(\d+)", txt)
+chk("rise and cap are logged", m is not None, lastline(txt, "altitude |"))
+if m:
+    chk("rise is within the cap", float(m.group(1)) <= float(m.group(2)) + 0.01,
+        f"rise={m.group(1)} cap={m.group(2)}")
+H["stepN"](400)
 
 print("\n=== T28: barriers crossing the route are found and named ===")
 H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()

@@ -69,6 +69,20 @@ local CORRECTION_TOLERANCE   = 25.0
 local MAX_CONSECUTIVE_ERRORS = 8
 
 -- path scan
+-- Do not fly high. The field deaths cluster at the top of the range: the runs
+-- that survived cruised at 93 / 104 / 131, and the one that died at 4000 studs
+-- was pushed to 209 by a scanned maxGround of 184. Cap the climb instead.
+local MAX_CRUISE_RISE = 60      -- studs above the start Y
+local HIGH_TERRAIN    = "stop_short"  -- "stop_short" | "refuse" | "ignore"
+
+-- Never drop into solid geometry. The 4000-stud run landed INSIDE
+-- COLL GUARD.WALL LEFT and died there, at Health 0 - a real death, not the
+-- -1000 exploit handler. Check the landing point before descending, and look
+-- around it for a clear spot rather than committing to a wall.
+local LANDING_CLEAR   = true
+local LANDING_TRIES   = 5       -- offsets to try on each of 4 sides
+local LANDING_OFFSET  = 7       -- studs between those offsets
+
 local SCAN_STEP    = 39
 local SCAN_UP      = 200
 local SCAN_DOWN    = 1000
@@ -372,6 +386,53 @@ local function pointInsidePart(p, pos)
 	return math.abs(localPos.X) <= hx
 		and math.abs(localPos.Y) <= hy
 		and math.abs(localPos.Z) <= hz
+end
+
+-- is this point inside ANY collidable part? (used for the landing check)
+local function pointInsideAnySolid(pos)
+	local ch = LocalPlayer.Character
+	local ok, parts = pcall(function()
+		local params = OverlapParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { ch }
+		return workspace:GetPartBoundsInRadius(pos, 12, params)
+	end)
+	if not ok or not parts then return false end
+	for _, p in ipairs(parts) do
+		if p.CanCollide and pointInsidePart(p, pos) then return true, p end
+	end
+	return false
+end
+
+-- Find a spot near (x,z) that is standing room, not wall. Tries straight down
+-- first, then a ring of offsets, nearest first.
+local function findLandingSpot(x, z, fromY)
+	local function try(cx, cz)
+		local g = groundY(cx, cz, fromY)
+		if not g then return nil end
+		local probe = Vector3.new(cx, g + 3, cz)
+		local inside, part = pointInsideAnySolid(probe)
+		if not inside then return cx, cz, g end
+		return nil, part
+	end
+
+	-- straight down first
+	local cx, cz, g = try(x, z)
+	if cx then return cx, cz, g, 0 end
+
+	-- then outward, nearest ring first
+	for ring = 1, LANDING_TRIES do
+		local d = LANDING_OFFSET * ring
+		local options = {
+			{x + d, z}, {x - d, z}, {x, z + d}, {x, z - d},
+			{x + d, z + d}, {x - d, z + d}, {x + d, z - d}, {x - d, z - d},
+		}
+		for _, o in ipairs(options) do
+			local sx, sz, sg = try(o[1], o[2])
+			if sx then return sx, sz, sg, ring * LANDING_OFFSET end
+		end
+	end
+	return nil
 end
 
 local function isGuardNamed(name)
@@ -766,9 +827,35 @@ local function renderStep(dt)
 			f.phase = "drop"
 			f.descent = 0
 			f.descentFrom = cur
-			f.destGround = groundY(cur.X, cur.Z, cur.Y)
-			logLine(("DROP | from=%s | groundUnder=%s"):format(fmt(cur),
-				f.destGround and ("%.1f"):format(f.destGround) or "NONE"))
+
+			-- Where exactly are we putting down? The 4000-stud run landed INSIDE
+			-- a guard wall and died there, so look before dropping: straight down
+			-- first, then a ring of nearby clear spots.
+			local lx, lz, lg, shifted = cur.X, cur.Z, groundY(cur.X, cur.Z, cur.Y), 0
+			if LANDING_CLEAR then
+				local sx, sz, sg, sh = findLandingSpot(cur.X, cur.Z, cur.Y)
+				if sx then
+					lx, lz, lg, shifted = sx, sz, sg, sh or 0
+					if shifted > 0 then
+						logLine(("LANDING SHIFT | straight down is solid; moving %.0f studs "
+							.. "to %s (clear)"):format(shifted, fmt(Vector3.new(sx, sg, sz))))
+					end
+				else
+					-- nowhere clear. Do NOT drop: landing in a wall is what killed
+					-- us. Hold altitude and report.
+					logLine(("LANDING BLOCKED | solid geometry straight down and for "
+						.. "%d studs around, no clear ground - holding altitude, not dropping")
+						:format(LANDING_OFFSET * LANDING_TRIES))
+					f.phase = "hold"
+					return
+				end
+			end
+
+			f.landX, f.landZ, f.landGround = lx, lz, lg
+			f.destGround = lg
+			logLine(("DROP | from=%s | groundUnder=%s | target=%s")
+				:format(fmt(cur), lg and ("%.1f"):format(lg) or "NONE",
+					fmt(Vector3.new(lx, (lg or cur.Y) + 3, lz))))
 			return
 		end
 
@@ -783,6 +870,17 @@ local function renderStep(dt)
 		return
 	end
 
+	-- destination is solid: hold altitude rather than embed the character in it
+	if f.phase == "hold" then
+		f.currentTarget = Vector3.new(r.Position.X, f.cruiseY, r.Position.Z)
+		forceTransform(f, f.currentTarget)
+		f.holdFrames = (f.holdFrames or 0) + 1
+		if f.holdFrames >= 3 then
+			stopFlight("landing was blocked by solid geometry - held altitude")
+		end
+		return
+	end
+
 	if f.phase == "drop" then
 		if not f.destGround then
 			-- do NOT let go with nothing underneath: that is how v1 killed people
@@ -793,10 +891,12 @@ local function renderStep(dt)
 		f.descent = f.descent + 1
 		local alpha = math.min(f.descent / DESCENT_FRAMES, 1)
 		local from, destY = f.descentFrom, f.destGround + 3
+		local tx = f.landX or f.target.X
+		local tz = f.landZ or f.target.Z
 		f.currentTarget = Vector3.new(
-			from.X + (f.target.X - from.X) * alpha,
+			from.X + (tx - from.X) * alpha,
 			from.Y + (destY - from.Y) * alpha,
-			from.Z + (f.target.Z - from.Z) * alpha)
+			from.Z + (tz - from.Z) * alpha)
 		forceTransform(f, f.currentTarget)
 		if f.descent >= DESCENT_FRAMES then
 			logLine(("LANDING WATCH start | pos=%s"):format(fmt(select(3, getState()).Position)))
@@ -837,6 +937,39 @@ local function startFlight(requested)
 	local cruiseY = r.Position.Y + 13
 	if scan.maxGround then
 		cruiseY = math.max(scan.maxGround + CLEARANCE, r.Position.Y + 13)
+	end
+
+	-- ---- the altitude cap -------------------------------------------------
+	-- "do not fly too high". Every survival so far cruised at 93-131; the run
+	-- that died was pushed to 209 by tall ground on the route.
+	local cap = r.Position.Y + MAX_CRUISE_RISE
+	local cappedTo = nil
+	if cruiseY > cap then
+		local limit = cap - CLEARANCE
+		local blockedAt = nil
+		for _, smp in ipairs(scan.samples) do
+			if smp.g and smp.g > limit then blockedAt = smp.d break end
+		end
+
+		if HIGH_TERRAIN == "refuse" and blockedAt then
+			return false, ("would need to climb to %.0f but MAX_CRUISE_RISE caps it at %.0f - refused")
+				:format(cruiseY, cap)
+		elseif HIGH_TERRAIN == "stop_short" and blockedAt then
+			local newTotal = math.max(MIN_STUDS, blockedAt - SCAN_STEP)
+			logLine(("HIGH TERRAIN | ground reaches %.1f at %.0f studs; the cap is %.0f.")
+				:format(scan.maxGround, blockedAt, cap))
+			logLine(("  stopping short at %.0f studs instead of climbing to %.0f")
+				:format(newTotal, cruiseY))
+			total = math.min(total, newTotal)
+			-- re-scan the shortened route so the landing target is right
+			scan = scanPath(r.Position, dir, total)
+			cappedTo = newTotal
+		elseif HIGH_TERRAIN == "ignore" then
+			-- fly the original altitude, knowingly above the cap
+		else
+			cruiseY = cap
+		end
+		cruiseY = math.min(cruiseY, cap)
 	end
 
 	-- anything solid crossing the route at cruise altitude?
@@ -887,6 +1020,9 @@ local function startFlight(requested)
 	end
 	logLine(("  maxHealth=%.0f | state-tampering: ChangeState=%s AutoRotate=%s")
 		:format(h.MaxHealth, tostring(TOUCH_HUMANOID_STATE), tostring(TOUCH_AUTOROTATE)))
+	logLine(("  altitude | startY=%.1f | cruiseY=%.1f | rise=%.1f | cap=%.0f%s")
+		:format(startPos.Y, cruiseY, cruiseY - startPos.Y, cap,
+			cappedTo and ("  (high terrain: shortened to %.0f studs)"):format(cappedTo) or ""))
 	if scan.maxGround then
 		logLine(("  scanned | maxGround=%.1f | clearance=%.1f | destGround=%s")
 			:format(scan.maxGround, cruiseY - scan.maxGround,
