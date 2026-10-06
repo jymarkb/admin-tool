@@ -263,8 +263,8 @@ root.Orientation = vnew(0,0,0)
 root.CFrame = CFrame.new(0,0,0)
 root.AssemblyLinearVelocity = vnew(0,0,0)
 root.AssemblyAngularVelocity = vnew(0,0,0)
-local hum  = newInstance("Humanoid"); hum.Health=100; hum.WalkSpeed=16
-hum.AutoRotate = true
+local hum  = newInstance("Humanoid"); hum.Health=100; hum.MaxHealth=100
+hum.WalkSpeed=16; hum.AutoRotate = true
 local torso = newInstance("Part"); torso.Name="Torso"; torso.CanCollide=true
 local head  = newInstance("Part"); head.Name="Head";   head.CanCollide=true
 torso.CFrame = CFrame.new(1000, 100, 0)
@@ -465,6 +465,7 @@ fly   = buttons("FLY")[0]
 close = buttons("X")[0]
 noclipBtn = buttons("NOCLIP")[0]
 copyBtn = buttons("COPY")[0]
+clearBtn = buttons("CLEAR")[0]
 box   = values(getCreated("TextBox"))[0]
 
 def set_noclip(on):
@@ -691,11 +692,12 @@ rp, tp, hp = (root["CFrame"]["Position"], torso["CFrame"]["Position"],
 chk("PivotTo moved the WHOLE model (torso follows)", abs(tp["X"] - rp["X"]) < 1e-6,
     f"root.X={rp['X']:.1f} torso.X={tp['X']:.1f}")
 chk("head follows too", abs(hp["X"] - rp["X"]) < 1e-6, f"head.X={hp['X']:.1f}")
-chk("Freefall state forced", str(hum["_state"]) == "Freefall", str(hum["_state"]))
-chk("AutoRotate disabled for the flight", hum["AutoRotate"] is False,
-    str(hum["AutoRotate"]))
+chk("ChangeState is NOT called (avoids -1000 HP)",
+    str(hum["_state"]) != "Freefall",
+    f"state stayed {hum['_state']} - not forced to Freefall")
+chk("AutoRotate left alone", hum["AutoRotate"] is True, str(hum["AutoRotate"]))
 H["stepN"](400)
-chk("AutoRotate restored afterwards", hum["AutoRotate"] is True, str(hum["AutoRotate"]))
+chk("AutoRotate still untouched after", hum["AutoRotate"] is True, str(hum["AutoRotate"]))
 
 print("\n=== T18: vertical velocity is PRESERVED, not overwritten with a constant ===")
 H["clearGrounds"]()
@@ -913,6 +915,85 @@ chk("guard region named", "GUARD REGION |" in txt,
     lastline(txt, "GUARD REGION"))
 chk("guard warning given", "GUARD WARNING" in txt, "")
 H["stepN"](300)
+
+print("\n=== T30: the -1000 kill is named as an EXTERNAL KILL ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+fire(clearBtn, "MouseButton1Click")
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](4)
+# exactly the field value
+H["setHealth"](-1000)
+H["fireHealth"](-1000)
+H["stepN"](1)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("kill named as EXTERNAL", "EXTERNAL KILL" in txt, lastline(txt, "EXTERNAL KILL"))
+chk("value reported as -1000", "-1000" in txt, "")
+chk("cites the exploit handler", "exploit handler" in txt, "")
+chk("death reason carries it", "Health set to" in txt, "")
+H["setHealth"](100)
+
+print("\n=== T31: an ordinary death is NOT called external ===")
+H["clearGrounds"](); H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+fire(clearBtn, "MouseButton1Click")
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](4)
+H["setHealth"](0)
+H["fireHealth"](0)
+H["stepN"](1)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("plain zero is not an external kill", "EXTERNAL KILL" not in txt,
+    lastline(txt, "HP | "))
+H["setHealth"](100)
+
+print("\n=== T32: state tampering is OFF and reported as such ===")
+H["clearGrounds"](); H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](60)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("start line reports ChangeState=false", "ChangeState=false" in txt,
+    lastline(txt, "state-tampering"))
+chk("start line reports AutoRotate=false", "AutoRotate=false" in txt, "")
+chk("FREEFALL START line reports it too", "ChangeState=false" in txt, "")
+chk("maxHealth logged", "maxHealth=" in txt, "")
+H["stepN"](300)
+
+print("\n=== T34: CLEAR empties the log so a paste cannot carry stale lines ===")
+fire(clearBtn, "MouseButton1Click")
+H["clearClipboard"]()
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("log is emptied", "EXTERNAL KILL" not in txt and "START #" not in txt,
+    f"{len(txt.splitlines())} line(s): {txt.strip()[:60]}")
+chk("says it was cleared", "log cleared" in txt, "")
+
+print("\n=== T33: the gap between flights is logged, to expose repetition ===")
+H["clearGrounds"](); H["addGround"](-1200, 1200, 70)
+box["Text"] = "500"
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+fire(fly, "MouseButton1Click")
+H["stepN"](60)
+H["clearClipboard"]()
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+fire(fly, "MouseButton1Click")          # immediately, so the gap is tiny
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("gap is logged", "gap since last flight" in txt, lastline(txt, "gap since"))
+chk("tiny gap is flagged as back-to-back", "back-to-back" in txt, "")
+H["stepN"](400)
+
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
     print("FAILED: " + ", ".join(FAILED))

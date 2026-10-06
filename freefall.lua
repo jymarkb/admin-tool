@@ -92,6 +92,23 @@ local STOP_AT_BARRIER = false   -- false = report only, still fly the full dista
 local BARRIER_MARGIN  = 25
 local PROBE_LEN       = 30      -- studs between forward probes at cruise altitude
 
+-- ----------------------------------------------------------------
+-- THE -1000 HP EXPLOIT HANDLER
+-- ----------------------------------------------------------------
+-- A field run died with Humanoid.Health = -1000 exactly. That is not a fall,
+-- not a kill brick and not the void - it is the server's lethal exploit handler.
+-- grok-v3-target-fix.lua names it three times (see its L11, L812, L908):
+--
+--   L11  "the server's lethal exploit handler (-1000 HP damage)"
+--   L812 "without tampering with Motor6D or HumanoidState (avoids -1000 HP death!)"
+--   L908 "Does NOT touch Motor6D or ChangeState (avoids -1000 HP anti-cheat death!)"
+--
+-- Both of the left-hand switches below are therefore OFF. They were copied from
+-- debug.lua's replicateFreefall, which calls ChangeState(Freefall) - i.e. we
+-- added the exact operation the working notes say to avoid.
+local TOUCH_HUMANOID_STATE = false  -- never ChangeState: named as a trigger
+local TOUCH_AUTOROTATE     = false  -- also humanoid state, so also left alone
+
 local NOCLIP       = false      -- explicit toggle, OFF by default
 local DIR_MODE     = "facing"
 local GUI_NAME     = "FreeFallTravelV3"
@@ -104,6 +121,7 @@ local flying     = false
 local token      = 0
 local flight     = nil
 local lastRun    = {studs = 0, secs = 0}
+local lastFlightEndAt = nil     -- to surface rapid repetition in the log
 local flightCount = 0
 
 local savedCollisions  = {}
@@ -509,10 +527,26 @@ local function watch(h)
 	healthConn = h:GetPropertyChangedSignal("Health"):Connect(function()
 		local hp = h.Health
 		local _, _, hr = getState()
-		logLine(("HP | %.1f | pos=%s | state=%s"):format(hp,
-			fmt(hr and hr.Position), tostring(h:GetState())))
+
+		-- A normal death arrives at 0: fall damage, the void, a kill brick. A
+		-- large NEGATIVE value is a script SETTING it, and -1000 specifically is
+		-- the documented exploit handler. Name it, so the next log is unambiguous.
+		local external = hp <= -1
+		if external then
+			logLine(("EXTERNAL KILL | Health set to %s (not damage) - this is the "
+				.. "-1000 HP exploit handler, per grok-v3-target-fix.lua L11/L812/L908")
+				:format(tostring(hp)))
+			logLine(("  maxHealth=%.0f | state=%s | pos=%s | was flying=%s")
+				:format(h.MaxHealth, tostring(h:GetState()),
+					fmt(hr and hr.Position), tostring(flying)))
+		else
+			logLine(("HP | %.1f | pos=%s | state=%s"):format(hp,
+				fmt(hr and hr.Position), tostring(h:GetState())))
+		end
+
 		if hp <= 0 and flying then
-			recordDeath("health reached zero")
+			recordDeath(external and ("EXTERNAL KILL: Health set to %s"):format(hp)
+				or "health reached zero")
 			stopFlight("DIED")
 		end
 	end)
@@ -567,7 +601,10 @@ stopFlight = function(reason)
 	restoreCollisions()
 
 	local ch, h, r = getState()
-	if h then pcall(function() h.AutoRotate = f and f.autoRotate or true end) end
+	if h and f and f.touchedAutoRotate then
+		-- only restore what we actually changed
+		pcall(function() h.AutoRotate = f.autoRotate end)
+	end
 	if r then
 		pcall(function()
 			r.AssemblyLinearVelocity = Vector3.zero
@@ -589,6 +626,7 @@ stopFlight = function(reason)
 			endPos = p
 		end
 		lastRun = {studs = landed, secs = f.elapsed or 0}
+		lastFlightEndAt = os.clock()
 		logLine(("DONE | %.0f studs | %.2fs | Y %.1f"):format(landed, f.elapsed or 0, finalY))
 		if r then checkLandingInside(r.Position) end
 		-- keep watching: the field death came in the same second as DONE, and we
@@ -704,9 +742,16 @@ local function renderStep(dt)
 		if f.frame >= f.rampFrames then
 			f.phase = "freefall"
 			f.freefallClock = os.clock()
-			-- the reference forces Freefall here: "so the humanoid fights less"
-			pcall(function() h:ChangeState(Enum.HumanoidStateType.Freefall) end)
-			logLine(("FREEFALL START | pos=%s | state=%s"):format(fmt(r.Position), tostring(h:GetState())))
+			-- OFF by default. debug.lua's reference does ChangeState(Freefall) here,
+			-- but grok-v3-target-fix.lua names ChangeState as one of the two things
+			-- that provoke the -1000 HP exploit handler, and we were killed with
+			-- exactly -1000. Let the humanoid reach Freefall on its own.
+			if TOUCH_HUMANOID_STATE then
+				pcall(function() h:ChangeState(Enum.HumanoidStateType.Freefall) end)
+			end
+			logLine(("FREEFALL START | pos=%s | state=%s | ChangeState=%s")
+				:format(fmt(r.Position), tostring(h:GetState()),
+					tostring(TOUCH_HUMANOID_STATE)))
 		end
 		return
 	end
@@ -813,7 +858,9 @@ local function startFlight(requested)
 
 	local startPos = r.Position
 	local autoRotate = h.AutoRotate
-	pcall(function() h.AutoRotate = false end)
+	if TOUCH_AUTOROTATE then
+		pcall(function() h.AutoRotate = false end)
+	end
 	if NOCLIP then setCollisions(false) end
 
 	token = token + 1
@@ -825,14 +872,21 @@ local function startFlight(requested)
 		cruiseY = cruiseY, rampFrames = 5,
 		currentTarget = startPos, errors = 0, lowestY = startPos.Y,
 		autoRotate = autoRotate, destGround = scan.destGround, scan = scan,
-		barriers = barriers,
+		barriers = barriers, touchedAutoRotate = TOUCH_AUTOROTATE,
 	}
 	flightCount = flightCount + 1
 	lastObstacle = nil
 	deathRecorded = false
 
+	local gap = lastFlightEndAt and (os.clock() - lastFlightEndAt) or nil
 	logLine(("START #%d | %s | total=%.0f | start=%s | cruiseY=%.1f | noclip=%s | dir=(%.2f, %.2f)")
 		:format(flightCount, DIR_MODE, total, fmt(startPos), cruiseY, tostring(NOCLIP), dir.X, dir.Z))
+	if gap then
+		logLine(("  gap since last flight | %.1fs%s"):format(gap,
+			gap < 10 and "  <- back-to-back; the exploit handler may count repeats" or ""))
+	end
+	logLine(("  maxHealth=%.0f | state-tampering: ChangeState=%s AutoRotate=%s")
+		:format(h.MaxHealth, tostring(TOUCH_HUMANOID_STATE), tostring(TOUCH_AUTOROTATE)))
 	if scan.maxGround then
 		logLine(("  scanned | maxGround=%.1f | clearance=%.1f | destGround=%s")
 			:format(scan.maxGround, cruiseY - scan.maxGround,
@@ -954,7 +1008,7 @@ flyBtn.Parent = frame
 Instance.new("UICorner", flyBtn).CornerRadius = UDim.new(0, 8)
 
 local noclipBtn = Instance.new("TextButton")
-noclipBtn.Size = UDim2.new(0, 110, 0, 24)
+noclipBtn.Size = UDim2.new(0, 86, 0, 24)
 noclipBtn.Position = UDim2.new(0, 12, 0, 108)
 noclipBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
 noclipBtn.Text = "NOCLIP: OFF"
@@ -964,9 +1018,22 @@ noclipBtn.TextSize = 11
 noclipBtn.Parent = frame
 Instance.new("UICorner", noclipBtn).CornerRadius = UDim.new(0, 6)
 
+-- CLEAR matters: the log accumulates across flights, so a pasted log can carry
+-- stale lines from an earlier run and mislead whoever reads it.
+local clearBtn = Instance.new("TextButton")
+clearBtn.Size = UDim2.new(0, 58, 0, 24)
+clearBtn.Position = UDim2.new(0, 102, 0, 108)
+clearBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+clearBtn.Text = "CLEAR"
+clearBtn.TextColor3 = Color3.fromRGB(230, 220, 190)
+clearBtn.Font = Enum.Font.GothamBold
+clearBtn.TextSize = 11
+clearBtn.Parent = frame
+Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 6)
+
 local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(1, -134, 0, 24)
-copyBtn.Position = UDim2.new(1, -122, 0, 108)
+copyBtn.Size = UDim2.new(0, 74, 0, 24)
+copyBtn.Position = UDim2.new(1, -86, 0, 108)
 copyBtn.BackgroundColor3 = Color3.fromRGB(50, 70, 110)
 copyBtn.Text = "COPY LOG"
 copyBtn.TextColor3 = Color3.fromRGB(210, 225, 255)
@@ -1091,6 +1158,12 @@ noclipBtn.MouseButton1Click:Connect(function()
 	NOCLIP = not NOCLIP
 	if not NOCLIP then restoreCollisions() end
 	updateButtons()
+end)
+
+clearBtn.MouseButton1Click:Connect(function()
+	logLines = {}
+	logLine("log cleared")
+	setStatus("log cleared", Color3.fromRGB(230, 220, 190))
 end)
 
 copyBtn.MouseButton1Click:Connect(function()
