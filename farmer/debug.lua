@@ -189,7 +189,7 @@ screenGui.Parent = playerGui
 
 local frame = Instance.new("Frame")
 frame.Name = "SpeedFrame"
-frame.Size = UDim2.new(0, 360, 0, 632)
+frame.Size = UDim2.new(0, 360, 0, 590)
 frame.Position = UDim2.new(0, 20, 0, 20)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 frame.BackgroundTransparency = 0.12
@@ -209,7 +209,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 0, 26)
 title.Position = UDim2.new(0, 12, 0, 6)
 title.BackgroundTransparency = 1
-title.Text = "REFERENCE TRANSFORM V10 (ld-p3)"
+title.Text = "REFERENCE REPLAY V13"
 title.TextColor3 = Color3.fromRGB(0, 200, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -301,25 +301,48 @@ logList.Padding = UDim.new(0, 2)
 logList.Parent = logScroll
 
 local buttonFrame = Instance.new("Frame")
-buttonFrame.Size = UDim2.new(1, -20, 0, 214)
-buttonFrame.Position = UDim2.new(0, 10, 1, -224)
+buttonFrame.Size = UDim2.new(1, -20, 0, 146)
+buttonFrame.Position = UDim2.new(0, 10, 1, -156)
 buttonFrame.BackgroundTransparency = 1
 buttonFrame.Parent = frame
 
-local boostBtn = Instance.new("TextButton")
+-- ------------------------------------------------------------------
+-- SIX BUTTONS, and two of them carry the whole experiment.
+--
+-- What was here before was eleven switches, most of them single settings you
+-- had to hold in your head at once (state calls, write mode, profile, capture,
+-- forensics, trace, ownership, snapshot). The flight logic is now ONE button
+-- that applies the entire setup, and the diagnostics are ONE dial.
+-- ------------------------------------------------------------------
+local boostBtn = Instance.new("TextButton")      -- REPLAY: fly the armed setup
 boostBtn.Size = UDim2.new(1, 0, 0, 32)
 boostBtn.Position = UDim2.new(0, 0, 0, 0)
 boostBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-boostBtn.Text = "REPLAY REFERENCE (ld-p3)"
+boostBtn.Text = "REPLAY"
 boostBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 boostBtn.Font = Enum.Font.GothamBold
 boostBtn.TextSize = 13
 boostBtn.Parent = buttonFrame
 Instance.new("UICorner", boostBtn).CornerRadius = UDim.new(0, 6)
 
+-- THE logic switch. One press sets state calls, write mode and profile together,
+-- because they are one decision: "fly the reference setup" or "reproduce the
+-- setup that gets us -1000". Splitting them into three buttons is what made the
+-- panel ambiguous - a half-switched combination tests nothing.
+local modeBtn = Instance.new("TextButton")
+modeBtn.Size = UDim2.new(1, 0, 0, 36)
+modeBtn.Position = UDim2.new(0, 0, 0, 38)
+modeBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 70)
+modeBtn.Text = "MODE"
+modeBtn.TextColor3 = Color3.fromRGB(235, 255, 235)
+modeBtn.Font = Enum.Font.GothamBold
+modeBtn.TextSize = 11
+modeBtn.Parent = buttonFrame
+Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 6)
+
 local copyBtn = Instance.new("TextButton")
 copyBtn.Size = UDim2.new(0, 130, 0, 26)
-copyBtn.Position = UDim2.new(0, 0, 0, 40)
+copyBtn.Position = UDim2.new(0, 0, 0, 80)
 copyBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 180)
 copyBtn.Text = "Copy Full Log"
 copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -330,7 +353,7 @@ Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 6)
 
 local clearBtn = Instance.new("TextButton")
 clearBtn.Size = UDim2.new(0, 100, 0, 26)
-clearBtn.Position = UDim2.new(0, 140, 0, 40)
+clearBtn.Position = UDim2.new(0, 140, 0, 80)
 clearBtn.BackgroundColor3 = Color3.fromRGB(80, 40, 40)
 clearBtn.Text = "Clear Log"
 clearBtn.TextColor3 = Color3.fromRGB(255, 180, 180)
@@ -339,99 +362,36 @@ clearBtn.TextSize = 12
 clearBtn.Parent = buttonFrame
 Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 6)
 
-local captureBtn = Instance.new("TextButton")
-captureBtn.Size = UDim2.new(0, 80, 0, 26)
-captureBtn.Position = UDim2.new(0, 250, 0, 40)
-captureBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 70)
-captureBtn.Text = "CAPTURE: ON"
-captureBtn.TextColor3 = Color3.fromRGB(220, 255, 230)
-captureBtn.Font = Enum.Font.GothamBold
-captureBtn.TextSize = 11
-captureBtn.Parent = buttonFrame
-Instance.new("UICorner", captureBtn).CornerRadius = UDim.new(0, 6)
+-- How loud the log is. Full = capture + touch/prop/velocity watches + the
+-- per-write trace. Ledger = the flight ledger only, for when the noise of a
+-- normal world (guards, touchers, props) buries the flight.
+local diagBtn = Instance.new("TextButton")
+diagBtn.Size = UDim2.new(0, 170, 0, 26)
+diagBtn.Position = UDim2.new(0, 0, 0, 112)
+diagBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 70)
+diagBtn.Text = "DIAG"
+diagBtn.TextColor3 = Color3.fromRGB(220, 255, 230)
+diagBtn.Font = Enum.Font.GothamBold
+diagBtn.TextSize = 11
+diagBtn.Parent = buttonFrame
+Instance.new("UICorner", diagBtn).CornerRadius = UDim.new(0, 6)
 
--- Row 3: turn the new forensics on and off, and take a manual snapshot when
--- something feels wrong but nothing has been logged yet.
-local forensicsBtn = Instance.new("TextButton")
-forensicsBtn.Size = UDim2.new(0, 170, 0, 26)
-forensicsBtn.Position = UDim2.new(0, 0, 0, 70)
-forensicsBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 70)
-forensicsBtn.Text = "FORENSICS: ON"
-forensicsBtn.TextColor3 = Color3.fromRGB(220, 255, 230)
-forensicsBtn.Font = Enum.Font.GothamBold
-forensicsBtn.TextSize = 11
-forensicsBtn.Parent = buttonFrame
-Instance.new("UICorner", forensicsBtn).CornerRadius = UDim.new(0, 6)
-
-local traceBtn = Instance.new("TextButton")
-traceBtn.Size = UDim2.new(0, 156, 0, 26)
-traceBtn.Position = UDim2.new(0, 0, 0, 98)
-traceBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 70)
-traceBtn.Text = "FLIGHT TRACE: ON"
-traceBtn.TextColor3 = Color3.fromRGB(220, 255, 230)
-traceBtn.Font = Enum.Font.GothamBold
-traceBtn.TextSize = 11
-traceBtn.Parent = buttonFrame
-Instance.new("UICorner", traceBtn).CornerRadius = UDim.new(0, 6)
-
-local ownerBtn = Instance.new("TextButton")
-ownerBtn.Size = UDim2.new(0, 134, 0, 26)
-ownerBtn.Position = UDim2.new(0, 164, 0, 98)
-ownerBtn.BackgroundColor3 = Color3.fromRGB(60, 70, 120)
-ownerBtn.Text = "OWNERSHIP"
-ownerBtn.TextColor3 = Color3.fromRGB(225, 230, 255)
-ownerBtn.Font = Enum.Font.GothamBold
-ownerBtn.TextSize = 11
-ownerBtn.Parent = buttonFrame
-Instance.new("UICorner", ownerBtn).CornerRadius = UDim.new(0, 6)
-
-local stateBtn = Instance.new("TextButton")
-stateBtn.Size = UDim2.new(1, 0, 0, 26)
-stateBtn.Position = UDim2.new(0, 0, 0, 126)
-stateBtn.BackgroundColor3 = Color3.fromRGB(90, 55, 55)
-stateBtn.Text = "STATECALLS: OFF (ChangeState + AutoRotate skipped)"
-stateBtn.TextColor3 = Color3.fromRGB(255, 235, 220)
-stateBtn.Font = Enum.Font.GothamBold
-stateBtn.TextSize = 10
-stateBtn.Parent = buttonFrame
-Instance.new("UICorner", stateBtn).CornerRadius = UDim.new(0, 6)
-
-local pivotBtn = Instance.new("TextButton")
-pivotBtn.Size = UDim2.new(1, 0, 0, 26)
-pivotBtn.Position = UDim2.new(0, 0, 0, 154)
-pivotBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 110)
-pivotBtn.Text = "WRITE: PivotTo + CFrame (whole rig)"
-pivotBtn.TextColor3 = Color3.fromRGB(225, 235, 255)
-pivotBtn.Font = Enum.Font.GothamBold
-pivotBtn.TextSize = 10
-pivotBtn.Parent = buttonFrame
-Instance.new("UICorner", pivotBtn).CornerRadius = UDim.new(0, 6)
-
-local profileBtn = Instance.new("TextButton")
-profileBtn.Size = UDim2.new(1, 0, 0, 26)
-profileBtn.Position = UDim2.new(0, 0, 0, 182)
-profileBtn.BackgroundColor3 = Color3.fromRGB(70, 100, 60)
-profileBtn.Text = "PROFILE: MEASURED (the working flight)"
-profileBtn.TextColor3 = Color3.fromRGB(235, 255, 230)
-profileBtn.Font = Enum.Font.GothamBold
-profileBtn.TextSize = 10
-profileBtn.Parent = buttonFrame
-Instance.new("UICorner", profileBtn).CornerRadius = UDim.new(0, 6)
-
-local snapshotBtn = Instance.new("TextButton")
-snapshotBtn.Size = UDim2.new(0, 120, 0, 26)
-snapshotBtn.Position = UDim2.new(0, 178, 0, 70)
-snapshotBtn.BackgroundColor3 = Color3.fromRGB(60, 70, 120)
-snapshotBtn.Text = "SNAPSHOT"
-snapshotBtn.TextColor3 = Color3.fromRGB(225, 230, 255)
-snapshotBtn.Font = Enum.Font.GothamBold
-snapshotBtn.TextSize = 11
-snapshotBtn.Parent = buttonFrame
-Instance.new("UICorner", snapshotBtn).CornerRadius = UDim.new(0, 6)
+-- Ownership + snapshot, which were two buttons doing one job: "tell me
+-- everything about right now".
+local dumpBtn = Instance.new("TextButton")
+dumpBtn.Size = UDim2.new(0, 134, 0, 26)
+dumpBtn.Position = UDim2.new(0, 180, 0, 112)
+dumpBtn.BackgroundColor3 = Color3.fromRGB(60, 70, 120)
+dumpBtn.Text = "DUMP NOW"
+dumpBtn.TextColor3 = Color3.fromRGB(225, 230, 255)
+dumpBtn.Font = Enum.Font.GothamBold
+dumpBtn.TextSize = 11
+dumpBtn.Parent = buttonFrame
+Instance.new("UICorner", dumpBtn).CornerRadius = UDim.new(0, 6)
 
 local feedback = Instance.new("TextLabel")
 feedback.Size = UDim2.new(0, 200, 0, 18)
-feedback.Position = UDim2.new(0, 10, 1, -246)
+feedback.Position = UDim2.new(0, 10, 1, -184)
 feedback.BackgroundTransparency = 1
 feedback.Text = ""
 feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
@@ -1196,7 +1156,7 @@ local function replicateFreefall()
 	local fixedZ = launchEnd.Z
 
 	addLogEntry(string.format(
-		"[%s] REPLAY START V10 | profile=%s | start=(%s) | launchEnd=(%s) | chunks=%d | noclip=%d | stateCalls=%s | write=%s",
+		"[%s] REPLAY START V13 | profile=%s | start=(%s) | launchEnd=(%s) | chunks=%d | noclip=%d | stateCalls=%s | write=%s",
 		timestamp(), profileName, formatPos(startPos), formatPos(launchEnd), #profileDeltas,
 		noclipChanged, stateCallsEnabled and "ON (ChangeState+AutoRotate, the -1000 pair)"
 			or "OFF (matching the reference)",
@@ -1206,7 +1166,7 @@ local function replicateFreefall()
 	local expectedStuds = logReplayParams()
 	beginFlightTrace("replicateFreefall", humanoid, root, startPos, expectedStuds)
 
-	feedback.Text = "Replaying ld-p3 (sticky)..."
+	feedback.Text = profileMeasured and "Replaying MEASURED (05:01:42)..." or "Replaying ld-p3..."
 	feedback.TextColor3 = Color3.fromRGB(255, 160, 90)
 	feedback.Visible = true
 
@@ -1428,12 +1388,6 @@ local transformPropertyPrevious = nil
 local lastTransformJumpLogTime = 0
 local lastTransformJumpLogPos = nil
 
-local function setCaptureButton()
-	captureBtn.Text = transformCaptureEnabled and "CAPTURE: ON" or "CAPTURE: OFF"
-	captureBtn.BackgroundColor3 = transformCaptureEnabled and Color3.fromRGB(35, 110, 70) or Color3.fromRGB(90, 55, 55)
-	captureBtn.TextColor3 = transformCaptureEnabled and Color3.fromRGB(220, 255, 230) or Color3.fromRGB(255, 220, 220)
-end
-
 local function resetTransformTelemetry(root)
 	local now = os.clock()
 	local pos = root.Position
@@ -1441,6 +1395,109 @@ local function resetTransformTelemetry(root)
 	transformPropertyPrevious = { time = now, position = pos, velocity = root.AssemblyLinearVelocity, cframe = root.CFrame }
 	lastTransformJumpLogTime = 0
 	lastTransformJumpLogPos = pos
+end
+
+-- ================================================================
+-- THE TWO PRESETS - what the MODE button applies
+-- ================================================================
+-- One press sets state calls, write mode AND profile, because they are one
+-- decision, not three. Mode 1 is the setup the working logs argue for; mode 2 is
+-- the setup that produced every -1000 death, kept so a failure can be reproduced
+-- on demand. Defaults come from the *_DEFAULT constants so the two cannot drift.
+local FLIGHT_MODES = {
+	{
+		name = "TEST (the reference setup)",
+		detail = "stateCalls OFF | whole rig | measured profile",
+		stateCalls = STATE_CALLS_DEFAULT,
+		pivotWrite = PIVOT_WRITE_DEFAULT,
+		measured = PROFILE_MEASURED_DEFAULT,
+		color = Color3.fromRGB(35, 110, 70),
+	},
+	{
+		name = "CONTROL (the -1000 setup)",
+		detail = "stateCalls ON | root CFrame only | ld-p3 profile",
+		stateCalls = true,
+		pivotWrite = false,
+		measured = false,
+		color = Color3.fromRGB(140, 60, 45),
+	},
+}
+local modeIndex = 1
+
+-- How loud the log is. Both keep the flight ledger; LEDGER drops the world
+-- noise (touch/prop/velocity watches) and the per-write trace.
+local DIAG_MODES = {
+	{
+		name = "FULL",
+		detail = "capture + watches + flight trace",
+		capture = TRANSFORM_CAPTURE_DEFAULT,
+		forensics = FORENSICS_DEFAULT,
+		trace = FLIGHT_TRACE_DEFAULT,
+		color = Color3.fromRGB(35, 110, 70),
+	},
+	{
+		name = "LEDGER",
+		detail = "flight ledger only, no watches or trace",
+		capture = true,
+		forensics = false,
+		trace = false,
+		color = Color3.fromRGB(90, 80, 50),
+	},
+}
+local diagIndex = 1
+
+local function refreshButtons()
+	local m = FLIGHT_MODES[modeIndex]
+	modeBtn.Text = string.format("MODE: %s\n%s", m.name, m.detail)
+	modeBtn.BackgroundColor3 = m.color
+	boostBtn.Text = string.format("REPLAY - %s",
+		FLIGHT_MODES[modeIndex].stateCalls and "root CFrame only, ld-p3" or "the reference setup")
+	local d = DIAG_MODES[diagIndex]
+	diagBtn.Text = string.format("DIAG: %s (%s)", d.name, d.detail)
+	diagBtn.BackgroundColor3 = d.color
+end
+
+local function applyMode(i, announce)
+	modeIndex = i
+	local m = FLIGHT_MODES[i]
+	stateCallsEnabled = m.stateCalls
+	pivotWriteEnabled = m.pivotWrite
+	profileMeasured = m.measured
+	refreshButtons()
+	if announce then
+		addLogEntry(string.format("[%s] MODE | %s | %s", timestamp(), m.name, m.detail))
+		addLogEntry(string.format(
+			"[%s]   stateCalls=%s | write=%s | profile=%s | %d chunks",
+			timestamp(), tostring(stateCallsEnabled),
+			pivotWriteEnabled and "PivotTo + root.CFrame" or "root.CFrame only",
+			profileMeasured and "MEASURED 05:01:42" or "ld-p3",
+			profileMeasured and #MEASURED_X_DELTAS or #FREEFALL_X_DELTAS))
+		addLogEntry(string.format(
+			"[%s]   %s", timestamp(),
+			m.stateCalls
+				and "CONTROL: this is the launch that gets killed - expecting the -1000"
+				or "TEST: no ChangeState, no AutoRotate, flying the reference's own steps"))
+	end
+end
+
+local function applyDiag(i, announce)
+	diagIndex = i
+	local d = DIAG_MODES[i]
+	transformCaptureEnabled = d.capture
+	forensicsEnabled = d.forensics
+	flightTraceEnabled = d.trace
+	if not flightTraceEnabled then flightTrace, lastWrite = nil, nil end
+	if not forensicsEnabled then pendingJump, rigBaseline = nil, nil end
+	refreshButtons()
+	if announce then
+		addLogEntry(string.format("[%s] DIAG | %s | %s", timestamp(), d.name, d.detail))
+		addLogEntry(string.format(
+			"[%s]   capture=%s | forensics=%s | flightTrace=%s",
+			timestamp(), tostring(transformCaptureEnabled), tostring(forensicsEnabled),
+			tostring(flightTraceEnabled)))
+	end
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if transformCaptureEnabled and root then resetTransformTelemetry(root) end
 end
 
 local function maybeLogTransformJump(source, humanoid, root, now, previousTime, previousPos, previousVel)
@@ -2020,7 +2077,7 @@ local function startTracking(character)
 	subscribeTouches(character)
 
 	addLogEntry(string.format(
-		"[%s] SCANNER READY V10 | jumpMin=%.1f | pspeedMin=%.1f | ratioMin=%.1f | capture=%s | forensics=%s",
+		"[%s] SCANNER READY V13 | jumpMin=%.1f | pspeedMin=%.1f | ratioMin=%.1f | capture=%s | forensics=%s",
 		timestamp(), TRANSFORM_JUMP_MIN_DISTANCE, TRANSFORM_JUMP_MIN_PSPEED,
 		TRANSFORM_JUMP_RATIO, tostring(transformCaptureEnabled), tostring(forensicsEnabled)))
 	addLogEntry(string.format(
@@ -2087,71 +2144,32 @@ clearBtn.MouseButton1Click:Connect(function()
 	task.delay(1.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
 end)
 
-stateBtn.MouseButton1Click:Connect(function()
-	stateCallsEnabled = not stateCallsEnabled
-	stateBtn.Text = stateCallsEnabled
-		and "STATECALLS: ON (ChangeState + AutoRotate - the -1000 pair)"
-		or "STATECALLS: OFF (ChangeState + AutoRotate skipped)"
-	stateBtn.BackgroundColor3 = stateCallsEnabled
-		and Color3.fromRGB(160, 60, 50) or Color3.fromRGB(60, 90, 60)
-	addLogEntry(string.format(
-		"[%s] STATE CALLS | %s | the reference never calls either; with them ON the 04:26 flight was reverted %d times and killed at 1.18s",
-		timestamp(), stateCallsEnabled and "ON - reproducing the failing launch" or "OFF - matching the reference",
-		15))
-	feedback.Text = stateCallsEnabled and "State calls ON (risky)" or "State calls OFF (safe)"
-	feedback.TextColor3 = stateCallsEnabled and Color3.fromRGB(255, 150, 120)
-		or Color3.fromRGB(100, 255, 150)
+-- MODE: the whole flight logic in one press.
+modeBtn.MouseButton1Click:Connect(function()
+	applyMode(modeIndex % #FLIGHT_MODES + 1, true)
+	feedback.Text = FLIGHT_MODES[modeIndex].name
+	feedback.TextColor3 = FLIGHT_MODES[modeIndex].stateCalls
+		and Color3.fromRGB(255, 150, 120) or Color3.fromRGB(100, 255, 150)
+	feedback.Visible = true
+	task.delay(2.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
+end)
+
+-- DIAG: how loud the log is.
+diagBtn.MouseButton1Click:Connect(function()
+	applyDiag(diagIndex % #DIAG_MODES + 1, true)
+	feedback.Text = "DIAG: " .. DIAG_MODES[diagIndex].name
+	feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
 	feedback.Visible = true
 	task.delay(2, function() if feedback and feedback.Parent then feedback.Visible = false end end)
 end)
 
-profileBtn.MouseButton1Click:Connect(function()
-	profileMeasured = not profileMeasured
-	profileBtn.Text = profileMeasured
-		and "PROFILE: MEASURED (the working flight)"
-		or "PROFILE: ld-p3 (the reconstruction)"
-	profileBtn.BackgroundColor3 = profileMeasured
-		and Color3.fromRGB(70, 100, 60) or Color3.fromRGB(90, 80, 50)
-	local n = profileMeasured and #MEASURED_X_DELTAS or #FREEFALL_X_DELTAS
-	addLogEntry(string.format(
-		"[%s] PROFILE | %s | %d chunks after the launch | %s",
-		timestamp(), profileMeasured and "MEASURED (05:01:42)" or "ld-p3", n,
-		profileMeasured and "the escape script's own steps, at its own cadence"
-			or "the original reconstruction"))
-end)
-
-pivotBtn.MouseButton1Click:Connect(function()
-	pivotWriteEnabled = not pivotWriteEnabled
-	pivotBtn.Text = pivotWriteEnabled
-		and "WRITE: PivotTo + CFrame (whole rig)"
-		or "WRITE: CFrame on the root only"
-	pivotBtn.BackgroundColor3 = pivotWriteEnabled
-		and Color3.fromRGB(60, 80, 110) or Color3.fromRGB(50, 110, 90)
-	addLogEntry(string.format(
-		"[%s] WRITE MODE | %s | PivotTo claims every part in the rig; root.CFrame lets the joints carry the rest",
-		timestamp(), pivotWriteEnabled and "PivotTo + root.CFrame" or "root.CFrame only"))
-end)
-
-traceBtn.MouseButton1Click:Connect(function()
-	flightTraceEnabled = not flightTraceEnabled
-	traceBtn.Text = flightTraceEnabled and "FLIGHT TRACE: ON" or "FLIGHT TRACE: OFF"
-	traceBtn.BackgroundColor3 = flightTraceEnabled
-		and Color3.fromRGB(35, 110, 70) or Color3.fromRGB(90, 55, 55)
-	addLogEntry(string.format(
-		"[%s] FLIGHT TRACE | %s | frame=%.3fs (max %d lines) | confirm=%.1f studs | physics=%.1fs",
-		timestamp(), flightTraceEnabled and "ON" or "OFF", FLIGHT_FRAME_S,
-		FLIGHT_FRAME_MAX, WRITE_CONFIRM_STUDS, PHYSICS_SAMPLE_S))
-	if not flightTraceEnabled then flightTrace, lastWrite = nil, nil end
-	feedback.Text = flightTraceEnabled and "Flight trace ON" or "Flight trace OFF"
-	feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
-	feedback.Visible = true
-	task.delay(1.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
-end)
-
-ownerBtn.MouseButton1Click:Connect(function()
-	-- On demand: who owns the character right now, and can we see the server?
+-- DUMP: ownership + snapshot in one press, for the moment something feels wrong.
+dumpBtn.MouseButton1Click:Connect(function()
 	local char = player.Character
 	local rt = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+	-- ---- who owns me, and can we see the server? ----
 	addLogEntry(string.format("[%s] ---- OWNERSHIP -------------------------", timestamp()))
 	addLogEntry(string.format("[%s]   root      | %s", timestamp(), ownerName(rt)))
 	addLogEntry(string.format("[%s]   character | %s", timestamp(), ownershipLine(char, rt)))
@@ -2159,65 +2177,31 @@ ownerBtn.MouseButton1Click:Connect(function()
 		timestamp(), receiveAge(rt), grounded(rt),
 		rt and tostring(rt.Anchored) or "?"))
 	addLogEntry(string.format("[%s]   physics   | %s", timestamp(), physicsLine()))
-	addLogEntry(string.format("[%s] ----------------------------------------", timestamp()))
-end)
 
-forensicsBtn.MouseButton1Click:Connect(function()
-	forensicsEnabled = not forensicsEnabled
-	forensicsBtn.Text = forensicsEnabled and "FORENSICS: ON" or "FORENSICS: OFF"
-	forensicsBtn.BackgroundColor3 = forensicsEnabled
-		and Color3.fromRGB(35, 110, 70) or Color3.fromRGB(90, 55, 55)
-	addLogEntry(string.format(
-		"[%s] FORENSICS | %s | bigJump=%.0f revert=%.0f/%.1fs rigStretch=%.1f",
-		timestamp(), forensicsEnabled and "ON" or "OFF", BIG_JUMP_STUDS,
-		REVERT_MIN_STUDS, REVERT_WINDOW_S, RIG_STRETCH_STUDS))
-	if not forensicsEnabled then
-		pendingJump, rigBaseline = nil, nil
+	-- ---- what is around us, is the rig stretched, are we inside anything ----
+	if hum and rt then
+		addLogEntry(string.format("[%s] ---- SNAPSHOT --------------------------", timestamp()))
+		addLogEntry(string.format("[%s]   state=%s | hp=%.1f/%.1f | phase=%s | pos=(%s)",
+			timestamp(), safeState(hum), hum.Health, hum.MaxHealth, activePhase, formatPos(rt.Position)))
+		local gap, surface = groundGap(rt.Position, VOID_WARN_STUDS + 50)
+		addLogEntry(string.format("[%s]   vel=(%s) | speed=%.1f | anchored=%s | floor=%s",
+			timestamp(), formatVec3(rt.AssemblyLinearVelocity),
+			rt.AssemblyLinearVelocity.Magnitude, tostring(rt.Anchored), safeFloor(hum)))
+		addLogEntry(string.format("[%s]   ground below | %s | %s",
+			timestamp(),
+			gap and string.format("%.1f studs", gap) or "none within 100 studs",
+			surface and surface:GetFullName() or "?"))
+		addLogEntry(string.format("[%s]   ahead | %s", timestamp(),
+			obstacleAhead(rt, OBSTACLE_AHEAD_STUDS)))
+		logNearby(rt.Position, NEAR_RADIUS, "  SNAP NEAR")
+		checkRigStretch(rt)
+		checkResting(rt)
 	end
-	feedback.Text = forensicsEnabled and "Forensics ON" or "Forensics OFF"
-	feedback.TextColor3 = forensicsEnabled and Color3.fromRGB(100, 255, 150)
-		or Color3.fromRGB(255, 180, 80)
-	feedback.Visible = true
-	task.delay(1.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
-end)
-
-snapshotBtn.MouseButton1Click:Connect(function()
-	-- On-demand: what is around us right now, is the rig stretched, and did we
-	-- end up inside anything. Press this the moment something feels wrong.
-	local char = player.Character
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	local rt = char and char:FindFirstChild("HumanoidRootPart")
-	if not (hum and rt) then return end
-	addLogEntry(string.format("[%s] ---- SNAPSHOT --------------------------", timestamp()))
-	addLogEntry(string.format("[%s]   state=%s | hp=%.1f/%.1f | phase=%s | pos=(%s)",
-		timestamp(), safeState(hum), hum.Health, hum.MaxHealth, activePhase, formatPos(rt.Position)))
-	local gap, surface = groundGap(rt.Position, VOID_WARN_STUDS + 50)
-	addLogEntry(string.format("[%s]   vel=(%s) | speed=%.1f | anchored=%s | floor=%s",
-		timestamp(), formatVec3(rt.AssemblyLinearVelocity),
-		rt.AssemblyLinearVelocity.Magnitude, tostring(rt.Anchored), safeFloor(hum)))
-	addLogEntry(string.format("[%s]   ground below | %s | %s",
-		timestamp(),
-		gap and string.format("%.1f studs", gap) or "none within 100 studs",
-		surface and surface:GetFullName() or "?"))
-	addLogEntry(string.format("[%s]   ahead | %s", timestamp(),
-		obstacleAhead(rt, OBSTACLE_AHEAD_STUDS)))
-	logNearby(rt.Position, NEAR_RADIUS, "  SNAP NEAR")
-	checkRigStretch(rt)
-	checkResting(rt)
 	addLogEntry(string.format("[%s] ----------------------------------------", timestamp()))
-	feedback.Text = "Snapshot logged"
+	feedback.Text = "Ownership + snapshot logged"
 	feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
 	feedback.Visible = true
 	task.delay(1.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
-end)
-
-captureBtn.MouseButton1Click:Connect(function()
-	transformCaptureEnabled = not transformCaptureEnabled
-	setCaptureButton()
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if transformCaptureEnabled and root then resetTransformTelemetry(root) end
-	addLogEntry(string.format("[%s] TRANSFORM CAPTURE %s", timestamp(), transformCaptureEnabled and "ENABLED" or "DISABLED"))
 end)
 
 local function addHover(btn, normal, hover)
@@ -2232,10 +2216,17 @@ addHover(closeBtn, Color3.fromRGB(40, 40, 50), Color3.fromRGB(70, 30, 30))
 addHover(boostBtn, Color3.fromRGB(180, 40, 40), Color3.fromRGB(220, 60, 60))
 addHover(copyBtn, Color3.fromRGB(0, 140, 180), Color3.fromRGB(0, 180, 220))
 addHover(clearBtn, Color3.fromRGB(80, 40, 40), Color3.fromRGB(120, 50, 50))
-addHover(captureBtn, Color3.fromRGB(35, 110, 70), Color3.fromRGB(45, 140, 90))
-setCaptureButton()
 
-addLogEntry(string.format("[%s] SCRIPT READY V10 | capture=%s", timestamp(), tostring(transformCaptureEnabled)))
+-- Arm both dials from their defaults before anything can be pressed, so the
+-- labels and the behaviour can never disagree.
+applyMode(modeIndex, false)
+applyDiag(diagIndex, false)
+
+addLogEntry(string.format(
+	"[%s] SCRIPT READY V13 | mode=%s | stateCalls=%s | write=%s | profile=%s | diag=%s",
+	timestamp(), FLIGHT_MODES[modeIndex].name, tostring(stateCallsEnabled),
+	pivotWriteEnabled and "PivotTo+CFrame" or "CFrame only",
+	profileMeasured and "measured" or "ld-p3", DIAG_MODES[diagIndex].name))
 
 player.CharacterAdded:Connect(startTracking)
 if player.Character then

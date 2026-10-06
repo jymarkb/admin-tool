@@ -529,7 +529,7 @@ chk("no new globals created by the script", not leaked,
 
 print("\n=== T1: the scanner starts and reports its baseline ===")
 txt = H["log"]()
-chk("SCANNER READY V10 is announced", "SCANNER READY V10" in txt, lastline(txt, "SCANNER READY"))
+chk("SCANNER READY V13 is announced", "SCANNER READY V13" in txt, lastline(txt, "SCANNER READY"))
 chk("reports capture + forensics state", "capture=" in txt and "forensics=" in txt,
     lastline(txt, "forensics="))
 chk("reports the baseline hp/maxHealth", "baseline | hp=100.0/100.0" in txt,
@@ -733,13 +733,15 @@ chk("INSIDE SOLID reported when embedded", "INSIDE SOLID" in txt,
 chk("names the block we are inside", "COLL GUARD.WALL LEFT" in txt, "")
 set_nearby([])
 
-print("\n=== T13: the SNAPSHOT button produces a usable bundle ===")
+print("\n=== T13: the DUMP button produces a usable bundle (ownership + snapshot) ===")
 set_nearby([make_part("GuardAreas.Prehistoric", 800, 100, 0, 25)])
 H["clearLog"]()
-snap = buttons("SNAPSHOT")[0]
+snap = buttons("DUMP")[0]
 fire(snap, "MouseButton1Click")
 txt = H["log"]()
 chk("SNAPSHOT header", "SNAPSHOT" in txt, lastline(txt, "SNAPSHOT"))
+chk("the ownership bundle comes with it", "---- OWNERSHIP" in txt,
+    lastline(txt, "---- OWNERSHIP"))
 chk("reports state/hp", "state=" in txt and "hp=" in txt, lastline(txt, "state="))
 chk("reports velocity", "vel=(" in txt, lastline(txt, "vel=("))
 chk("lists what is nearby", "SNAP NEAR" in txt, lastline(txt, "SNAP NEAR"))
@@ -780,22 +782,25 @@ chk("names the obstacle ahead", "COLL GUARD.WALL RIGHT" in txt,
     lastline(txt, "ahead |"))
 chk("flags it as guard-named", "GUARD-NAMED" in txt, "")
 
-print("\n=== T14: FORENSICS can be turned OFF and the watches stop ===")
+print("\n=== T14: DIAG: LEDGER drops the watches, FULL brings them back ===")
 H["clearLog"]()
-fb = buttons("FORENSICS")[0]
+fb = buttons("DIAG:")[0]
 fire(fb, "MouseButton1Click")
 txt = H["log"]()
-chk("toggle reports OFF", "FORENSICS | OFF" in txt, lastline(txt, "FORENSICS |"))
-chk("button label changes", "FORENSICS: OFF" == str(fb["Text"]), repr(str(fb["Text"])))
+chk("the dial reports LEDGER", "DIAG | LEDGER" in txt, lastline(txt, "DIAG |"))
+chk("it says exactly what went off",
+    "capture=true | forensics=false | flightTrace=false" in txt,
+    lastline(txt, "capture="))
+chk("button label changes", "DIAG: LEDGER" in str(fb["Text"]), repr(str(fb["Text"])[:44]))
 H["clearLog"]()
 H["place"](0, 100, 0); H["tick"]()
 H["place"](400, 100, 0); H["tick"]()
 H["place"](0, 100, 0); H["tick"]()
 txt = H["log"]()
-chk("no REVERTED while off", "REVERTED" not in txt, "")
+chk("no REVERTED while the watches are off", "REVERTED" not in txt, "")
 fire(fb, "MouseButton1Click")
-chk("toggle reports ON again", "FORENSICS | ON" in H["log"](),
-    lastline(H["log"](), "FORENSICS |"))
+chk("the dial reports FULL again", "DIAG | FULL" in H["log"](),
+    lastline(H["log"](), "DIAG |"))
 
 print("\n=== T15: CLEAR also resets the forensics state ===")
 H["clearLog"]()
@@ -826,7 +831,7 @@ H["setVel"](0, 0, 0)
 H["place"](0, 200, 0)
 H["setGround"](400)
 H["installPump"](20000)
-replay = buttons("REPLAY REFERENCE")[0]
+replay = buttons("REPLAY")[0]
 fire(replay, "MouseButton1Click")
 txt = H["log"]()
 chk("the flight trace starts", "FLIGHT TRACE START" in txt, "")
@@ -858,15 +863,17 @@ chk("ChangeState is NOT called by default",
 chk("AutoRotate is NOT touched by default",
     "ACTION | AutoRotate" not in txt and "AUTOROTATE" not in txt, "")
 
-# the A/B control: turn them ON and fly again, which is how the failing launch
-# of the 04:26 log gets reproduced on demand
+# the A/B control: MODE -> CONTROL applies state calls ON with everything else
+# that belongs with them, which is how the failing launch is reproduced on demand
 H["clearLog"]()
-sb2 = buttons("STATECALLS")[0]
+sb2 = buttons("MODE:")[0]
 fire(sb2, "MouseButton1Click")
-chk("the toggle reports ON", "STATE CALLS | ON" in H["log"](),
-    lastline(H["log"](), "STATE CALLS |"))
+chk("the dial reports CONTROL", "MODE | CONTROL" in H["log"](),
+    lastline(H["log"](), "MODE |"))
+chk("it says what it applied", "stateCalls=true" in H["log"](),
+    lastline(H["log"](), "stateCalls="))
 chk("the button label changes",
-    "STATECALLS: ON" in str(sb2["Text"]), repr(str(sb2["Text"])[:40]))
+    "CONTROL" in str(sb2["Text"]), repr(str(sb2["Text"])[:44]))
 H["clearLog"]()
 H["place"](0, 200, 0)
 H["tick"](0.033)
@@ -890,9 +897,11 @@ chk("the action is logged before any abort/death",
     not dead or not act or act[0] < dead[0],
     f"action@{act[0] if act else '-'} death@{dead[0] if dead else '-'}")
 chk("AutoRotate is reported back on the humanoid", "AUTOROTATE |" in txt, "")
-fire(sb2, "MouseButton1Click")          # back to safe
-chk("the toggle reports OFF again", "STATE CALLS | OFF" in H["log"](),
-    lastline(H["log"](), "STATE CALLS |"))
+fire(sb2, "MouseButton1Click")          # back to TEST
+chk("the dial reports TEST again", "MODE | TEST" in H["log"](),
+    lastline(H["log"](), "MODE |"))
+chk("and everything it owns goes back with it",
+    "stateCalls=false" in H["log"](), lastline(H["log"](), "stateCalls="))
 
 print("\n=== T20: a flight the server UNDOES is reported as such ===")
 H["clearLog"]()
@@ -926,24 +935,24 @@ chk("rejections are rate limited, not one per frame", len(rejects) <= 12,
     f"{len(rejects)} rejection line(s)")
 H["setRevert"](None)
 
-print("\n=== T21: FLIGHT TRACE can be turned off ===")
+print("\n=== T21: the ledger-only dial silences the per-write trace ===")
 H["clearLog"]()
-tb = buttons("FLIGHT TRACE")[0]
+tb = buttons("DIAG:")[0]
 fire(tb, "MouseButton1Click")
-chk("toggle reports OFF", "FLIGHT TRACE | OFF" in H["log"](),
-    lastline(H["log"](), "FLIGHT TRACE |"))
+chk("the trace went off with the dial", "flightTrace=false" in H["log"](),
+    lastline(H["log"](), "capture="))
 H["clearLog"]()
 H["place"](0, 200, 0)
 H["installPump"](20000)
 fire(replay, "MouseButton1Click")
-chk("no trace lines while off", "FLIGHT TRACE START" not in H["log"](), "")
+chk("no trace lines while the trace is off", "FLIGHT TRACE START" not in H["log"](), "")
 fire(tb, "MouseButton1Click")
-chk("toggle reports ON again", "FLIGHT TRACE | ON" in H["log"](),
-    lastline(H["log"](), "FLIGHT TRACE |"))
+chk("the dial reports FULL again", "DIAG | FULL" in H["log"](),
+    lastline(H["log"](), "DIAG |"))
 
-print("\n=== T22: the OWNERSHIP button answers \"who owns me right now?\" ===")
+print("\n=== T22: DUMP answers \"who owns me right now?\" ===")
 H["clearLog"]()
-ob = buttons("OWNERSHIP")[0]
+ob = buttons("DUMP")[0]
 fire(ob, "MouseButton1Click")
 txt = H["log"]()
 chk("ownership bundle printed", "---- OWNERSHIP" in txt, "")
@@ -1111,20 +1120,20 @@ chk("a real CFrame write is recognised",
 chk("the write is attributed to CFrameChanged",
     "CFrameChanged" in lastline(mech, "sources   |"), lastline(mech, "sources   |"))
 
-print("\n=== T36: the write mode is switchable (PivotTo vs CFrame only) ===")
+print("\n=== T36: MODE carries the write style with it (PivotTo vs CFrame only) ===")
 m = H["mark"]()
 H["place"](0, 200, 0)
 H["tick"](0.033)
 m = H["mark"]()
 fire(replay, "MouseButton1Click")
 txt = H["since"](m)
-chk("the default writes the whole rig", "write=PivotTo+CFrame" in txt,
+chk("TEST writes the whole rig", "write=PivotTo+CFrame" in txt,
     lastline(txt, "REPLAY START"))
 
-pb = buttons("WRITE:")[0]
-fire(pb, "MouseButton1Click")
-chk("the toggle reports CFrame only", "WRITE MODE | root.CFrame only" in H["log"](),
-    lastline(H["log"](), "WRITE MODE |"))
+pb = buttons("MODE:")[0]
+fire(pb, "MouseButton1Click")                     # -> CONTROL
+chk("CONTROL writes the root only", "root.CFrame only" in H["log"](),
+    lastline(H["log"](), "stateCalls="))
 H["place"](0, 200, 0)
 H["tick"](0.033)
 m = H["mark"]()
@@ -1146,16 +1155,16 @@ chk("a rejection names the write mode",
     "WRITE REJECTED | #" in txt and "CFrame only" in txt,
     lastline(txt, "WRITE REJECTED"))
 H["setRevert"](None)
-fire(pb, "MouseButton1Click")
-chk("the toggle goes back", "WRITE MODE | PivotTo + root.CFrame" in H["log"](),
-    lastline(H["log"](), "WRITE MODE |"))
+fire(pb, "MouseButton1Click")                     # -> back to TEST
+chk("TEST brings the whole rig back", "PivotTo + root.CFrame" in H["log"](),
+    lastline(H["log"](), "stateCalls="))
 
 print("\n=== T34: ownership uses the real API and reports a value ===")
 m = H["mark"]()
 H["setOwner"](root, H["player"])
 H["setOwner"](torso, H["player"])
 H["setOwner"](H["head"], H["player"])
-ob = buttons("OWNERSHIP")[0]
+ob = buttons("DUMP")[0]
 fire(ob, "MouseButton1Click")
 txt = H["since"](m)
 chk("no API error in the ownership readout", "<error>" not in txt,
@@ -1288,7 +1297,7 @@ chk("it drops -42.0", abs(_drop + 42.0) < 0.05, f"{_drop:.1f}")
 chk("every chunk is a real measured step",
     all(0 < abs(d) < 500 for d in _deltas), f"min {min(map(abs, _deltas))}")
 
-print("\n=== T39: the profile can be switched, and the log says which is flying ===")
+print("\n=== T39: MODE carries the profile with it, and the log says which is flying ===")
 m = H["mark"]()
 H["setVel"](0, 0, 0)
 H["place"](0, 200, 0)
@@ -1296,18 +1305,18 @@ H["tick"](0.033)
 m = H["mark"]()
 fire(replay, "MouseButton1Click")
 txt = H["since"](m)
-chk("the measured profile is the default", "PROFILE: MEASURED" in str(
-    buttons("PROFILE:")[0]["Text"]), str(buttons("PROFILE:")[0]["Text"])[:40])
+chk("the measured profile is the default", "TEST (the reference setup)" in str(
+    buttons("MODE:")[0]["Text"]), str(buttons("MODE:")[0]["Text"]).replace("\n", " / ")[:70])
 chk("the replay names the profile",
     "profile=measured-0501" in txt, lastline(txt, "REPLAY START"))
 chk("the params name it too", "MEASURED 05:01:42" in txt,
     lastline(txt, "REPLAY PARAMS"))
 chk("the chunk count matches the measured flight", "chunks=22" in txt,
     lastline(txt, "REPLAY PARAMS"))
-pb2 = buttons("PROFILE:")[0]
-fire(pb2, "MouseButton1Click")
-chk("switching reports the other profile", "PROFILE | ld-p3" in H["log"](),
-    lastline(H["log"](), "PROFILE |"))
+pb2 = buttons("MODE:")[0]
+fire(pb2, "MouseButton1Click")                   # -> CONTROL
+chk("CONTROL reports the other profile", "profile=ld-p3" in H["log"](),
+    lastline(H["log"](), "profile="))
 H["place"](0, 200, 0)
 H["tick"](0.033)
 m = H["mark"]()
@@ -1317,7 +1326,7 @@ chk("the reconstruction names itself", "profile=ld-p3" in txt,
     lastline(txt, "REPLAY START"))
 chk("both profiles keep the same destination",
     "launchEnd=" in txt, lastline(txt, "REPLAY START"))
-fire(pb2, "MouseButton1Click")          # back to measured
+fire(pb2, "MouseButton1Click")          # back to TEST / measured
 
 print("\n=== T40: every burst is scored against the working flight ===")
 H["setVel"](0, 0, 0)
@@ -1350,6 +1359,32 @@ H["advance"](0.6); H["tick"](0.1)
 txt = H["since"](m)
 chk("a reverted flight does NOT match", "DOES NOT MATCH" in txt,
     lastline(txt, "REFERENCE DIFF"))
+
+print("\n=== T41: the panel is six buttons, and the flight logic is one of them ===")
+# Eleven switches, several of them settings that only mean something in
+# combination, is what made the panel ambiguous: a half-switched combination
+# tests nothing and reads as noise. This is the guard against that coming back.
+texts = sorted(str(b["Text"]) for b in list(H["getCreated"]("TextButton").values()))
+plain = [t.replace("\n", " / ") for t in texts]
+print("   buttons:", plain)
+chk("six buttons plus the close X", len(texts) == 7, f"{len(texts)}: {plain}")
+chk("one button flies", len(buttons("REPLAY")) == 1, str(plain))
+chk("one button carries the flight logic", len(buttons("MODE:")) == 1, str(plain))
+chk("the rest are log housekeeping",
+    len(buttons("Copy")) == 1 and len(buttons("Clear")) == 1, str(plain))
+chk("one dial for how loud the log is", len(buttons("DIAG:")) == 1, str(plain))
+chk("one button dumps ownership + snapshot", len(buttons("DUMP")) == 1, str(plain))
+stale = [k for k in ("STATECALLS", "WRITE:", "PROFILE:", "FORENSICS", "FLIGHT TRACE",
+                     "CAPTURE:", "OWNERSHIP", "SNAPSHOT")
+         if any(k in t for t in texts)]
+chk("no single-setting switch is left on the panel", not stale, f"found: {stale}")
+mode_text = str(buttons("MODE:")[0]["Text"])
+chk("the mode button states what it applies",
+    "stateCalls OFF" in mode_text and "measured profile" in mode_text,
+    mode_text.replace("\n", " / "))
+diag_text = str(buttons("DIAG:")[0]["Text"])
+chk("the diag button states what it applies", "FULL" in diag_text or "LEDGER" in diag_text,
+    diag_text)
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
