@@ -1,51 +1,69 @@
 --[[=========================================================================
-	LIGHTDARK FLIGHT  -  the escape's flight mode, slowed down until it can be
-	                     watched one step at a time
+	LIGHTDARK PATH FLIGHT  -  the lightdark route, walked slowly
 
-	The working lightdark flight threw 24 direct root.CFrame writes, 5054 studs,
-	and the server kept every one of them. This script flies the same mechanism
-	and nothing else, at a cadence slow enough that each write can be checked on
-	its own:
+	It flies the SAME PATH the working lightdark escape flies, from the
+	lightdark zone pad all the way to the forest landing pad, at a pace slow
+	enough that every write can be judged on its own:
 
-	    35 studs every 0.5s          (70 studs/s, against the reference's ~3400)
+	    35 studs every 0.5s
 
-	Why slow: at 3400 studs/s the writes are 130-360 studs apart and several land
-	in the same frame, so a log cannot answer "did THIS write stick". At 35 studs
-	every 0.5s each write is alone in its own half second, and the script reads
-	the position back BEFORE the next write. That read is the test:
+	The route was read off the working logs, not invented:
 
-	    HELD      the character is still where the write put it
+	    lightdark pad    (5666.3,  70.7, -331.9)   where the flight starts
+	    cruise start     (5245.1, 112.7, -331.5)   +42.0 climb, ~421 studs in
+	    cruise end       ( 671.6, 112.7, -325.4)   the long straight at altitude
+	    forest landing   ( 612.2,  70.7, -325.0)   -42.0 drop onto the pad
+
+	    launch  423.3 studs | cruise 4573.5 | drop 72.8  = 5069.5 studs
+	    145 steps of 35 studs, the last one 29.5 -> 72.5 seconds
+	    the straight-line distance 5666.3 -> 612.2 = 5054.1, the reference's own
+
+	The character walks the path point by point: each write lands 35 studs
+	further along it, and 0.5s later the position is read back. That read is
+	the whole test:
+
+	    HELD      still where the write put it
 	    REVERTED  the server put us back - it says from where, to where, how far
-	    MOVED     neither: something else moved us - it says where, so a physics
-	              step can be told apart from a server correction
+	    MOVED     something else moved us, so a physics step is not mistaken
+	              for a server correction
 
-	What it deliberately does NOT do, because the working log never does it:
-	  * no humanoid:ChangeState(Freefall), no AutoRotate = false. That pair is
-	    the -1000 trigger: every flight that called it died in 1.1-1.2s, every
-	    flight without it landed with hp 100.
-	  * no velocity writes. The reference claims ZERO horizontal velocity and
-	    holds its position with the CFrame write alone.
+	Because the next target is measured from where the character ACTUALLY is
+	(found by projecting onto the path), a reverted step is retried rather
+	than skipped, and the flight cannot run away from itself.
 
-	Run it (paste into the executor and execute). It counts down, flies
-	STEP_COUNT steps, then prints a summary. Send the whole printout back - or if
-	that is too much, the "check" lines alone carry the verdict.
+	Mechanism, unchanged from the lightdark log: ONE direct root.CFrame write
+	per step. No ChangeState(Freefall), no AutoRotate = false - that pair is
+	the -1000 trigger - and no velocity writes.
+
+	Run it (paste into the executor and execute). It counts down, walks the
+	path for 72.5s, then prints a summary. Send the printout back, or the
+	"check" lines alone if it is too long. Stop it early with
+	_G.LIGHTDARK_FLIGHT_STOP = true
 =========================================================================]]
 
 -- ================================================================
--- CONFIG - every number the test depends on, in one place
+-- CONFIG
 -- ================================================================
 local STEP_STUDS       = 35      -- studs written per step
 local STEP_INTERVAL    = 0.5     -- seconds between writes
-local STEP_COUNT       = 40      -- steps before it stops (40 x 35 = 1400 studs, 20s)
-local HOLD_ALTITUDE    = true    -- pin Y to the altitude we started at
-local LIFT_STUDS       = 0       -- teleport up first (the reference launch climbed +42)
+local SNAP_TO_START    = true    -- if we are not at the pad, write ourselves there first
+local START_SNAP_STUDS = 60      -- further than this from the pad counts as "not there"
 local NOCLIP           = true    -- parts non-collidable for the flight, restored after
-local AUTO_START_DELAY = 3       -- seconds to get into position before it flies
+local AUTO_START_DELAY = 3       -- seconds before the first write
 local TOLERANCE        = 3.0     -- studs: within this of a position counts as "there"
-local DIRECTION        = nil     -- nil = fly the way the character is facing
+local ABORT_AFTER_REVERTS = 5    -- consecutive undone writes before giving up
+local PROGRESS_EVERY   = 20      -- steps between progress lines
+
+-- The route, as measured. Names are for the log only.
+local PATH = {
+	{ name = "lightdark pad",  pos = Vector3.new(5666.3,  70.7, -331.9) },
+	{ name = "cruise start",   pos = Vector3.new(5245.1, 112.7, -331.5) },
+	{ name = "cruise end",     pos = Vector3.new( 671.6, 112.7, -325.4) },
+	{ name = "forest landing", pos = Vector3.new( 612.2,  70.7, -325.0) },
+}
 
 -- ================================================================
--- LOGGING - same shape as debug.lua's, so the paste reads the same way
+-- LOGGING
 -- ================================================================
 local startClock = os.clock()
 local LOG = {}
@@ -65,9 +83,16 @@ end
 
 local function fmtPos(p) return string.format("(%.1f, %.1f, %.1f)", p.X, p.Y, p.Z) end
 local function fmtVec(v) return string.format("(%.1f, %.1f, %.1f)", v.X, v.Y, v.Z) end
-local function dash(v, fmt) if type(v) ~= "number" then return "-" end return string.format(fmt or "%.1f", v) end
+local function dash(v) if type(v) ~= "number" then return "-" end return string.format("%.1f", v) end
 
--- nil from GetNetworkOwner() MEANS the server owns the part, and a client CFrame
+-- Declared HERE, above every function that reads it. The first version declared
+-- `player` further down with the rig, so ownerName() read a GLOBAL `player` (nil)
+-- and every readout printed "table: 0x..." instead of "you" - the same
+-- undeclared-global trap that has bitten debug.lua six times.
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- nil from GetNetworkOwner() means the SERVER owns the part, and a client CFrame
 -- write on a server-owned assembly is only a request. Worth a readout per step.
 local function ownerName(part)
 	if not part then return "?" end
@@ -86,12 +111,10 @@ end
 -- ================================================================
 -- RIG
 -- ================================================================
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local player = Players.LocalPlayer
 
 if _G.LIGHTDARK_FLIGHT_RUNNING then
-	warn("LIGHTDARK FLIGHT: an earlier run is still going - stopping it first")
+	warn("LIGHTDARK PATH: an earlier run is still going - stopping it first")
 	_G.LIGHTDARK_FLIGHT_STOP = true
 	task.wait(0.2)
 end
@@ -102,8 +125,61 @@ local character = player.Character
 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 local root = character and character:FindFirstChild("HumanoidRootPart")
 if not (character and humanoid and root) then
-	warn("LIGHTDARK FLIGHT: no character/humanoid/HumanoidRootPart - respawn and run again")
+	warn("LIGHTDARK PATH: no character/humanoid/HumanoidRootPart - respawn and run again")
 	return
+end
+
+-- ================================================================
+-- THE PATH AS A POLYLINE - segment lengths, and where a point sits along it
+-- ================================================================
+local segments, TOTAL = {}, 0
+for i = 1, #PATH - 1 do
+	local a, b = PATH[i].pos, PATH[i + 1].pos
+	local len = (b - a).Magnitude
+	segments[i] = { a = a, b = b, len = len, start = TOTAL, name = PATH[i].name, to = PATH[i + 1].name }
+	TOTAL += len
+end
+local STEPS = math.ceil(TOTAL / STEP_STUDS)
+
+-- Where along the path is this position? Returns distance-along and how far the
+-- position is off the path. Projecting instead of trusting the last write is
+-- what lets a reverted step be retried from the truth.
+local function projectToPath(p)
+	local bestS, bestD = 0, math.huge
+	for _, seg in ipairs(segments) do
+		local ab = seg.b - seg.a
+		local t = 0
+		if seg.len > 1e-6 then
+			t = ((p - seg.a):Dot(ab)) / (seg.len * seg.len)
+			t = math.max(0, math.min(1, t))     -- math.clamp is Roblox-only
+		end
+		local c = seg.a + ab * t
+		local d = (p - c).Magnitude
+		if d < bestD then
+			bestD = d
+			bestS = seg.start + t * seg.len
+		end
+	end
+	return bestS, bestD
+end
+
+-- The point that is s studs along the path.
+local function samplePath(s)
+	s = math.max(0, math.min(TOTAL, s))
+	for _, seg in ipairs(segments) do
+		if s <= seg.start + seg.len or seg == segments[#segments] then
+			local t = seg.len > 1e-6 and (s - seg.start) / seg.len or 0
+			return seg.a + (seg.b - seg.a) * t
+		end
+	end
+	return PATH[#PATH].pos
+end
+
+local function segmentNameAt(s)
+	for _, seg in ipairs(segments) do
+		if s <= seg.start + seg.len then return seg.to end
+	end
+	return PATH[#PATH].name
 end
 
 -- ================================================================
@@ -141,21 +217,20 @@ end
 -- ================================================================
 local flight = {
 	step = 0,                 -- writes done
+	s = 0,                    -- studs along the path we have reached
 	startPos = nil,
-	altitude = 0,
-	dir = nil,
-	askedStuds = 0,
-	held = 0, reverted = 0, elsewhere = 0,
 	pending = nil,            -- the write we are still watching
-	hp = nil,
-	state = nil,
+	held = 0, reverted = 0, elsewhere = 0,
+	revertStreak = 0,
+	offPath = 0,
+	arrived = false,
+	hp = nil, state = nil,
 	stopReason = nil,
 	conn = nil,
 	nextAt = 0,
 }
 local summaryDone = false
 
--- ---- per-step environment line ------------------------------------------
 local function worldLine()
 	local floor = humanoid.FloorMaterial
 	local floorName = floor and tostring(floor) or "?"
@@ -180,65 +255,77 @@ local function checkPending(now)
 	if fromWrite <= TOLERANCE then
 		verdict = "HELD"
 		flight.held += 1
+		flight.revertStreak = 0
 	elseif fromBefore <= TOLERANCE then
 		verdict = "REVERTED - the server put us back"
 		flight.reverted += 1
+		flight.revertStreak += 1
 	else
 		verdict = "MOVED ELSEWHERE - neither where we wrote nor where we were"
 		flight.elsewhere += 1
+		flight.revertStreak += 1
 	end
 
-	log("%s check %02d | %.3fs after the write | now %s | %.1f studs from where it was written, %.1f from where it started",
-		stamp(), p.step, age, fmtPos(here), fromWrite, fromBefore)
+	log("%s check %03d | %.3fs after the write | now %s | %.1f studs from where it was written, %.1f from where it started | %s",
+		stamp(), p.step, age, fmtPos(here), fromWrite, fromBefore, verdict)
 	if verdict ~= "HELD" then
-		log("%s          | wrote=%s then=%s | %s",
-			stamp(), fmtPos(p.wroteTo), fmtPos(p.before), verdict)
+		log("%s           | wrote %s then %s | path s=%.1f/%.1f",
+			stamp(), fmtPos(p.wroteTo), fmtPos(p.before), p.s, TOTAL)
 	end
-	log("%s          | %s", stamp(), verdict)
+
+	if flight.revertStreak >= ABORT_AFTER_REVERTS then
+		flight.stopReason = string.format(
+			"%d writes in a row were undone - the server is not keeping them", ABORT_AFTER_REVERTS)
+	end
 end
 
--- ---- the write: 35 studs along the flight direction ---------------------
+-- ---- the write: the next 35 studs of the path ---------------------------
 local function doStep(now)
 	checkPending(now)
+	if flight.stopReason or flight.arrived then return end
 
-	if flight.step >= STEP_COUNT then
-		flight.stopReason = "all " .. STEP_COUNT .. " steps flown"
-		return
-	end
-
+	-- Where are we really? If a previous write did not hold, this is behind
+	-- where we thought, and the next step is measured from the truth.
 	local before = root.Position
+	local here, offPath = projectToPath(before)
 	if flight.step == 0 then
-		flight.startPos = before
-		flight.altitude = before.Y
-		if not flight.dir then
-			local look = root.CFrame.LookVector
-			local flat = Vector3.new(look.X, 0, look.Z)
-			flight.dir = flat.Magnitude > 0.1 and flat.Unit or Vector3.new(-1, 0, 0)
-			log("%s DIRECTION | %s | from the character's facing (LookVector flattened), 35 studs per step",
-				stamp(), fmtVec(flight.dir))
-		end
+		flight.startPos = root.Position
+		flight.offPath = offPath
+	elseif here < flight.s - 1 then
+		log("%s LAGGING   | s=%.1f but the character is at s=%.1f | last write did not hold - retrying from where it is",
+			stamp(), flight.s, here)
+	end
+	flight.s = here
+	if offPath > 60 then
+		log("%s DRIFT      | %.1f studs off the path - the next write pulls back onto it",
+			stamp(), offPath)
 	end
 
-	local target = Vector3.new(
-		before.X + flight.dir.X * STEP_STUDS,
-		HOLD_ALTITUDE and flight.altitude or before.Y,
-		before.Z + flight.dir.Z * STEP_STUDS)
+	local fromS = flight.s
+	local targetS = math.min(flight.s + STEP_STUDS, TOTAL)
+	local target = samplePath(targetS)
 
 	-- THE WRITE. One direct root.CFrame assignment - the mechanism the working
-	-- lightdark log shows (`24 direct root.CFrame write(s)`). No PivotTo, no
-	-- velocity, no state call.
-	root.CFrame = CFrame.new(target)
+	-- lightdark log shows. No PivotTo, no velocity, no state call. The yaw is
+	-- carried over: a bare CFrame.new() resets the facing, which yanks the
+	-- character round and is not what the reference does.
+	local yaw = root.Orientation.Y
+	root.CFrame = CFrame.new(target) * CFrame.Angles(0, math.rad(yaw), 0)
 
 	local landed = root.Position
 	local off = (landed - target).Magnitude
 	flight.step += 1
-	flight.askedStuds += STEP_STUDS
-	flight.pending = { step = flight.step, before = before, wroteTo = target, at = now }
+	flight.s = targetS
+	flight.pending = { step = flight.step, before = before, wroteTo = target, at = now, s = targetS }
 
-	local net = xzDist(landed, flight.startPos)
-	log("%s step %02d | wrote %s | asked %s | landed %s | off by %.2f | net %.1f studs so far",
-		stamp(), flight.step, fmtVec(flight.dir), fmtPos(target), fmtPos(landed), off, net)
-	log("%s         | %s", stamp(), worldLine())
+	log("%s step %03d | s=%.1f -> %.1f of %.1f (%d%%) | asked %s | landed %s | off by %.2f | %s",
+		stamp(), flight.step, fromS, targetS, TOTAL, math.floor((targetS / TOTAL) * 100),
+		fmtPos(target), fmtPos(landed), off, segmentNameAt(targetS))
+	log("%s          | %s", stamp(), worldLine())
+
+	if targetS >= TOTAL - 0.001 then
+		flight.arrived = true
+	end
 end
 
 -- ================================================================
@@ -261,34 +348,45 @@ local function finish(reason)
 		local here = root.Position
 		local fromWrite = xzDist(here, p.wroteTo)
 		local fromBefore = xzDist(here, p.before)
-		local verdict = fromWrite <= TOLERANCE and "HELD"
-			or (fromBefore <= TOLERANCE and "REVERTED - the server put us back"
-				or "MOVED ELSEWHERE")
-		if fromWrite <= TOLERANCE then flight.held += 1
-		elseif fromBefore <= TOLERANCE then flight.reverted += 1
-		else flight.elsewhere += 1 end
-		log("%s check %02d | FINAL | now %s | %.1f from the write, %.1f from where it started | %s",
+		local verdict
+		if fromWrite <= TOLERANCE then
+			verdict = "HELD"
+			flight.held += 1
+		elseif fromBefore <= TOLERANCE then
+			verdict = "REVERTED - the server put us back"
+			flight.reverted += 1
+		else
+			verdict = "MOVED ELSEWHERE"
+			flight.elsewhere += 1
+		end
+		log("%s check %03d | FINAL | now %s | %.1f from the write, %.1f from where it started | %s",
 			stamp(), p.step, fmtPos(here), fromWrite, fromBefore, verdict)
 	end
 
 	local here = root.Position
-	local net = flight.startPos and xzDist(here, flight.startPos) or 0
-	local along = 0
-	if flight.startPos and flight.dir then
-		local d = Vector3.new(here.X - flight.startPos.X, 0, here.Z - flight.startPos.Z)
-		along = d:Dot(flight.dir)
-	end
+	local pad = PATH[#PATH].pos
+	local padDist = (here - pad).Magnitude
+	local xzNet = flight.startPos and xzDist(here, flight.startPos) or 0
 	local restored = restoreNoclip()
 
-	log("============ FLIGHT SUMMARY ============")
-	log("asked     | %d steps x %.1f studs = %.1f studs over %.1fs",
-		flight.step, STEP_STUDS, flight.askedStuds,
+	log("============ PATH FLIGHT SUMMARY ============")
+	log("route     | %s -> %s", PATH[1].name, PATH[#PATH].name)
+	log("asked     | %d steps x %.1f studs = %.1f studs of path over %.1fs",
+		flight.step, STEP_STUDS, math.min(flight.step * STEP_STUDS, TOTAL),
 		flight.step * STEP_INTERVAL)
-	log("achieved  | %.1f studs along the flight (%.1f of %.1f asked, %.0f%%)",
-		along, net, flight.askedStuds,
-		flight.askedStuds > 0 and (net / flight.askedStuds) * 100 or 0)
+	log("walked    | %.1f of %.1f studs of path (%.0f%%)",
+		math.min(flight.s, TOTAL), TOTAL, (math.min(flight.s, TOTAL) / TOTAL) * 100)
 	log("position  | start %s -> end %s",
 		flight.startPos and fmtPos(flight.startPos) or "?", fmtPos(here))
+	log("net       | %.1f studs across the ground (%.1f to the pad in a straight line, %.1f left)",
+		xzNet, (flight.startPos and xzDist(flight.startPos, pad)) or 0, padDist)
+	if flight.arrived then
+		log("LANDED    | at the %s %s | %.1f studs from the pad | floor=%s | hp=%s",
+			PATH[#PATH].name, fmtPos(pad), padDist, tostring(humanoid.FloorMaterial), dash(humanoid.Health))
+	else
+		log("not landed| %.1f studs short of the pad | s=%.1f/%.1f",
+			padDist, math.min(flight.s, TOTAL), TOTAL)
+	end
 	log("steps     | %d HELD | %d REVERTED | %d moved elsewhere",
 		flight.held, flight.reverted, flight.elsewhere)
 	log("health    | hp=%s | state=%s | floor=%s",
@@ -308,28 +406,48 @@ local function finish(reason)
 	end
 	log("verdict   | %s", verdict)
 	log("stopped   | %s", flight.stopReason)
-	log("========================================")
+	log("=============================================")
 	_G.LIGHTDARK_FLIGHT_RUNNING = false
 end
 
 -- ================================================================
 -- RUN
 -- ================================================================
-log("============ LIGHTDARK FLIGHT ============")
-log("%s config    | %d studs every %.2fs x %d steps = %.0f studs over %.1fs",
-	stamp(), STEP_STUDS, STEP_INTERVAL, STEP_COUNT, STEP_STUDS * STEP_COUNT,
-	STEP_COUNT * STEP_INTERVAL)
-log("%s setup     | holdAltitude=%s | lift=%d | noclip=%s | tolerance=%.1f",
-	stamp(), tostring(HOLD_ALTITUDE), LIFT_STUDS, tostring(NOCLIP), TOLERANCE)
+log("============ LIGHTDARK PATH FLIGHT ============")
+log("%s route     | %s -> %s | %s",
+	stamp(), PATH[1].name, PATH[#PATH].name, fmtPos(PATH[#PATH].pos))
+log("%s config    | %.1f studs every %.2fs x %d steps = %.1fs",
+	stamp(), STEP_STUDS, STEP_INTERVAL, STEPS, STEPS * STEP_INTERVAL)
+log("%s path      | launch %.1f | cruise %.1f | drop %.1f | total %.1f studs",
+	stamp(), segments[1] and segments[1].len or 0,
+	segments[2] and segments[2].len or 0, segments[3] and segments[3].len or 0, TOTAL)
 log("%s start     | %s | hp=%s | state=%s",
 	stamp(), fmtPos(root.Position), dash(humanoid.Health), tostring(humanoid:GetState()))
 log("%s not called| ChangeState(Freefall) and AutoRotate stay untouched - the -1000 pair",
 	stamp())
 
-if LIFT_STUDS > 0 then
-	local p = root.Position
-	root.CFrame = CFrame.new(Vector3.new(p.X, p.Y + LIFT_STUDS, p.Z))
-	log("%s launch    | lifted %.1f studs to %s", stamp(), LIFT_STUDS, fmtPos(root.Position))
+local here0, off0 = projectToPath(root.Position)
+log("%s position  | s=%.1f of %.1f along the path | %.1f studs off it",
+	stamp(), here0, TOTAL, off0)
+
+if SNAP_TO_START then
+	local pad = PATH[1].pos
+	local d = (root.Position - pad).Magnitude
+	if d > START_SNAP_STUDS then
+		log("%s snap      | %.1f studs from the %s - one write to the start line",
+			stamp(), d, PATH[1].name)
+		local yaw = root.Orientation.Y
+		root.CFrame = CFrame.new(pad) * CFrame.Angles(0, math.rad(yaw), 0)
+		local after = (root.Position - pad).Magnitude
+		log("%s snap      | wrote %s | now %s | %.2f studs off the pad | %s",
+			stamp(), fmtPos(pad), fmtPos(root.Position), after, worldLine())
+		if after > TOLERANCE then
+			log("%s snap      | DID NOT HOLD - the write to the start line was undone. Flying from wherever the character is instead",
+				stamp())
+		end
+	else
+		log("%s snap      | already at the %s (%.1f studs) - flying from here", stamp(), PATH[1].name, d)
+	end
 end
 
 local nc = applyNoclip()
@@ -343,14 +461,13 @@ end
 -- seed the state/health so the first tick does not report a change from "?"
 flight.state = tostring(humanoid:GetState())
 flight.hp = humanoid.Health
-
 flight.baseAt = os.clock()
 flight.nextAt = flight.baseAt + STEP_INTERVAL
 log("%s FLYING     | the first write is now", stamp())
 
 -- The first write happens HERE, not on the next frame. Waiting for the first
 -- frame puts every step one frame behind its own schedule, and the cadence then
--- reads 0.517s per step instead of the 0.5s this script claims to fly.
+-- reads slower than the 0.5s this script claims to fly.
 doStep(flight.baseAt)
 
 flight.conn = RunService.Heartbeat:Connect(function()
@@ -369,7 +486,7 @@ flight.conn = RunService.Heartbeat:Connect(function()
 
 	local now = os.clock()
 
-	-- report prop/state changes as they happen: they are clues, not noise
+	-- report state and health changes as they happen: they are clues, not noise
 	local state = tostring(humanoid:GetState())
 	if state ~= flight.state then
 		log("%s STATE      | %s -> %s | %s", stamp(), flight.state or "?", state, worldLine())
@@ -383,13 +500,22 @@ flight.conn = RunService.Heartbeat:Connect(function()
 	end
 
 	-- 1e-6: 30 frames of 1/60 sum to 0.49999999999999994, which is not >= 0.5,
-	-- so an exact scheduler would run one frame late - and one frame late on
-	-- every step is a 3% slower flight than the one this script claims to fly.
-	if now >= flight.nextAt - 1e-6 then
-		-- advance from the SCHEDULE, and never fire twice in one frame
+	-- so an exact scheduler would run one frame late every step.
+	if not flight.arrived and now >= flight.nextAt - 1e-6 then
 		flight.nextAt += STEP_INTERVAL
 		if flight.nextAt < now then flight.nextAt = now + STEP_INTERVAL end
 		doStep(now)
-		if flight.stopReason then finish(flight.stopReason) end
+		if flight.step > 0 and flight.step % PROGRESS_EVERY == 0 and not flight.arrived then
+			log("%s PROGRESS   | step %d of %d | %.1f of %.1f studs | %d%% | %s",
+				stamp(), flight.step, STEPS, math.min(flight.s, TOTAL), TOTAL,
+				math.floor((math.min(flight.s, TOTAL) / TOTAL) * 100), segmentNameAt(flight.s))
+		end
+	end
+
+	-- the landing gets one more read, then the summary
+	if flight.arrived and now >= flight.nextAt - 1e-6 then
+		finish("landed at the " .. PATH[#PATH].name)
+	elseif flight.stopReason then
+		finish(flight.stopReason)
 	end
 end)
