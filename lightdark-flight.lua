@@ -36,14 +36,17 @@
 -- ================================================================
 -- CONFIG
 -- ================================================================
-local SCRIPT_VERSION   = "v3-ui"   -- printed in the log so a paste says which build ran
+local SCRIPT_VERSION   = "v4-axis"   -- printed in the log so a paste says which build ran
 local STEP_STUDS       = 35      -- studs written per step
 local STEP_INTERVAL    = 0.5     -- seconds between writes
 local SNAP_TO_START    = true    -- if we are not at the first waypoint, write ourselves there
 local START_SNAP_STUDS = 60      -- further than this from it counts as "not there"
 local NOCLIP           = true    -- parts non-collidable for the flight, restored after
 local TOLERANCE        = 3.0     -- studs: within this of a position counts as "there"
-local ABORT_AFTER_REVERTS = 5    -- consecutive undone writes before giving up
+-- Overridable from the console before running: _G.LIGHTDARK_HOLD_S = 0 disables it
+-- (that reproduces exactly what the 23:38 run did), 0.05 matches the reference.
+local HOLD_EVERY_S     = tonumber(_G.LIGHTDARK_HOLD_S) or 0.05    -- re-assert the target this often (0 = off)
+local ABORT_AFTER_REVERTS = 3    -- consecutive server reverts before giving up
 local PROGRESS_EVERY   = 20      -- steps between progress lines
 local LOG_MAX          = 400     -- log lines kept on screen
 
@@ -288,7 +291,7 @@ local function buildUI(parent)
 	statusLabel   = mkLabel(34, "STATUS    | idle - press START", Color3.fromRGB(120, 220, 255))
 	progressLabel = mkLabel(50, string.format("PROGRESS  | step 0 of %d | 0.0 of %.1f studs (0%%)", STEPS, TOTAL))
 	posLabel      = mkLabel(66, "POSITION  | -")
-	verdictLabel  = mkLabel(82, "WRITES    | 0 held | 0 reverted | 0 elsewhere", Color3.fromRGB(235, 235, 180))
+	verdictLabel  = mkLabel(82, "WRITES    | 0 held | 0 sagged | 0 reverted | 0 elsewhere", Color3.fromRGB(235, 235, 180))
 	routeLabel    = mkLabel(98, string.format("ROUTE     | %d waypoints from lightdark.log | %.1f studs | %.1fs",
 		#PATH, TOTAL, STEPS * STEP_INTERVAL), Color3.fromRGB(150, 155, 165), 10)
 
@@ -454,6 +457,7 @@ local flight = {
 	pending = nil, held = 0, reverted = 0, elsewhere = 0,
 	revertStreak = 0, arrived = false, hp = nil, state = nil,
 	stopReason = nil, conn = nil, nextAt = 0, character = nil, humanoid = nil, root = nil,
+	sagged = 0, worstSag = 0, sagLogged = 0, holds = 0, holdAt = 0,
 }
 local summaryDone = false
 
@@ -465,8 +469,8 @@ local function setStatus(text, color)
 end
 
 local function setCounters()
-	setText(verdictLabel, string.format("WRITES    | %d held | %d reverted | %d elsewhere",
-		flight.held, flight.reverted, flight.elsewhere))
+	setText(verdictLabel, string.format("WRITES    | %d held | %d sagged | %d reverted | %d elsewhere",
+		flight.held, flight.sagged, flight.reverted, flight.elsewhere))
 end
 
 local function worldLine()
@@ -486,14 +490,32 @@ local function checkPending(now)
 	flight.pending = nil
 
 	local here = flight.root.Position
-	local fromWrite = xzDist(here, p.wroteTo)
-	local fromBefore = xzDist(here, p.before)
-	local verdict
-	if fromWrite <= TOLERANCE then
+	-- HORIZONTAL and VERTICAL are undone by different things: the server moves us
+	-- back along the ground, gravity pulls us down. One 3D number cannot tell them
+	-- apart, and XZ alone called a 42-stud fall "HELD" for 13 steps of the 23:38
+	-- run. Judge both, and name whoever did it.
+	local dxz = xzDist(here, p.wroteTo)
+	local dy = here.Y - p.wroteTo.Y
+	local backXZ = xzDist(here, p.before)
+	local lifted = p.wroteTo.Y - p.before.Y          -- what the write asked for, vertically
+	local sag = 0
+	if dy < -TOLERANCE then sag = -dy end
+
+	local verdict, detail
+	if dxz <= TOLERANCE and sag == 0 then
 		verdict = "HELD"
 		flight.held += 1
 		flight.revertStreak = 0
-	elseif fromBefore <= TOLERANCE then
+	elseif dxz <= TOLERANCE then
+		-- the horizontal claim survived; the height did not. That is gravity, not
+		-- the server, and it is the difference this whole run is about.
+		verdict = string.format(
+			"SAGGED - horizontal held, but we are %.1f studs below the write (asked +%.1f, lost %.1f) - gravity, not the server",
+			- dy, lifted, - dy)
+		flight.sagged += 1
+		flight.revertStreak = 0
+		if - dy > flight.worstSag then flight.worstSag = - dy end
+	elseif backXZ <= TOLERANCE then
 		verdict = "REVERTED - the server put us back"
 		flight.reverted += 1
 		flight.revertStreak += 1
@@ -503,15 +525,26 @@ local function checkPending(now)
 		flight.revertStreak += 1
 	end
 
-	log("%s check %03d | %.3fs after the write | now %s | %.1f studs from where it was written, %.1f from where it started | %s",
-		stamp(), p.step, now - p.at, fmtPos(here), fromWrite, fromBefore, verdict)
+	log("%s check %03d | %.3fs after the write | now %s | %.1f studs from the write (XZ), %.1f in Y (%.1f from where it started) | %s",
+		stamp(), p.step, now - p.at, fmtPos(here), dxz, dy, backXZ, verdict)
 	if verdict ~= "HELD" then
 		log("%s           | wrote %s then %s | path s=%.1f/%.1f | ref reached this at t+%.2fs",
 			stamp(), fmtPos(p.wroteTo), fmtPos(p.before), p.s, TOTAL, refTimeAt(p.s))
 	end
+	if sag > 0 and flight.sagLogged < 6 then
+		flight.sagLogged += 1
+		log("%s           | the write lifted us %.1f studs and we fell %.1f of it in %.2fs. Gravity pulls %.1f studs in that time; the reference writes every ~0.05s so it only ever loses 0.2 studs.",
+			stamp(), lifted, sag, now - p.at, 0.5 * 196.2 * (now - p.at) ^ 2)
+	end
 
 	setCounters()
-	if flight.revertStreak >= ABORT_AFTER_REVERTS then
+	if flight.revertStreak == ABORT_AFTER_REVERTS then
+		-- measured: the -1000 follows a streak of rejected claims, not any one API
+		-- call. The 04:26 flight died after 15 rejections, the 23:38 flight 0.06s
+		-- after its 4th. Stopping on the third is the difference between logging
+		-- the streak and logging a corpse.
+		log("%s DANGER     | %d server reverts in a row - the -1000 has followed a streak like this | stopping",
+			stamp(), flight.revertStreak)
 		flight.stopReason = string.format(
 			"%d writes in a row were undone - the server is not keeping them", ABORT_AFTER_REVERTS)
 	end
@@ -548,6 +581,7 @@ local function doStep(now)
 	flight.step += 1
 	flight.s = targetS
 	flight.pending = { step = flight.step, before = before, wroteTo = target, at = now, s = targetS }
+	flight.holdAt = now + HOLD_EVERY_S
 
 	log("%s step %03d | s=%.1f -> %.1f of %.1f (%d%%) | asked %s | landed %s | off by %.2f | ref t+%.2fs",
 		stamp(), flight.step, fromS, targetS, TOTAL, math.floor((targetS / TOTAL) * 100),
@@ -609,15 +643,25 @@ local function finish(reason)
 		log("not landed| %.1f studs short of the pad | s=%.1f/%.1f",
 			padDist, math.min(flight.s, TOTAL), TOTAL)
 	end
-	log("steps     | %d HELD | %d REVERTED | %d moved elsewhere",
-		flight.held, flight.reverted, flight.elsewhere)
+	log("steps     | %d HELD | %d SAGGED | %d REVERTED | %d moved elsewhere",
+		flight.held, flight.sagged, flight.reverted, flight.elsewhere)
+	if flight.sagged > 0 then
+		log("sag       | worst height lost between writes: %.1f studs | %d write(s) brought down by gravity",
+			flight.worstSag, flight.sagged)
+	end
+	if HOLD_EVERY_S > 0 then
+		log("holds     | %d re-asserts at %.0f/s", flight.holds, 1 / HOLD_EVERY_S)
+	end
 	log("health    | hp=%s | state=%s | floor=%s",
 		dash(flight.humanoid.Health), tostring(flight.humanoid:GetState()),
 		tostring(flight.humanoid.FloorMaterial))
 	if NOCLIP then log("noclip    | restored CanCollide on %d part(s) - nothing leaked", restored) end
 
 	local verdict
-	if flight.reverted > 0 and flight.held == 0 then
+	if flight.sagged > 0 and flight.reverted == 0 then
+		verdict = string.format("THE HEIGHT IS BEING EATEN - %d write(s) held horizontally but lost up to %.1f studs of height",
+			flight.sagged, flight.worstSag)
+	elseif flight.reverted > 0 and flight.held == 0 then
 		verdict = "THE SERVER IS UNDOING THEM - not one write survived"
 	elseif flight.reverted > 0 then
 		verdict = string.format("PARTIAL - %d of %d writes survived, %d were undone",
@@ -661,6 +705,7 @@ local function startFlight()
 		hp = humanoid.Health, state = tostring(humanoid:GetState()),
 		stopReason = nil, conn = nil, nextAt = 0,
 		character = character, humanoid = humanoid, root = root,
+		sagged = 0, worstSag = 0, sagLogged = 0, holds = 0, holdAt = 0,
 	}
 	summaryDone = false
 	_G.LIGHTDARK_FLIGHT_RUNNING = true
@@ -675,6 +720,8 @@ local function startFlight()
 		stamp(), fmtPos(root.Position), dash(humanoid.Health), tostring(humanoid:GetState()))
 	log("%s not called| ChangeState(Freefall) and AutoRotate stay untouched - the -1000 pair",
 		stamp())
+	log("%s hold      | the target is re-asserted every %.3fs (the reference writes every ~0.05s, so it loses 0.25 studs to gravity between writes; at one write per step we lose 24.5 and the whole climb is erased)",
+		stamp(), HOLD_EVERY_S)
 
 	local here0, off0 = projectToPath(root.Position)
 	log("%s position  | s=%.1f of %.1f along the path | %.1f studs off it", stamp(), here0, TOTAL, off0)
@@ -730,6 +777,19 @@ local function startFlight()
 		if flight.humanoid.Health ~= flight.hp then
 			log("%s HEALTH     | %s -> %s", stamp(), dash(flight.hp), dash(flight.humanoid.Health))
 			flight.hp = flight.humanoid.Health
+		end
+
+		-- Between steps, re-assert the target we already wrote. Without this the
+		-- character is not flying the path at all: it hops 35 studs, is pulled down
+		-- to the ground by gravity for half a second, and hops again from the
+		-- ground. The step rate stays 35 studs / 0.5s - only the height is held.
+		if HOLD_EVERY_S > 0 and flight.pending and not flight.arrived
+			and now >= flight.holdAt - 1e-6 then
+			flight.holdAt = now + HOLD_EVERY_S
+			local t = flight.pending.wroteTo
+			local yaw = flight.root.Orientation.Y
+			flight.root.CFrame = CFrame.new(t) * CFrame.Angles(0, math.rad(yaw), 0)
+			flight.holds += 1
 		end
 
 		-- 1e-6: 30 frames of 1/60 sum to 0.49999999999999994, which is not >= 0.5,

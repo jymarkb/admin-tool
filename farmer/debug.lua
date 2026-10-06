@@ -497,6 +497,12 @@ local stateCallsEnabled = false
 local pivotWriteEnabled = PIVOT_WRITE_DEFAULT
 local profileMeasured = PROFILE_MEASURED_DEFAULT
 local pendingJump = nil            -- a big displacement we are watching for a reversal
+-- how close in XZ a position has to be to the write for a lost height to count as
+-- gravity rather than the server moving us back
+local REVERT_AXIS_STUDS = 6.0
+-- consecutive server reverts that matter: the kill has followed 4 in a row
+local DANGER_STREAK = 3
+local revertStreak = 0
 local evaluatePendingJump          -- assigned in the forensics layer
 local deathConnection, anchoredConnection, touchConnection
 local lastTouchLogged = {}
@@ -1920,19 +1926,59 @@ end
 
 -- Did the last big jump actually hold? Called both from the tick and from the
 -- sampler (before it arms a new jump).
+--
+-- TWO things undo a write, and until the 23:38 flight this verdict could not tell
+-- them apart: the SERVER puts the character back along the ground, GRAVITY pulls
+-- it down. The old test used one 3D number against `back`, so a flight that was
+-- climbing along a path reported "REVERTED" every step when nothing was wrong but
+-- the height - and a real server revert looked the same as the fall. The axis is
+-- the whole answer, so it is measured and named now.
 evaluatePendingJump = function(humanoid, root, now)
 	if not pendingJump or not root then return end
 	local age = now - pendingJump.time
-	local back = -(root.Position - pendingJump.to):Dot(pendingJump.dir)
-	if back >= REVERT_MIN_STUDS then
+	local here = root.Position
+	local back = -(here - pendingJump.to):Dot(pendingJump.dir)
+	local dxz = Vector3.new(here.X - pendingJump.to.X, 0, here.Z - pendingJump.to.Z).Magnitude
+	local dy = pendingJump.to.Y - here.Y                 -- + = we are BELOW the write
+	local nextStep = (pendingJump.to - pendingJump.from).Magnitude
+	if dy > REVERT_MIN_STUDS and dxz <= REVERT_AXIS_STUDS then
+		-- horizontal claim survived, height did not: the game's gravity, not the
+		-- server. Nothing here is a signal about write acceptance - but a flight
+		-- that never gets off the ground is worth saying out loud.
+		revertStreak = 0
+		local fall = 0.5 * workspace.Gravity * age * age
 		addLogEntry(string.format(
-			"[%s] REVERTED | %.0f studs back %.2fs after a +%.0f stud jump",
+			"[%s] SAGGED | %.0f studs below the write %.2fs after it | the height did not hold, the position did | gravity pulls %.0f studs in that time",
+			timestamp(), dy, age, fall))
+		addLogEntry(string.format(
+			"[%s]   wrote (%s) | now (%s) | XZ still within %.1f studs - this is gravity, NOT a server revert",
+			timestamp(), formatPos(pendingJump.to), formatPos(here), dxz))
+		pendingJump = nil
+	elseif back >= REVERT_MIN_STUDS and dxz > REVERT_AXIS_STUDS then
+		revertStreak += 1
+		addLogEntry(string.format(
+			"[%s] REVERTED | %.0f studs back %.2fs after a +%.0f stud jump | HORIZONTAL - the server moved us",
 			timestamp(), back, age, pendingJump.dist))
 		addLogEntry(string.format(
 			"[%s]   wrote to (%s) | now at (%s) | the write did NOT stick",
-			timestamp(), formatPos(pendingJump.to), formatPos(root.Position)))
+			timestamp(), formatPos(pendingJump.to), formatPos(here)))
+		-- the streak is the thing that precedes the kill: 04:26 died after 15
+		-- rejected writes, 23:38 died 0.06s after its 4th revert in a row
+		addLogEntry(string.format(
+			"[%s]   streak   | %d server revert(s) in a row%s",
+			timestamp(), revertStreak,
+			revertStreak >= DANGER_STREAK
+				and " - THIS IS THE PATTERN THAT ENDS IN THE -1000" or ""))
+		if revertStreak == DANGER_STREAK then
+			addLogEntry(string.format(
+				"[%s] DANGER   | %d straight server reverts - the -1000 has followed a streak like this. Stop writing and look at what the server is refusing.",
+				timestamp(), revertStreak))
+		end
 		pendingJump = nil
 	elseif age > REVERT_WINDOW_S then
+		-- a step that held both axes clears the streak: the server was not refusing
+		-- us, whatever the previous lines said
+		if revertStreak > 0 then revertStreak = 0 end
 		addLogEntry(string.format(
 			"[%s] KEPT | +%.0f stud jump held for %.1fs | landed (%s) | speed=%.1f",
 			timestamp(), pendingJump.dist, age, formatPos(pendingJump.to),

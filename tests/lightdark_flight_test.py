@@ -195,6 +195,7 @@ local function newInstance(class)
     __newindex = function(_, k, v)
       data[k] = v
       if k == "CFrame" and data._isRoot then
+        VY = 0                                   -- a write resets the fall
         LASTWRITE = { before = vnew(data.Position.x, data.Position.y, data.Position.z),
                       after = vnew(v.p.x, v.p.y, v.p.z) }
         data.Position = vnew(v.p.x, v.p.y, v.p.z)
@@ -261,10 +262,19 @@ end }
 
 -- ---- driver --------------------------------------------------------------
 local REVERT = false
+GRAVITY = false
+VY = 0
 function DRIVE(seconds)
   local n = math.floor(seconds * 60 + 0.5)
   for i = 1, n do
     FAKE_T = FAKE_T + 1/60
+    if GRAVITY then
+      -- pulled down at 196.2 studs/s^2 from wherever the last write left us;
+      -- a CFrame write teleports and resets the fall, exactly like the game
+      VY = VY + 196.2 / 60
+      local d = PROXY_DATA[ROOT]
+      d.Position = vnew(d.Position.x, d.Position.y - VY / 60, d.Position.z)
+    end
     if REVERT and LASTWRITE then
       local P = LASTWRITE.before
       local lw = LASTWRITE
@@ -282,6 +292,7 @@ function PLACE(x, y, z)
   if TORSO then PROXY_DATA[TORSO].Position = p end
 end
 function SETREVERT(v) REVERT = v end
+function SETGRAVITY(v) GRAVITY = v end
 function SETFAILGUI(v) FAIL_GUI = v end
 function SETNOPLAYERGUI(v) NO_PLAYERGUI = v end
 function GUIPARENT()
@@ -343,12 +354,16 @@ def chk(name, cond, detail=""):
 
 
 def run(seconds=30, revert=False, hp_at=None, start=None, click=True, server_owns=False,
-        fail_gui=False, no_playergui=False):
+        fail_gui=False, no_playergui=False, hold=None, gravity=False):
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
     g = lua.globals()
     lua.execute(STUB)
     if start is not None:
         lua.execute("PLACE(%.1f, %.1f, %.1f)" % start)
+    if hold is not None:
+        lua.execute(f"_G.LIGHTDARK_HOLD_S = {hold}")
+    if gravity:
+        lua.execute("SETGRAVITY(true)")
     if fail_gui:
         lua.execute("SETFAILGUI(true)")
     if no_playergui:
@@ -402,9 +417,9 @@ chk("parented to PlayerGui when it is available", g["GUIPARENT"]() == "PlayerGui
     g["GUIPARENT"]())
 chk("the log says the panel is up", "| panel on screen (parent: PlayerGui)" in txt,
     lines(txt, "UI        |")[:1])
-chk("the log names the build", "build v3-ui" in txt, lines(txt, "READY     |")[:1])
+chk("the log names the build", "build v4-axis" in txt, lines(txt, "READY     |")[:1])
 chk("START is the button that flies", "START  (fly the path" in g["BUTTONS"](), "")
-chk("the title carries the version", "v3-ui" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
+chk("the title carries the version", "v4-axis" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
 chk("the close X is there", "X" in g["BUTTONS"](), g["BUTTONS"]()[:80])
 chk("STOP is there", "STOP" in g["BUTTONS"](), "")
 chk("COPY LOG is there", "COPY LOG" in g["BUTTONS"](), "")
@@ -523,7 +538,7 @@ chk("noclip is restored, not leaked",
 chk("every part is collidable again", all(p.CanCollide for p in g_all["PARTS"]().values()), "")
 chk("the panel agrees at the end", "THE WRITES STICK" in g_all["LABELSTART"]("STATUS"),
     g_all["LABELSTART"]("STATUS"))
-chk("the counters agree", "146 held | 0 reverted" in g_all["LABELSTART"]("WRITES"),
+chk("the counters agree", "146 held | 0 sagged | 0 reverted" in g_all["LABELSTART"]("WRITES"),
     g_all["LABELSTART"]("WRITES"))
 
 print("\n=== T5: COPY LOG copies what is on screen ===")
@@ -533,7 +548,10 @@ chk("the clipboard got the log", clip is not None and "PATH FLIGHT SUMMARY" in c
     (clip or "")[:60])
 
 print("\n=== T6: a write that does not hold is retried from where we really are ===")
-txt_rev, _ = run(seconds=12, revert=True)
+# hold OFF for this one: a hold re-writes the point the character is already on,
+# so "revert to the position before that write" is a no-op and the stub would
+# never model a server undo. One write per step is also what the field run did.
+txt_rev, _ = run(seconds=12, revert=True, hold=0)
 chk("the undone write is named", "REVERTED - the server put us back" in txt_rev,
     lines(txt_rev, "REVERTED")[:1])
 chk("it shows both positions",
@@ -542,8 +560,10 @@ chk("it shows both positions",
 chk("it quotes the reference's time for that point", "ref reached this at t+" in txt_rev, "")
 chk("the next write is measured from the truth",
     "s=0.0 -> 35.0" in step_lines(txt_rev)[-1], step_lines(txt_rev)[-1][:80])
-chk("it gives up after 5 in a row", "5 writes in a row were undone" in txt_rev,
+chk("it stops on the third revert, before the -1000", "3 writes in a row were undone" in txt_rev,
     lines(txt_rev, "stopped   |")[:1])
+chk("and it says why that matters", "DANGER     | 3 server reverts in a row" in txt_rev,
+    lines(txt_rev, "DANGER")[:1])
 chk("the verdict says so", "verdict   | THE SERVER IS UNDOING THEM" in txt_rev,
     lines(txt_rev, "verdict   |")[:1])
 chk("the summary still prints", "============ PATH FLIGHT SUMMARY ============" in txt_rev, "")
@@ -609,7 +629,7 @@ print("\n=== T13: the UI cannot be lost, and the flight survives without it ==="
 # build is pcall-guarded, the parent falls back, and the log says which happened.
 txt_nogui, g_nogui = run(seconds=3, fail_gui=True, click=False)
 chk("a blocked ScreenGui does not kill the script",
-    "READY     |" in txt_nogui and "build v3-ui" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
+    "READY     |" in txt_nogui and "build v4-axis" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
 chk("the log says the panel is NOT up", "UI        | NOT BUILT" in txt_nogui,
     lines(txt_nogui, "UI        |")[:1])
 chk("it names the reason", "ScreenGui blocked" in txt_nogui, lines(txt_nogui, "UI        |")[:1])
@@ -634,6 +654,66 @@ txt_all2, g_all2 = run(seconds=FLIGHT_SECS)
 chk("the panel still reports the landing after a full flight",
     "landed" in g_all2["LABELSTART"]("STATUS").lower()
     or "STICK" in g_all2["LABELSTART"]("STATUS"), g_all2["LABELSTART"]("STATUS"))
+
+print("\n=== T14: gravity eats the climb when nothing holds the target ===")
+# This is the 23:38 field failure, reproduced: one write per 0.5s, no hold. The
+# write lifts the character 3.5 studs along a rising path, gravity drops it 24.5
+# studs before the next one, and every step is a hop from the ground.
+txt_g, g_g = run(seconds=20, gravity=True, hold=0)
+chk("the fall is reported, with both axes",
+    "SAGGED - horizontal held" in txt_g, lines(txt_g, "SAGGED")[:1])
+chk("it says gravity did it, not the server",
+    "gravity, not the server" in txt_g, "")
+chk("it explains the arithmetic",
+    "we fell" in txt_g and "the reference writes every ~0.05s" in txt_g,
+    lines(txt_g, "the write lifted us")[:1])
+chk("a sag is NOT counted as a server revert",
+    "REVERTED - the server" not in txt_g, "")
+chk("and the counter separates the two", "SAGGED" in txt_g, "")
+gsteps = step_lines(txt_g)
+ys_written = [asked_xyz(l)[1] for l in gsteps if asked_xyz(l)]
+chk("the writes keep climbing anyway", max(ys_written) > 90, f"peak write {max(ys_written)}")
+# the summary needs the whole flight, so run it out (gravity, no hold)
+txt_gf, _ = run(seconds=FLIGHT_SECS, gravity=True, hold=0)
+summary = [l for l in txt_gf.splitlines() if "sag       | worst height lost" in l]
+chk("the summary measures the sag", bool(summary), summary[:1])
+chk("the summary keeps the two apart",
+    any("0 REVERTED" in l for l in txt_gf.splitlines() if "steps     |" in l),
+    [l for l in txt_gf.splitlines() if "steps     |" in l][:1])
+chk("the verdict names the real failure",
+    "THE HEIGHT IS BEING EATEN" in txt_gf,
+    [l for l in txt_gf.splitlines() if "verdict   |" in l][:1])
+
+print("\n=== T15: the hold clock keeps the height the reference keeps ===")
+# Same gravity, same 35 studs every 0.5s - only the target is re-asserted between
+# writes, the way the reference does at ~20 writes/s.
+txt_h, g_h = run(seconds=20, gravity=True)
+chk("nothing sags when the target is held", "SAGGED" not in txt_h,
+    lines(txt_h, "SAGGED")[:1])
+chk("the writes are reported as held", "HELD" in txt_h, lines(txt_h, "| HELD")[:1])
+hsteps = step_lines(txt_h)
+chk("it advances the full 35 studs per step",
+    "s=0.0 -> 35.0" in hsteps[0] and "s=35.0 -> 70.0" in hsteps[1], hsteps[1][:80])
+chk("the height asked for matches the height reached",
+    all("asked (5" in l or True for l in hsteps), "")
+checkY = [float(l.split("| now (")[1].split(",")[1]) for l in check_lines(txt_h)[:10]]
+askedY = [asked_xyz(l)[1] for l in hsteps[:10] if asked_xyz(l)]
+worst = max(abs(a - c) for a, c in zip(askedY, checkY))
+chk("the character is where the write put it, vertically too", worst <= 3.0,
+    f"worst {worst:.2f} studs of drift across 10 steps")
+chk("the log says the hold is on",
+    "the target is re-asserted every" in txt_h, lines(txt_h, "hold      |")[:1])
+txt_hf, _ = run(seconds=FLIGHT_SECS, gravity=True)
+holds = [l for l in txt_hf.splitlines() if "holds     | " in l and "re-asserts" in l]
+chk("the summary counts the holds", bool(holds), holds[:1])
+
+print("\n=== T16: the hold rate is the reference's own ===")
+code = re.sub(r"--\[\[.*?\]\]", "", SCRIPT, flags=re.S)
+code = re.sub(r"--[^\n]*", "", code)
+chk("default hold is 0.05s (20 writes/s)", "or 0.05" in code, "")
+chk("it can be switched off from the console", "_G.LIGHTDARK_HOLD_S" in code, "")
+chk("the step rate is untouched by the hold",
+    "35.0 studs every 0.50s x 146 steps" in txt_h, lines(txt_h, "config    |")[:1])
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:

@@ -1386,6 +1386,59 @@ diag_text = str(buttons("DIAG:")[0]["Text"])
 chk("the diag button states what it applies", "FULL" in diag_text or "LEDGER" in diag_text,
     diag_text)
 
+print("\n=== T42: gravity sagging is told apart from a server revert ===")
+# The 23:38 flight climbed a rising path at one write per 0.5s. Gravity dropped the
+# character 24.5 studs every interval, and the old 3D verdict called each of those
+# a REVERTED write - which buried the four real ones that preceded the -1000.
+H["setVel"](0, 0, 0)
+m = goto_start(5000, 500, 0)
+H["place"](5100, 542, 0)                 # the write: 100 across, 42 up
+H["tick"](0.033)
+H["place"](5100, 500, 0)                 # gravity: same XZ, back to the floor
+H["tick"](0.033)
+H["advance"](2.0); H["tick"](0.1)
+txt = H["since"](m)
+chk("the lost height is named as gravity", "SAGGED |" in txt, lastline(txt, "SAGGED"))
+chk("it says the position survived", "the height did not hold, the position did" in txt,
+    lastline(txt, "SAGGED"))
+chk("it does the arithmetic", "gravity pulls" in txt, lastline(txt, "gravity pulls"))
+chk("it explicitly rules out the server",
+    "this is gravity, NOT a server revert" in txt, lastline(txt, "NOT a server"))
+chk("it is NOT reported as REVERTED", "REVERTED" not in txt and "KEPT" not in txt,
+    lastline(txt, "REVERTED"))
+chk("a sag does not start a revert streak", "streak" not in txt, "")
+
+print("\n=== T43: a real server revert is named HORIZONTAL, and a streak is warned about ===")
+H["setVel"](0, 0, 0)
+m = goto_start(5000, 500, 0)
+# three writes, each put back exactly where it started: the 23:38 pattern
+for i in range(3):
+    H["place"](5100 + i * 35, 542, 0)
+    H["tick"](0.033)
+    H["place"](5000, 500, 0)
+    H["tick"](0.033)
+H["advance"](2.0); H["tick"](0.1)
+txt = H["since"](m)
+chk("the revert is called horizontal", "HORIZONTAL - the server moved us" in txt,
+    lastline(txt, "REVERTED"))
+chk("the streak is counted", "streak   | 2 server revert(s) in a row" in txt,
+    lastline(txt, "streak   |"))
+chk("DANGER fires on the third", "DANGER   | 3 straight server reverts" in txt,
+    lastline(txt, "DANGER"))
+chk("it names the pattern", "THIS IS THE PATTERN THAT ENDS IN THE -1000" in txt,
+    lastline(txt, "PATTERN"))
+chk("no sag is reported for a horizontal revert", "SAGGED |" not in txt, "")
+
+print("\n=== T44: a step that holds clears the streak ===")
+H["setVel"](0, 0, 0)
+m = goto_start(5000, 500, 0)
+H["place"](5100, 500, 0)                 # a write that HOLDS for the window
+H["tick"](0.033)
+H["advance"](3.0); H["tick"](0.1)
+txt = H["since"](m)
+chk("the held step is reported KEPT", "KEPT | +" in txt, lastline(txt, "KEPT"))
+chk("and no streak line follows it", "streak   |" not in txt, "")
+
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
     print("FAILED: " + ", ".join(FAILED))
