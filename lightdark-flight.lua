@@ -36,7 +36,7 @@
 -- ================================================================
 -- CONFIG
 -- ================================================================
-local SCRIPT_VERSION   = "v4-axis"   -- printed in the log so a paste says which build ran
+local SCRIPT_VERSION   = "v4.1-window"   -- printed in the log so a paste says which build ran
 local STEP_STUDS       = 35      -- studs written per step
 local STEP_INTERVAL    = 0.5     -- seconds between writes
 local SNAP_TO_START    = true    -- if we are not at the first waypoint, write ourselves there
@@ -47,6 +47,11 @@ local TOLERANCE        = 3.0     -- studs: within this of a position counts as "
 -- (that reproduces exactly what the 23:38 run did), 0.05 matches the reference.
 local HOLD_EVERY_S     = tonumber(_G.LIGHTDARK_HOLD_S) or 0.05    -- re-assert the target this often (0 = off)
 local ABORT_AFTER_REVERTS = 3    -- consecutive server reverts before giving up
+-- The 23:38 field run refused 13,14, held 15 locally (the server had not put us
+-- back YET), refused 16,17, and was killed 0.1s after 18. Three in a row never
+-- fired because of that one echo, so a window is watched as well.
+local ABORT_WINDOW     = 4       -- how many recent checks the window covers
+local ABORT_WINDOW_HITS = 3      -- refusals inside it before giving up
 local PROGRESS_EVERY   = 20      -- steps between progress lines
 local LOG_MAX          = 400     -- log lines kept on screen
 
@@ -455,7 +460,7 @@ end
 local flight = {
 	running = false, step = 0, s = 0, startPos = nil,
 	pending = nil, held = 0, reverted = 0, elsewhere = 0,
-	revertStreak = 0, arrived = false, hp = nil, state = nil,
+	revertStreak = 0, recent = {}, arrived = false, hp = nil, state = nil,
 	stopReason = nil, conn = nil, nextAt = 0, character = nil, humanoid = nil, root = nil,
 	sagged = 0, worstSag = 0, sagLogged = 0, holds = 0, holdAt = 0,
 }
@@ -502,6 +507,7 @@ local function checkPending(now)
 	if dy < -TOLERANCE then sag = -dy end
 
 	local verdict, detail
+	local refused = false
 	if dxz <= TOLERANCE and sag == 0 then
 		verdict = "HELD"
 		flight.held += 1
@@ -519,10 +525,12 @@ local function checkPending(now)
 		verdict = "REVERTED - the server put us back"
 		flight.reverted += 1
 		flight.revertStreak += 1
+		refused = true
 	else
 		verdict = "MOVED ELSEWHERE - neither where we wrote nor where we were"
 		flight.elsewhere += 1
 		flight.revertStreak += 1
+		refused = true
 	end
 
 	log("%s check %03d | %.3fs after the write | now %s | %.1f studs from the write (XZ), %.1f in Y (%.1f from where it started) | %s",
@@ -533,20 +541,37 @@ local function checkPending(now)
 	end
 	if sag > 0 and flight.sagLogged < 6 then
 		flight.sagLogged += 1
+		local grounded = flight.humanoid and flight.humanoid.FloorMaterial ~= Enum.Material.Air
 		log("%s           | the write lifted us %.1f studs and we fell %.1f of it in %.2fs. Gravity pulls %.1f studs in that time; the reference writes every ~0.05s so it only ever loses 0.2 studs.",
 			stamp(), lifted, sag, now - p.at, 0.5 * 196.2 * (now - p.at) ^ 2)
+		if grounded then
+			log("%s           | we were STANDING on the floor when this was checked (floor=%s) - the height was already gone. That is what the hold clock is for.",
+				stamp(), tostring(flight.humanoid.FloorMaterial))
+		end
 	end
 
+	-- the window: refusals that were interrupted by an echo still count together
+	table.insert(flight.recent, refused)
+	while #flight.recent > ABORT_WINDOW do table.remove(flight.recent, 1) end
+	local windowHits = 0
+	for _, r in ipairs(flight.recent) do if r then windowHits += 1 end end
+
 	setCounters()
-	if flight.revertStreak == ABORT_AFTER_REVERTS then
-		-- measured: the -1000 follows a streak of rejected claims, not any one API
+	if not flight.stopReason and flight.revertStreak == ABORT_AFTER_REVERTS then
+		-- measured: the -1000 follows a run of rejected claims, not any one API
 		-- call. The 04:26 flight died after 15 rejections, the 23:38 flight 0.06s
 		-- after its 4th. Stopping on the third is the difference between logging
-		-- the streak and logging a corpse.
-		log("%s DANGER     | %d server reverts in a row - the -1000 has followed a streak like this | stopping",
+		-- the run and logging a corpse.
+		log("%s DANGER     | %d server reverts in a row - the -1000 has followed a run like this | stopping",
 			stamp(), flight.revertStreak)
 		flight.stopReason = string.format(
 			"%d writes in a row were undone - the server is not keeping them", ABORT_AFTER_REVERTS)
+	elseif not flight.stopReason and windowHits >= ABORT_WINDOW_HITS then
+		log("%s DANGER     | %d of the last %d writes were refused by the server - the -1000 has followed a run like this, and the echo in between does not make it safe | stopping",
+			stamp(), windowHits, #flight.recent)
+		flight.stopReason = string.format(
+			"%d of the last %d writes were undone - the server is refusing the position",
+			windowHits, #flight.recent)
 	end
 end
 
@@ -652,6 +677,12 @@ local function finish(reason)
 	if HOLD_EVERY_S > 0 then
 		log("holds     | %d re-asserts at %.0f/s", flight.holds, 1 / HOLD_EVERY_S)
 	end
+	if flight.reverted + flight.elsewhere > 0 then
+		local refused = 0
+		for _, r in ipairs(flight.recent) do if r then refused += 1 end end
+		log("refused   | %d of the last %d checked writes were undone by the server",
+			refused, #flight.recent)
+	end
 	log("health    | hp=%s | state=%s | floor=%s",
 		dash(flight.humanoid.Health), tostring(flight.humanoid:GetState()),
 		tostring(flight.humanoid.FloorMaterial))
@@ -701,7 +732,7 @@ local function startFlight()
 
 	flight = {
 		running = true, step = 0, s = 0, startPos = nil, pending = nil,
-		held = 0, reverted = 0, elsewhere = 0, revertStreak = 0, arrived = false,
+		held = 0, reverted = 0, elsewhere = 0, revertStreak = 0, recent = {}, arrived = false,
 		hp = humanoid.Health, state = tostring(humanoid:GetState()),
 		stopReason = nil, conn = nil, nextAt = 0,
 		character = character, humanoid = humanoid, root = root,

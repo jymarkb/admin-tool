@@ -417,9 +417,9 @@ chk("parented to PlayerGui when it is available", g["GUIPARENT"]() == "PlayerGui
     g["GUIPARENT"]())
 chk("the log says the panel is up", "| panel on screen (parent: PlayerGui)" in txt,
     lines(txt, "UI        |")[:1])
-chk("the log names the build", "build v4-axis" in txt, lines(txt, "READY     |")[:1])
+chk("the log names the build", "build v4.1-window" in txt, lines(txt, "READY     |")[:1])
 chk("START is the button that flies", "START  (fly the path" in g["BUTTONS"](), "")
-chk("the title carries the version", "v4-axis" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
+chk("the title carries the version", "v4.1-window" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
 chk("the close X is there", "X" in g["BUTTONS"](), g["BUTTONS"]()[:80])
 chk("STOP is there", "STOP" in g["BUTTONS"](), "")
 chk("COPY LOG is there", "COPY LOG" in g["BUTTONS"](), "")
@@ -629,7 +629,7 @@ print("\n=== T13: the UI cannot be lost, and the flight survives without it ==="
 # build is pcall-guarded, the parent falls back, and the log says which happened.
 txt_nogui, g_nogui = run(seconds=3, fail_gui=True, click=False)
 chk("a blocked ScreenGui does not kill the script",
-    "READY     |" in txt_nogui and "build v4-axis" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
+    "READY     |" in txt_nogui and "build v4.1-window" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
 chk("the log says the panel is NOT up", "UI        | NOT BUILT" in txt_nogui,
     lines(txt_nogui, "UI        |")[:1])
 chk("it names the reason", "ScreenGui blocked" in txt_nogui, lines(txt_nogui, "UI        |")[:1])
@@ -669,6 +669,9 @@ chk("it explains the arithmetic",
     lines(txt_g, "the write lifted us")[:1])
 chk("a sag is NOT counted as a server revert",
     "REVERTED - the server" not in txt_g, "")
+chk("it says the height was already gone when we looked",
+    "STANDING on the floor when this was checked" in txt_g,
+    lines(txt_g, "STANDING on the floor")[:1])
 chk("and the counter separates the two", "SAGGED" in txt_g, "")
 gsteps = step_lines(txt_g)
 ys_written = [asked_xyz(l)[1] for l in gsteps if asked_xyz(l)]
@@ -714,6 +717,70 @@ chk("default hold is 0.05s (20 writes/s)", "or 0.05" in code, "")
 chk("it can be switched off from the console", "_G.LIGHTDARK_HOLD_S" in code, "")
 chk("the step rate is untouched by the hold",
     "35.0 studs every 0.50s x 146 steps" in txt_h, lines(txt_h, "config    |")[:1])
+
+print("\n=== T17: refusals broken by an echo still count together ===")
+# The 23:38 field run: refused, refused, one write that looked held (the server had
+# not put us back yet), refused, refused - and hp was SET 0.1s later. Three in a row
+# never fires on that, so three of the last four has to.
+lua_w = lupa.LuaRuntime(unpack_returned_tuples=True)
+g_w = lua_w.globals()
+lua_w.execute(STUB)
+lua_w.execute("_G.LIGHTDARK_HOLD_S = 0")
+lua_w.execute(normalise(SCRIPT))
+lua_w.execute("SETREVERT(true)")
+assert g_w["CLICK"]("START"), "no START button was created"
+# cadence: writes at 0.0, 0.5, 1.0, 1.5; check N runs at the same instant as
+# write N+1 and judges write N
+lua_w.execute("DRIVE(1.0)")          # writes 1-3; checks 1 and 2 both refused
+lua_w.execute("SETREVERT(false)")    # write 3 survives: check 3 looks HELD
+lua_w.execute("DRIVE(0.5)")
+lua_w.execute("SETREVERT(true)")     # write 4 is undone: check 4 refuses
+lua_w.execute("DRIVE(1.0)")
+txt_w = g_w["LOGDUMP"]()
+order = [l.split("| ")[-1].split(" - ")[0].strip() for l in check_lines(txt_w)]
+chk("the refusal, echo, refusal shape is reproduced", order[:4] == ["REVERTED", "REVERTED", "HELD", "REVERTED"],
+    f"verdicts: {order}")
+chk("the echo alone does not stop it", "stopped   |" not in txt_w.split("check 003")[0], "")
+chk("the window counts them", "3 of the last 4 writes were refused" in txt_w,
+    lines(txt_w, "DANGER")[:1])
+chk("it says the echo does not make it safe", "the echo in between does not make it safe" in txt_w, "")
+chk("and it stops", "3 of the last 4 writes were undone" in
+    " ".join(lines(txt_w, "stopped   |")), lines(txt_w, "stopped   |")[:1])
+chk("the summary counts the refusals", "checked writes were undone by the server" in txt_w,
+    lines(txt_w, "refused   |")[:1])
+chk("no further write goes out after that", len(step_lines(txt_w)) == 4,
+    f"{len(step_lines(txt_w))} writes")
+
+print("\n=== T18: the reader makes the same call on the real field log ===")
+# tools/read_flight_log.py re-judges a pasted run: the second field log is in the
+# repo, so the claim "the window would have stopped it, the streak would not" is
+# re-checked here rather than trusted to a one-off.
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location("read_flight_log", os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "tools", "read_flight_log.py"))
+_rd = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_rd)
+log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                        "logs", "lightdark-flight-run2.log")
+rlines = open(log_path).read().splitlines()
+rsteps, rchecks = _rd.parse(rlines)
+rverdicts = [_rd.verdict(rsteps[c["step"]], c) for c in rchecks]
+chk("it reads all 18 writes and checks", len(rsteps) == 18 and len(rchecks) == 18,
+    f"{len(rsteps)} writes, {len(rchecks)} checks")
+chk("it spots the build that produced them", "build v3-ui" in "\n".join(rlines), "")
+chk("XZ-only HELD becomes SAGGED", rverdicts.count("SAGGED") == 13 and rverdicts.count("HELD") == 1,
+    f"{rverdicts.count('SAGGED')} sagged, {rverdicts.count('HELD')} held")
+chk("the lost height is measured, not guessed",
+    max(abs(c["now"][1] - rsteps[c["step"]]["pos"][1]) for c in rchecks) > 40, "42 studs")
+import io as _io, contextlib as _ctx
+_buf = _io.StringIO()
+with _ctx.redirect_stdout(_buf):
+    _rd.main(log_path)
+rtext = _buf.getvalue()
+chk("3 in a row never fires on it", "never fires - the refusals are not consecutive" in rtext, "")
+chk("3 of the last 4 fires before the death", "check 16 (3 of the last 4 refused)" in rtext, "")
+chk("and it says the death came after", "the -1000 has followed a run like this" not in rtext and
+    "hp=-1000.0 at step 18" in rtext, "")
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:

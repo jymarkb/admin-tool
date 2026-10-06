@@ -1,0 +1,122 @@
+[00:00.008] READY     | build v3-ui | 24 waypoints | 5097.9 studs | 146 steps at 35.0 studs every 0.50s
+[00:00.009] UI        | panel on screen (parent: PlayerGui) - START / STOP / CLEAR / COPY LOG
+[00:00.010] READY     | press START. Nothing is written until you do.
+[00:02.869] route     | 24 waypoints taken from lightdark.log | 5097.9 studs of path
+[00:02.869] config    | 35.0 studs every 0.50s x 146 steps = 73.0s
+[00:02.870] start     | (5679.2, 70.7, -319.9) | hp=100.0 | state=Enum.HumanoidStateType.Running
+[00:02.870] not called| ChangeState(Freefall) and AutoRotate stay untouched - the -1000 pair
+[00:02.871] position  | s=0.0 of 5097.9 along the path | 15.1 studs off it
+[00:02.871] snap      | already at the first waypoint (15.1 studs) - flying from here
+[00:02.872] noclip    | 20 part(s) set non-collidable for the flight
+[00:02.873] FLYING     | the first write is now
+[00:02.874] step 001 | s=0.0 -> 35.0 of 5097.9 (0%) | asked (5631.2, 74.2, -328.0) | landed (5631.2, 74.2, -328.0) | off by 0.00 | ref t+0.80s
+[00:02.875]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(-0.0, 0.0, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:03.010] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -27.9, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:03.066] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(-0.0, -37.7, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:03.100] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(-0.0, 5.3, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:03.462] check 001 | 0.588s after the write | now (5631.2, 70.7, -328.0) | 0.0 studs from where it was written, 48.7 from where it started | HELD
+[00:03.464] step 002 | s=34.7 -> 69.7 of 5097.9 (1%) | asked (5596.7, 77.6, -328.5) | landed (5596.7, 77.6, -328.5) | off by 0.00 | ref t+0.80s
+[00:03.466]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:03.637] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(-0.0, -13.1, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:03.922] check 002 | 0.460s after the write | now (5596.7, 72.6, -328.5) | 0.0 studs from where it was written, 34.5 from where it started | HELD
+[00:03.925] step 003 | s=69.2 -> 104.2 of 5097.9 (2%) | asked (5562.4, 81.0, -329.1) | landed (5562.4, 81.0, -329.1) | off by 0.00 | ref t+0.80s
+[00:03.926]          | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -44.1, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:04.091] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, -77.7, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:04.129] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 5.7, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:04.378] check 003 | 0.456s after the write | now (5562.4, 70.7, -329.1) | 0.0 studs from where it was written, 34.3 from where it started | HELD
+[00:04.380] LAGGING   | s=104.2 but the character is at s=103.1 | the last write did not hold - retrying from where it is
+[00:04.382] step 004 | s=103.1 -> 138.1 of 5097.9 (2%) | asked (5528.6, 84.4, -329.6) | landed (5528.6, 84.4, -329.6) | off by 0.00 | ref t+0.80s
+[00:04.383]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(-0.0, 0.0, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:04.496] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -25.8, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:04.756] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, -18.6, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:04.929] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 2.8, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:04.930] check 004 | 0.551s after the write | now (5528.6, 70.7, -329.6) | 0.0 studs from where it was written, 33.8 from where it started | HELD
+[00:04.932] LAGGING   | s=138.1 but the character is at s=136.8 | the last write did not hold - retrying from where it is
+[00:04.933] step 005 | s=136.8 -> 171.8 of 5097.9 (3%) | asked (5495.1, 87.8, -330.2) | landed (5495.1, 87.8, -330.2) | off by 0.00 | ref t+0.80s
+[00:04.933]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 2.8, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:05.250] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -23.4, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:05.381] check 005 | 0.452s after the write | now (5495.1, 81.2, -330.2) | 0.0 studs from where it was written, 33.5 from where it started | HELD
+[00:05.383] step 006 | s=171.1 -> 206.1 of 5097.9 (4%) | asked (5460.9, 91.2, -330.7) | landed (5460.9, 91.2, -330.7) | off by 0.00 | ref t+0.80s
+[00:05.383]          | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(-0.0, -51.2, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:05.678] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, -4.3, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:05.729] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 4.4, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:05.911] check 006 | 0.531s after the write | now (5460.9, 70.7, -330.7) | 0.0 studs from where it was written, 34.2 from where it started | HELD
+[00:05.913] LAGGING   | s=206.1 but the character is at s=204.1 | the last write did not hold - retrying from where it is
+[00:05.914] step 007 | s=204.1 -> 239.1 of 5097.9 (4%) | asked (5428.1, 94.4, -331.2) | landed (5428.1, 94.4, -331.2) | off by 0.00 | ref t+0.80s
+[00:05.915]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(-0.0, 0.4, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:06.158] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -12.7, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:06.388] check 007 | 0.477s after the write | now (5428.1, 83.3, -331.2) | 0.0 studs from where it was written, 32.8 from where it started | HELD
+[00:06.390] LAGGING   | s=239.1 but the character is at s=238.0 | the last write did not hold - retrying from where it is
+[00:06.391] step 008 | s=238.0 -> 273.0 of 5097.9 (5%) | asked (5394.4, 97.8, -331.5) | landed (5394.4, 97.8, -331.5) | off by 0.00 | ref t+0.85s
+[00:06.392]          | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -65.8, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:06.686] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(-0.0, -121.4, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:06.733] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(-0.0, 8.4, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:06.908] check 008 | 0.520s after the write | now (5394.4, 70.7, -331.5) | 0.0 studs from where it was written, 33.7 from where it started | HELD
+[00:06.910] LAGGING   | s=273.0 but the character is at s=270.3 | the last write did not hold - retrying from where it is
+[00:06.911] step 009 | s=270.3 -> 305.3 of 5097.9 (5%) | asked (5362.3, 101.0, -331.4) | landed (5362.3, 101.0, -331.4) | off by 0.00 | ref t+0.85s
+[00:06.912]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 1.2, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:07.193] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(-0.0, -11.9, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:07.379] check 009 | 0.471s after the write | now (5362.3, 92.9, -331.4) | 0.0 studs from where it was written, 32.1 from where it started | HELD
+[00:07.381] step 010 | s=304.5 -> 339.5 of 5097.9 (6%) | asked (5328.2, 104.4, -331.4) | landed (5328.2, 104.4, -331.4) | off by 0.00 | ref t+0.85s
+[00:07.383]          | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(-0.0, -56.0, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:07.897] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(-0.0, -30.3, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:07.899] check 010 | 0.519s after the write | now (5328.2, 70.1, -331.4) | 0.0 studs from where it was written, 34.0 from where it started | HELD
+[00:07.900] LAGGING   | s=339.5 but the character is at s=336.1 | the last write did not hold - retrying from where it is
+[00:07.901] step 011 | s=336.1 -> 371.1 of 5097.9 (7%) | asked (5296.8, 107.5, -331.4) | landed (5296.8, 107.5, -331.4) | off by 0.00 | ref t+0.85s
+[00:07.902]          | state=Enum.HumanoidStateType.Landed | grounded=false | floor=Enum.Material.Air | vel=(-0.0, -30.3, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:08.171] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, -46.7, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:08.234] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(-0.0, -59.8, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:08.382] check 011 | 0.485s after the write | now (5296.8, 88.7, -331.4) | 0.0 studs from where it was written, 31.4 from where it started | HELD
+[00:08.384] LAGGING   | s=371.1 but the character is at s=369.2 | the last write did not hold - retrying from where it is
+[00:08.385] step 012 | s=369.2 -> 404.2 of 5097.9 (7%) | asked (5263.8, 110.8, -331.3) | landed (5263.8, 110.8, -331.3) | off by 0.00 | ref t+0.85s
+[00:08.386]          | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -92.5, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:08.859] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(-0.0, -33.1, -0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:08.988] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 5.6, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:08.989] check 012 | 0.605s after the write | now (5263.8, 70.6, -331.3) | 0.0 studs from where it was written, 33.0 from where it started | HELD
+[00:08.990] LAGGING   | s=404.2 but the character is at s=400.2 | the last write did not hold - retrying from where it is
+[00:08.991] step 013 | s=400.2 -> 435.2 of 5097.9 (8%) | asked (5232.9, 112.7, -331.3) | landed (5232.9, 112.7, -331.3) | off by 0.00 | ref t+0.92s
+[00:08.992]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 5.6, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:09.176] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:09.258] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:09.321] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:09.380] check 013 | 0.392s after the write | now (5263.8, 70.6, -331.3) | 30.9 studs from where it was written, 0.0 from where it started | REVERTED - the server put us back
+[00:09.381]           | wrote (5232.9, 112.7, -331.3) then (5263.8, 70.6, -331.3) | path s=435.2/5097.9 | ref reached this at t+0.92s
+[00:09.383] LAGGING   | s=435.2 but the character is at s=400.2 | the last write did not hold - retrying from where it is
+[00:09.384] step 014 | s=400.2 -> 435.2 of 5097.9 (8%) | asked (5232.9, 112.7, -331.3) | landed (5232.9, 112.7, -331.3) | off by 0.00 | ref t+0.92s
+[00:09.385]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:09.884] check 014 | 0.505s after the write | now (5263.8, 70.7, -331.3) | 30.9 studs from where it was written, 0.0 from where it started | REVERTED - the server put us back
+[00:09.886]           | wrote (5232.9, 112.7, -331.3) then (5263.8, 70.6, -331.3) | path s=435.2/5097.9 | ref reached this at t+0.92s
+[00:09.887] LAGGING   | s=435.2 but the character is at s=400.2 | the last write did not hold - retrying from where it is
+[00:09.888] step 015 | s=400.2 -> 435.2 of 5097.9 (8%) | asked (5232.9, 112.7, -331.3) | landed (5232.9, 112.7, -331.3) | off by 0.00 | ref t+0.92s
+[00:09.889]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:10.001] STATE      | Enum.HumanoidStateType.Running -> Enum.HumanoidStateType.Freefall | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -25.4, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:10.447] check 015 | 0.562s after the write | now (5232.9, 81.2, -331.3) | 0.0 studs from where it was written, 30.9 from where it started | HELD
+[00:10.449] step 016 | s=435.2 -> 470.2 of 5097.9 (9%) | asked (5197.9, 112.7, -331.2) | landed (5197.9, 112.7, -331.2) | off by 0.00 | ref t+0.92s
+[00:10.450]          | state=Enum.HumanoidStateType.Freefall | grounded=false | floor=Enum.Material.Air | vel=(0.0, -111.2, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:10.717] STATE      | Enum.HumanoidStateType.Freefall -> Enum.HumanoidStateType.Landed | state=Enum.HumanoidStateType.Landed | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:10.757] STATE      | Enum.HumanoidStateType.Landed -> Enum.HumanoidStateType.Running | state=Enum.HumanoidStateType.Running | grounded=true | floor=Enum.Material.Plastic | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:10.922] check 016 | 0.476s after the write | now (5263.8, 70.6, -331.3) | 65.9 studs from where it was written, 30.9 from where it started | MOVED ELSEWHERE - neither where we wrote nor where we were
+[00:10.924]           | wrote (5197.9, 112.7, -331.2) then (5232.9, 81.2, -331.3) | path s=470.2/5097.9 | ref reached this at t+0.92s
+[00:10.925] LAGGING   | s=470.2 but the character is at s=400.2 | the last write did not hold - retrying from where it is
+[00:10.926] step 017 | s=400.2 -> 435.2 of 5097.9 (8%) | asked (5232.9, 112.7, -331.3) | landed (5232.9, 112.7, -331.3) | off by 0.00 | ref t+0.92s
+[00:10.927]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:11.387] check 017 | 0.464s after the write | now (5263.8, 70.7, -331.3) | 30.9 studs from where it was written, 0.0 from where it started | REVERTED - the server put us back
+[00:11.388]           | wrote (5232.9, 112.7, -331.3) then (5263.8, 70.6, -331.3) | path s=435.2/5097.9 | ref reached this at t+0.92s
+[00:11.389] LAGGING   | s=435.2 but the character is at s=400.2 | the last write did not hold - retrying from where it is
+[00:11.390] step 018 | s=400.2 -> 435.2 of 5097.9 (8%) | asked (5232.9, 112.7, -331.3) | landed (5232.9, 112.7, -331.3) | off by 0.00 | ref t+0.92s
+[00:11.391]          | state=Enum.HumanoidStateType.Running | grounded=false | floor=Enum.Material.Air | vel=(0.0, 0.0, 0.0) | hp=100.0 | owner=<no-ownership-api>
+[00:11.492] DEATH      | hp=-1000.0 at step 18 | EXTERNAL KILL: hp was SET, this is not damage
+[00:11.493] check 018 | FINAL | now (5232.9, 112.3, -331.3) | 0.0 from the write, 30.9 from where it started | HELD
+============ PATH FLIGHT SUMMARY ============
+route     | lightdark.log, 24 waypoints | 5097.9 studs of path
+asked     | 18 steps x 35.0 studs = 630.0 studs of path over 9.0s
+walked    | 435.2 of 5097.9 studs of path (9%)
+position  | start (5679.2, 70.7, -319.9) -> end (5232.9, 112.3, -331.3)
+net       | 446.4 studs across the ground (5067.0 to the pad in a straight line, 4620.9 left)
+not landed| 4620.9 studs short of the pad | s=435.2/5097.9
+steps     | 14 HELD | 3 REVERTED | 1 moved elsewhere
+health    | hp=-1000.0 | state=Enum.HumanoidStateType.Running | floor=Enum.Material.Air
+noclip    | restored CanCollide on 20 part(s) - nothing leaked
+verdict   | PARTIAL - 14 of 17 writes survived, 3 were undone
+stopped   | the character died at step 18
+=============================================
