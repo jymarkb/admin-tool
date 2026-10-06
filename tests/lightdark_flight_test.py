@@ -146,7 +146,13 @@ local function fire(data, name, ...)
   return n
 end
 
+FAIL_GUI = false
+NO_PLAYERGUI = false
+
 local function newInstance(class)
+  if FAIL_GUI and class == "ScreenGui" then
+    error("ScreenGui blocked (test)", 2)
+  end
   local data = {ClassName=class, _sig={}}
   local proxy = {}
   local mt = {
@@ -156,10 +162,12 @@ local function newInstance(class)
       if k == "IsA" then return function(_, c)
             return data.ClassName == c or (c == "BasePart" and data.ClassName == "Part") end end
       if k == "WaitForChild" then return function(_, n)
+            if n == "PlayerGui" and NO_PLAYERGUI then return nil end
             data[n] = data[n] or newInstance(n)
             return data[n] end end
       if k == "FindFirstChild" then return function(_, n) return data[n] end end
       if k == "FindFirstChildOfClass" then return function(_, c)
+            if c == "PlayerGui" and NO_PLAYERGUI then return nil end
             for _, v in pairs(data) do
               if type(v) == "table" and v.ClassName == c then return v end
             end end end
@@ -274,6 +282,15 @@ function PLACE(x, y, z)
   if TORSO then PROXY_DATA[TORSO].Position = p end
 end
 function SETREVERT(v) REVERT = v end
+function SETFAILGUI(v) FAIL_GUI = v end
+function SETNOPLAYERGUI(v) NO_PLAYERGUI = v end
+function GUIPARENT()
+  for _, sg in ipairs(CREATED.ScreenGui or {}) do
+    local p = PROXY_DATA[sg].Parent
+    return p and (p.Name or p.ClassName) or "nil"
+  end
+  return "no ScreenGui"
+end
 function SETOWNER(v) OWNER = v end
 function CLICK(text)
   for _, btn in ipairs(CREATED.TextButton or {}) do
@@ -325,19 +342,24 @@ def chk(name, cond, detail=""):
         print(f"  FAIL  {name:<54} {str(detail)[:105]}")
 
 
-def run(seconds=30, revert=False, hp_at=None, start=None, click=True, server_owns=False):
+def run(seconds=30, revert=False, hp_at=None, start=None, click=True, server_owns=False,
+        fail_gui=False, no_playergui=False):
     lua = lupa.LuaRuntime(unpack_returned_tuples=True)
     g = lua.globals()
     lua.execute(STUB)
     if start is not None:
         lua.execute("PLACE(%.1f, %.1f, %.1f)" % start)
+    if fail_gui:
+        lua.execute("SETFAILGUI(true)")
+    if no_playergui:
+        lua.execute("SETNOPLAYERGUI(true)")
     lua.execute(normalise(SCRIPT))
     if revert:
         lua.execute("SETREVERT(true)")
     if server_owns:
         lua.execute("SETOWNER(nil)")
     if click:
-        assert g["CLICK"]("FLY"), "no FLY button was created"
+        assert g["CLICK"]("START"), "no START button was created"
     if hp_at is not None:
         lua.execute(f"DRIVE({hp_at})")
         lua.execute("SETHP(-1000)")
@@ -375,23 +397,31 @@ FLIGHT_SECS = 146 * 0.5 + 3
 print("=== T1: the UI is there, and FLY is what starts it ===")
 txt, g = run(seconds=0.2, click=False)
 chk("a panel with buttons was built", len(g["BUTTONS"]()) > 20, g["BUTTONS"]()[:80])
+chk("the panel is on screen", g["GUIPARENT"]() != "no ScreenGui", g["GUIPARENT"]())
+chk("parented to PlayerGui when it is available", g["GUIPARENT"]() == "PlayerGui",
+    g["GUIPARENT"]())
+chk("the log says the panel is up", "| panel on screen (parent: PlayerGui)" in txt,
+    lines(txt, "UI        |")[:1])
+chk("the log names the build", "build v3-ui" in txt, lines(txt, "READY     |")[:1])
+chk("START is the button that flies", "START  (fly the path" in g["BUTTONS"](), "")
+chk("the title carries the version", "v3-ui" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
 chk("the close X is there", "X" in g["BUTTONS"](), g["BUTTONS"]()[:80])
 chk("STOP is there", "STOP" in g["BUTTONS"](), "")
 chk("COPY LOG is there", "COPY LOG" in g["BUTTONS"](), "")
 chk("CLEAR is there", "CLEAR" in g["BUTTONS"](), "")
 chk("nothing flies until FLY is pressed", not step_lines(txt), f"{len(step_lines(txt))} writes")
 chk("not even a write marker", "step 001" not in txt, "")
-chk("it says so", "press FLY. Nothing is written until you do." in txt, "")
+chk("it says so", "press START. Nothing is written until you do." in txt, "")
 chk("the route is summarised on the panel",
     "waypoints" in g["LABEL"]("ROUTE") and "studs" in g["LABEL"]("ROUTE"),
     g["LABEL"]("ROUTE"))
-chk("the status line starts idle", "idle" in g["LABEL"]("STATUS"), g["LABEL"]("STATUS"))
+chk("the status line starts idle", "idle" in g["LABELSTART"]("STATUS"), g["LABELSTART"]("STATUS"))
 chk("progress starts at zero", "step 0 of 146" in g["LABEL"]("PROGRESS"),
     g["LABEL"]("PROGRESS"))
-chk("FLY is what starts it", g["CLICK"]("FLY"), "")
+chk("START is what starts it", g["CLICK"]("START"), "")
 g["DRIVE"](1.2)
 txt1 = g["LOGDUMP"]()
-chk("after FLY the writes begin", len(step_lines(txt1)) >= 2, f"{len(step_lines(txt1))} writes")
+chk("after START the writes begin", len(step_lines(txt1)) >= 2, f"{len(step_lines(txt1))} writes")
 chk("the status now says flying", "flying" in g["LABEL"]("STATUS"), g["LABEL"]("STATUS"))
 chk("progress moved", re.search(r"step [23] of 146", g["LABEL"]("PROGRESS")) is not None,
     g["LABEL"]("PROGRESS"))
@@ -523,7 +553,7 @@ lua = lupa.LuaRuntime(unpack_returned_tuples=True)
 g = lua.globals()
 lua.execute(STUB)
 lua.execute(normalise(SCRIPT))
-g["CLICK"]("FLY")
+g["CLICK"]("START")
 lua.execute("DRIVE(5)")
 before = len(step_lines(g["LOGDUMP"]()))
 g["CLICK"]("STOP")
@@ -573,6 +603,37 @@ print("\n=== T12: the log lines also reach the on-screen list ===")
 chk("the panel built labels from the log", g_all["ONSCREEN"]() > 100,
     f"{g_all['ONSCREEN']()} labels")
 chk("the log list holds the step lines", len(step_lines(txt_all)) == 146, "")
+
+print("\n=== T13: the UI cannot be lost, and the flight survives without it ===")
+# this is the failure that matters: a panel that silently never appears. The
+# build is pcall-guarded, the parent falls back, and the log says which happened.
+txt_nogui, g_nogui = run(seconds=3, fail_gui=True, click=False)
+chk("a blocked ScreenGui does not kill the script",
+    "READY     |" in txt_nogui and "build v3-ui" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
+chk("the log says the panel is NOT up", "UI        | NOT BUILT" in txt_nogui,
+    lines(txt_nogui, "UI        |")[:1])
+chk("it names the reason", "ScreenGui blocked" in txt_nogui, lines(txt_nogui, "UI        |")[:1])
+chk("and it points at the console fallback", "_G.LIGHTDARK_FLIGHT_START()" in txt_nogui, "")
+chk("no panel was created", g_nogui["GUIPARENT"]() == "no ScreenGui", g_nogui["GUIPARENT"]())
+chk("the flight still runs without a UI",
+    g_nogui["_G"]["LIGHTDARK_FLIGHT_START"] is not None, "")
+g_nogui["_G"]["LIGHTDARK_FLIGHT_START"]()
+g_nogui["DRIVE"](3)
+txt_headless = g_nogui["LOGDUMP"]()
+chk("it flies from the console", len(step_lines(txt_headless)) >= 5,
+    f"{len(step_lines(txt_headless))} writes with no panel")
+
+txt_core, g_core = run(seconds=3, no_playergui=True, click=False)
+chk("with no PlayerGui it falls back to CoreGui", g_core["GUIPARENT"]() == "CoreGui",
+    g_core["GUIPARENT"]())
+chk("and the log says which parent it used", "parent: CoreGui" in txt_core,
+    lines(txt_core, "UI        |")[:1])
+chk("the buttons still exist on that parent", len(g_core["BUTTONS"]()) > 20, "")
+
+txt_all2, g_all2 = run(seconds=FLIGHT_SECS)
+chk("the panel still reports the landing after a full flight",
+    "landed" in g_all2["LABELSTART"]("STATUS").lower()
+    or "STICK" in g_all2["LABELSTART"]("STATUS"), g_all2["LABELSTART"]("STATUS"))
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:

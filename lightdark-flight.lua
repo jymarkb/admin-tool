@@ -36,6 +36,7 @@
 -- ================================================================
 -- CONFIG
 -- ================================================================
+local SCRIPT_VERSION   = "v3-ui"   -- printed in the log so a paste says which build ran
 local STEP_STUDS       = 35      -- studs written per step
 local STEP_INTERVAL    = 0.5     -- seconds between writes
 local SNAP_TO_START    = true    -- if we are not at the first waypoint, write ourselves there
@@ -182,160 +183,234 @@ end
 -- ================================================================
 -- UI
 -- ================================================================
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "LightDarkPathFlight"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = playerGui
+-- Built FIRST, and inside a pcall, so the panel cannot be lost to an error
+-- further down the file - and if it cannot be built at all, the script still
+-- flies and SAYS SO in the log instead of failing silently.
+--
+-- Every widget is declared here and assigned inside buildUI(); every write to
+-- them goes through setText(), so a missing panel can never throw.
+local SCRIPT_BUILD = SCRIPT_VERSION
+local screenGui, frame, title, closeBtn
+local statusLabel, progressLabel, posLabel, verdictLabel, routeLabel
+local flyBtn, stopBtn, clearBtn, copyBtn
+local logScroll, logLines = {}, {}
+local uiParentName, uiError = nil, nil
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 330, 0, 470)
-frame.Position = UDim2.new(0, 20, 0, 20)
-frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-frame.BackgroundTransparency = 0.12
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Parent = screenGui
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
-
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(0, 200, 255)
-stroke.Thickness = 2
-stroke.Transparency = 0.3
-stroke.Parent = frame
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -40, 0, 24)
-title.Position = UDim2.new(0, 12, 0, 6)
-title.BackgroundTransparency = 1
-title.Text = "LIGHTDARK PATH FLIGHT"
-title.TextColor3 = Color3.fromRGB(0, 200, 255)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = frame
-
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 26, 0, 26)
-closeBtn.Position = UDim2.new(1, -32, 0, 4)
-closeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-closeBtn.Text = "X"
-closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 15
-closeBtn.Parent = frame
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
-
-local function mkLabel(y, text, color, size)
-	local l = Instance.new("TextLabel")
-	l.Size = UDim2.new(1, -24, 0, 14)
-	l.Position = UDim2.new(0, 12, 0, y)
-	l.BackgroundTransparency = 1
-	l.Text = text
-	l.TextColor3 = color or Color3.fromRGB(160, 165, 175)
-	l.Font = Enum.Font.Code
-	l.TextSize = size or 11
-	l.TextXAlignment = Enum.TextXAlignment.Left
-	l.Parent = frame
-	return l
+local function setText(label, text)
+	if label and label.Parent then label.Text = text end
 end
 
-local statusLabel   = mkLabel(34, "STATUS    | idle - press FLY", Color3.fromRGB(120, 220, 255), 11)
-local progressLabel = mkLabel(50, string.format("PROGRESS  | step 0 of %d | 0.0 of %.1f studs (0%%)", STEPS, TOTAL))
-local posLabel      = mkLabel(66, "POSITION  | -")
-local verdictLabel  = mkLabel(82, "WRITES    | 0 held | 0 reverted | 0 elsewhere", Color3.fromRGB(235, 235, 180))
-local routeLabel    = mkLabel(98, string.format("ROUTE     | %d waypoints from lightdark.log | %.1f studs | %.1fs", #PATH, TOTAL, STEPS * STEP_INTERVAL),
-	Color3.fromRGB(150, 155, 165), 10)
+local function setStatus(text, color)
+	setText(statusLabel, "STATUS    | " .. text)
+	if statusLabel and statusLabel.Parent and color then statusLabel.TextColor3 = color end
+end
 
-local flyBtn = Instance.new("TextButton")
-flyBtn.Size = UDim2.new(1, -24, 0, 30)
-flyBtn.Position = UDim2.new(0, 12, 0, 118)
-flyBtn.BackgroundColor3 = Color3.fromRGB(95, 55, 170)
-flyBtn.Text = "FLY THE PATH (35 studs / 0.5s)"
-flyBtn.TextColor3 = Color3.fromRGB(235, 245, 255)
-flyBtn.Font = Enum.Font.GothamBold
-flyBtn.TextSize = 12
-flyBtn.Parent = frame
-Instance.new("UICorner", flyBtn).CornerRadius = UDim.new(0, 8)
-
-local stopBtn = Instance.new("TextButton")
-stopBtn.Size = UDim2.new(0, 86, 0, 24)
-stopBtn.Position = UDim2.new(0, 12, 0, 152)
-stopBtn.BackgroundColor3 = Color3.fromRGB(80, 40, 40)
-stopBtn.Text = "STOP"
-stopBtn.TextColor3 = Color3.fromRGB(255, 190, 190)
-stopBtn.Font = Enum.Font.GothamBold
-stopBtn.TextSize = 11
-stopBtn.Parent = frame
-Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 6)
-
--- CLEAR matters: the log accumulates, so a pasted log can carry stale lines.
-local clearBtn = Instance.new("TextButton")
-clearBtn.Size = UDim2.new(0, 62, 0, 24)
-clearBtn.Position = UDim2.new(0, 104, 0, 152)
-clearBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-clearBtn.Text = "CLEAR"
-clearBtn.TextColor3 = Color3.fromRGB(230, 220, 190)
-clearBtn.Font = Enum.Font.GothamBold
-clearBtn.TextSize = 11
-clearBtn.Parent = frame
-Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 6)
-
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(0, 78, 0, 24)
-copyBtn.Position = UDim2.new(1, -90, 0, 152)
-copyBtn.BackgroundColor3 = Color3.fromRGB(50, 70, 110)
-copyBtn.Text = "COPY LOG"
-copyBtn.TextColor3 = Color3.fromRGB(210, 225, 255)
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 11
-copyBtn.Parent = frame
-Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 6)
-
-local logScroll = Instance.new("ScrollingFrame")
-logScroll.Size = UDim2.new(1, -24, 0, 262)
-logScroll.Position = UDim2.new(0, 12, 0, 184)
-logScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-logScroll.BackgroundTransparency = 0.25
-logScroll.BorderSizePixel = 0
-logScroll.ScrollBarThickness = 4
-logScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 180, 220)
-logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-logScroll.Parent = frame
-Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0, 8)
-
-local logList = Instance.new("UIListLayout")
-logList.SortOrder = Enum.SortOrder.LayoutOrder
-logList.Padding = UDim.new(0, 1)
-logList.Parent = logScroll
-
-local logLines = {}
-pushLogLine = function(text)
-	local l = Instance.new("TextLabel")
-	local n = #logLines + 1
-	l.Size = UDim2.new(1, -8, 0, 12)
-	l.Position = UDim2.new(0, 4, 0, 0)
-	l.BackgroundTransparency = 1
-	l.Text = text
-	l.TextColor3 = Color3.fromRGB(190, 220, 235)
-	l.Font = Enum.Font.Code
-	l.TextSize = 9
-	l.TextXAlignment = Enum.TextXAlignment.Left
-	l.LayoutOrder = n
-	l.Parent = logScroll
-	logLines[n] = l
-	logScroll.CanvasSize = UDim2.new(0, 0, 0, n * 13)
-	logScroll.CanvasPosition = Vector2.new(0, math.max(0, n * 13 - 262))
-	while #logLines > LOG_MAX do
-		local old = table.remove(logLines, 1)
-		if old and old.Parent then old:Destroy() end
-	end
+-- PlayerGui first. Some executors will not let a script write there, and some
+-- hand back nil from WaitForChild - in that case CoreGui still shows a panel,
+-- and if neither works the log says so.
+local function resolveGuiParent()
+	local ok, pg = pcall(function()
+		local existing = player and player:FindFirstChildOfClass("PlayerGui")
+		if existing then return existing end
+		return player and player:WaitForChild("PlayerGui", 10)
+	end)
+	if ok and pg then return pg, "PlayerGui" end
+	local ok2, core = pcall(function() return game:GetService("CoreGui") end)
+	if ok2 and core then return core, "CoreGui" end
+	return nil, "nowhere"
 end
 
 local function clearLog()
 	for _, l in ipairs(logLines) do if l and l.Parent then l:Destroy() end end
 	logLines = {}
 	LOG = {}
+	if logScroll and logScroll.Parent then logScroll.CanvasSize = UDim2.new(0, 0, 0, 0) end
+end
+
+local function buildUI(parent)
+	screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "LightDarkPathFlight"
+	screenGui.ResetOnSpawn = false
+	screenGui.Parent = parent
+
+	frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0, 340, 0, 486)
+	frame.Position = UDim2.new(0, 20, 0, 20)
+	frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+	frame.BackgroundTransparency = 0.12
+	frame.BorderSizePixel = 0
+	frame.Active = true
+	frame.Parent = screenGui
+	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(0, 200, 255)
+	stroke.Thickness = 2
+	stroke.Transparency = 0.3
+	stroke.Parent = frame
+
+	title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -40, 0, 24)
+	title.Position = UDim2.new(0, 12, 0, 6)
+	title.BackgroundTransparency = 1
+	title.Text = "LIGHTDARK PATH FLIGHT  " .. SCRIPT_BUILD
+	title.TextColor3 = Color3.fromRGB(0, 200, 255)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 14
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = frame
+
+	closeBtn = Instance.new("TextButton")
+	closeBtn.Size = UDim2.new(0, 26, 0, 26)
+	closeBtn.Position = UDim2.new(1, -32, 0, 4)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+	closeBtn.Text = "X"
+	closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.TextSize = 15
+	closeBtn.Parent = frame
+	Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+	local function mkLabel(y, text, color, size)
+		local l = Instance.new("TextLabel")
+		l.Size = UDim2.new(1, -24, 0, 14)
+		l.Position = UDim2.new(0, 12, 0, y)
+		l.BackgroundTransparency = 1
+		l.Text = text
+		l.TextColor3 = color or Color3.fromRGB(160, 165, 175)
+		l.Font = Enum.Font.Code
+		l.TextSize = size or 11
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.Parent = frame
+		return l
+	end
+
+	statusLabel   = mkLabel(34, "STATUS    | idle - press START", Color3.fromRGB(120, 220, 255))
+	progressLabel = mkLabel(50, string.format("PROGRESS  | step 0 of %d | 0.0 of %.1f studs (0%%)", STEPS, TOTAL))
+	posLabel      = mkLabel(66, "POSITION  | -")
+	verdictLabel  = mkLabel(82, "WRITES    | 0 held | 0 reverted | 0 elsewhere", Color3.fromRGB(235, 235, 180))
+	routeLabel    = mkLabel(98, string.format("ROUTE     | %d waypoints from lightdark.log | %.1f studs | %.1fs",
+		#PATH, TOTAL, STEPS * STEP_INTERVAL), Color3.fromRGB(150, 155, 165), 10)
+
+	flyBtn = Instance.new("TextButton")
+	flyBtn.Size = UDim2.new(1, -24, 0, 34)
+	flyBtn.Position = UDim2.new(0, 12, 0, 118)
+	flyBtn.BackgroundColor3 = Color3.fromRGB(95, 55, 170)
+	flyBtn.Text = "START  (fly the path - 35 studs / 0.5s)"
+	flyBtn.TextColor3 = Color3.fromRGB(235, 245, 255)
+	flyBtn.Font = Enum.Font.GothamBold
+	flyBtn.TextSize = 12
+	flyBtn.Parent = frame
+	Instance.new("UICorner", flyBtn).CornerRadius = UDim.new(0, 8)
+
+	stopBtn = Instance.new("TextButton")
+	stopBtn.Size = UDim2.new(0, 86, 0, 24)
+	stopBtn.Position = UDim2.new(0, 12, 0, 158)
+	stopBtn.BackgroundColor3 = Color3.fromRGB(80, 40, 40)
+	stopBtn.Text = "STOP"
+	stopBtn.TextColor3 = Color3.fromRGB(255, 190, 190)
+	stopBtn.Font = Enum.Font.GothamBold
+	stopBtn.TextSize = 11
+	stopBtn.Parent = frame
+	Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 6)
+
+	clearBtn = Instance.new("TextButton")
+	clearBtn.Size = UDim2.new(0, 62, 0, 24)
+	clearBtn.Position = UDim2.new(0, 104, 0, 158)
+	clearBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+	clearBtn.Text = "CLEAR"
+	clearBtn.TextColor3 = Color3.fromRGB(230, 220, 190)
+	clearBtn.Font = Enum.Font.GothamBold
+	clearBtn.TextSize = 11
+	clearBtn.Parent = frame
+	Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 6)
+
+	copyBtn = Instance.new("TextButton")
+	copyBtn.Size = UDim2.new(0, 88, 0, 24)
+	copyBtn.Position = UDim2.new(1, -100, 0, 158)
+	copyBtn.BackgroundColor3 = Color3.fromRGB(50, 70, 110)
+	copyBtn.Text = "COPY LOG"
+	copyBtn.TextColor3 = Color3.fromRGB(210, 225, 255)
+	copyBtn.Font = Enum.Font.GothamBold
+	copyBtn.TextSize = 11
+	copyBtn.Parent = frame
+	Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 6)
+
+	logScroll = Instance.new("ScrollingFrame")
+	logScroll.Size = UDim2.new(1, -24, 0, 290)
+	logScroll.Position = UDim2.new(0, 12, 0, 190)
+	logScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+	logScroll.BackgroundTransparency = 0.25
+	logScroll.BorderSizePixel = 0
+	logScroll.ScrollBarThickness = 4
+	logScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 180, 220)
 	logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	logScroll.Parent = frame
+	Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0, 8)
+
+	local logList = Instance.new("UIListLayout")
+	logList.SortOrder = Enum.SortOrder.LayoutOrder
+	logList.Padding = UDim.new(0, 1)
+	logList.Parent = logScroll
+
+	-- the same lines that print, on screen - assigned to the forward-declared
+	-- local so log() (which is defined above) can reach it
+	pushLogLine = function(text)
+		local n = #logLines + 1
+		local l = Instance.new("TextLabel")
+		l.Size = UDim2.new(1, -8, 0, 12)
+		l.Position = UDim2.new(0, 4, 0, 0)
+		l.BackgroundTransparency = 1
+		l.Text = text
+		l.TextColor3 = Color3.fromRGB(190, 220, 235)
+		l.Font = Enum.Font.Code
+		l.TextSize = 9
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.LayoutOrder = n
+		l.Parent = logScroll
+		logLines[n] = l
+		logScroll.CanvasSize = UDim2.new(0, 0, 0, n * 13)
+		logScroll.CanvasPosition = Vector2.new(0, math.max(0, n * 13 - 290))
+		while #logLines > LOG_MAX do
+			local old = table.remove(logLines, 1)
+			if old and old.Parent then old:Destroy() end
+		end
+	end
+
+	-- draggable
+	local dragging, dragStart, startPos = false, nil, nil
+	frame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+		end
+	end)
+	frame.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and dragStart and (input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch) then
+			local d = input.Position - dragStart
+			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+				startPos.Y.Scale, startPos.Y.Offset + d.Y)
+		end
+	end)
+end
+
+do
+	local parent, name = resolveGuiParent()
+	local ok, err = pcall(buildUI, parent)
+	if ok then
+		uiParentName = name
+	else
+		uiError = tostring(err)
+	end
 end
 
 -- ================================================================
@@ -390,8 +465,8 @@ local function setStatus(text, color)
 end
 
 local function setCounters()
-	verdictLabel.Text = string.format("WRITES    | %d held | %d reverted | %d elsewhere",
-		flight.held, flight.reverted, flight.elsewhere)
+	setText(verdictLabel, string.format("WRITES    | %d held | %d reverted | %d elsewhere",
+		flight.held, flight.reverted, flight.elsewhere))
 end
 
 local function worldLine()
@@ -479,9 +554,9 @@ local function doStep(now)
 		fmtPos(target), fmtPos(landed), off, refTimeAt(targetS))
 	log("%s          | %s", stamp(), worldLine())
 
-	progressLabel.Text = string.format("PROGRESS  | step %d of %d | %.1f of %.1f studs (%d%%)",
-		flight.step, STEPS, targetS, TOTAL, math.floor((targetS / TOTAL) * 100))
-	posLabel.Text = "POSITION  | " .. fmtPos(landed)
+	setText(progressLabel, string.format("PROGRESS  | step %d of %d | %.1f of %.1f studs (%d%%)",
+		flight.step, STEPS, targetS, TOTAL, math.floor((targetS / TOTAL) * 100)))
+	setText(posLabel, "POSITION  | " .. fmtPos(landed))
 
 	if targetS >= TOTAL - 0.001 then flight.arrived = true end
 end
@@ -678,58 +753,53 @@ local function startFlight()
 	end)
 end
 
-flyBtn.MouseButton1Click:Connect(startFlight)
+-- Buttons are wired HERE, after startFlight exists: building the UI earlier and
+-- connecting there would read a nil function. Guarded, because the panel may not
+-- have been built at all.
+if flyBtn then
+	flyBtn.MouseButton1Click:Connect(startFlight)
+end
 
-stopBtn.MouseButton1Click:Connect(function()
-	if flight.running then
-		_G.LIGHTDARK_FLIGHT_STOP = true
-	else
-		setStatus("idle - nothing to stop")
-	end
-end)
+if stopBtn then
+	stopBtn.MouseButton1Click:Connect(function()
+		if flight.running then
+			_G.LIGHTDARK_FLIGHT_STOP = true
+		else
+			setStatus("idle - nothing to stop")
+		end
+	end)
+end
 
-clearBtn.MouseButton1Click:Connect(function()
-	clearLog()
-	setStatus("log cleared")
-end)
+if clearBtn then
+	clearBtn.MouseButton1Click:Connect(function()
+		clearLog()
+		setStatus("log cleared")
+	end)
+end
 
-copyBtn.MouseButton1Click:Connect(function()
-	local ok = pcall(function() setclipboard(table.concat(LOG, "\n")) end)
-	setStatus(ok and "log copied" or "copy failed",
-		ok and Color3.fromRGB(120, 255, 160) or Color3.fromRGB(255, 150, 120))
-end)
+if copyBtn then
+	copyBtn.MouseButton1Click:Connect(function()
+		local ok = pcall(function() setclipboard(table.concat(LOG, "\n")) end)
+		setStatus(ok and "log copied" or "copy failed",
+			ok and Color3.fromRGB(120, 255, 160) or Color3.fromRGB(255, 150, 120))
+	end)
+end
 
-closeBtn.MouseButton1Click:Connect(function()
-	if flight.running then _G.LIGHTDARK_FLIGHT_STOP = true end
-	screenGui:Destroy()
-end)
+if closeBtn then
+	closeBtn.MouseButton1Click:Connect(function()
+		if flight.running then _G.LIGHTDARK_FLIGHT_STOP = true end
+		if screenGui and screenGui.Parent then screenGui:Destroy() end
+	end)
+end
 
--- ---- draggable -----------------------------------------------------------
-local dragging, dragStart, startPos = false, nil, nil
-frame.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		dragStart = input.Position
-		startPos = frame.Position
-	end
-end)
-frame.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = false
-	end
-end)
-UserInputService.InputChanged:Connect(function(input)
-	if dragging and dragStart and (input.UserInputType == Enum.UserInputType.MouseMovement
-		or input.UserInputType == Enum.UserInputType.Touch) then
-		local d = input.Position - dragStart
-		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
-			startPos.Y.Scale, startPos.Y.Offset + d.Y)
-	end
-end)
+-- no UI, no button? the flight is still reachable from the console:
+--   _G.LIGHTDARK_FLIGHT_START()   and   _G.LIGHTDARK_FLIGHT_STOP = true
+_G.LIGHTDARK_FLIGHT_START = startFlight
 
 setCounters()
-log("%s READY     | %d waypoints | %.1f studs | %d steps at %.1f studs every %.2fs",
-	stamp(), #PATH, TOTAL, STEPS, STEP_STUDS, STEP_INTERVAL)
-log("%s READY     | press FLY. Nothing is written until you do.", stamp())
+log("%s READY     | build %s | %d waypoints | %.1f studs | %d steps at %.1f studs every %.2fs",
+	stamp(), SCRIPT_BUILD, #PATH, TOTAL, STEPS, STEP_STUDS, STEP_INTERVAL)
+log("%s UI        | %s", stamp(), uiParentName
+	and ("panel on screen (parent: " .. uiParentName .. ") - START / STOP / CLEAR / COPY LOG")
+	or ("NOT BUILT - " .. tostring(uiError) .. " - use _G.LIGHTDARK_FLIGHT_START()"))
+log("%s READY     | press START. Nothing is written until you do.", stamp())
