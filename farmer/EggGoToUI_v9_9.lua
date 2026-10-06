@@ -211,7 +211,7 @@ local PET_RARITY_PRESETS = {
     ["Lava Gecko"]="Rare", ["Lava Frog"]="Epic", ["Flaming Bull"]="Legendary",
     ["Lava Iguana"]="Legendary", ["Chillin Chilli"]="Mythic", ["Cerberus"]="Secret",
     ["Phoenix"]="Eternal", ["Lava Dragon"]="Eternal", ["Parrotfish"]="Rare",
-    ["Swordfish"]="Epic", ["Shark"]="Legendary", ["Mutant Shark"]="Legendary", ["Orca"]="Mythic",
+    ["Swordfish"]="Epic", ["Shark"]="Legendary", ["Mutant Shark"]="Secret", ["Orca"]="Mythic",
     ["Whale Shark"]="Cosmic", ["Beluga Whale"]="Cosmic", ["Kraken"]="Secret",
     ["El Maja"]="Eternal", ["Dodo"]="Rare", ["Pterodactyl"]="Legendary",
     ["Ankylosaurus"]="Mythic", ["Triceratops"]="Cosmic", ["Bronto"]="Cosmic",
@@ -268,7 +268,7 @@ local PET_RARITY_PRESETS = {
     ["Dream Axolotl"]="Legendary", ["Warden"]="Secret",
     ["Dragon"]="Eternal", ["Jellyfish"]="Secret",
     ["Nuclear Mantis"]="Divine", ["Nuceodille"]="Eternal", ["Toucax"]="Mythic",
-    ["Godzilla"]="Secret", ["Irihorus"]="Secret",
+    ["Godzilla"]="Secret",
     ["Frogfly"]="Rare", ["Wheel Hamster"]="Rare", ["Finned Thresher"]="Legendary",
     ["Mire Fox"]="Rare", ["Eye Bat"]="Rare", ["FennecFox"]="Uncommon",
     -- Newly discovered egg assets from game scan (new-full-scan-3.log)
@@ -281,6 +281,14 @@ local PET_RARITY_PRESETS = {
     ["DeathstalkerScorpion"]="Mythic", ["Ringlord"]="Secret",
     ["Toxic Crocodile"]="Epic", ["Toxic Hedgehog"]="Rare",
     ["Riptide Octopus"]="Eternal", ["Depths Riptide Octopus"]="Divine",
+
+    ------------- new update
+    ["Prism Gecko"]="Legendary", ["Spirit Hare"] = "Cosmic",
+    ["Cosmic Beetle Blue"] = "Mythic",
+    ["Enchanted Bluejay"] = "Mythic",
+    ["Spirit Panda"] = "Cosmic",
+    ["Cosmic Fox"] = "Secret",
+
 }
 
 -- ==================================================
@@ -1964,6 +1972,7 @@ local autoFarmBtn, statusLabel
 local autoFarmEnabled = false
 local autoFarmToken   = 0       -- incremented to stop an in-flight run
 local AUTO_RETRY      = 4
+local PICKUP_SPAM     = 8   -- how many InvokeServer fires per pickup attempt (first reply wins)
 local AUTO_NEXT_DELAY = 0.8     -- pause between eggs
 local AUTO_EMPTY_WAIT = 2.0     -- wait when no matching eggs
 local AUTO_CARRY_WAIT = 0.4     -- wait after carry RF for server to action
@@ -2497,45 +2506,82 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             local seq0 = eggCache.seq
             local listedAtStart = eggCache.byUid[uid] ~= nil     -- v9.1: a scan can only PROVE a pickup if the egg was there
             if rf then
-                task.spawn(function()
-                    local ok2, res2 = pcall(function() return rf:InvokeServer({ Uid = uid }) end)
-                    rfOk, rfRes, rfDone = ok2, res2, true
-                    lastRfInfo = (ok2 and "reply " or "error ") .. describeVal(res2)
-                    print("[AutoFarm] carry RF ->", ok2, describeVal(res2))
-                end)
+                -- Spam PICKUP_SPAM fires concurrently; first reply wins
+                for _spamI = 1, PICKUP_SPAM do
+                    task.spawn(function()
+                        local ok2, res2 = pcall(function() return rf:InvokeServer({ Uid = uid }) end)
+                        if not rfDone then   -- first reply wins; rest are silently discarded
+                            rfOk, rfRes, rfDone = ok2, res2, true
+                            lastRfInfo = (ok2 and "reply " or "error ") .. describeVal(res2)
+                            print(("[AutoFarm] carry RF spam #%d -> %s %s"):format(_spamI, tostring(ok2), describeVal(res2)))
+                        end
+                    end)
+                end
             else
                 lastRfInfo = "carry remote missing"; rfDone = true
             end
 
-            local t = 0
-            while t < 4 and not cancelled() do
-                local m = scanHoldMarkers(before)
-                if m then carried, how, markers = true, "object " .. m.label, m; break end
-                if gotGone then
-                    -- v9.1: another player taking the egg fires the same event: only trust it if the server did not refuse us
-                    if rfDone and rfRejected(rfOk, rfRes) then stolen = true; break end
-                    if rfDone or t >= 0.6 then carried, how = true, "event"; break end
-                end
-                if slotExisted then
-                    local a2 = Workspace:FindFirstChild("AreaEggSlotsClient")
-                    if a2 and not X.findEggSlot(a2, uid, rec0 and rec0.NestId, rec0 and rec0.AreaId, livePos) then carried, how = true, "slot removed"; break end
-                end
-                if listedAtStart and eggCache.seq > seq0 and eggCache.byUid[uid] == nil then carried, how = true, "scan"; break end
-                if rfDone then
-                    if rfRejected(rfOk, rfRes) and X.rfSaysGone(rfOk, rfRes) then stolen = true; break end   -- v9.2
-                    if rfRejected(rfOk, rfRes) and t >= 0.3 then break end   -- refused: try again now
-                    if t >= 2.0 then break end                                -- "accepted" but no proof: try again
-                end
-                task.wait(0.1); t = t + 0.1
+            -- Brief confirmation window after spam (was pure fire-and-dash).
+            -- Client hold visuals / CRA model can lag 0.5–1.5s behind a successful RF, so we must NOT
+            -- treat "no isHoldingEgg yet" as failure when the server already accepted the carry.
+            local confDeadline = os.clock() + 0.55
+            local confHow = nil
+            local function rfAccepted()
+                if not rfDone or not rfOk then return false end
+                if rfRes == false or rfRes == nil then return false end
+                if X.rfSaysGone(rfOk, rfRes) then return false end
+                return true
             end
-            if carried then break end
-            if stolen then break end
-            -- v9.1: refused -> is the egg still in the nest at all? (fresh scan) if not, stop retrying
-            if rfDone and rfRejected(rfOk, rfRes) then
-                X.forceScan(1.5)
-                if eggCache.byUid[uid] == nil or X.goneActive(uid) then stolen = true; break end
+            local function rfHardRefuse()
+                if not rfDone then return false end
+                if not rfOk then return true end
+                if X.rfSaysGone(rfOk, rfRes) then return true end
+                return false
             end
-            task.wait(0.4)
+            while os.clock() < confDeadline and not cancelled() do
+                if rfAccepted() then
+                    confHow = "rf"
+                    break
+                elseif rfHardRefuse() then
+                    lastRfInfo = (rfOk and "reply " or "error ") .. describeVal(rfRes)
+                    print(("[AutoFarm] carry RF refused on attempt %d: %s"):format(attemptNo, lastRfInfo))
+                    confHow = "refused"
+                    break
+                end
+                if gotGone then confHow = "event"; break end
+                local lateMarkers = scanHoldMarkers(before)
+                if lateMarkers or isHoldingEgg() then
+                    confHow = lateMarkers and "marker" or "hold"
+                    if lateMarkers then markers = lateMarkers end
+                    break
+                end
+                task.wait(0.05)
+            end
+
+            if confHow == "refused" then
+                if X.rfSaysGone(rfOk, rfRes) or rfRes == false then
+                    lastFailReason = tag .. "Nest empty / taken (" .. lastRfInfo .. ") — next..."
+                    X.blacklistStolen(uid)
+                    X.deliveredUids[uid] = true
+                    X.looseUids[uid] = nil
+                    if eggCache.byUid[uid] then eggCache.byUid[uid] = nil end
+                    X.listDirty = true
+                    X.requestEggRefresh()
+                    stolen = true
+                    break
+                end
+                -- soft RF error: fall through to next attemptNo
+            elseif confHow then
+                carried, how = true, confHow
+                print(("[AutoFarm] pickup confirmed via %s on attempt %d"):format(tostring(confHow), attemptNo))
+                break
+            else
+                -- No hard refusal and no hold yet: head home tentatively.
+                carried, how = true, "rf_no_wait"
+                print(("[AutoFarm] tentative pickup (no hold yet) attempt %d — RF done=%s ok=%s"):format(
+                    attemptNo, tostring(rfDone), tostring(rfOk)))
+                break
+            end
         end
         cleanup()
         if not carried then
@@ -2632,6 +2678,25 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             if not carryMarkers then
                 carryMarkers = scanHoldMarkers(before)              -- late-appearing object
                 if carryMarkers then markerSince = now end
+            end
+
+            -- FAST-FAIL only for tentative (rf_no_wait) pickups where the client never showed a hold.
+            -- When how is "rf" / "event" / "marker" / "hold" the server or client already confirmed
+            -- the carry — do NOT turn around just because isHoldingEgg() lagged a bit.
+            -- Grace is 1.8s (was 0.8s): CRA / tool visuals often appear after the RF reply.
+            if how == "rf_no_wait" and not isHoldingEgg() and not carryMarkers
+               and now - tStart >= 1.8 and not isRagdolled then
+                carryMarkers = scanHoldMarkers(before)
+                if carryMarkers or isHoldingEgg() then
+                    if carryMarkers then markerSince = now end
+                else
+                    warn(tag .. "tentative pickup: no egg detected after 1.8s — re-queuing pickup")
+                    statusLabel.Text = tag .. "Pickup missed — returning to egg..."
+                    statusLabel.TextColor3 = Color3.fromRGB(255, 160, 60)
+                    dropped = true
+                    dropWhy = "rf_no_wait: no hold detected"
+                    break
+                end
             end
 
             -- (A) BOSS BUMP: every ragdoll/stun START since the pickup counts (the epoch is bumped from Heartbeat AND
