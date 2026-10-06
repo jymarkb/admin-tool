@@ -123,7 +123,7 @@ end
 
 local EVENTS = {MouseButton1Click=1,FocusLost=1,InputBegan=1,InputEnded=1,
                 Changed=1,InputChanged=1,Heartbeat=1,PreSimulation=1,
-                PostSimulation=1,PreRender=1}
+                PostSimulation=1,PreRender=1,Died=1,CharacterAdded=1}
 
 -- Proxy over a backing table, so __newindex fires on EVERY assignment.
 local function newInstance(class)
@@ -153,7 +153,22 @@ local function newInstance(class)
             return out end end
       if k=="Move" then return function(_, d) data.MoveDirection = d end end
       if k=="GetState" then return function() return data._state or "Running" end end
-      if k=="Raycast" then return function(_, origin, dir, params) return data._rayHit end end
+      if k=="Raycast" then return function(_, origin, dir, params)
+            -- A segment table lets the test describe real terrain, including the
+            -- gaps that the path scan must refuse to fly over.
+            if data._segments and #data._segments > 0 then
+              local x = origin.X
+              local best = nil
+              for _, seg in ipairs(data._segments) do
+                if x >= seg[1] and x <= seg[2] and seg[3] ~= false then
+                  if not best or seg[3] > best then best = seg[3] end
+                end
+              end
+              if best then return {Position=vnew(x, best, origin.Z)} end
+              return nil            -- outside every segment = no ground
+            end
+            return data._rayHit
+          end end
       if EVENTS[k] then return sigOf(data,k) end
       if k=="Position" and data.CFrame then return data.CFrame.Position end
       return data[k]
@@ -192,6 +207,7 @@ player.Character = char
 
 local WORKSPACE = newInstance("Workspace")
 WORKSPACE.CurrentCamera = newInstance("Camera")
+WORKSPACE.FallenPartsDestroyHeight = -500
 
 game = {GetService=function(_,name)
   if name=="Players" then return {LocalPlayer=player} end
@@ -222,6 +238,14 @@ return {CREATED=CREATED, fire=fire, char=char, hum=hum, root=root, torso=torso,
         collideList=function() return COLLIDE_LOG or {} end,
         setRayHit=function(y) WORKSPACE._rayHit = {Position=vnew(0,y,0)} end,
         clearRayHit=function() WORKSPACE._rayHit = nil end,
+        -- terrain segments: ground [xFrom..xTo] at height y. Anything not covered
+        -- is empty air, which is what the scan must notice.
+        addGround=function(xFrom,xTo,y)
+          WORKSPACE._segments = WORKSPACE._segments or {}
+          table.insert(WORKSPACE._segments, {xFrom,xTo,y}) end,
+        clearGrounds=function() WORKSPACE._segments = {} end,
+        fireDied=function() return fire(hum, "Died") end,
+        fireRespawn=function() return fire(player, "CharacterAdded") end,
         -- CFrame maths must happen in Lua or metamethods are lost
         teleport=function(x,y,z) root.CFrame = CFrame.new(x,y,z)
           return root.CFrame.Position end,
@@ -269,7 +293,20 @@ def buttons(substr):
 
 fly   = buttons("FLY")[0]
 close = buttons("X")[0]
+noclipBtn = buttons("NOCLIP")[0]
 box   = values(getCreated("TextBox"))[0]
+
+def set_noclip(on):
+    """The toggle button is the only way in now; it is OFF by default."""
+    want = "NOCLIP: ON" if on else "NOCLIP: OFF"
+    if want not in str(noclipBtn["Text"]):
+        fire(noclipBtn, "MouseButton1Click")
+
+def flat(t): return t is False or t == False
+
+def stat():
+    """The status TextLabel is the last one created."""
+    return str(values(getCreated("TextLabel"))[-1]["Text"])
 
 def collide_off(): return torso["CanCollide"] is False or torso["CanCollide"] == False
 
@@ -278,7 +315,8 @@ H["teleport"](1000, 100, 0)
 H["face"](-1, 0)
 chk("facing is -X", abs(root["CFrame"]["LookVector"]["X"] + 1) < 1e-9,
     str(root["CFrame"]["LookVector"]))
-H["setRayHit"](70)
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)      # ground under the whole 2000-stud route
 H["watchStart"]()
 H["collideStart"]()
 fire(fly, "MouseButton1Click")
@@ -305,7 +343,18 @@ flight_frames = n
 chk("~2000/78 frames + ramp + descent", 25 <= flight_frames <= 40,
     f"{flight_frames} frames x 78 = {flight_frames*78} studs")
 
-print("\n=== T4: collisions off during, restored after ===")
+print("\n=== T4: noclip OFF by default, opt-in via the toggle ===")
+chk("noclip starts OFF", "OFF" in str(noclipBtn["Text"]), repr(str(noclipBtn["Text"])))
+chk("collisions untouched by a default flight", torso["CanCollide"] is True,
+    str(torso["CanCollide"]))
+set_noclip(True)
+chk("toggle flips to ON", "NOCLIP: ON" in str(noclipBtn["Text"]), repr(str(noclipBtn["Text"])))
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["collideStart"]()
+fire(fly, "MouseButton1Click")
+H["stepN"](4)
+chk("noclip active during flight", flat(torso["CanCollide"]), str(torso["CanCollide"]))
+H["stepN"](400)
 col = values(H["collideList"]())
 chk("collisions were disabled", any(c is False or c == False for c in col), f"{len(col)} writes")
 chk("collisions restore to true", (col[-1] is True or col[-1] == True), f"last={col[-1]}")
@@ -324,7 +373,9 @@ chk("collisions restored on abort", torso["CanCollide"] is True or torso["CanCol
 
 print("\n=== T6: MAX_FLIGHT_S bounds the run ===")
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
-box["Text"] = "100000"
+H["clearGrounds"]()
+H["addGround"](-20000, 20000, 70)
+box["Text"] = "20000"
 fire(fly, "MouseButton1Click")
 H["stepN"](400)
 chk("run bounded", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
@@ -333,6 +384,8 @@ chk("collisions restored after timeout",
 
 print("\n=== T7: shorter distance honoured ===")
 H["teleport"](2000, 100, 0); H["face"](-1, 0)
+H["clearGrounds"]()
+H["addGround"](-500, 2100, 70)
 box["Text"] = "500"
 fire(fly, "MouseButton1Click")
 H["stepN"](400)
@@ -341,6 +394,8 @@ chk("~500 studs", 450 <= trav <= 600, f"{trav:.1f}")
 
 print("\n=== T8: refuses while ragdolled ===")
 H["teleport"](1000, 100, 0)
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
 H["setField"](hum, "_state", "Physics")
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
@@ -353,6 +408,7 @@ fire(fly, "MouseButton1Click")
 chk("empty input refused", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 
 print("\n=== T10: X cleans up mid-flight ===")
+set_noclip(True)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
@@ -366,12 +422,78 @@ chk("ScreenGui destroyed",
 
 print("\n=== T11: descent uses the raycast ground, not a blind drop ===")
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
-H["setRayHit"](42)
+H["clearGrounds"]()
+H["addGround"](-200, 1200, 42)
 box["Text"] = "100"
 fire(fly, "MouseButton1Click")
 H["stepN"](400)
 chk("landed near groundY+3", abs(root["CFrame"]["Position"]["Y"] - 45) < 6,
     f"Y={root['CFrame']['Position']['Y']:.1f} (ground 42)")
+
+
+print("\n=== T12: THE FIX - refuses to fly where the ground runs out ===")
+H["clearGrounds"]()
+H["addGround"](400, 1100, 70)          # solid ground only from X=1100 down to 400
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+chk("refused (no flight started)", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+st = stat()
+chk("says the ground runs out", "no ground" in st, st.split("\n")[0])
+chk("did not move", abs(root["CFrame"]["Position"]["X"] - 1000) < 1e-6,
+    f"X={root['CFrame']['Position']['X']:.1f}")
+
+print("\n=== T13: cruise altitude clears the HIGHEST terrain, not the start Y ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["addGround"](200, 600, 300)          # a 300-stud hill in the middle of the route
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+box["Text"] = "2000"
+H["watchStart"]()
+fire(fly, "MouseButton1Click")
+H["stepN"](12)                          # past the ramp, into cruise
+y_here = root["CFrame"]["Position"]["Y"]
+chk("climbs above the hill", y_here > 300, f"Y={y_here:.1f} (hill 300, clearance 25)")
+H["stepN"](400)                       # let it finish, so T14 starts clean
+chk("T13 run completed before T14", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+
+print("\n=== T14: void guard aborts near FallenPartsDestroyHeight ===")
+assert H["heartbeatSubs"]() == 0, "a previous flight was still running"
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](2)
+H["teleport"](root["CFrame"]["Position"]["X"], -450, 0)   # below -500 + 100 margin
+H["stepN"](1)
+chk("aborted on the void guard", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("names the guard", "void guard" in stat(), stat().split("\n")[0])
+
+print("\n=== T15: death mid-flight stops the flight and restores everything ===")
+assert H["heartbeatSubs"]() == 0, "a previous flight was still running"
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+set_noclip(True)
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](3)
+chk("noclip active", flat(torso["CanCollide"]), str(torso["CanCollide"]))
+H["fireDied"]()
+chk("flight stopped on death", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("collisions restored on death", torso["CanCollide"] is True or torso["CanCollide"] == True,
+    str(torso["CanCollide"]))
+chk("status reports the death", "DIED" in stat(), stat().split("\n")[0])
+
+print("\n=== T16: respawn also clears noclip ===")
+set_noclip(True)
+chk("noclip back on", flat(torso["CanCollide"]) or "NOCLIP: ON" in str(noclipBtn["Text"]),
+    repr(str(noclipBtn["Text"])))
+H["fireRespawn"]()
+chk("collisions restored on respawn",
+    torso["CanCollide"] is True or torso["CanCollide"] == True, str(torso["CanCollide"]))
+set_noclip(False)
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:

@@ -36,6 +36,25 @@
 	this travels 2,000 studs where a forced-velocity run backs off to MIN_SPEED.
 
 	------------------------------------------------------------------
+	SAFETY (v2 - this is what killed the first run)
+	------------------------------------------------------------------
+	The escape script had TWO properties that the first version of this file
+	dropped, and either one can kill you:
+
+	  1. a FIXED HIGH cruise altitude (CRUISE_Y = 112.5), so it flew OVER the
+	     terrain rather than through it. The first version used start Y + 13.
+	  2. a KNOWN landing pad (FOREST_LANDING, Y = 71). The first version aimed at
+	     an arbitrary point 2000 studs away, and if that point had no ground it
+	     left the character floating at cruise altitude, zeroed its velocity and
+	     let it fall out of the world.
+
+	So before flying, this version SCANS the whole path with a downward raycast:
+	  * if the ground runs out anywhere on the route it REFUSES, and says where;
+	  * cruise altitude is max(ground) + CLEARANCE, so it always clears terrain;
+	  * the descent lands on the ground that was found at the destination.
+	Noclip is now OFF by default - flying over the terrain does not need it.
+
+	------------------------------------------------------------------
 	WHAT ELSE THE LOGS SHOWED
 	------------------------------------------------------------------
 	* Speed is just STEP_SIZE x framerate: 78 * 60 = 4,680 studs/s theoretical vs
@@ -71,21 +90,30 @@ local playerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
 local DEFAULT_STUDS = 2000    -- the target
 local MIN_STUDS     = 10      -- below this there is nothing to do
-local MAX_STUDS     = 100000  -- clamp, so a stray keystroke cannot fling you away
+local MAX_STUDS     = 20000   -- clamp, so a stray keystroke cannot fling you away
 
 local STEP_SIZE     = 78      -- studs per frame (admin_v6_escape STEP_SIZE)
 local RAMP_FRAMES   = 5       -- ease-in, so we never start with a wrong-way step
-local RISE_STUDS    = 13      -- climb above the start Y during the ramp
+local RISE_STUDS    = 13      -- minimum climb above the start Y during the ramp
 local CRUISE_LEAD   = 120     -- shrink the step when this close to the target
 local STEP_MIN      = 28      -- smallest shrunken step
 local STOP_WITHIN   = 25      -- treat this as arrived
 local DESCENT_FRAMES = 3      -- stepped descent, not one drop
 local MAX_FLIGHT_S  = 2.5     -- hard bound on the whole flight
 
+-- path scan: the thing that stops us flying off the edge of the world
+local SCAN_STEP      = 39     -- studs between samples (half a flight step)
+local SCAN_UP        = 200    -- raycast starts this far above the start position
+local SCAN_DOWN      = 1000   -- and looks this far down
+local CLEARANCE      = 25     -- cruise this far above the HIGHEST ground on the route
+local ALLOW_VOID     = false  -- true = fly even if the ground runs out (dangerous)
+local VOID_MARGIN    = 100    -- abort if we get this close to FallenPartsDestroyHeight
+
 local ZERO_HORIZONTAL = true  -- THE trick: claim no sideways velocity
 local FALL_VELOCITY   = -10   -- and claim a plausible falling one (admin: -10)
 
-local NOCLIP        = true    -- CanCollide=false for the flight, then restored
+local NOCLIP        = false   -- OFF by default: we fly OVER terrain now, and a
+                              -- forgotten noclip is how you fall through the world
 local FACE_TRAVEL   = true    -- CFrame.new(pos, pos+dir) — face the way we go
 
 --   "facing"  the character's look direction (default)
@@ -104,6 +132,8 @@ local flight    = nil          -- per-run state table
 local flightConn = nil         -- Heartbeat connection while flying
 
 local savedCollisions = {}     -- [part] = original CanCollide
+local diedConn  = nil          -- Humanoid.Died watcher for the current character
+local lastDeath = nil          -- where a death happened, for the status line
 local flightCount = 0
 local totalStuds  = 0
 local lastRun = {studs = 0, secs = 0}  -- declared here: stopFlight reads it
@@ -168,8 +198,10 @@ local function setCollisions(enable)
 end
 
 local function restoreCollisions()
-	-- restore unconditionally: leaving noclip on after a crash would be worse
-	-- than re-enabling collision on a part we never touched
+	-- nothing was ever changed: do not touch collision at all. (Forcing
+	-- CanCollide = true on parts we never saved would break things like
+	-- accessories that are legitimately non-collidable.)
+	if next(savedCollisions) == nil then return end
 	for part in pairs(savedCollisions) do
 		pcall(function() part.CanCollide = savedCollisions[part] end)
 		savedCollisions[part] = nil
@@ -181,16 +213,54 @@ end
 -- GROUND FINDER (for the stepped descent)
 ----------------------------------------------------------------
 
-local function groundY(x, z)
+-- Downward raycast at (x, z). fromY is where the ray starts looking; it scans
+-- SCAN_UP above that and SCAN_DOWN below. Returns the ground height or nil when
+-- there is nothing there at all - which is the condition that killed the first
+-- version, so it is treated as a hard stop rather than a shrug.
+local function groundY(x, z, fromY)
 	local ch = LocalPlayer.Character
+	local top = (fromY or 0) + SCAN_UP
 	local ok, hit = pcall(function()
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = { ch }
-		return workspace:Raycast(Vector3.new(x, 500, z), Vector3.new(0, -1000, 0), params)
+		return workspace:Raycast(Vector3.new(x, top, z),
+			Vector3.new(0, -(SCAN_UP + SCAN_DOWN), 0), params)
 	end)
 	if ok and hit and hit.Position then return hit.Position.Y end
 	return nil
+end
+
+local function deathFloor()
+	local ok, v = pcall(function() return workspace.FallenPartsDestroyHeight end)
+	if ok and type(v) == "number" then return v end
+	return -500
+end
+
+-- Walk the whole route before committing. Returns the scan table.
+local function scanPath(startPos, dir, total)
+	local samples, maxGround, missingAt = {}, nil, nil
+	local step = math.min(SCAN_STEP, math.max(10, total / 4))
+	local d = 0
+	while d <= total + 0.001 do
+		local x = startPos.X + dir.X * d
+		local z = startPos.Z + dir.Z * d
+		local g = groundY(x, z, startPos.Y)
+		samples[#samples + 1] = {d = d, g = g}
+		if g then
+			if not maxGround or g > maxGround then maxGround = g end
+		elseif not missingAt then
+			missingAt = d
+		end
+		d = d + step
+	end
+	local dest = samples[#samples]
+	return {
+		samples   = samples,
+		maxGround = maxGround,
+		missingAt = missingAt,
+		destGround = dest and dest.g or nil,
+	}
 end
 
 ----------------------------------------------------------------
@@ -218,6 +288,15 @@ local function flightStep()
 	local now = os.clock()
 	f.elapsed = now - f.t0
 
+	-- void guard: FallenPartsDestroyHeight is what actually kills you, so never
+	-- get near it. This is the net under the path scan.
+	local curY = r.Position.Y
+	if curY < deathFloor() + VOID_MARGIN then
+		stopFlight("hit the void guard")
+		return
+	end
+	if f.lowestY == nil or curY < f.lowestY then f.lowestY = curY end
+
 	if f.elapsed > MAX_FLIGHT_S then
 		stopFlight("timeout")
 		return
@@ -228,9 +307,13 @@ local function flightStep()
 		local alpha = math.min(f.frame / RAMP_FRAMES, 1)
 		f.traveled = math.min(f.traveled + STEP_SIZE, f.total)
 		local xz = f.startPos + f.dir * f.traveled
-		local y  = f.startPos.Y + RISE_STUDS * alpha
+		-- climb toward the scanned cruise altitude, exactly as the escape script
+		-- does with CRUISE_Y: y = startPos.Y + (CRUISE_Y - startPos.Y) * alpha
+		local y  = f.startPos.Y + (f.cruiseY - f.startPos.Y) * alpha
 		f.lastPos = Vector3.new(xz.X, y, xz.Z)
-		f.cruiseY = y
+		-- NOTE: do NOT write back to f.cruiseY here. That made the ramp target
+		-- its own current height each frame, so the climb collapsed back toward
+		-- the start altitude and the cruise never cleared the terrain.
 
 		r.CFrame = FACE_TRAVEL and CFrame.new(f.lastPos, f.lastPos + f.dir)
 			or CFrame.new(f.lastPos)
@@ -239,7 +322,6 @@ local function flightStep()
 
 		if f.frame >= RAMP_FRAMES then
 			f.phase = "cruise"
-			f.cruiseY = f.startPos.Y + RISE_STUDS
 		end
 		return
 	end
@@ -254,7 +336,9 @@ local function flightStep()
 			f.phase = "descend"
 			f.descent = 0
 			f.descentFrom = cur
-			f.groundY = groundY(cur.X, cur.Z)
+			-- re-check the ground now we are actually there; the scan was a
+			-- prediction, this is the fact
+			f.destGround = groundY(cur.X, cur.Z, cur.Y)
 			return
 		end
 
@@ -280,7 +364,16 @@ local function flightStep()
 		f.descent = f.descent + 1
 		local alpha = math.min(f.descent / DESCENT_FRAMES, 1)
 		local from  = f.descentFrom
-		local destY = f.groundY and (f.groundY + 3) or (from.Y - 5)
+		-- nil here only happens with ALLOW_VOID = true. Without a known ground we
+		-- do NOT drop the character: falling with nothing under it is exactly how
+		-- the first version killed people.
+		if not f.destGround then
+			setStatus("no ground under the destination - holding position\n(ALLOW_VOID is on; drop in is unsafe)",
+				Color3.fromRGB(255, 200, 120))
+			stopFlight(nil)
+			return
+		end
+		local destY = f.destGround + 3
 
 		local x = from.X + (f.target.X - from.X) * alpha
 		local z = from.Z + (f.target.Z - from.Z) * alpha
@@ -288,7 +381,7 @@ local function flightStep()
 
 		r.CFrame = CFrame.new(x, y, z)
 		-- recompute the claimed fall while descending, same as the escape script
-		local vy = f.groundY and -12 or 0
+		local vy = -12
 		r.AssemblyLinearVelocity = Vector3.new(0, vy, 0)
 		r.AssemblyAngularVelocity = Vector3.zero
 
@@ -322,6 +415,7 @@ stopFlight = function(reason)
 	end
 
 	if reason then
+		if tostring(reason):find("DIED") then lastDeath = reason end
 		if setStatus then
 			setStatus("ABORTED: " .. tostring(reason), Color3.fromRGB(255, 120, 120))
 		end
@@ -345,6 +439,36 @@ stopFlight = function(reason)
 end
 
 ----------------------------------------------------------------
+-- DEATH / RESPAWN SAFETY NET
+----------------------------------------------------------------
+
+-- If the character dies mid-flight we must stop and put collisions back. A
+-- leaked noclip plus a corpse is how you end up falling through the world.
+local function watchDeath(h)
+	if diedConn then diedConn:Disconnect(); diedConn = nil end
+	if not h then return end
+	diedConn = h.Died:Connect(function()
+		if flying then
+			local _, _, r = getState()
+			local where = r and ("%.0f, %.0f, %.0f")
+				:format(r.Position.X, r.Position.Y, r.Position.Z) or "?"
+			stopFlight("DIED at " .. where)
+		else
+			-- even outside a flight, never leave noclip behind
+			restoreCollisions()
+		end
+	end)
+end
+
+pcall(function()
+	LocalPlayer.CharacterAdded:Connect(function()
+		restoreCollisions()
+		if flying then stopFlight("respawned") end
+		lastDeath = nil
+	end)
+end)
+
+----------------------------------------------------------------
 -- START
 ----------------------------------------------------------------
 
@@ -363,6 +487,26 @@ local function startFlight(requested)
 
 	local dir = travelDir(r)
 	if not dir then return false, "no travel direction" end
+
+	-- ---- SCAN THE ROUTE BEFORE MOVING ANYTHING --------------------------
+	-- This is the check the first version was missing. The escape script always
+	-- flew to a known landing pad at a fixed altitude; aiming at an arbitrary
+	-- point meant the destination could be empty air.
+	local scan = scanPath(r.Position, dir, total)
+	if scan.missingAt and not ALLOW_VOID then
+		return false, ("no ground %d studs that way - refused")
+			:format(math.floor(scan.missingAt))
+	end
+	if not scan.maxGround and not ALLOW_VOID then
+		return false, "no ground anywhere on that heading - refused"
+	end
+
+	-- cruise above the HIGHEST ground on the route, so we clear terrain instead
+	-- of relying on noclip to pass through it
+	local cruiseY = r.Position.Y + RISE_STUDS
+	if scan.maxGround then
+		cruiseY = math.max(scan.maxGround + CLEARANCE, r.Position.Y + RISE_STUDS)
+	end
 
 	-- zero any leftover velocity and let the position settle for one frame, the
 	-- same as admin_v6_escape L401-403, so the captured start is stable
@@ -386,10 +530,15 @@ local function startFlight(requested)
 		traveled = 0,
 		t0      = os.clock(),
 		elapsed = 0,
-		cruiseY = r.Position.Y,
+		cruiseY = cruiseY,
 		lastPos = r.Position,
+		destGround = scan.destGround,
+		lowestY = r.Position.Y,
+		scan    = scan,
 	}
 	flightCount = flightCount + 1
+
+	watchDeath(h)
 
 	if flightConn then flightConn:Disconnect() end
 	flightConn = RunService.Heartbeat:Connect(flightStep)
@@ -410,7 +559,7 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 250, 0, 216)
+frame.Size = UDim2.new(0, 250, 0, 226)
 frame.Position = UDim2.new(0, 20, 0, 20)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 frame.BackgroundTransparency = 0.12
@@ -484,9 +633,22 @@ flyBtn.TextSize = 14
 flyBtn.Parent = frame
 Instance.new("UICorner", flyBtn).CornerRadius = UDim.new(0, 8)
 
+-- Noclip is a toggle now, and OFF by default. Flying over the terrain is the
+-- safe path; this is here for when something is genuinely in the way.
+local noclipBtn = Instance.new("TextButton")
+noclipBtn.Size = UDim2.new(1, -24, 0, 24)
+noclipBtn.Position = UDim2.new(0, 12, 0, 114)
+noclipBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+noclipBtn.Text = "NOCLIP: OFF"
+noclipBtn.TextColor3 = Color3.fromRGB(190, 190, 200)
+noclipBtn.Font = Enum.Font.GothamBold
+noclipBtn.TextSize = 11
+noclipBtn.Parent = frame
+Instance.new("UICorner", noclipBtn).CornerRadius = UDim.new(0, 6)
+
 local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -24, 0, 76)
-status.Position = UDim2.new(0, 12, 0, 114)
+status.Size = UDim2.new(1, -24, 0, 72)
+status.Position = UDim2.new(0, 12, 0, 144)
 status.BackgroundTransparency = 1
 status.Text = "ready"
 status.TextColor3 = Color3.fromRGB(160, 160, 160)
@@ -510,15 +672,25 @@ local function readout(f)
 	local cur = r.Position
 	local fromStart = (Vector3.new(cur.X - f.startPos.X, 0, cur.Z - f.startPos.Z)).Magnitude
 	local spd = f.elapsed > 0 and (fromStart / f.elapsed) or 0
-	setStatus(("%s | %.0f/%.0f studs\n%.0f studs/s | Y %.1f | %.2fs")
-		:format(f.phase, fromStart, f.total, spd, cur.Y, f.elapsed),
+	-- clearance is the number that tells you whether you are about to fly into
+	-- terrain: "--" means no ground under you at all
+	local gy = groundY(cur.X, cur.Z, cur.Y)
+	local clr = gy and ("+%.0f"):format(cur.Y - gy) or "--"
+	setStatus(("%s | %.0f/%.0f studs\n%.0f studs/s | Y %.1f | clr %s | %.2fs")
+		:format(f.phase, fromStart, f.total, spd, cur.Y, clr, f.elapsed),
 		Color3.fromRGB(200, 180, 255))
 end
 
 -- wrap the step so the readout refreshes without the flight code knowing about UI
 local baseStep = flightStep
 flightStep = function()
-	baseStep()
+	-- pcall: an error inside the flight must not leave the loop running with
+	-- noclip still on. Same bug class as a stuck `busy` flag.
+	local ok, err = pcall(baseStep)
+	if not ok then
+		stopFlight("error: " .. tostring(err))
+		return
+	end
 	local f = flight
 	if not f then return end
 	local now = os.clock()
@@ -583,6 +755,26 @@ end
 
 flyBtn.MouseButton1Click:Connect(doFly)
 
+local function refreshNoclip()
+	if NOCLIP then
+		noclipBtn.Text = "NOCLIP: ON  (fly through things)"
+		noclipBtn.BackgroundColor3 = Color3.fromRGB(120, 70, 40)
+	else
+		noclipBtn.Text = "NOCLIP: OFF  (fly over things)"
+		noclipBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+	end
+end
+
+noclipBtn.MouseButton1Click:Connect(function()
+	if flying then
+		setStatus("cannot change noclip mid-flight", Color3.fromRGB(255, 200, 120))
+		return
+	end
+	NOCLIP = not NOCLIP
+	if not NOCLIP then restoreCollisions() end   -- turning it off must actually undo it
+	refreshNoclip()
+end)
+
 inputBox:GetPropertyChangedSignal("Text"):Connect(function()
 	local s = sanitise(inputBox.Text)
 	if s ~= inputBox.Text then inputBox.Text = s end
@@ -628,5 +820,6 @@ dragConn = UserInputService.InputChanged:Connect(function(input)
 end)
 
 refreshButton()
-setStatus(("ready | %d studs/frame | max %.1fs | %s")
-	:format(STEP_SIZE, MAX_FLIGHT_S, DIR_MODE))
+refreshNoclip()
+setStatus(("ready | %d studs/frame | scan %d-stud steps\nclears terrain by %d | void guard %d")
+	:format(STEP_SIZE, SCAN_STEP, CLEARANCE, VOID_MARGIN))
