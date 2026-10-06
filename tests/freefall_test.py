@@ -1118,6 +1118,56 @@ txt = str(H["clipboard"]())
 chk("no WAIT AIRBORNE when already airborne", "WAIT AIRBORNE" not in txt, "")
 chk("AIRBORNE line confirms it", "AIRBORNE | state=" in txt, lastline(txt, "AIRBORNE"))
 H["stepN"](300)
+
+print("\n=== T40: a flight that STICKS reports real movement ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+fire(clearBtn, "MouseButton1Click")
+box["Text"] = "2000"
+fly_now()
+H["stepN"](60)                          # land
+H["stepN"](300)                         # let the 4s watch close
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+res = lastline(txt, "FLIGHT RESULT")
+chk("FLIGHT RESULT is reported", "FLIGHT RESULT" in txt, res)
+import re as _re2
+_m = _re2.search(r"script wrote (\d+) \| character actually moved (\d+) studs", res)
+chk("net movement matches what was written",
+    _m is not None and abs(int(_m.group(1)) - int(_m.group(2))) <= 2, res)
+chk("no false DID NOT STICK", "DID NOT STICK" not in txt, "")
+chk("no false PULLED BACK", "PULLED BACK" not in txt, "")
+chk("watch end reports the distance, not 'nothing happened'",
+    "nothing happened" not in txt, lastline(txt, "post-flight watch ended"))
+
+print("\n=== T41: THE FIELD CASE - server rejects it and we CATCH it ===")
+H["clearGrounds"](); H["clearSlabs"](); H["clearBarriers"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+fire(clearBtn, "MouseButton1Click")
+box["Text"] = "2000"
+fly_now()
+H["stepN"](60)                          # script has now "travelled" 2000 studs
+chk("script thinks it arrived", abs(root["CFrame"]["Position"]["X"] + 1000) < 60,
+    f"X={root['CFrame']['Position']['X']:.1f}")
+# now the server does what the field log implies: put the character back
+H["teleport"](1000, 100, 0)
+H["stepN"](3)                           # the watch notices
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("PULLED BACK is detected", "PULLED BACK" in txt, lastline(txt, "PULLED BACK"))
+chk("explains the server rejected it", "did NOT accept" in txt,
+    lastline(txt, "-> the server"))
+chk("trail is dumped for it", "TRAIL last" in txt, "")
+H["stepN"](300)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("verdict says it did not stick", "DID NOT STICK" in txt, lastline(txt, "DID NOT STICK"))
+chk("verdict shows written vs actual", "script wrote" in txt, lastline(txt, "FLIGHT RESULT"))
+chk("suggests a smaller STEP_SIZE", "smaller STEP_SIZE" in txt,
+    lastline(txt, "Try a smaller"))
+
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
     print("FAILED: " + ", ".join(FAILED))

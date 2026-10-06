@@ -70,6 +70,18 @@ local AIRBORNE_WAIT  = 12       -- frames to wait for an airborne state before t
 -- runs spaced 4.5s and 14.1s survived. Space them out.
 local COOLDOWN_AFTER_FLIGHT = 12   -- seconds before another flight is allowed
 
+-- ----------------------------------------------------------------
+-- DID IT ACTUALLY MOVE?
+-- ----------------------------------------------------------------
+-- A field report: the script logged DONE | 1978 studs, but the character never
+-- left its spot. Both are true at once - the script writes CFrame, reads its own
+-- write back, and believes it travelled; the SERVER rejected the teleports and
+-- restored the character. Everything up to now only ever measured our own write,
+-- so it could not see that. The post-flight watch now compares what was written
+-- against where the character actually ends up.
+local PULLBACK_ALERT = 50       -- studs from the landing point that count as a pull-back
+local STUCK_FRACTION = 0.5      -- below this fraction of the written distance = did not stick
+
 local STEP_SIZE      = 78
 local MAX_FLIGHT_S   = 2.5
 local CRUISE_LEAD    = 120
@@ -174,6 +186,9 @@ local touchConns = {}           -- character part Touched watchers
 local touchLog   = {}           -- what has been touching us
 local watchUntil = nil          -- post-flight watch deadline
 local endPos     = nil          -- where the flight actually finished
+local watchLanding = nil        -- where the flight claimed to put us
+local pullBackSeen = false
+local postFlight   = nil        -- {requested, scriptStuds, startPos} for the verdict
 
 -- Declared HERE, above the watchers. The Died / Health handlers below reference
 -- stopFlight, and a `local` introduced after them would not be visible inside
@@ -351,6 +366,11 @@ local function recordTrail(h, r)
 end
 
 local function clearTrail() trail = {} end
+
+local function flatDist(a, b)
+	if not (a and b) then return 0 end
+	return (Vector3.new(a.X - b.X, 0, a.Z - b.Z)).Magnitude
+end
 
 local function dumpTrail()
 	logLine(("TRAIL last %d frames (oldest first):"):format(math.min(#trail, TRAIL_PRINT)))
@@ -711,6 +731,10 @@ stopFlight = function(reason)
 			endPos = p
 		end
 		lastRun = {studs = landed, secs = f.elapsed or 0}
+		watchLanding = endPos
+		pullBackSeen = false
+		postFlight = {requested = f.total, scriptStuds = landed,
+			startPos = f.startPos, landingPos = endPos}
 		logLine(("DONE | %.0f studs | %.2fs | Y %.1f"):format(landed, f.elapsed or 0, finalY))
 		if r then checkLandingInside(r.Position) end
 		-- keep watching: the field death came in the same second as DONE, and we
@@ -751,6 +775,22 @@ local function renderStep(dt)
 			local _, wh, wr = getState()
 			if wh and wr then
 				recordTrail(wh, wr)
+
+				-- Did the server keep the position it was given? This is the check
+				-- that was missing: we used to measure only our own write.
+				if watchLanding and not pullBackSeen then
+					local d = flatDist(wr.Position, watchLanding)
+					if d > PULLBACK_ALERT then
+						pullBackSeen = true
+						logLine(("PULLED BACK | %.0f studs away from the landing point, %.1fs after arrival")
+							:format(d, os.clock() - (watchUntil - POST_WATCH_S)))
+						logLine(("  script put us at %s | character is now at %s")
+							:format(fmt(watchLanding), fmt(wr.Position)))
+						logLine("  -> the server did NOT accept the teleports")
+						dumpTrail()
+					end
+				end
+
 				if wh.Health <= 0 then
 					recordDeath("died during the post-flight watch")
 					watchUntil = nil
@@ -759,9 +799,32 @@ local function renderStep(dt)
 					return
 				end
 			end
+
 			if os.clock() >= watchUntil then
-				logLine("post-flight watch ended | nothing happened")
+				-- the verdict: written distance vs what the character ACTUALLY did
+				local _, _, wr2 = getState()
+				local net = 0
+				if wr2 and postFlight then
+					net = flatDist(wr2.Position, postFlight.startPos)
+				end
+				local written = postFlight and postFlight.scriptStuds or 0
+				logLine(("FLIGHT RESULT | requested %.0f | script wrote %.0f | character actually moved %.0f studs")
+					:format(postFlight and postFlight.requested or 0, written, net))
+				if written > 100 and net < written * STUCK_FRACTION then
+					logLine("!! THE FLIGHT DID NOT STICK | the server restored the character.")
+					logLine(("   script wrote %.0f studs but the net movement is %.0f.")
+						:format(written, net))
+					logLine(("   Try a smaller STEP_SIZE (currently %d) - 78-stud teleports may be")
+						:format(STEP_SIZE))
+					logLine("   too large for this heading/area to be accepted. 20 is a good first try.")
+					dumpTrail()
+				else
+					logLine(("post-flight watch ended | no death | %.0f studs from the landing point")
+						:format(watchLanding and wr2 and flatDist(wr2.Position, watchLanding) or 0))
+				end
 				watchUntil = nil
+				watchLanding = nil
+				postFlight = nil
 				clearTouches()
 				unbind()
 			end
@@ -1126,6 +1189,9 @@ local function startFlight(requested)
 	clearTrail()
 	endPos = nil
 	watchUntil = nil
+	watchLanding = nil
+	pullBackSeen = false
+	postFlight = nil
 	unbind()
 	RunService:BindToRenderStep(RENDER_STEP_NAME, RENDER_STEP_PRIORITY, renderStep)
 	return true, total
