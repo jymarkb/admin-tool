@@ -1225,6 +1225,132 @@ for _name, _line in _decl.items():
 chk("no local is read by code defined above it", not _bad,
     ("; ".join(_bad[:3])) if _bad else f"{len(_decl)} locals checked")
 
+print("\n=== T37: one write seen three times is ONE step, not three ===")
+# The four stage channels sample the same write at different instants of the
+# frame, and in Freefall the character has fallen a few studs between them: the
+# second channel sees Y-3, the third Y-5. Those are echoes of one write. The old
+# test compared 3D distance with a 1-stud tolerance, so the fall defeated it and
+# the write was counted again - which is how a 24-write flight came back as
+# "36 distinct steps" with "19 step(s) under 60% of it" and a false PARTIAL.
+H["setVel"](0, 0, 0)
+m = goto_start(5666.3, 70.7, -331.9)
+x = 5666.3
+for dx in (-139.8, -214.2, -67.3, -234.4, -186.8, -290.2):
+    x += dx
+    for drift in (0.0, 3.0, 5.0):            # three channels, one write
+        H["place"](x, 112.7 - drift, -331.9)  # same spot, fallen a little
+        H["tick"](0.0004)
+        H["tick"](0.0004)
+H["advance"](0.6); H["tick"](0.1)
+txt = H["since"](m)
+chk("6 writes read back as 6 steps",
+    "6 distinct (6 channel echoes)" in txt, lastline(txt, "steps     |"))
+chk("the profile keeps the reference's shape",
+    "6 steps | stopped" in txt, lastline(txt, "BURST END"))
+# A phantom step is a zero-horizontal step: the character did not go anywhere,
+# the ledger just noticed the fall. None may appear in a flight profile.
+steps = []
+for ln in txt.splitlines():
+    if "BURST STEPS |" not in ln or ", " not in ln or "/" not in ln:
+        continue
+    body = ln.split("|")[-1]
+    for item in body.split(","):
+        t, dx, dy = item.strip().split("/")
+        steps.append((float(dx), float(dy)))
+chk("no zero-horizontal step survived the dedupe",
+    steps and all(abs(dx) > 0.5 for dx, _ in steps),
+    f"{len(steps)} steps, min |dx| {min((abs(dx) for dx, _ in steps), default=0):.1f}")
+chk("every write in the burst is represented",
+    len(steps) == 6, f"{len(steps)} steps in the payload")
+
+print("\n=== T38: the measured reference profile is intact ===")
+# These are the numbers the working flight of 05:01:42 actually produced, so the
+# profile in the script must add up to them - otherwise "replicate the reference"
+# means nothing.
+# plain string parsing - no regex, no escaping surprises
+_block = script.split("MEASURED_X_DELTAS = {", 1)[1].split("}", 1)[0]
+_deltas = [float(tok) for tok in _block.replace("\n", "").split(",") if tok.strip()]
+_launch_block = script.split("MEASURED_LAUNCH = {", 1)[1].split("\n}", 1)[0]
+_launch_pts = []
+for _line in _launch_block.splitlines():
+    if "dx =" in _line:
+        _sx = _line.split("dx =", 1)[1].split(",")[0].strip()
+        _sy = _line.split("dy =", 1)[1].split("}")[0].strip()
+        _launch_pts.append((float(_sx), float(_sy)))
+_drop = float(script.split("MEASURED_DROP_Y =", 1)[1].split("\n", 1)[0].split("--")[0].strip())
+_studs = abs(_launch_pts[-1][0]) + sum(abs(d) for d in _deltas)
+chk("the measured profile has 3 launch steps", len(_launch_pts) == 3, str(len(_launch_pts)))
+chk("...and 22 cruise chunks", len(_deltas) == 22, str(len(_deltas)))
+chk("it reproduces 5054.1 studs", abs(_studs - 5054.1) < 1.0, f"{_studs:.1f}")
+chk("it climbs to +42.0", abs(_launch_pts[-1][1] - 42.0) < 0.05,
+    f"{_launch_pts[-1][1]:.1f}")
+chk("it drops -42.0", abs(_drop + 42.0) < 0.05, f"{_drop:.1f}")
+chk("every chunk is a real measured step",
+    all(0 < abs(d) < 500 for d in _deltas), f"min {min(map(abs, _deltas))}")
+
+print("\n=== T39: the profile can be switched, and the log says which is flying ===")
+m = H["mark"]()
+H["setVel"](0, 0, 0)
+H["place"](0, 200, 0)
+H["tick"](0.033)
+m = H["mark"]()
+fire(replay, "MouseButton1Click")
+txt = H["since"](m)
+chk("the measured profile is the default", "PROFILE: MEASURED" in str(
+    buttons("PROFILE:")[0]["Text"]), str(buttons("PROFILE:")[0]["Text"])[:40])
+chk("the replay names the profile",
+    "profile=measured-0501" in txt, lastline(txt, "REPLAY START"))
+chk("the params name it too", "MEASURED 05:01:42" in txt,
+    lastline(txt, "REPLAY PARAMS"))
+chk("the chunk count matches the measured flight", "chunks=22" in txt,
+    lastline(txt, "REPLAY PARAMS"))
+pb2 = buttons("PROFILE:")[0]
+fire(pb2, "MouseButton1Click")
+chk("switching reports the other profile", "PROFILE | ld-p3" in H["log"](),
+    lastline(H["log"](), "PROFILE |"))
+H["place"](0, 200, 0)
+H["tick"](0.033)
+m = H["mark"]()
+fire(replay, "MouseButton1Click")
+txt = H["since"](m)
+chk("the reconstruction names itself", "profile=ld-p3" in txt,
+    lastline(txt, "REPLAY START"))
+chk("both profiles keep the same destination",
+    "launchEnd=" in txt, lastline(txt, "REPLAY START"))
+fire(pb2, "MouseButton1Click")          # back to measured
+
+print("\n=== T40: every burst is scored against the working flight ===")
+H["setVel"](0, 0, 0)
+m = goto_start(5666.3, 70.7, -331.9)
+x = 5666.3
+for i in range(20):
+    x -= 200.0
+    H["place"](x, 112.7, -331.9)
+    H["tick"](0.056)
+H["place"](x, 70.7, -331.9)
+H["tick"](0.056)
+H["advance"](0.6); H["tick"](0.1)
+txt = H["since"](m)
+chk("a comparison block is printed", "REFERENCE DIFF" in txt, lastline(txt, "REFERENCE DIFF"))
+chk("our numbers are reported", "this flight |" in txt, lastline(txt, "this flight |"))
+chk("the reference numbers are reported",
+    "reference   | 25 steps | 5054.1 studs" in txt, lastline(txt, "reference   |"))
+chk("a clean flight is called a match", "MATCHES the reference" in txt,
+    lastline(txt, "REFERENCE DIFF"))
+
+# and when the server eats the writes, the diff must say so
+H["setVel"](0, 0, 0)
+m = goto_start(5000, 70.7, -325.0)
+for i in range(4):
+    H["place"](5000 - i * 200, 70.7, -325.0)
+    H["tick"](0.056)
+H["place"](5000, 70.7, -325.0)
+H["tick"](0.056)
+H["advance"](0.6); H["tick"](0.1)
+txt = H["since"](m)
+chk("a reverted flight does NOT match", "DOES NOT MATCH" in txt,
+    lastline(txt, "REFERENCE DIFF"))
+
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
     print("FAILED: " + ", ".join(FAILED))

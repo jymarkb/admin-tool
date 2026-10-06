@@ -69,6 +69,9 @@ local OBSTACLE_AHEAD_STUDS  = 30     -- raycast this far ahead while moving fast
 -- the rest along. The reference flight is never reverted, so this is the other
 -- variable worth isolating. OFF = root.CFrame only.
 local PIVOT_WRITE_DEFAULT   = true
+-- Which profile the REPLAY button flies: the ld-p3 reconstruction, or the
+-- flight measured off the working script at 05:01:42.
+local PROFILE_MEASURED_DEFAULT = true
 local STATE_CALLS_DEFAULT   = false
 local FLIGHT_TRACE_DEFAULT  = true    -- record every write the replay makes
 local WRITE_CONFIRM_STUDS   = 2.0     -- within this of the target = the write held
@@ -88,8 +91,29 @@ local OWNERSHIP_POLL_S      = 0.5     -- how often to look for an ownership chan
 local BURST_DEFAULT         = true
 local BURST_MIN_STEP        = 20      -- a move this big is a teleport-style step
 local BURST_GAP_S           = 0.4     -- no steps for this long = the burst ended
-local BURST_ECHO_STUDS      = 1.0     -- landing within this of the last step = an echo
+-- Landing within this of the last step = another channel reporting the SAME
+-- write, not a new step. Compare HORIZONTALLY, with a Y allowance: the four
+-- stage channels sample at different instants of one frame, and in Freefall the
+-- character has fallen a few studs between them (Y, Y-3, Y-5 for one write). A 3D
+-- distance test reads every one of those as a new step with dx = 0 - reproduced
+-- in the harness: a 6-write burst came back as 12 steps, half of them
+-- zero-horizontal phantoms, which is how the working flight's 24-25 writes were
+-- reported as "36 distinct steps" and "19 step(s) under 60% of it".
+local BURST_ECHO_STUDS      = 2.0     -- XZ distance for "same spot"
+local BURST_ECHO_Y_STUDS    = 5.0     -- ...and how far Y may drift while still being the same spot
+-- 5 studs: in Freefall at cruise the character falls ~3 studs per frame, and the
+-- four stage channels sample at different points of the same frame, so one write
+-- is echoed at Y, Y-3, Y-5... Collapsing those is the whole point of the echo
+-- test. The launch (dy 13.9 -> 42.0) and the final drop (dy 42) are far outside
+-- this band, so no real vertical step is swallowed.
 local BURST_MAX_STEPS       = 150     -- bound the stored profile
+-- The working flight of 05:01:42, measured. Every burst is scored against it so
+-- a failed replication does not need a second log to compare by hand.
+local REFERENCE_STATS = {
+	name = "measured 05:01:42", steps = 25, studs = 5054.1, seconds = 1.58,
+	median = 234.4, maxStep = 361.8, minStep = 59.4, reverted = 0,
+	climb = 42.0, drop = -42.0, landX = 612.2,
+}
 local BURST_SHORT_FRACTION  = 0.6     -- below this fraction of cruise = a short step
 local VEL_JUMP_STUDS        = 30      -- velocity change with no write = worth logging
 
@@ -97,6 +121,34 @@ local RENDER_STEP_NAME = "ReferenceFreefallReplayV7"
 local RENDER_STEP_PRIORITY = Enum.RenderPriority.Character.Value + 1
 local REPLAY_CORRECTION_TOLERANCE = 25.0
 local REPLAY_MIN_FREEFALL_Y = 100.0
+
+-- ================================================================
+-- MEASURED PROFILE - the working flight of 05:01:42, step for step
+-- ================================================================
+-- Read off the log of the escape script that WORKS (37 distinct positions,
+-- 25 horizontal steps, 5054.1 studs, 1.58s, +42.0 climb, -42.0 drop). Its own
+-- BURST END block confirms the totals. This is the replication target: fly
+-- exactly this, at this cadence, and see whether the server keeps it.
+--
+-- Note what the reference does NOT do: it never calls ChangeState(Freefall) and
+-- never touches AutoRotate. It stays in Running for the whole climb and the
+-- humanoid enters Freefall on its own at the cruise transition.
+local MEASURED_LAUNCH = {
+	{t = 0.000, dx = -139.8, dy = 13.9},
+	{t = 0.052, dx = -353.9, dy = 35.3},   -- cumulative from the start
+	{t = 0.109, dx = -421.2, dy = 42.0},   -- = cruise altitude, +42.0
+}
+local MEASURED_X_DELTAS = {
+	-234.4, -186.8, -290.2, -131.0, -264.6, -156.5, -240.6, -180.6,
+	-275.0, -146.2, -258.6, -162.5, -238.5, -182.7, -205.7, -215.5,
+	-236.1, -185.1, -287.3, -133.8, -361.8, -59.4,
+}
+local MEASURED_CHUNK_TIMES = {
+	0.055, 0.069, 0.067, 0.051, 0.058, 0.052, 0.057, 0.049, 0.056, 0.061,
+	0.061, 0.063, 0.058, 0.056, 0.059, 0.061, 0.056, 0.061, 0.068, 0.057,
+	0.065, 0.073,
+}
+local MEASURED_DROP_Y = -42.0
 
 -- ================================================================
 -- EXACT PROFILE EXTRACTED FROM ld-p3.log
@@ -137,7 +189,7 @@ screenGui.Parent = playerGui
 
 local frame = Instance.new("Frame")
 frame.Name = "SpeedFrame"
-frame.Size = UDim2.new(0, 360, 0, 604)
+frame.Size = UDim2.new(0, 360, 0, 632)
 frame.Position = UDim2.new(0, 20, 0, 20)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 frame.BackgroundTransparency = 0.12
@@ -232,7 +284,7 @@ logTitle.Parent = frame
 
 local logScroll = Instance.new("ScrollingFrame")
 logScroll.Name = "LogScroll"
-logScroll.Size = UDim2.new(1, -20, 0, 264)
+logScroll.Size = UDim2.new(1, -20, 0, 274)
 logScroll.Position = UDim2.new(0, 10, 0, 132)
 logScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 logScroll.BackgroundTransparency = 0.3
@@ -249,8 +301,8 @@ logList.Padding = UDim.new(0, 2)
 logList.Parent = logScroll
 
 local buttonFrame = Instance.new("Frame")
-buttonFrame.Size = UDim2.new(1, -20, 0, 186)
-buttonFrame.Position = UDim2.new(0, 10, 1, -196)
+buttonFrame.Size = UDim2.new(1, -20, 0, 214)
+buttonFrame.Position = UDim2.new(0, 10, 1, -224)
 buttonFrame.BackgroundTransparency = 1
 buttonFrame.Parent = frame
 
@@ -355,6 +407,17 @@ pivotBtn.TextSize = 10
 pivotBtn.Parent = buttonFrame
 Instance.new("UICorner", pivotBtn).CornerRadius = UDim.new(0, 6)
 
+local profileBtn = Instance.new("TextButton")
+profileBtn.Size = UDim2.new(1, 0, 0, 26)
+profileBtn.Position = UDim2.new(0, 0, 0, 182)
+profileBtn.BackgroundColor3 = Color3.fromRGB(70, 100, 60)
+profileBtn.Text = "PROFILE: MEASURED (the working flight)"
+profileBtn.TextColor3 = Color3.fromRGB(235, 255, 230)
+profileBtn.Font = Enum.Font.GothamBold
+profileBtn.TextSize = 10
+profileBtn.Parent = buttonFrame
+Instance.new("UICorner", profileBtn).CornerRadius = UDim.new(0, 6)
+
 local snapshotBtn = Instance.new("TextButton")
 snapshotBtn.Size = UDim2.new(0, 120, 0, 26)
 snapshotBtn.Position = UDim2.new(0, 178, 0, 70)
@@ -368,7 +431,7 @@ Instance.new("UICorner", snapshotBtn).CornerRadius = UDim.new(0, 6)
 
 local feedback = Instance.new("TextLabel")
 feedback.Size = UDim2.new(0, 200, 0, 18)
-feedback.Position = UDim2.new(0, 10, 1, -218)
+feedback.Position = UDim2.new(0, 10, 1, -246)
 feedback.BackgroundTransparency = 1
 feedback.Text = ""
 feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
@@ -472,6 +535,7 @@ end
 -- Tests/debug_scanner_test.py has a static check for this exact mistake.
 local stateCallsEnabled = false
 local pivotWriteEnabled = PIVOT_WRITE_DEFAULT
+local profileMeasured = PROFILE_MEASURED_DEFAULT
 local pendingJump = nil            -- a big displacement we are watching for a reversal
 local evaluatePendingJump          -- assigned in the forensics layer
 local deathConnection, anchoredConnection, touchConnection
@@ -642,10 +706,11 @@ local function openBurst(pos, delta, now, humanoid, root)
 	if player.Character then total, nc = countNoCollide(player.Character) end
 	burst = {
 		startTime = now, lastStepAt = now, startPos = startPos, prevStepPos = startPos,
+		stepY = pos.Y,
 		endPos = pos, dir = nil, steps = {}, lines = 0, echoes = 0,
 		maxY = math.max(startPos.Y, pos.Y), minY = math.min(startPos.Y, pos.Y),
 		sumDt = 0, dtCount = 0, worstDt = 0, drop = 0, states = {},
-		backTotal = 0, worstBack = 0, worstBackAt = 0,
+		backTotal = 0, worstBack = 0, worstBackAt = 0, backSteps = 0,
 		lastTouch = lastTouchInfo, sources = {}, sizes = {},
 	}
 	burst.states[safeState(humanoid)] = true
@@ -783,6 +848,30 @@ local function closeBurst(now, why)
 	end
 	addLogEntry(string.format("[%s]   verdict   | %s", timestamp(), verdict))
 
+	-- ---- how does this compare to the flight we are trying to reproduce? ----
+	local ref = REFERENCE_STATS
+	local verdictLine
+	if b.worstBack > REVERT_MIN_STUDS or short >= math.max(2, math.floor(n * 0.25)) then
+		verdictLine = "DOES NOT MATCH - the reference has " .. ref.reverted
+			.. " reverted steps; this one had " .. b.backSteps
+			.. " step(s) pushed back (" .. string.format("%.0f", b.backTotal) .. " studs)"
+	elseif net < 1 then
+		verdictLine = "DOES NOT MATCH - this one did not move at all"
+	elseif math.abs(n - ref.steps) <= 6 and math.abs(net - ref.studs) < ref.studs * 0.25 then
+		verdictLine = "MATCHES the reference within tolerance"
+	else
+		verdictLine = string.format(
+			"MOVED, BUT NOT THE SAME - %d steps (ref %d) and %.0f studs (ref %.0f)",
+			n, ref.steps, net, ref.studs)
+	end
+	addLogEntry(string.format("[%s] REFERENCE DIFF | %s", timestamp(), verdictLine))
+	addLogEntry(string.format(
+		"[%s]   this flight | %d steps | %.1f studs | %.2fs | median %.1f | %d pushed back",
+		timestamp(), n, net, dur, n > 0 and sorted[math.max(1, half)] or 0, b.backSteps))
+	addLogEntry(string.format(
+		"[%s]   reference   | %d steps | %.1f studs | %.2fs | median %.1f | %d reverted",
+		timestamp(), ref.steps, ref.studs, ref.seconds, ref.median, ref.reverted))
+
 	-- the replication payload: every distinct step as (t, dx, dy), 8 per line
 	if n > 0 then
 		local dz = 0
@@ -848,7 +937,12 @@ local function noteBurstStep(source, pos, delta, now, humanoid, root, dt, vMag)
 	end
 	-- echoes of one write land on the same position: four stage channels report
 	-- the same write, and counting them as steps inflates the profile 4x
-	if (pos - b.prevStepPos).Magnitude <= BURST_ECHO_STUDS then
+	local driftXZ = (Vector3.new(pos.X - b.prevStepPos.X, 0, pos.Z - b.prevStepPos.Z)).Magnitude
+	-- Y is measured against the step we recorded, not against the sample before
+	-- this one: a chain of echoes would otherwise walk the anchor down with it
+	-- and collapse a real fall into a single "step".
+	if driftXZ <= BURST_ECHO_STUDS
+		and math.abs(pos.Y - b.stepY) <= BURST_ECHO_Y_STUDS then
 		b.echoes += 1
 		-- Echoes of one write carry different frame deltas, because each stage
 		-- channel samples at its own point in the frame. Keep the LARGEST: it is
@@ -870,6 +964,7 @@ local function noteBurstStep(source, pos, delta, now, humanoid, root, dt, vMag)
 		local along = delta:Dot(b.dir)
 		if along < 0 then
 			b.backTotal += -along
+			b.backSteps += 1
 			if -along > b.worstBack then
 				b.worstBack = -along
 				b.worstBackAt = #b.steps + 1
@@ -882,20 +977,27 @@ local function noteBurstStep(source, pos, delta, now, humanoid, root, dt, vMag)
 		dist = dist, dt = dt, speed = (dt and dt > 0) and (dist / dt) or 0,
 	}
 	b.prevStepPos = pos
+	b.stepY = pos.Y
 end
 
 local function logReplayParams()
+	local useMeasured = profileMeasured
+	local srcLaunch = useMeasured and MEASURED_LAUNCH or LAUNCH_PROFILE
+	local srcDeltas = useMeasured and MEASURED_X_DELTAS or FREEFALL_X_DELTAS
+	local srcTimes = useMeasured and MEASURED_CHUNK_TIMES or FREEFALL_CHUNK_TIMES
+	local srcDrop = useMeasured and MEASURED_DROP_Y or DROP_OFFSET_Y
 	local deltas, times, total = {}, {}, 0
-	for i, dx in ipairs(FREEFALL_X_DELTAS) do
+	for i, dx in ipairs(srcDeltas) do
 		deltas[#deltas + 1] = string.format("%.1f", dx)
-		times[#times + 1] = string.format("%.3f", FREEFALL_CHUNK_TIMES[i] or 0.045)
+		times[#times + 1] = string.format("%.3f", srcTimes[i] or 0.045)
 		total += math.abs(dx)
 	end
-	local launch = LAUNCH_PROFILE[#LAUNCH_PROFILE]
+	local launch = srcLaunch[#srcLaunch]
 	local launchDist = Vector3.new(launch.dx, launch.dy, launch.dz).Magnitude
 	addLogEntry(string.format(
-		"[%s] REPLAY PARAMS | launch=%d steps (%.1f studs) | chunks=%d (%.1f studs) | dropOffsetY=%.1f",
-		timestamp(), #LAUNCH_PROFILE, launchDist, #FREEFALL_X_DELTAS, total, DROP_OFFSET_Y))
+		"[%s] REPLAY PARAMS | %s | launch=%d steps (%.1f studs) | chunks=%d (%.1f studs) | dropOffsetY=%.1f",
+		timestamp(), useMeasured and "MEASURED 05:01:42" or "ld-p3",
+		#srcLaunch, launchDist, #srcDeltas, total, srcDrop))
 	addLogEntry(string.format("[%s]   dx = %s", timestamp(), table.concat(deltas, ",")))
 	addLogEntry(string.format("[%s]   dt = %s", timestamp(), table.concat(times, ",")))
 	addLogEntry(string.format(
@@ -1081,14 +1183,21 @@ local function replicateFreefall()
 	local noclipChanged = setNoclip(character, true)
 	local abortedReason = nil
 
-	local launchEnd = startPos + Vector3.new(LAUNCH_PROFILE[#LAUNCH_PROFILE].dx, LAUNCH_PROFILE[#LAUNCH_PROFILE].dy, LAUNCH_PROFILE[#LAUNCH_PROFILE].dz)
+	-- the active profile, so both can be flown from the same engine
+	local profileLaunch = profileMeasured and MEASURED_LAUNCH or LAUNCH_PROFILE
+	local profileDeltas = profileMeasured and MEASURED_X_DELTAS or FREEFALL_X_DELTAS
+	local profileTimes = profileMeasured and MEASURED_CHUNK_TIMES or FREEFALL_CHUNK_TIMES
+	local profileDropY = profileMeasured and MEASURED_DROP_Y or DROP_OFFSET_Y
+	local profileName = profileMeasured and "measured-0501 (working script)" or "ld-p3 (reconstruction)"
+
+	local launchEnd = startPos + Vector3.new(profileLaunch[#profileLaunch].dx, profileLaunch[#profileLaunch].dy, profileLaunch[#profileLaunch].dz or 0)
 	local freefallOrigin = launchEnd
 	local fixedY = launchEnd.Y
 	local fixedZ = launchEnd.Z
 
 	addLogEntry(string.format(
-		"[%s] REPLAY START V10 | start=(%s) | launchEnd=(%s) | chunks=%d | noclip=%d | stateCalls=%s | write=%s",
-		timestamp(), formatPos(startPos), formatPos(launchEnd), #FREEFALL_X_DELTAS,
+		"[%s] REPLAY START V10 | profile=%s | start=(%s) | launchEnd=(%s) | chunks=%d | noclip=%d | stateCalls=%s | write=%s",
+		timestamp(), profileName, formatPos(startPos), formatPos(launchEnd), #profileDeltas,
 		noclipChanged, stateCallsEnabled and "ON (ChangeState+AutoRotate, the -1000 pair)"
 			or "OFF (matching the reference)",
 		pivotWriteEnabled and "PivotTo+CFrame (whole rig)" or "CFrame only (root, joints follow)"
@@ -1184,19 +1293,19 @@ local function replicateFreefall()
 		-- ---------- LAUNCH PHASE ----------
 		if not freefallStarted then
 			local nextIdx = launchIndex + 1
-			if nextIdx <= #LAUNCH_PROFILE and elapsed >= LAUNCH_PROFILE[nextIdx].t then
-				local item = LAUNCH_PROFILE[nextIdx]
-				currentTarget = startPos + Vector3.new(item.dx, item.dy, item.dz)
+			if nextIdx <= #profileLaunch and elapsed >= profileLaunch[nextIdx].t then
+				local item = profileLaunch[nextIdx]
+				currentTarget = startPos + Vector3.new(item.dx, item.dy, item.dz or 0)
 				forceTransform(currentTarget)
 				launchIndex = nextIdx
 
 				addLogEntry(string.format(
 					"[%s] LAUNCH CHUNK | i=%d/%d | t=%.3f | target=(%s) | actual=(%s) | state=%s",
-					timestamp(), launchIndex, #LAUNCH_PROFILE, item.t,
+					timestamp(), launchIndex, #profileLaunch, item.t,
 					formatPos(currentTarget), formatPos(root.Position), safeState(humanoid)
 				))
 
-				if launchIndex >= #LAUNCH_PROFILE then
+				if launchIndex >= #profileLaunch then
 					freefallStarted = true
 					freefallClock = os.clock()
 					setPhase("FREEFALL", humanoid, root)
@@ -1214,15 +1323,15 @@ local function replicateFreefall()
 		end
 
 		-- ---------- FREEFALL CHUNKS ----------
-		if freefallStarted and freefallIndex < #FREEFALL_X_DELTAS then
+		if freefallStarted and freefallIndex < #profileDeltas then
 			local nextIdx = freefallIndex + 1
 			local targetTime = 0
 			for i = 1, nextIdx do
-				targetTime += (FREEFALL_CHUNK_TIMES[i] or 0.045)
+				targetTime += (profileTimes[i] or 0.045)
 			end
 
 			if (os.clock() - freefallClock) >= targetTime then
-				local dx = FREEFALL_X_DELTAS[nextIdx]
+				local dx = profileDeltas[nextIdx]
 				local prevX = currentTarget and currentTarget.X or freefallOrigin.X
 				currentTarget = Vector3.new(prevX + dx, fixedY, fixedZ)
 				forceTransform(currentTarget)
@@ -1230,7 +1339,7 @@ local function replicateFreefall()
 
 				addLogEntry(string.format(
 					"[%s] FREEFALL CHUNK | i=%d/%d | dx=%.1f | target=(%s) | actual=(%s) | state=%s",
-					timestamp(), freefallIndex, #FREEFALL_X_DELTAS, dx,
+					timestamp(), freefallIndex, #profileDeltas, dx,
 					formatPos(currentTarget), formatPos(root.Position), safeState(humanoid)
 				))
 			end
@@ -1238,8 +1347,8 @@ local function replicateFreefall()
 		end
 
 		-- ---------- FINAL DROP ----------
-		if freefallIndex >= #FREEFALL_X_DELTAS and not dropDone then
-			currentTarget = Vector3.new(currentTarget.X, fixedY + DROP_OFFSET_Y, fixedZ)
+		if freefallIndex >= #profileDeltas and not dropDone then
+			currentTarget = Vector3.new(currentTarget.X, fixedY + profileDropY, fixedZ)
 			forceTransform(currentTarget)
 			dropDone = true
 			setPhase("DROP", humanoid, root)
@@ -1933,6 +2042,8 @@ local function startTracking(character)
 		"[%s]   stateCalls=%s | write=%s | staleSample=%.1fs (older than this is a gap, not a move)",
 		timestamp(), tostring(stateCallsEnabled),
 		pivotWriteEnabled and "PivotTo+CFrame" or "CFrame only", STALE_SAMPLE_S))
+	addLogEntry(string.format("[%s]   profile=%s | measured profile: 25 steps, 5054 studs, 1.58s",
+		timestamp(), profileMeasured and "MEASURED" or "ld-p3"))
 end
 
 -- ================================================================
@@ -1992,6 +2103,21 @@ stateBtn.MouseButton1Click:Connect(function()
 		or Color3.fromRGB(100, 255, 150)
 	feedback.Visible = true
 	task.delay(2, function() if feedback and feedback.Parent then feedback.Visible = false end end)
+end)
+
+profileBtn.MouseButton1Click:Connect(function()
+	profileMeasured = not profileMeasured
+	profileBtn.Text = profileMeasured
+		and "PROFILE: MEASURED (the working flight)"
+		or "PROFILE: ld-p3 (the reconstruction)"
+	profileBtn.BackgroundColor3 = profileMeasured
+		and Color3.fromRGB(70, 100, 60) or Color3.fromRGB(90, 80, 50)
+	local n = profileMeasured and #MEASURED_X_DELTAS or #FREEFALL_X_DELTAS
+	addLogEntry(string.format(
+		"[%s] PROFILE | %s | %d chunks after the launch | %s",
+		timestamp(), profileMeasured and "MEASURED (05:01:42)" or "ld-p3", n,
+		profileMeasured and "the escape script's own steps, at its own cadence"
+			or "the original reconstruction"))
 end)
 
 pivotBtn.MouseButton1Click:Connect(function()
