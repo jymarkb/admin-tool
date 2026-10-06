@@ -16,6 +16,11 @@ local TRANSFORM_JUMP_MIN_PSPEED = 750.0
 local TRANSFORM_JUMP_RATIO = 3.0
 local TRANSFORM_PROPERTY_DEDUPE_TIME = 0.006
 local TRANSFORM_PROPERTY_DEDUPE_DISTANCE = 2.0
+-- A sample this old is not a frame delta. The first sample after a respawn, a
+-- script reload or a character swap compares against a position from minutes
+-- ago, which prints a 5000-stud "move" that never happened (dt=24.04665 and
+-- dt=49.49405 in the field logs). Those are reported as a gap, never as a step.
+local STALE_SAMPLE_S = 1.0
 
 -- ================================================================
 -- FORENSICS (V8) - the things this scanner could not see
@@ -46,6 +51,25 @@ local OBSTACLE_AHEAD_STUDS  = 30     -- raycast this far ahead while moving fast
 
 -- Flight write ledger (V9). The scanner could see that the character MOVED; it
 -- could not see what it was asked to do, or whether the server kept it.
+-- Fly with humanoid:ChangeState(Freefall) and humanoid.AutoRotate = false?
+--
+-- OFF by default, because the field log of 04:26 is unambiguous: with those two
+-- calls the server reverted EVERY write of the flight (15 rejected episodes in
+-- 1.2s) and then killed the character with hp=-1000. The reference flight that
+-- works never touches either one - it stays in Running for the whole climb and
+-- only becomes Freefall on its own at cruise altitude.
+--
+-- Freefall.lua already carries the same conclusion as TOUCH_HUMANOID_STATE=false
+-- and TOUCH_AUTOROTATE=false. This toggle makes it testable in one session:
+-- fly twice, press STATECALLS between them, compare the two traces.
+-- Does the flight move the whole MODEL or just the root?
+--
+-- character:PivotTo(cf) is one call that repositions every part in the rig - a
+-- claim over 20 parts at once. root.CFrame = cf is one part, and the joints pull
+-- the rest along. The reference flight is never reverted, so this is the other
+-- variable worth isolating. OFF = root.CFrame only.
+local PIVOT_WRITE_DEFAULT   = true
+local STATE_CALLS_DEFAULT   = false
 local FLIGHT_TRACE_DEFAULT  = true    -- record every write the replay makes
 local WRITE_CONFIRM_STUDS   = 2.0     -- within this of the target = the write held
 local LOST_WRITE_WARN_S     = 0.15    -- rate limit for "the server pushed us back"
@@ -113,7 +137,7 @@ screenGui.Parent = playerGui
 
 local frame = Instance.new("Frame")
 frame.Name = "SpeedFrame"
-frame.Size = UDim2.new(0, 360, 0, 548)
+frame.Size = UDim2.new(0, 360, 0, 604)
 frame.Position = UDim2.new(0, 20, 0, 20)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 frame.BackgroundTransparency = 0.12
@@ -208,7 +232,7 @@ logTitle.Parent = frame
 
 local logScroll = Instance.new("ScrollingFrame")
 logScroll.Name = "LogScroll"
-logScroll.Size = UDim2.new(1, -20, 0, 240)
+logScroll.Size = UDim2.new(1, -20, 0, 264)
 logScroll.Position = UDim2.new(0, 10, 0, 132)
 logScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 logScroll.BackgroundTransparency = 0.3
@@ -225,8 +249,8 @@ logList.Padding = UDim.new(0, 2)
 logList.Parent = logScroll
 
 local buttonFrame = Instance.new("Frame")
-buttonFrame.Size = UDim2.new(1, -20, 0, 130)
-buttonFrame.Position = UDim2.new(0, 10, 1, -140)
+buttonFrame.Size = UDim2.new(1, -20, 0, 186)
+buttonFrame.Position = UDim2.new(0, 10, 1, -196)
 buttonFrame.BackgroundTransparency = 1
 buttonFrame.Parent = frame
 
@@ -309,6 +333,28 @@ ownerBtn.TextSize = 11
 ownerBtn.Parent = buttonFrame
 Instance.new("UICorner", ownerBtn).CornerRadius = UDim.new(0, 6)
 
+local stateBtn = Instance.new("TextButton")
+stateBtn.Size = UDim2.new(1, 0, 0, 26)
+stateBtn.Position = UDim2.new(0, 0, 0, 126)
+stateBtn.BackgroundColor3 = Color3.fromRGB(90, 55, 55)
+stateBtn.Text = "STATECALLS: OFF (ChangeState + AutoRotate skipped)"
+stateBtn.TextColor3 = Color3.fromRGB(255, 235, 220)
+stateBtn.Font = Enum.Font.GothamBold
+stateBtn.TextSize = 10
+stateBtn.Parent = buttonFrame
+Instance.new("UICorner", stateBtn).CornerRadius = UDim.new(0, 6)
+
+local pivotBtn = Instance.new("TextButton")
+pivotBtn.Size = UDim2.new(1, 0, 0, 26)
+pivotBtn.Position = UDim2.new(0, 0, 0, 154)
+pivotBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 110)
+pivotBtn.Text = "WRITE: PivotTo + CFrame (whole rig)"
+pivotBtn.TextColor3 = Color3.fromRGB(225, 235, 255)
+pivotBtn.Font = Enum.Font.GothamBold
+pivotBtn.TextSize = 10
+pivotBtn.Parent = buttonFrame
+Instance.new("UICorner", pivotBtn).CornerRadius = UDim.new(0, 6)
+
 local snapshotBtn = Instance.new("TextButton")
 snapshotBtn.Size = UDim2.new(0, 120, 0, 26)
 snapshotBtn.Position = UDim2.new(0, 178, 0, 70)
@@ -322,7 +368,7 @@ Instance.new("UICorner", snapshotBtn).CornerRadius = UDim.new(0, 6)
 
 local feedback = Instance.new("TextLabel")
 feedback.Size = UDim2.new(0, 200, 0, 18)
-feedback.Position = UDim2.new(0, 10, 1, -162)
+feedback.Position = UDim2.new(0, 10, 1, -218)
 feedback.BackgroundTransparency = 1
 feedback.Text = ""
 feedback.TextColor3 = Color3.fromRGB(100, 255, 150)
@@ -419,6 +465,13 @@ end
 -- down in the scanner section: every write from clearLog() then silently
 -- created a GLOBAL instead of touching the real local, so CLEAR reset nothing.
 -- ----------------------------------------------------------------
+-- STARTUP OPTIONS THAT FLIGHT CODE READS.
+-- These MUST be declared above replicateFreefall(). Declared further down (as
+-- they first were) the replay reads a GLOBAL with the same name while the button
+-- writes the LOCAL: the toggle looks like it works and silently does nothing.
+-- Tests/debug_scanner_test.py has a static check for this exact mistake.
+local stateCallsEnabled = false
+local pivotWriteEnabled = PIVOT_WRITE_DEFAULT
 local pendingJump = nil            -- a big displacement we are watching for a reversal
 local evaluatePendingJump          -- assigned in the forensics layer
 local deathConnection, anchoredConnection, touchConnection
@@ -508,15 +561,25 @@ end
 -- character is checked against that target a frame later.
 local function ownerName(part)
 	if not part then return "?" end
-	local ok, owner = pcall(function() return part:GetNetworkOwnership() end)
-	if not ok then return "<error>" end
+	-- The API is GetNetworkOwner(), which returns a Player, or nil when the
+	-- SERVER owns the part. The first version of this called
+	-- GetNetworkOwnership() - which does not exist - so every ownership readout
+	-- in the field log printed <error> and told us nothing.
+	local owner
+	local ok = pcall(function() owner = part:GetNetworkOwner() end)
+	if not ok then
+		-- older/odd APIs: fall back rather than lose the line
+		local ok2
+		ok2, owner = pcall(function() return part:GetNetworkOwnership() end)
+		if not ok2 then return "<no-ownership-api>" end
+	end
 	if owner == nil then return "server" end
 	if owner == player then return "you" end
 	local okName, name = pcall(function() return owner.Name end)
 	return okName and name or "?"
 end
 
--- nil return from GetNetworkOwnership MEANS the server owns it. If the server
+-- A nil return from GetNetworkOwner() MEANS the server owns it. If the server
 -- owns the assembly, a client CFrame write is a request, not a fact.
 local function ownershipLine(character, root)
 	if not character then return "no character | root=" .. ownerName(root) end
@@ -1024,8 +1087,11 @@ local function replicateFreefall()
 	local fixedZ = launchEnd.Z
 
 	addLogEntry(string.format(
-		"[%s] REPLAY START V7.1 | start=(%s) | launchEnd=(%s) | chunks=%d | noclip=%d",
-		timestamp(), formatPos(startPos), formatPos(launchEnd), #FREEFALL_X_DELTAS, noclipChanged
+		"[%s] REPLAY START V10 | start=(%s) | launchEnd=(%s) | chunks=%d | noclip=%d | stateCalls=%s | write=%s",
+		timestamp(), formatPos(startPos), formatPos(launchEnd), #FREEFALL_X_DELTAS,
+		noclipChanged, stateCallsEnabled and "ON (ChangeState+AutoRotate, the -1000 pair)"
+			or "OFF (matching the reference)",
+		pivotWriteEnabled and "PivotTo+CFrame (whole rig)" or "CFrame only (root, joints follow)"
 	))
 
 	local expectedStuds = logReplayParams()
@@ -1040,11 +1106,17 @@ local function replicateFreefall()
 	-- Force Freefall early so the humanoid fights less.
 	-- These two lines are the known -1000 trigger and they used to leave NO trace
 	-- in the log at all: a replay that died 0.03s in looked identical to one that
-	-- never started. They are recorded now.
-	noteEvent(root, "ChangeState(Freefall)", "the -1000 trigger")
-	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
-	noteEvent(root, "AutoRotate=false", "the -1000 trigger")
-	humanoid.AutoRotate = false
+	-- never started. They are recorded now, and they can be switched off.
+	if stateCallsEnabled then
+		noteEvent(root, "ChangeState(Freefall)", "the -1000 trigger")
+		humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+		noteEvent(root, "AutoRotate=false", "the -1000 trigger")
+		humanoid.AutoRotate = false
+	else
+		addLogEntry(string.format(
+			"[%s] STATE CALLS | SKIPPED ChangeState(Freefall) + AutoRotate=false | launching in whatever state the humanoid is in (the reference does)",
+			timestamp()))
+	end
 
 	local startClock = os.clock()
 	local launchIndex = 0
@@ -1060,12 +1132,14 @@ local function replicateFreefall()
 		if not character.Parent or not root.Parent then return false end
 		local yaw = math.rad(root.Orientation.Y)
 		local cf = CFrame.new(pos) * CFrame.Angles(0, yaw, 0)
-		character:PivotTo(cf)
-		root.CFrame = cf
+		if pivotWriteEnabled then
+			character:PivotTo(cf)          -- every part in the rig, in one claim
+		end
+		root.CFrame = cf                   -- one part; the joints carry the rest
 		-- Keep velocity near zero so physics doesn't drag us
 		root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
 		-- the one place this replay writes a position: record the intent
-		noteWrite("PivotTo+CFrame", pos)
+		noteWrite(pivotWriteEnabled and "PivotTo+CFrame" or "CFrame only", pos)
 		return true
 	end
 
@@ -1126,8 +1200,10 @@ local function replicateFreefall()
 					freefallStarted = true
 					freefallClock = os.clock()
 					setPhase("FREEFALL", humanoid, root)
-					noteEvent(root, "ChangeState(Freefall)", "again, at freefall start")
-					humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+					if stateCallsEnabled then
+						noteEvent(root, "ChangeState(Freefall)", "again, at freefall start")
+						humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+					end
 					addLogEntry(string.format(
 						"[%s] FREEFALL START | pos=(%s) | state=%s",
 						timestamp(), formatPos(root.Position), safeState(humanoid)
@@ -1182,7 +1258,7 @@ local function replicateFreefall()
 	safeUnbind()
 	endFlightTrace(abortedReason or "flight complete", humanoid, root)
 	setNoclip(character, false)
-	if humanoid and humanoid.Parent then
+	if stateCallsEnabled and humanoid and humanoid.Parent then
 		humanoid.AutoRotate = originalAutoRotate
 	end
 
@@ -1231,6 +1307,7 @@ local preSimulationConnection, postSimulationConnection, preRenderConnection
 local cframeConnection
 local transformCaptureEnabled = TRANSFORM_CAPTURE_DEFAULT
 local forensicsEnabled = FORENSICS_DEFAULT
+stateCallsEnabled = STATE_CALLS_DEFAULT
 -- PER-SOURCE previous samples. This used to be ONE table shared by all four
 -- stage channels (Heartbeat, PreSimulation, PostSimulation, PreRender), so each
 -- channel overwrote the others' previous sample. That made `dt` a gap between
@@ -1271,6 +1348,16 @@ local function maybeLogTransformJump(source, humanoid, root, now, previousTime, 
 	local isJump = dist >= TRANSFORM_JUMP_MIN_DISTANCE
 	local isMismatch = dist > 2 and pSpeed >= TRANSFORM_JUMP_MIN_PSPEED and velocityRatio >= TRANSFORM_JUMP_RATIO
 	if not (isJump or isMismatch) then return end
+
+	-- A stale previous sample is not movement: it is the scanner having lost
+	-- track (respawn, reload, character swap). Report the gap and stop, or the
+	-- burst ledger records a phantom multi-thousand-stud step.
+	if dt > STALE_SAMPLE_S then
+		addLogEntry(string.format(
+			"[%s] SAMPLE GAP | %s-%s | %.2fs since the last sample of this channel | from=(%s) to (%s) | dist=%.1f | NOT a move - the sampler lost track",
+			timestamp(), source, activePhase, dt, formatPos(previousPos), formatPos(pos), dist))
+		return
+	end
 
 	-- Remember a big displacement so the forensics tick can see whether the
 	-- server KEEPS it. This is the check that was missing: a write that does not
@@ -1842,6 +1929,10 @@ local function startTracking(character)
 	addLogEntry(string.format(
 		"[%s]   burst=%s | step>=%.0f | gap=%.2fs | velocity watch %.0f studs/s | walkSpeed/hipHeight/jump watched",
 		timestamp(), tostring(burstEnabled), BURST_MIN_STEP, BURST_GAP_S, VEL_JUMP_STUDS))
+	addLogEntry(string.format(
+		"[%s]   stateCalls=%s | write=%s | staleSample=%.1fs (older than this is a gap, not a move)",
+		timestamp(), tostring(stateCallsEnabled),
+		pivotWriteEnabled and "PivotTo+CFrame" or "CFrame only", STALE_SAMPLE_S))
 end
 
 -- ================================================================
@@ -1883,6 +1974,36 @@ clearBtn.MouseButton1Click:Connect(function()
 	feedback.TextColor3 = Color3.fromRGB(255, 180, 80)
 	feedback.Visible = true
 	task.delay(1.5, function() if feedback and feedback.Parent then feedback.Visible = false end end)
+end)
+
+stateBtn.MouseButton1Click:Connect(function()
+	stateCallsEnabled = not stateCallsEnabled
+	stateBtn.Text = stateCallsEnabled
+		and "STATECALLS: ON (ChangeState + AutoRotate - the -1000 pair)"
+		or "STATECALLS: OFF (ChangeState + AutoRotate skipped)"
+	stateBtn.BackgroundColor3 = stateCallsEnabled
+		and Color3.fromRGB(160, 60, 50) or Color3.fromRGB(60, 90, 60)
+	addLogEntry(string.format(
+		"[%s] STATE CALLS | %s | the reference never calls either; with them ON the 04:26 flight was reverted %d times and killed at 1.18s",
+		timestamp(), stateCallsEnabled and "ON - reproducing the failing launch" or "OFF - matching the reference",
+		15))
+	feedback.Text = stateCallsEnabled and "State calls ON (risky)" or "State calls OFF (safe)"
+	feedback.TextColor3 = stateCallsEnabled and Color3.fromRGB(255, 150, 120)
+		or Color3.fromRGB(100, 255, 150)
+	feedback.Visible = true
+	task.delay(2, function() if feedback and feedback.Parent then feedback.Visible = false end end)
+end)
+
+pivotBtn.MouseButton1Click:Connect(function()
+	pivotWriteEnabled = not pivotWriteEnabled
+	pivotBtn.Text = pivotWriteEnabled
+		and "WRITE: PivotTo + CFrame (whole rig)"
+		or "WRITE: CFrame on the root only"
+	pivotBtn.BackgroundColor3 = pivotWriteEnabled
+		and Color3.fromRGB(60, 80, 110) or Color3.fromRGB(50, 110, 90)
+	addLogEntry(string.format(
+		"[%s] WRITE MODE | %s | PivotTo claims every part in the rig; root.CFrame lets the joints carry the rest",
+		timestamp(), pivotWriteEnabled and "PivotTo + root.CFrame" or "root.CFrame only"))
 end)
 
 traceBtn.MouseButton1Click:Connect(function()

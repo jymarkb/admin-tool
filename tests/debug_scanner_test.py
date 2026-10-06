@@ -149,7 +149,7 @@ Enum = {
                      Landed="Landed",Jumping="Jumping",FallingDown="FallingDown",
                      Dead="Dead",GettingUp="GettingUp",Climbing="Climbing"},
   RaycastFilterType={Exclude="Exclude",Include="Include"},
-  RenderPriority={Character={Value=200},Camera={Value=200}},
+  RenderPriority={Character={Value=300},Camera={Value=200}},
   SortOrder={LayoutOrder="LayoutOrder",Name="Name"},
   TextTruncate={AtEnd="AtEnd",None="None"},
   TextXAlignment={Left="Left",Center="Center",Right="Right"},
@@ -226,7 +226,7 @@ local function newInstance(class)
             data.CFrame = cf; return true end end
       if k=="GetFullName" then return function() return tostring(data.Name) end end
       if k=="GetConnectedParts" then return function() return {} end end
-      if k=="GetNetworkOwnership" then return function() return data._owner end end
+      if k=="GetNetworkOwner" then return function() return data._owner end end
       if k=="IsGrounded" then return function() return data._grounded or false end end
       if k=="SetNetworkOwner" then return function() end end
       if k=="Raycast" then return function(_, origin, dir, params)
@@ -848,15 +848,40 @@ chk("the per-frame trace is capped", len(frames) <= 60, f"{len(frames)} FRAME li
 chk("the trace summarises writes and actions",
     "writes (%.0f/s)" in txt or "writes (" in txt, lastline(txt, "duration  |"))
 
-print("\n=== T19: the -1000 trigger calls are now VISIBLE in the log ===")
+print("\n=== T19: the -1000 trigger calls are OFF by default, and visible ===")
+chk("the flight starts with stateCalls OFF",
+    "stateCalls=OFF" in txt, lastline(txt, "REPLAY START"))
+chk("skipping them is stated plainly", "STATE CALLS | SKIPPED" in txt,
+    lastline(txt, "STATE CALLS |"))
+chk("ChangeState is NOT called by default",
+    "ACTION | ChangeState" not in txt, "")
+chk("AutoRotate is NOT touched by default",
+    "ACTION | AutoRotate" not in txt and "AUTOROTATE" not in txt, "")
+
+# the A/B control: turn them ON and fly again, which is how the failing launch
+# of the 04:26 log gets reproduced on demand
+H["clearLog"]()
+sb2 = buttons("STATECALLS")[0]
+fire(sb2, "MouseButton1Click")
+chk("the toggle reports ON", "STATE CALLS | ON" in H["log"](),
+    lastline(H["log"](), "STATE CALLS |"))
+chk("the button label changes",
+    "STATECALLS: ON" in str(sb2["Text"]), repr(str(sb2["Text"])[:40]))
+H["clearLog"]()
+H["place"](0, 200, 0)
+H["tick"](0.033)
+m = H["mark"]()
+fire(replay, "MouseButton1Click")
+txt = H["since"](m)
 chk("ChangeState is recorded as an action",
-    "ACTION | ChangeState(Freefall)" in txt,
-    lastline(txt, "ChangeState"))
+    "ACTION | ChangeState(Freefall)" in txt, lastline(txt, "ChangeState"))
 chk("AutoRotate is recorded as an action",
     "ACTION | AutoRotate=false" in txt, lastline(txt, "AutoRotate=false"))
-chk("actions carry a timestamp relative to the flight", "t+0." in txt, "")
+chk("actions carry a flight-relative timestamp", "t+0." in txt, "")
 chk("the -1000 triggers are labelled as such", "the -1000 trigger" in txt,
     lastline(txt, "the -1000 trigger"))
+chk("the flight reports stateCalls=ON", "stateCalls=ON" in txt,
+    lastline(txt, "REPLAY START"))
 # ordering matters: a flight that died 0.03s in must show the action BEFORE the death
 lines = txt.splitlines()
 act = [i for i, l in enumerate(lines) if "ACTION | ChangeState" in l]
@@ -864,6 +889,10 @@ dead = [i for i, l in enumerate(lines) if "DEATH" in l or "ABORTED" in l]
 chk("the action is logged before any abort/death",
     not dead or not act or act[0] < dead[0],
     f"action@{act[0] if act else '-'} death@{dead[0] if dead else '-'}")
+chk("AutoRotate is reported back on the humanoid", "AUTOROTATE |" in txt, "")
+fire(sb2, "MouseButton1Click")          # back to safe
+chk("the toggle reports OFF again", "STATE CALLS | OFF" in H["log"](),
+    lastline(H["log"](), "STATE CALLS |"))
 
 print("\n=== T20: a flight the server UNDOES is reported as such ===")
 H["clearLog"]()
@@ -1081,6 +1110,120 @@ chk("a real CFrame write is recognised",
     "direct root.CFrame write" in mech, lastline(mech, "mechanism |"))
 chk("the write is attributed to CFrameChanged",
     "CFrameChanged" in lastline(mech, "sources   |"), lastline(mech, "sources   |"))
+
+print("\n=== T36: the write mode is switchable (PivotTo vs CFrame only) ===")
+m = H["mark"]()
+H["place"](0, 200, 0)
+H["tick"](0.033)
+m = H["mark"]()
+fire(replay, "MouseButton1Click")
+txt = H["since"](m)
+chk("the default writes the whole rig", "write=PivotTo+CFrame" in txt,
+    lastline(txt, "REPLAY START"))
+
+pb = buttons("WRITE:")[0]
+fire(pb, "MouseButton1Click")
+chk("the toggle reports CFrame only", "WRITE MODE | root.CFrame only" in H["log"](),
+    lastline(H["log"](), "WRITE MODE |"))
+H["place"](0, 200, 0)
+H["tick"](0.033)
+m = H["mark"]()
+fire(replay, "MouseButton1Click")
+txt = H["since"](m)
+chk("the flight reports the new mode", "write=CFrame only" in txt,
+    lastline(txt, "REPLAY START"))
+chk("PivotTo is skipped in that mode",
+    "TRYING" not in txt and "write=CFrame only" in txt, "")
+# in a clean flight nothing names the write kind, so force a rejection: with the
+# server reverting, the rejection line must say which mode was used
+H["place"](0, 200, 0)
+H["tick"](0.033)
+H["setRevert"](0, 200, 0)
+m = H["mark"]()
+fire(replay, "MouseButton1Click")
+txt = H["since"](m)
+chk("a rejection names the write mode",
+    "WRITE REJECTED | #" in txt and "CFrame only" in txt,
+    lastline(txt, "WRITE REJECTED"))
+H["setRevert"](None)
+fire(pb, "MouseButton1Click")
+chk("the toggle goes back", "WRITE MODE | PivotTo + root.CFrame" in H["log"](),
+    lastline(H["log"](), "WRITE MODE |"))
+
+print("\n=== T34: ownership uses the real API and reports a value ===")
+m = H["mark"]()
+H["setOwner"](root, H["player"])
+H["setOwner"](torso, H["player"])
+H["setOwner"](H["head"], H["player"])
+ob = buttons("OWNERSHIP")[0]
+fire(ob, "MouseButton1Click")
+txt = H["since"](m)
+chk("no API error in the ownership readout", "<error>" not in txt,
+    lastline(txt, "root      |"))
+chk("a client-owned root reads as you", "root      | you" in txt,
+    lastline(txt, "root      |"))
+chk("the character tally is real", "you x" in txt, lastline(txt, "character |"))
+
+H["setOwner"](root, None)               # nil = the server owns it
+m = H["mark"]()
+fire(ob, "MouseButton1Click")
+txt = H["since"](m)
+chk("a nil owner reads as server", "root      | server" in txt,
+    lastline(txt, "root      |"))
+chk("still no error", "<error>" not in txt, "")
+H["setOwner"](root, H["player"])
+
+print("\n=== T35: a stale sample is a GAP, not a phantom 5000-stud move ===")
+H["setVel"](0, 0, 0)
+H["place"](0, 100, 0)
+H["tick"](0.033)
+H["advance"](25.0)                      # the sampler loses track (respawn/reload)
+m = H["mark"]()
+H["place"](5050, 100, 0)
+H["tick"](0.033)
+txt = H["since"](m)
+chk("the gap is reported as a gap", "SAMPLE GAP" in txt, lastline(txt, "SAMPLE GAP"))
+chk("it says how long the sampler was blind", "since the last sample" in txt, "")
+chk("it says it is not a move", "NOT a move" in txt, "")
+chk("no phantom move is logged",
+    "LARGE_MOVE" not in txt and "TRANSFORM_JUMP" not in txt,
+    lastline(txt, "SAMPLE GAP")[:70])
+chk("it does not open a burst", "BURST START" not in txt, "")
+# and a normal frame delta right after is still treated as a real move
+H["clearLog"]()
+H["place"](5250, 100, 0)
+H["tick"](0.033)
+chk("the next normal sample is a move again",
+    "TRANSFORM_JUMP" in H["log"]() or "LARGE_MOVE" in H["log"](),
+    lastline(H["log"](), "MOVE"))
+
+print("\n=== T0b: no local is used before it is declared (the global trap) ===")
+# A function defined ABOVE a `local x` that reads `x` gets a GLOBAL, not that
+# local - so a flag can be set by a button and never seen by the code that reads
+# it. This has now happened five times in this project.
+import re as _re
+_lines = script.split("\n")
+_decl = {}
+for _i, _l in enumerate(_lines):
+    _m = _re.match(r"local\s+([A-Za-z_][\w]*)\s*(?:=|,|$)", _l)  # column 0 only
+    if _m:
+        for _n in _re.findall(r"[A-Za-z_][\w]*", _m.group(0))[1:]:
+            _decl.setdefault(_n, _i)
+_hoisted = {"stateCallsEnabled", "evaluatePendingJump", "pendingJump"}
+_bad = []
+for _name, _line in _decl.items():
+    if _line < 100:
+        continue
+    for _j in range(0, _line):
+        _code = _lines[_j].split("--")[0]
+        # only a call-free read (a bare mention) is dangerous; assignments to a
+        # not-yet-declared local are caught by the same check
+        if _re.search(rf"(?<![\w.:]){_re.escape(_name)}(?![\w])", _code):
+            if _name not in _hoisted:
+                _bad.append(f"{_name} used at line {_j+1} but declared at {_line+1}")
+            break
+chk("no local is read by code defined above it", not _bad,
+    ("; ".join(_bad[:3])) if _bad else f"{len(_decl)} locals checked")
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
