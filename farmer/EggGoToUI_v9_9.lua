@@ -298,11 +298,11 @@ local DEFAULT_SETTINGS = {
     SafeZone       = { X = SAFE_ZONE.X, Y = SAFE_ZONE.Y, Z = SAFE_ZONE.Z },
     MutationFilter = {},
     SpeciesFilter  = { "All" },
-    RarityFilter   = {},
+    RarityFilter   = {"Divine", "Eternal", "Secret"},
     AutoReturn     = true,
     Velocity       = false,
-    VelocityValue  = 300,
-    CarryVelocityValue = 250,
+    VelocityValue  = 330,
+    CarryVelocityValue = 300,
     Recovery       = true,
 }
 
@@ -372,7 +372,7 @@ end
 -- VELOCITY / RECOVERY STATE
 -- ==================================================
 local velocityEnabled = false
-local targetVelocity  = 300
+local targetVelocity  = 330
 local savedWalkSpeed  = 16
 local zeroFriction    = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 local originalPhysicalProperties = {}
@@ -409,8 +409,8 @@ local wasRagdolledForVelocity = false
 local RAGDOLL_HOLD_TIME = 0.12
 
 -- v9 state + helpers (kept in X because the script is close to Luau's 200-locals limit)
-X.baseVelocity      = 300    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
-X.baseCarryVelocity = 250    -- carry speed (returning with egg). X.switchToCarry() activates it.
+X.baseVelocity      = 330    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
+X.baseCarryVelocity = 300    -- carry speed (returning with egg). X.switchToCarry() activates it.
 X.VELOCITY_STEP    = 10      -- every rubberband lowers the velocity by this much...
 X.MIN_VELOCITY     = 100     -- ...but never below this
 X.RUBBER_BACK      = 6       -- studs pulled BACKWARDS in a single frame (against our move direction) = rubberband
@@ -6208,7 +6208,7 @@ goLabel.Parent=goFrame
 velInputBox = Instance.new("TextBox")
 velInputBox.Size=UDim2.new(1,-34,1,0); velInputBox.Position=UDim2.new(0,34,0,0)
 velInputBox.BackgroundTransparency=1; velInputBox.Text=tostring(X.baseVelocity)
-velInputBox.PlaceholderText="300"; velInputBox.TextColor3=Color3.new(1,1,1)
+velInputBox.PlaceholderText="330"; velInputBox.TextColor3=Color3.new(1,1,1)
 velInputBox.TextSize=12; velInputBox.Font=Enum.Font.GothamBold; velInputBox.ClearTextOnFocus=false
 velInputBox.TextXAlignment=Enum.TextXAlignment.Left; velInputBox.Parent=goFrame
 
@@ -6228,7 +6228,7 @@ carryLabel.Parent=carryFrame
 carryVelInputBox = Instance.new("TextBox")
 carryVelInputBox.Size=UDim2.new(1,-46,1,0); carryVelInputBox.Position=UDim2.new(0,46,0,0)
 carryVelInputBox.BackgroundTransparency=1; carryVelInputBox.Text=tostring(X.baseCarryVelocity)
-carryVelInputBox.PlaceholderText="250"; carryVelInputBox.TextColor3=Color3.new(1,1,1)
+carryVelInputBox.PlaceholderText="300"; carryVelInputBox.TextColor3=Color3.new(1,1,1)
 carryVelInputBox.TextSize=12; carryVelInputBox.Font=Enum.Font.GothamBold; carryVelInputBox.ClearTextOnFocus=false
 carryVelInputBox.TextXAlignment=Enum.TextXAlignment.Left; carryVelInputBox.Parent=carryFrame
 
