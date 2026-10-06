@@ -276,7 +276,8 @@ local root = newInstance("Part"); root.Name = "HumanoidRootPart"
 local torso = newInstance("Part"); torso.Name = "Torso"
 local head  = newInstance("Part"); head.Name = "Head"
 local hum = newInstance("Humanoid")
-hum.Health = 100; hum.MaxHealth = 100; hum.WalkSpeed = 16
+hum.Health = 100; hum.MaxHealth = 100; hum.WalkSpeed = 16; hum.HipHeight = 2.0; hum.JumpPower = 50; hum.JumpHeight = 7.2
+hum.PlatformStand = false
 hum.AutoRotate = true; hum.FloorMaterial = "Plastic"; hum._state = "Running"
 
 root.CFrame = CFrame.new(0, 100, 0); root.Position = vnew(0,100,0)
@@ -403,6 +404,12 @@ H.setVel = function(x,y,z)
 end
 H.table = function(...) return {...} end
 H.log = function() return table.concat(LOG, "\n") end
+H.mark = function() return #LOG end
+H.since = function(m)
+  local out = {}
+  for i = (m or 0) + 1, #LOG do out[#out + 1] = LOG[i] end
+  return table.concat(out, "\n")
+end
 H.clearLog = function() LOG = {} end
 H.logCount = function() return #LOG end
 return H
@@ -495,6 +502,21 @@ def set_nearby(parts):
     wd = H["data"](H["workspace"])
     wd["_overlap"] = H["table"](*parts)
 
+def goto_start(x, y, z, dt=0.033):
+    """Stand at (x, y, z) with an empty burst ledger and a primed sampler.
+
+    The teleport to the start line is logged (the sampler has to see it) and then
+    wiped by the CLEAR button. Returns a mark: assert with since(mark), because
+    the printed log keeps everything from earlier tests.
+    """
+    H["place"](x, y, z)
+    H["tick"](dt)                                     # logged ...
+    m = H["mark"]()
+    fire(buttons("Clear")[0], "MouseButton1Click")    # ... then wiped
+    assert "BURST" not in H["since"](m), "CLEAR left a burst behind"
+    return H["mark"]()
+
+
 def buttons(sub):
     return [b for b in list(H["getCreated"]("TextButton").values())
             if sub in str(b["Text"])]
@@ -507,7 +529,7 @@ chk("no new globals created by the script", not leaked,
 
 print("\n=== T1: the scanner starts and reports its baseline ===")
 txt = H["log"]()
-chk("SCANNER READY V8 is announced", "SCANNER READY V8" in txt, lastline(txt, "SCANNER READY"))
+chk("SCANNER READY V10 is announced", "SCANNER READY V10" in txt, lastline(txt, "SCANNER READY"))
 chk("reports capture + forensics state", "capture=" in txt and "forensics=" in txt,
     lastline(txt, "forensics="))
 chk("reports the baseline hp/maxHealth", "baseline | hp=100.0/100.0" in txt,
@@ -909,6 +931,156 @@ txt = H["log"]()
 chk("ownership change is logged", "OWNERSHIP |" in txt, lastline(txt, "OWNERSHIP |"))
 chk("explains what server-owned means", "SERVER-OWNED" in txt, lastline(txt, "SERVER-OWNED"))
 H["setOwner"](root, H["player"])
+
+print("\n=== T24: a whole escape flight collapses into one block ===")
+H["setVel"](0, 0, 0)
+m = goto_start(5666.3, 70.7, -331.9)       # the real log's start, on the ground
+# 40 steps at ~4200 studs/s, every 4th one SHORT - the shape of the 04:16 flight
+x, y = 5666.3, 70.7
+for i in range(1, 41):
+    short = (i % 4 == 0)
+    x -= 50.0 if short else 200.0
+    y = min(112.7, y + (13.7 if i == 1 else (22.1 if i == 2 else (6.2 if i == 3 else 0.0))))
+    H["place"](x, y, -331.9)
+    H["tick"](0.0476)
+H["setVel"](0, -196.2 * 0.0476, 0)
+H["place"](x, 70.7, -331.9)               # the final drop
+H["tick"](0.0476)
+H["advance"](0.6); H["tick"](0.1)          # stop: the tick closes the burst
+txt = H["since"](m)
+chk("the burst opens", "BURST START" in txt, "")
+chk("the burst closes itself when it stops", "BURST END" in txt,
+    lastline(txt, "BURST END"))
+chk("net distance is reported", "moved     |" in txt, lastline(txt, "moved     |"))
+chk("the start position is reconstructed",
+    "5666.3, 70.7, -331.9" in txt, lastline(txt, "from      |"))
+chk("the Y profile is reported",
+    "peak" in lastline(txt, "Y         |") and "final drop" in txt,
+    lastline(txt, "Y         |"))
+chk("the Y peak is the cruise height", "112.7" in lastline(txt, "Y         |"),
+    lastline(txt, "Y         |"))
+chk("the wave up before the flight is reported", "+13.7" in txt, "")
+chk("step count is reported", "41 distinct" in txt, lastline(txt, "steps     |"))
+chk("frame timing is reported", "avg frame" in txt, lastline(txt, "timing    |"))
+chk("cruise speed is reported", "cruise" in txt, lastline(txt, "speed     |"))
+chk("the state is reported", "states    |" in txt, lastline(txt, "states    |"))
+chk("the source census is reported", "sources   |" in txt, lastline(txt, "sources   |"))
+chk("the size histogram is reported",
+    "sizes     |" in txt and "median" in txt, lastline(txt, "sizes     |"))
+chk("the step rate is reported", "steps/s" in txt, lastline(txt, "rate      |"))
+
+print("\n=== T25: the replication payload - every step as (t, dx, dy) ===")
+# the header line also contains "t/dx/dy", so only take the payload lines
+steps = [l for l in txt.splitlines()
+         if "BURST STEPS | " in l and "(t/dx/dy)" not in l]
+triples = [t for l in steps for t in l.split("| ", 1)[1].split(", ") if "/" in t]
+chk("the step list is emitted", len(steps) > 0, f"{len(steps)} line(s)")
+chk("every distinct step is listed", len(triples) == 41, f"{len(triples)} step(s)")
+chk("steps are chunked, not one giant line", len(steps) >= 6, f"{len(steps)} line(s)")
+chk("deltas are signed and precise", any("+13.7" in t for t in triples),
+    next((t for t in triples if "13.7" in t), ""))
+chk("each step carries t, dx and dy", triples[0].count("/") == 2, triples[0])
+chk("the first step starts at t=0", triples[0].startswith("0.000"), triples[0])
+
+print("\n=== T26: the flight was FIGHTING - short steps are counted ===")
+chk("short steps are counted", "step(s) under" in txt, lastline(txt, "speed     |"))
+chk("the verdict is PARTIAL, not a clean HELD",
+    "verdict   | PARTIAL" in txt or "PARTIAL -" in lastline(txt, "verdict   |"),
+    lastline(txt, "verdict   |"))
+chk("it says the writes were pushed back", "pushed back" in txt, "")
+
+print("\n=== T27: echoes across stage channels are not counted as steps ===")
+H["setVel"](0, 0, 0)
+m = goto_start(0, 100, 0)
+for i in range(6):
+    H["place"](300, 100, 0)               # ONE write, reported 6 times
+    H["advance"](0.03); H["tick"](0.03)
+H["advance"](0.6); H["tick"](0.1)
+txt = H["since"](m)
+chk("one distinct step", "1 distinct" in txt, lastline(txt, "steps     |"))
+chk("the repeats are called echoes", "channel echoes" in txt,
+    lastline(txt, "steps     |"))
+
+print("\n=== T28: a reversion inside a burst is caught (the 02:57 signature) ===")
+H["setVel"](0, 0, 0)
+m = goto_start(5000, 70.7, -325.0)
+for i in range(1, 6):                      # fly west
+    H["place"](5000 - i * 200, 70.7, -325.0)
+    H["tick"](0.0476)
+H["place"](5000, 70.7, -325.0)             # the server puts us back
+H["tick"](0.0476)
+H["advance"](0.6); H["tick"](0.1)
+txt = H["since"](m)
+chk("BURST REVERSED is reported", "BURST REVERSED" in txt, lastline(txt, "BURST REVERSED"))
+chk("it says how far back it went", "went back" in txt, lastline(txt, "went back"))
+chk("the verdict is REVERTED", "verdict   | REVERTED" in txt,
+    lastline(txt, "verdict   |"))
+chk("the profile is still emitted", "BURST STEPS" in txt, "")
+
+print("\n=== T29: a velocity change with no write is now visible ===")
+H["setVel"](0, 0, 0)
+m = goto_start(400, 70.7, -325.0, 0.05)
+H["tick"](0.05)                            # prime the velocity sample
+H["setVel"](-171.7, 0.1, 0.1)              # the post-landing push
+H["tick"](0.05)
+txt = H["since"](m)
+chk("VELOCITY JUMP is logged", "VELOCITY JUMP" in txt, lastline(txt, "VELOCITY JUMP"))
+chk("it shows the size of the change", "change 171.7 studs/s" in txt, "")
+chk("it names the owner and floor", "owner=" in txt and "floor=" in txt, "")
+H["setVel"](0, 0, 0)
+
+print("\n=== T30: a coast is marked as physics, not a teleport ===")
+H["setVel"](0, 0, 0)
+m = goto_start(600, 70.7, -325.0, 0.05)
+H["setVel"](-200, 0, 0)
+x = 600.0
+for i in range(4):                          # velocity explains every step
+    x -= 10.0
+    H["place"](x, 70.7, -325.0)
+    H["tick"](0.05)
+txt = H["since"](m)
+chk("coasting moves are tagged", "physics-explained" in txt,
+    lastline(txt, "physics-explained"))
+chk("a coast does not open a burst", "BURST START" not in txt, "")
+H["setVel"](0, 0, 0)
+
+print("\n=== T31: a watched property change is logged ===")
+m = H["mark"]()
+hum["WalkSpeed"] = 250
+txt = H["since"](m)
+chk("PROP fires for WalkSpeed", "PROP | WalkSpeed" in txt, lastline(txt, "PROP |"))
+chk("it shows the new value", "250.0" in txt, "")
+hum["WalkSpeed"] = 16
+
+print("\n=== T32: which CHANNEL saw the writes names the mechanism ===")
+# A move that never assigns root.CFrame leaves the CFrameChanged hook silent. The
+# stub moves Position directly to model that (in the engine, Position is a view of
+# CFrame, so this is a logic test of the ledger, not of Roblox's signal rules).
+H["setVel"](0, 0, 0)
+m = goto_start(0, 100, 0)
+for i in range(1, 4):
+    H["data"](H["root"])["Position"] = H["vnew"](i * 200, 100, 0)
+    H["advance"](0.05); H["tick"](0.05)
+H["advance"](0.6); H["tick"](0.1)
+mech = H["since"](m)
+# the message itself contains the word, so check the census LINE
+chk("the census has no CFrameChanged", "CFrameChanged" not in lastline(mech, "sources   |"),
+    lastline(mech, "sources   |"))
+chk("silence names every other mechanism",
+    "no CFrameChanged event" in mech, lastline(mech, "mechanism |"))
+
+print("\n=== T33: a real root.CFrame write IS attributed to CFrameChanged ===")
+H["setVel"](0, 0, 0)
+m = goto_start(0, 100, 0)
+for i in range(1, 4):                       # through the instance, so signals fire
+    H["root"]["CFrame"] = L.eval(f'CFrame.new({i * 200}, 100, 0)')
+    H["advance"](0.05); H["tick"](0.05)
+H["advance"](0.6); H["tick"](0.1)
+mech = H["since"](m)
+chk("a real CFrame write is recognised",
+    "direct root.CFrame write" in mech, lastline(mech, "mechanism |"))
+chk("the write is attributed to CFrameChanged",
+    "CFrameChanged" in lastline(mech, "sources   |"), lastline(mech, "sources   |"))
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:

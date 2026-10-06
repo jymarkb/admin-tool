@@ -54,6 +54,21 @@ local FLIGHT_FRAME_MAX      = 60      -- ...capped at this many lines per flight
 local PHYSICS_SAMPLE_S      = 1.0     -- physics sample interval during a flight
 local OWNERSHIP_POLL_S      = 0.5     -- how often to look for an ownership change
 
+-- Burst ledger (V10). A real flight arrives as ONE burst of writes no matter
+-- which script produced it - the escape scripts, not just this file's REPLAY
+-- button. This collapses the burst into a single block that can be replicated
+-- from, and measures the thing no log has shown yet: a step that comes in
+-- SHORT of the burst's cruise speed. A full reversion is a huge jump backwards;
+-- a partial one looks exactly like a slow frame, and a script that targets an
+-- absolute position just catches up on the next write and hides it.
+local BURST_DEFAULT         = true
+local BURST_MIN_STEP        = 20      -- a move this big is a teleport-style step
+local BURST_GAP_S           = 0.4     -- no steps for this long = the burst ended
+local BURST_ECHO_STUDS      = 1.0     -- landing within this of the last step = an echo
+local BURST_MAX_STEPS       = 150     -- bound the stored profile
+local BURST_SHORT_FRACTION  = 0.6     -- below this fraction of cruise = a short step
+local VEL_JUMP_STUDS        = 30      -- velocity change with no write = worth logging
+
 local RENDER_STEP_NAME = "ReferenceFreefallReplayV7"
 local RENDER_STEP_PRIORITY = Enum.RenderPriority.Character.Value + 1
 local REPLAY_CORRECTION_TOLERANCE = 25.0
@@ -118,7 +133,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 0, 26)
 title.Position = UDim2.new(0, 12, 0, 6)
 title.BackgroundTransparency = 1
-title.Text = "REFERENCE TRANSFORM V7 (ld-p3)"
+title.Text = "REFERENCE TRANSFORM V10 (ld-p3)"
 title.TextColor3 = Color3.fromRGB(0, 200, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -417,6 +432,12 @@ local flightTraceEnabled = FLIGHT_TRACE_DEFAULT
 local lastWrite, lastLostWarn, writeSeq = nil, 0, 0
 local lastOwnerSeen, lastOwnerPoll = nil, 0
 local autoRotateConnection
+-- burst ledger + velocity watch - clearLog() below resets these too
+local burst = nil
+local burstEnabled = BURST_DEFAULT
+local lastVelSample, lastVelJumpAt = nil, 0
+local lastTouchInfo = nil
+local propertyConnections = {}
 
 local function clearLog()
 	logEntries = {}
@@ -432,6 +453,7 @@ local function clearLog()
 	lastRigWarn, restChecked = 0, true
 	flightTrace, lastWrite, lastLostWarn, writeSeq = nil, nil, 0, 0
 	lastOwnerSeen, lastOwnerPoll = nil, 0
+	burst, lastVelSample, lastVelJumpAt, lastTouchInfo = nil, nil, 0, nil
 end
 
 -- ================================================================
@@ -543,6 +565,262 @@ end
 
 -- The exact numbers of the reference profile, in the log, so a trace is
 -- self-contained: this is what a replication has to reproduce.
+-- ----------------------------------------------------------------
+-- BURST LEDGER (V10)
+-- ----------------------------------------------------------------
+local function numOrDash(v)
+	if type(v) ~= "number" then return "?" end
+	return string.format("%.1f", v)
+end
+
+local function openBurst(pos, delta, now, humanoid, root)
+	local startPos = pos - delta
+	local nc, total = 0, 0
+	if player.Character then total, nc = countNoCollide(player.Character) end
+	burst = {
+		startTime = now, lastStepAt = now, startPos = startPos, prevStepPos = startPos,
+		endPos = pos, dir = nil, steps = {}, lines = 0, echoes = 0,
+		maxY = math.max(startPos.Y, pos.Y), minY = math.min(startPos.Y, pos.Y),
+		sumDt = 0, dtCount = 0, worstDt = 0, drop = 0, states = {},
+		backTotal = 0, worstBack = 0, worstBackAt = 0,
+		lastTouch = lastTouchInfo, sources = {}, sizes = {},
+	}
+	burst.states[safeState(humanoid)] = true
+	addLogEntry(string.format("[%s] ============ BURST START ============", timestamp()))
+	addLogEntry(string.format(
+		"[%s]   at        | (%s) | state=%s | vel=(%s) | nc=%d/%d | floor=%s",
+		timestamp(), formatPos(startPos), safeState(humanoid),
+		formatVec3(root.AssemblyLinearVelocity), nc, total, safeFloor(humanoid)))
+	addLogEntry(string.format(
+		"[%s]   body      | walkSpeed=%s | hipHeight=%s | jumpPower=%s | grounded=%s | owner=%s%s",
+		timestamp(), numOrDash(humanoid.WalkSpeed), numOrDash(humanoid.HipHeight),
+		numOrDash(humanoid.JumpPower), grounded(root), ownerName(root),
+		burst.lastTouch and string.format(" | lastTouch=%s (%.2fs before)",
+			burst.lastTouch.name, now - burst.lastTouch.time) or " | lastTouch=none"))
+end
+
+-- Close and report. Called when a gap appears (a new burst starts elsewhere, or
+-- the tick notices) so a burst that simply stops still gets summarised.
+local function closeBurst(now, why)
+	local b = burst
+	if not b then return end
+	burst = nil
+	local dur = math.max(now - b.startTime, 1e-3)
+	local net = (b.endPos - b.startPos).Magnitude
+	local n = #b.steps
+	local rise = b.maxY - b.startPos.Y
+	local cruise, short, total = 0, 0, 0
+	local minStep, maxStep, sumStep = math.huge, 0, 0
+	for _, s in ipairs(b.steps) do
+		if s.speed > cruise then cruise = s.speed end
+		total += s.dist
+		minStep = math.min(minStep, s.dist)
+		maxStep = math.max(maxStep, s.dist)
+		sumStep += s.dist
+	end
+	if n == 0 then minStep = 0 end
+	for _, s in ipairs(b.steps) do
+		if cruise > 0 and s.speed < cruise * BURST_SHORT_FRACTION then short += 1 end
+	end
+	local order = {}
+	for state in pairs(b.states) do order[#order + 1] = state end
+	table.sort(order)
+
+	addLogEntry(string.format("[%s] ============ BURST END | %d steps | %s ============",
+		timestamp(), n, why or "done"))
+	addLogEntry(string.format(
+		"[%s]   moved     | %.1f studs in %.2fs (%.0f studs/s) | now at (%s)",
+		timestamp(), net, dur, net / dur, formatPos(b.endPos)))
+	addLogEntry(string.format(
+		"[%s]   from      | (%s) | %.1f studs of writes across %d logged move(s)",
+		timestamp(), formatPos(b.startPos), total, b.lines))
+	addLogEntry(string.format(
+		"[%s]   Y         | start %.1f -> peak %.1f (%+.1f) | final drop %+.1f | min %.1f",
+		timestamp(), b.startPos.Y, b.maxY, rise, b.drop, b.minY))
+	addLogEntry(string.format(
+		"[%s]   steps     | %d distinct (%d channel echoes) | min %.1f | max %.1f | avg %.1f",
+		timestamp(), n, b.echoes, minStep, maxStep, n > 0 and (sumStep / n) or 0))
+	if b.dtCount > 0 then
+		local avgDt = b.sumDt / b.dtCount
+		addLogEntry(string.format(
+			"[%s]   timing    | avg frame %.3fs (%.0f fps) | worst %.3fs | %d sample(s)",
+			timestamp(), avgDt, avgDt > 0 and (1 / avgDt) or 0, b.worstDt, b.dtCount))
+	end
+	addLogEntry(string.format(
+		"[%s]   speed     | cruise %.0f studs/s | %d step(s) under %d%% of it",
+		timestamp(), cruise, short, math.floor(BURST_SHORT_FRACTION * 100)))
+	if b.worstBack > REVERT_MIN_STUDS then
+		addLogEntry(string.format(
+			"[%s] BURST REVERSED | worst single step went back %.1f studs (step %d) | %.1f studs total",
+			timestamp(), b.worstBack, b.worstBackAt, b.backTotal))
+	else
+		addLogEntry(string.format(
+			"[%s]   reversal  | none - no step went backwards", timestamp()))
+	end
+	local srcOrder = {}
+	for k in pairs(b.sources) do srcOrder[#srcOrder + 1] = k end
+	table.sort(srcOrder)
+	local srcBits = {}
+	for _, k in ipairs(srcOrder) do
+		srcBits[#srcBits + 1] = string.format("%s %d", k, b.sources[k])
+	end
+	addLogEntry(string.format("[%s]   sources   | %s", timestamp(),
+		#srcBits > 0 and table.concat(srcBits, " | ") or "none"))
+	local sizeOrder = { "<20", "20-60", "60-100", "100-150", "150-200", "200-300", "300+" }
+	local sizeBits, median, half = {}, math.huge, 0
+	for _, k in ipairs(sizeOrder) do
+		if b.sizes[k] then
+			sizeBits[#sizeBits + 1] = string.format("%s %d", k, b.sizes[k])
+		end
+	end
+	-- median step size: the single most useful number for matching a writer's
+	-- step quantum, which the average hides
+	half = math.floor(n / 2)
+	local sorted = {}
+	for i, s in ipairs(b.steps) do sorted[i] = s.dist end
+	table.sort(sorted)
+	if n > 0 then median = sorted[math.max(1, half)] end
+	addLogEntry(string.format("[%s]   sizes     | %s | median %.1f",
+		timestamp(), #sizeBits > 0 and table.concat(sizeBits, " | ") or "none", median))
+	if b.dtCount > 0 then
+		addLogEntry(string.format(
+			"[%s]   rate      | %.0f steps/s | %.2f steps per frame sample",
+			timestamp(), n / dur, n / b.dtCount))
+	end
+	-- what moved it? This is the question a position-only log cannot answer.
+	if not b.sources.CFrameChanged then
+		addLogEntry(string.format(
+			"[%s]   mechanism | no CFrameChanged event: root.CFrame was never assigned, so a PivotTo, a body mover or another part did the moving",
+			timestamp()))
+	else
+		addLogEntry(string.format(
+			"[%s]   mechanism | %d direct root.CFrame write(s) seen",
+			timestamp(), b.sources.CFrameChanged))
+	end
+	addLogEntry(string.format("[%s]   states    | %s", timestamp(), table.concat(order, " -> ")))
+	if b.lastTouch then
+		addLogEntry(string.format("[%s]   lastTouch | %s | %.2fs before the first step",
+			timestamp(), b.lastTouch.name, math.max(b.startTime - b.lastTouch.time, 0)))
+	end
+	local verdict
+	if n == 0 then
+		verdict = "NO STEPS - every move was an echo of another channel"
+	elseif b.worstBack > REVERT_MIN_STUDS then
+		verdict = string.format("REVERTED - %d steps, but %.0f studs were pushed back",
+			n, b.backTotal)
+	elseif short >= math.max(2, math.floor(n * 0.25)) then
+		verdict = string.format(
+			"PARTIAL - %d of %d steps came in short of cruise; the writes were being pushed back",
+			short, n)
+	elseif net < 1 then
+		verdict = "DID NOT MOVE - the writes did not stick"
+	else
+		verdict = string.format(
+			"HELD - every step stuck, the character really moved %.0f studs", net)
+	end
+	addLogEntry(string.format("[%s]   verdict   | %s", timestamp(), verdict))
+
+	-- the replication payload: every distinct step as (t, dx, dy), 8 per line
+	if n > 0 then
+		local dz = 0
+		for _, s in ipairs(b.steps) do dz = math.max(dz, math.abs(s.dz)) end
+		addLogEntry(string.format(
+			"[%s] BURST STEPS | (t/dx/dy) | dz max %.1f | %d step(s)%s",
+			timestamp(), dz, n, n >= BURST_MAX_STEPS and " - TRUNCATED" or ""))
+		local chunk = {}
+		for _, s in ipairs(b.steps) do
+			chunk[#chunk + 1] = string.format("%.3f/%+.1f/%+.1f", s.t, s.dx, s.dy)
+			if #chunk >= 8 then
+				addLogEntry(string.format("[%s] BURST STEPS | %s", timestamp(),
+					table.concat(chunk, ", ")))
+				chunk = {}
+			end
+		end
+		if #chunk > 0 then
+			addLogEntry(string.format("[%s] BURST STEPS | %s", timestamp(),
+				table.concat(chunk, ", ")))
+		end
+	end
+end
+
+-- Every logged move passes through here. Which script produced it does not
+-- matter: a real flight is one burst of teleport-style writes.
+local function noteBurstStep(source, pos, delta, now, humanoid, root, dt, vMag)
+	if not burstEnabled or not root then return end
+	-- Movement the velocity already accounts for is the coast, not a step.
+	-- Counting it would bury the flight profile in physics frames.
+	local dist = delta.Magnitude
+	if vMag > 1 and dist <= (vMag * (dt or 0)) * 1.5 + 4 then return end
+	if not burst or (now - burst.lastStepAt) > BURST_GAP_S then
+		if burst then closeBurst(now, "gap") end
+		openBurst(pos, delta, now, humanoid, root)
+	end
+	local b = burst
+	b.lines += 1
+	b.lastStepAt = now
+	-- WHICH channel saw this move is a mechanism clue, not a curiosity: the
+	-- CFrameChanged hook fires at the instant of the write, while the stage
+	-- channels only sample per frame. A flight with CFrameChanged = 0 never
+	-- assigned root.CFrame, so something else moved the character.
+	b.sources[source] = (b.sources[source] or 0) + 1
+	do
+		local key
+		if dist < 20 then key = "<20"
+		elseif dist < 60 then key = "20-60"
+		elseif dist < 100 then key = "60-100"
+		elseif dist < 150 then key = "100-150"
+		elseif dist < 200 then key = "150-200"
+		elseif dist < 300 then key = "200-300"
+		else key = "300+" end
+		b.sizes[key] = (b.sizes[key] or 0) + 1
+	end
+	b.endPos = pos
+	b.maxY = math.max(b.maxY, pos.Y)
+	b.minY = math.min(b.minY, pos.Y)
+	b.states[safeState(humanoid)] = true
+	if dt and dt > 0 then
+		b.sumDt += dt
+		b.dtCount += 1
+		if dt > b.worstDt then b.worstDt = dt end
+	end
+	-- echoes of one write land on the same position: four stage channels report
+	-- the same write, and counting them as steps inflates the profile 4x
+	if (pos - b.prevStepPos).Magnitude <= BURST_ECHO_STUDS then
+		b.echoes += 1
+		-- Echoes of one write carry different frame deltas, because each stage
+		-- channel samples at its own point in the frame. Keep the LARGEST: it is
+		-- the one the writer actually had, and using a small echo dt inflates the
+		-- step's implied speed (and with it the cruise the shortfall is judged
+		-- against).
+		local last = b.steps[#b.steps]
+		if last and dt and dt > (last.dt or 0) then
+			last.dt = dt
+			last.speed = last.dist / dt
+		end
+		return
+	end
+	if #b.steps >= BURST_MAX_STEPS then return end
+	-- the direction of the flight is set by its first real step, so "backwards"
+	-- means backwards relative to where this burst is going
+	if not b.dir and dist > 1 then b.dir = (1 / dist) * delta end
+	if b.dir then
+		local along = delta:Dot(b.dir)
+		if along < 0 then
+			b.backTotal += -along
+			if -along > b.worstBack then
+				b.worstBack = -along
+				b.worstBackAt = #b.steps + 1
+			end
+		end
+	end
+	if delta.Y < 0 then b.drop = math.min(b.drop, delta.Y) end
+	b.steps[#b.steps + 1] = {
+		t = now - b.startTime, dx = delta.X, dy = delta.Y, dz = delta.Z,
+		dist = dist, dt = dt, speed = (dt and dt > 0) and (dist / dt) or 0,
+	}
+	b.prevStepPos = pos
+end
+
 local function logReplayParams()
 	local deltas, times, total = {}, {}, 0
 	for i, dx in ipairs(FREEFALL_X_DELTAS) do
@@ -1017,6 +1295,10 @@ local function maybeLogTransformJump(source, humanoid, root, now, previousTime, 
 	lastTransformJumpLogTime = now
 	lastTransformJumpLogPos = pos
 
+	-- Feed the burst ledger. This runs for EVERY move the scanner sees, whoever
+	-- caused it - the escape scripts fly without ever touching this file's UI.
+	noteBurstStep(source, pos, delta, now, humanoid, root, dt, vMag)
+
 	local class = isMismatch and "TRANSFORM_JUMP" or "LARGE_MOVE"
 	addLogEntry(string.format(
 		"[%s] %s | src=%s | phase=%s | state=%s | dt=%.5f | dP=(%s) | dist=%.2f | pSpd=%.1f | vel=(%s) | vMag=%.1f | vRatio=%.1fx%s | pos=(%s)",
@@ -1024,7 +1306,12 @@ local function maybeLogTransformJump(source, humanoid, root, now, previousTime, 
 		-- vRatio = pSpeed / max(vMag, 0.1) is meaningless when vMag is 0: the
 		-- ratio then just reports the clamp, so flag it instead of letting a
 		-- huge number imply a mismatch that was never measured.
-		vMag < 0.1 and " | zeroVel=1 (vRatio is the clamp, not a real ratio)" or "",
+		vMag < 0.1 and " | zeroVel=1 (vRatio is the clamp, not a real ratio)"
+			-- vRatio near 1 means the velocity already explains this movement:
+			-- that is a coast, not a teleport, and tagging it keeps the flight
+			-- steps distinguishable from physics at a glance
+			or (velocityRatio > 0.5 and velocityRatio < 2.0
+				and " | physics-explained" or ""),
 		formatPos(pos)
 	))
 end
@@ -1237,6 +1524,8 @@ local function onTouched(myPart, other)
 	end
 	if not first and (now - lastTouchLogged[name]) < TOUCH_DEDUPE_S then return end
 	lastTouchLogged[name] = now
+	-- remember it: a burst that starts right after a touch can name the culprit
+	lastTouchInfo = { name = name, time = now }
 	addLogEntry(string.format(
 		"[%s] TOUCHED | %s | class=%s | collide=%s | material=%s | my part=%s%s",
 		timestamp(), name, other.ClassName, tostring(other.CanCollide),
@@ -1283,6 +1572,37 @@ local function forensicsTick(humanoid, root)
 				ownershipLine(player.Character, root), activePhase, formatPos(pos)))
 		end
 	end
+
+	-- ---- the burst ledger ------------------------------------------------
+	-- A burst that simply STOPS produces no further steps, so nothing would ever
+	-- close it. The tick is what turns it into a summary.
+	if burst and (now - burst.lastStepAt) > BURST_GAP_S then
+		closeBurst(now, "stopped")
+	end
+
+	-- ---- velocity changes with no position write --------------------------
+	-- The post-flight push is exactly this: the character sat still, then a large
+	-- horizontal velocity appeared and coasted it 140 studs. Nothing else in the
+	-- log could show it, because every other line is triggered by a position.
+	local vel = root.AssemblyLinearVelocity
+	if lastVelSample then
+		local dv = (vel - lastVelSample).Magnitude
+		if dv >= VEL_JUMP_STUDS and (now - lastVelJumpAt) > 0.2 then
+			lastVelJumpAt = now
+			addLogEntry(string.format(
+				"[%s] VELOCITY JUMP | (%s) -> (%s) | change %.1f studs/s | state=%s | pos=(%s)",
+				timestamp(), formatVec3(lastVelSample), formatVec3(vel), dv,
+				safeState(humanoid), formatPos(pos)))
+			addLogEntry(string.format(
+				"[%s]   grounded=%s | floor=%s | nc=%s | owner=%s%s",
+				timestamp(), grounded(root), safeFloor(humanoid),
+				player.Character and select(1, countNoCollide(player.Character)) or "?",
+				ownerName(root),
+				lastTouchInfo and string.format(" | lastTouch=%s (%.2fs ago)",
+					lastTouchInfo.name, now - lastTouchInfo.time) or ""))
+		end
+	end
+	lastVelSample = vel
 
 	-- ---- the flight write ledger -----------------------------------------
 	if flightTrace or lastWrite then
@@ -1373,6 +1693,11 @@ local function disconnectForensics()
 		if conn then conn:Disconnect() end
 	end
 	deathConnection, anchoredConnection, autoRotateConnection = nil, nil, nil
+	for _, conn in ipairs(propertyConnections) do
+		if conn then conn:Disconnect() end
+	end
+	propertyConnections = {}
+	burst, lastVelSample, lastTouchInfo = nil, nil, nil
 	flightTrace, lastWrite = nil, nil
 	if touchConnection then
 		for _, c in ipairs(touchConnection) do c:Disconnect() end
@@ -1465,6 +1790,27 @@ local function startTracking(character)
 			activePhase, safeState(humanoid)))
 	end)
 
+	-- Properties that explain a flight and were never visible: an escape script
+	-- sets these, and a change with no position write leaves no other trace.
+	for _, item in ipairs({
+		{ humanoid, "WalkSpeed" }, { humanoid, "JumpPower" }, { humanoid, "JumpHeight" },
+		{ humanoid, "HipHeight" }, { humanoid, "PlatformStand" },
+		{ root, "CanCollide" }, { root, "Massless" },
+	}) do
+		local inst, prop = item[1], item[2]
+		if inst then
+			propertyConnections[#propertyConnections + 1] =
+				inst:GetPropertyChangedSignal(prop):Connect(function()
+					local v = inst[prop]
+					addLogEntry(string.format(
+						"[%s] PROP | %s = %s | state=%s | phase=%s | pos=(%s)",
+						timestamp(), prop,
+						type(v) == "number" and string.format("%.1f", v) or tostring(v),
+						safeState(humanoid), activePhase, formatPos(root.Position)))
+				end)
+		end
+	end
+
 	deathConnection = humanoid.Died:Connect(function()
 		logDeath("Humanoid.Died fired", humanoid, root)
 	end)
@@ -1478,7 +1824,7 @@ local function startTracking(character)
 	subscribeTouches(character)
 
 	addLogEntry(string.format(
-		"[%s] SCANNER READY V8 | jumpMin=%.1f | pspeedMin=%.1f | ratioMin=%.1f | capture=%s | forensics=%s",
+		"[%s] SCANNER READY V10 | jumpMin=%.1f | pspeedMin=%.1f | ratioMin=%.1f | capture=%s | forensics=%s",
 		timestamp(), TRANSFORM_JUMP_MIN_DISTANCE, TRANSFORM_JUMP_MIN_PSPEED,
 		TRANSFORM_JUMP_RATIO, tostring(transformCaptureEnabled), tostring(forensicsEnabled)))
 	addLogEntry(string.format(
@@ -1493,6 +1839,9 @@ local function startTracking(character)
 		"[%s]   flightTrace=%s | frame=%.3fs (max %d) | writes are checked against the ask by %.1f studs",
 		timestamp(), tostring(flightTraceEnabled), FLIGHT_FRAME_S, FLIGHT_FRAME_MAX,
 		WRITE_CONFIRM_STUDS))
+	addLogEntry(string.format(
+		"[%s]   burst=%s | step>=%.0f | gap=%.2fs | velocity watch %.0f studs/s | walkSpeed/hipHeight/jump watched",
+		timestamp(), tostring(burstEnabled), BURST_MIN_STEP, BURST_GAP_S, VEL_JUMP_STUDS))
 end
 
 -- ================================================================
@@ -1639,7 +1988,7 @@ addHover(clearBtn, Color3.fromRGB(80, 40, 40), Color3.fromRGB(120, 50, 50))
 addHover(captureBtn, Color3.fromRGB(35, 110, 70), Color3.fromRGB(45, 140, 90))
 setCaptureButton()
 
-addLogEntry(string.format("[%s] SCRIPT READY V7 | capture=%s", timestamp(), tostring(transformCaptureEnabled)))
+addLogEntry(string.format("[%s] SCRIPT READY V10 | capture=%s", timestamp(), tostring(transformCaptureEnabled)))
 
 player.CharacterAdded:Connect(startTracking)
 if player.Character then

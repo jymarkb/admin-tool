@@ -13,9 +13,13 @@ import lupa, re, sys
 # `lhs += rhs` anywhere on a line, not just at statement start. The RHS is kept
 # to a simple term (number, name, index, or call) which covers every use in these
 # files; anything left unconsumed is reported rather than silently ignored.
+# The RHS is kept to a simple term - optional unary minus/not, then a number,
+# name, index or call - which covers every use in these files. Anything left
+# unconsumed is reported rather than silently ignored.
 ASSIGN = re.compile(
     r'([A-Za-z_][\w\.\[\]\'"]*)\s*\+=\s*'
-    r'(\([^()]*\)|[\w\.\[\]\'"]+(?:\([^()]*\))?[\w\.\[\]\'"]*)')
+    r'(-?\s*(?:\([^()]*\)|[\w\.\[\]\'"]+(?:\([^()]*\))?'
+    r'[\w\.\[\]\'"]*))')
 
 def normalise(src: str) -> str:
     src = ASSIGN.sub(lambda m: f"{m.group(1)} = {m.group(1)} + ({m.group(2)})", src)
