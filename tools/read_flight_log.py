@@ -18,9 +18,12 @@ import sys
 
 POS = r"\((-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\)"
 STEP = re.compile(r"step (\d{3}) \| s=([\d.]+) -> ([\d.]+).*?asked " + POS)
-CHECK = re.compile(r"check (\d{3}) \| (?:FINAL \| )?(?:([\d.]+)s after the write \| )?"
-                   r"now " + POS + r" \| ([\d.]+) (?:studs )?from (?:where it was written|the write)"
-                   r".*?([\d.]+) from where it started \| (.+)$")
+# the check line changed shape in v5-smooth ("0.500s step | 10/10 write(s) stuck"),
+# so the age is picked out of the prefix instead of being pinned to one wording
+CHECK = re.compile(r"check (\d{3}) \| ([^|]*)\|[^|]*\|?\s*now " + POS +
+                   r" \| ([\d.]+) (?:studs )?from (?:where it was written|the write)"
+                   r".*?([\d.]+) from where it started\)?\s*\| (.+)$")
+AGE = re.compile(r"([\d.]+)s")
 SUMMARY = re.compile(r"^\S+\s+(route|asked|walked|position|net|steps|health|verdict|stopped)\s*\|")
 TOLERANCE = 3.0          # TOLERANCE in the script
 CONSECUTIVE = 3          # ABORT_AFTER_REVERTS
@@ -38,7 +41,9 @@ def parse(lines):
             continue
         m = CHECK.search(line.strip())
         if m:
-            checks.append(dict(step=int(m.group(1)), age=float(m.group(2) or 0),
+            am = AGE.search(m.group(2) or "")
+            checks.append(dict(step=int(m.group(1)),
+                               age=float(am.group(1)) if am else 0.0,
                                now=tuple(float(m.group(i)) for i in range(3, 6)),
                                dxz=float(m.group(6)), back=float(m.group(7)),
                                said=m.group(8).split(" - ")[0]))

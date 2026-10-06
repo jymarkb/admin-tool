@@ -102,6 +102,10 @@ local CLIP = nil
 local ALLPARTS = {}
 local LASTWRITE = nil
 OWNER = nil
+-- every root write, in order: the smoothness tests measure the spacing between them
+WRITES = 0
+WLOG = {}
+VZERO = 0
 
 local EVENTS = {MouseButton1Click=1, FocusLost=1, InputBegan=1, InputEnded=1,
                 InputChanged=1, Changed=1, Heartbeat=1, PreSimulation=1,
@@ -157,6 +161,7 @@ local function newInstance(class)
   local proxy = {}
   local mt = {
     __index = function(_, k)
+      if k == "AssemblyLinearVelocity" and data._isRoot then return vnew(0, -VY, 0) end
       if k == "Destroy" then return function() data._destroyed = true end end
       if k == "GetPropertyChangedSignal" then return function(_, p) return sigOf(data, p) end end
       if k == "IsA" then return function(_, c)
@@ -195,10 +200,18 @@ local function newInstance(class)
     __newindex = function(_, k, v)
       data[k] = v
       if k == "CFrame" and data._isRoot then
-        VY = 0                                   -- a write resets the fall
+        -- NO VY reset here. A CFrame write teleports; the falling speed survives
+        -- it, which is exactly what the 01:00 field log shows (-622 studs/s kept
+        -- falling through every write, 31 studs of sag at the checks).
         LASTWRITE = { before = vnew(data.Position.x, data.Position.y, data.Position.z),
                       after = vnew(v.p.x, v.p.y, v.p.z) }
         data.Position = vnew(v.p.x, v.p.y, v.p.z)
+        WRITES = WRITES + 1
+        WLOG[#WLOG + 1] = vnew(v.p.x, v.p.y, v.p.z)
+      end
+      if k == "AssemblyLinearVelocity" and data._isRoot then
+        VY = 0                     -- the only thing that stops the fall
+        VZERO = VZERO + 1
       end
       local s = data._sig[k]
       if s then for _, fn in ipairs(s._fns) do fn(v) end end
@@ -292,6 +305,14 @@ function PLACE(x, y, z)
   if TORSO then PROXY_DATA[TORSO].Position = p end
 end
 function SETREVERT(v) REVERT = v end
+function WCOUNT() return WRITES end
+function WZERO() return VZERO end
+function WAT(i)
+  local w = WLOG[i]
+  if not w then return nil end
+  return w.x, w.y, w.z
+end
+function VHIST() return VY end
 function SETGRAVITY(v) GRAVITY = v end
 function SETFAILGUI(v) FAIL_GUI = v end
 function SETNOPLAYERGUI(v) NO_PLAYERGUI = v end
@@ -417,9 +438,9 @@ chk("parented to PlayerGui when it is available", g["GUIPARENT"]() == "PlayerGui
     g["GUIPARENT"]())
 chk("the log says the panel is up", "| panel on screen (parent: PlayerGui)" in txt,
     lines(txt, "UI        |")[:1])
-chk("the log names the build", "build v4.1-window" in txt, lines(txt, "READY     |")[:1])
+chk("the log names the build", "build v5-smooth" in txt, lines(txt, "READY     |")[:1])
 chk("START is the button that flies", "START  (fly the path" in g["BUTTONS"](), "")
-chk("the title carries the version", "v4.1-window" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
+chk("the title carries the version", "v5-smooth" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
 chk("the close X is there", "X" in g["BUTTONS"](), g["BUTTONS"]()[:80])
 chk("STOP is there", "STOP" in g["BUTTONS"](), "")
 chk("COPY LOG is there", "COPY LOG" in g["BUTTONS"](), "")
@@ -466,7 +487,25 @@ txt_all, g_all = run(seconds=FLIGHT_SECS)
 steps = step_lines(txt_all)
 chk("config states the pace", "35.0 studs every 0.50s x 146 steps = 73.0s" in txt_all,
     lines(txt_all, "config    |")[:1])
-chk("145 writes landed by step 145", len(steps) == 146, f"{len(steps)} writes")
+chk("146 steps landed", len(steps) == 146, f"{len(steps)} steps")
+chk("each step was walked in 10 writes", g_all["WCOUNT"]() == 1460,
+    f"{g_all['WCOUNT']()} root writes")
+def _gap(i):
+    a, b = g_all["WAT"](i), g_all["WAT"](i + 1)
+    return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
+gaps = [_gap(i) for i in range(1, 10)]
+chk("the writes really are 3.5 studs apart", all(3.4 < g < 3.7 for g in gaps),
+    f"first step gaps {['%.2f' % g for g in gaps]}")
+chk("so a 35-stud step is ten small writes",
+    abs(sum(gaps) - 31.5) < 0.6,   # 9 gaps between the 10 writes of the step
+    f"step 1: 10 writes spanning {sum(gaps):.2f} studs")
+def _step_of(pos):
+    acc = 0.0
+    for i in range(1, g_all["WCOUNT"]()):
+        acc += _gap(i)
+    return acc
+chk("nothing needed zeroing with no gravity on", g_all["WZERO"]() == 0,
+    f"{g_all['WZERO']()} velocity writes")
 chk("the first write is 35 studs along the route", "s=0.0 -> 35.0 of 5097.9" in steps[0],
     steps[0][:100])
 chk("the last write lands on the pad",
@@ -512,8 +551,11 @@ chk("the launch climb is reflown, not cut across",
 chk("the landing drop is reflown",
     any(abs(a[0]-612.2) < 1 and a[1] == 70.7 for a in asked_pts), "it comes down onto the pad")
 
-chk("every write is checked, one each", len(check_lines(txt_all)) == 146,
-    f"{len(check_lines(txt_all))} verdicts")
+chk("every step is checked, and the landing gets a FINAL line",
+    len(check_lines(txt_all)) == 147, f"{len(check_lines(txt_all))} verdicts")
+chk("the checks all say the whole step stuck",
+    all("/10 write(s) stuck" in l for l in check_lines(txt_all)[:-1]),
+    check_lines(txt_all)[0][:90])
 chk("not one write was undone",
     not lines(txt_all, "REVERTED - the server") and not lines(txt_all, "MOVED ELSEWHERE"), "")
 chk("the checks are 0.5s after their write",
@@ -538,7 +580,7 @@ chk("noclip is restored, not leaked",
 chk("every part is collidable again", all(p.CanCollide for p in g_all["PARTS"]().values()), "")
 chk("the panel agrees at the end", "THE WRITES STICK" in g_all["LABELSTART"]("STATUS"),
     g_all["LABELSTART"]("STATUS"))
-chk("the counters agree", "146 held | 0 sagged | 0 reverted" in g_all["LABELSTART"]("WRITES"),
+chk("the counters agree", "1460 held | 0 sagged | 0 reverted" in g_all["LABELSTART"]("WRITES"),
     g_all["LABELSTART"]("WRITES"))
 
 print("\n=== T5: COPY LOG copies what is on screen ===")
@@ -552,12 +594,12 @@ print("\n=== T6: a write that does not hold is retried from where we really are 
 # so "revert to the position before that write" is a no-op and the stub would
 # never model a server undo. One write per step is also what the field run did.
 txt_rev, _ = run(seconds=12, revert=True, hold=0)
-chk("the undone write is named", "REVERTED - the server put us back" in txt_rev,
+chk("the undone write is named", "the server undid it" in txt_rev,
     lines(txt_rev, "REVERTED")[:1])
 chk("it shows both positions",
-    "| wrote (5631.2, 74.2, -328.0) then (5666.3, 70.7, -331.9)" in txt_rev,
-    lines(txt_rev, "| wrote ")[:1])
-chk("it quotes the reference's time for that point", "ref reached this at t+" in txt_rev, "")
+    "wrote (5631.2, 74.2, -328.0) then (5666.3, 70.7, -331.9)" in txt_rev,
+    lines(txt_rev, "the server undid it")[:1])
+chk("it quotes the reference's time for that point", "ref reached this point at t+" in txt_rev, "")
 chk("the next write is measured from the truth",
     "s=0.0 -> 35.0" in step_lines(txt_rev)[-1], step_lines(txt_rev)[-1][:80])
 chk("it stops on the third revert, before the -1000", "3 writes in a row were undone" in txt_rev,
@@ -614,8 +656,13 @@ code = re.sub(r"--\[\[.*?\]\]", "", SCRIPT, flags=re.S)      # drop the header b
 code = re.sub(r"--[^\n]*", "", code)                         # drop line comments
 chk("no ChangeState call in the code", ":ChangeState" not in code, "")
 chk("AutoRotate is never set", not re.search(r"AutoRotate\s*=", code), "")
-chk("no velocity is written", not re.search(r"AssemblyLinearVelocity\s*=", code), "")
-chk("the write is a direct root.CFrame assignment", "root.CFrame = CFrame.new(target)" in code, "")
+velwrites = re.findall(r"[^\n]*AssemblyLinearVelocity\s*=[^\n]*", code)
+chk("the only velocity write is the one that stops the fall",
+    len(velwrites) == 1 and "Vector3.new(0, 0, 0)" in velwrites[0], velwrites[:2])
+chk("it reads the fall before zeroing it", "AssemblyLinearVelocity" in code
+    and "v.Y < -0.5" in code, "")
+chk("the write is still a direct root.CFrame assignment",
+    "flight.root.CFrame = CFrame.new(pos) * CFrame.Angles" in code, "")
 chk("no PivotTo either - the log shows direct CFrame writes", "PivotTo" not in code, "")
 chk("it does not move the humanoid state either", "SetStateEnabled" not in code, "")
 
@@ -629,7 +676,7 @@ print("\n=== T13: the UI cannot be lost, and the flight survives without it ==="
 # build is pcall-guarded, the parent falls back, and the log says which happened.
 txt_nogui, g_nogui = run(seconds=3, fail_gui=True, click=False)
 chk("a blocked ScreenGui does not kill the script",
-    "READY     |" in txt_nogui and "build v4.1-window" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
+    "READY     |" in txt_nogui and "build v5-smooth" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
 chk("the log says the panel is NOT up", "UI        | NOT BUILT" in txt_nogui,
     lines(txt_nogui, "UI        |")[:1])
 chk("it names the reason", "ScreenGui blocked" in txt_nogui, lines(txt_nogui, "UI        |")[:1])
@@ -661,7 +708,7 @@ print("\n=== T14: gravity eats the climb when nothing holds the target ===")
 # studs before the next one, and every step is a hop from the ground.
 txt_g, g_g = run(seconds=20, gravity=True, hold=0)
 chk("the fall is reported, with both axes",
-    "SAGGED - horizontal held" in txt_g, lines(txt_g, "SAGGED")[:1])
+    "the height did not hold, the position did" in txt_g, lines(txt_g, "SAGGED")[:1])
 chk("it says gravity did it, not the server",
     "gravity, not the server" in txt_g, "")
 chk("it explains the arithmetic",
@@ -704,11 +751,18 @@ askedY = [asked_xyz(l)[1] for l in hsteps[:10] if asked_xyz(l)]
 worst = max(abs(a - c) for a, c in zip(askedY, checkY))
 chk("the character is where the write put it, vertically too", worst <= 3.0,
     f"worst {worst:.2f} studs of drift across 10 steps")
-chk("the log says the hold is on",
-    "the target is re-asserted every" in txt_h, lines(txt_h, "hold      |")[:1])
-txt_hf, _ = run(seconds=FLIGHT_SECS, gravity=True)
-holds = [l for l in txt_hf.splitlines() if "holds     | " in l and "re-asserts" in l]
-chk("the summary counts the holds", bool(holds), holds[:1])
+chk("the log says the path is walked, not jumped",
+    "10 write(s) per step, 3.5 studs each, every 0.050s" in txt_h, lines(txt_h, "walk      |")[:1])
+chk("and that the fall is zeroed", "the downward velocity is zeroed on every write" in txt_h,
+    lines(txt_h, "fall      |")[:1])
+txt_hf, g_hf = run(seconds=FLIGHT_SECS, gravity=True)
+wlines = [l for l in txt_hf.splitlines() if "writes    | " in l]
+chk("the summary counts the writes", bool(wlines) and "1460 write(s) every 0.050s" in wlines[0],
+    wlines[:1])
+chk("and the fall is zeroed all the way down", "zeroed on " in txt_hf and
+    "fastest fall seen" in txt_hf, [l for l in txt_hf.splitlines() if "fall      |" in l][:1])
+chk("no step lost its height", "0 SAGGED" in txt_hf,
+    [l for l in txt_hf.splitlines() if "steps     |" in l][:1])
 
 print("\n=== T16: the hold rate is the reference's own ===")
 code = re.sub(r"--\[\[.*?\]\]", "", SCRIPT, flags=re.S)
@@ -781,6 +835,43 @@ chk("3 in a row never fires on it", "never fires - the refusals are not consecut
 chk("3 of the last 4 fires before the death", "check 16 (3 of the last 4 refused)" in rtext, "")
 chk("and it says the death came after", "the -1000 has followed a run like this" not in rtext and
     "hp=-1000.0 at step 18" in rtext, "")
+
+print("\n=== T19: the walk is smooth - no hops, no accumulated fall ===")
+# The 01:00 run held the position 20x/s but never touched the velocity, so the
+# fall grew to -622 studs/s and the character was 31 studs down at every check:
+# a yo-yo, not a flight. Here gravity is real and the walk is on. Every number
+# below is measured off the engine trace, not asserted from the log's prose.
+txt_sm, g_sm = run(seconds=20, gravity=True)
+
+def _wpos(i):
+    return g_sm["WAT"](i)
+
+gaps = []
+for i in range(1, g_sm["WCOUNT"]()):
+    a, b = _wpos(i), _wpos(i + 1)
+    gaps.append(sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5)
+chk("no write jumps: the biggest hop is a few studs", max(gaps) < 4.2,
+    f"largest gap {max(gaps):.2f} studs over {len(gaps)} writes")
+chk("no write stalls either", min(gaps) > 2.8, f"smallest gap {min(gaps):.2f} studs")
+chk("the walk is 20 writes a second at 3.5 studs", g_sm["WCOUNT"]() == 401,
+    f"{g_sm['WCOUNT']()} writes in 20s")
+chk("the fall is stopped on nearly every write", g_sm["WZERO"]() >= 395,
+    f"{g_sm['WZERO']()} of {g_sm['WCOUNT']()} writes zeroed the velocity")
+
+sm_lines = [l for l in txt_sm.splitlines() if re.match(r"^\[[\d:.]+\] check \d{3} \|", l)]
+dys = [float(re.search(r"([-\d.]+) in Y", l).group(1)) for l in sm_lines]
+chk("the character stays on the written line, vertically too", min(dys) > -1.0,
+    f"deepest {min(dys):.2f} studs below the write (the one-write-per-step run was 42)")
+chk("nothing is reported as sagging", not lines(txt_sm, "SAGGED"),
+    lines(txt_sm, "SAGGED")[:1])
+chk("no step is SAGGED in the summary either, mid-flight", "SAGGED     |" not in txt_sm, "")
+
+# and the same weather with the walk OFF must still reproduce the field failure
+txt_ow, g_ow = run(seconds=6, gravity=True, hold=0)
+chk("with the walk off it is the 01:00 run again: 25 studs of sag",
+    "we are 25.3 studs below the write" in txt_ow, lines(txt_ow, "SAGGED")[:1])
+chk("and that run writes once per step", g_ow["WCOUNT"]() <= 13,
+    f"{g_ow['WCOUNT']()} writes in 6s")
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
