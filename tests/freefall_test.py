@@ -24,6 +24,8 @@ import lupa, sys, os
 
 STUB = r'''
 local CREATED = {}
+local REJECT_ROOT = false   -- must be declared BEFORE newInstance,
+                            -- or __newindex reads a global and the flag no-ops
 local WATCH, COLLIDE_LOG          -- declared here so the instance mt captures them
 local function signal()
   local s = {_fns={}}
@@ -89,6 +91,12 @@ function CFrame.new(x,y,z)
   end
   return setmetatable({p=vnew(x,y,z),r=vnew(1,0,0),u=vnew(0,1,0),b=vnew(0,0,1)},C)
 end
+function CFrame.Angles(rx, ry, rz)
+  -- only Y is used by the script; do it properly so LookVector is right
+  local cy, sy = math.cos(ry or 0), math.sin(ry or 0)
+  return setmetatable({p=vnew(0,0,0),
+    r=vnew(cy, 0, -sy), u=vnew(0,1,0), b=vnew(sy, 0, cy)}, C)
+end
 function C.__sub(a) return setmetatable({p=vnew(0,0,0),r=a.r,u=a.u,b=a.b},C) end
 function C.__add(a,b) return setmetatable({p=a.p+b,r=a.r,u=a.u,b=a.b},C) end
 function C.__mul(a,b)
@@ -109,7 +117,9 @@ Enum = {HumanoidStateType={Physics="Physics",Running="Running",Freefall="Freefal
         Font={GothamBold="gb",Gotham="g",Code="c"},
         TextXAlignment={Left="l",Center="c"}, TextYAlignment={Top="t"},
         ZIndexBehavior={Sibling="s"},
-        RaycastFilterType={Exclude="Exclude",Include="Include"}}
+        RaycastFilterType={Exclude="Exclude",Include="Include"},
+        RenderPriority={Character={Value=200},Camera={Value=200}}}
+OverlapParams = {new=function() return {FilterDescendantsInstances={}} end}
 Color3 = {fromRGB=function(r,g,b) return {r=r,g=g,b=b} end}
 UDim2 = {new=function(xs,xo,ys,yo) return {X={Scale=xs,Offset=xo},Y={Scale=ys,Offset=yo}} end}
 UDim  = {new=function(s,o) return {Scale=s,Offset=o} end}
@@ -123,7 +133,8 @@ end
 
 local EVENTS = {MouseButton1Click=1,FocusLost=1,InputBegan=1,InputEnded=1,
                 Changed=1,InputChanged=1,Heartbeat=1,PreSimulation=1,
-                PostSimulation=1,PreRender=1,Died=1,CharacterAdded=1}
+                PostSimulation=1,PreRender=1,Died=1,CharacterAdded=1,
+                StateChanged=1,Touched=1}
 
 -- Proxy over a backing table, so __newindex fires on EVERY assignment.
 local function newInstance(class)
@@ -152,6 +163,17 @@ local function newInstance(class)
             if data._parts then for _,p in ipairs(data._parts) do table.insert(out,p) end end
             return out end end
       if k=="Move" then return function(_, d) data.MoveDirection = d end end
+      if k=="ChangeState" then return function(_, st) data._state = st end end
+      if k=="PivotTo" then return function(_, cf)
+            -- move every part, the way the real model pivot does
+            if data._parts then
+              for _, p in ipairs(data._parts) do p.CFrame = cf end
+            end
+            if data.CFrame then data.CFrame = cf end
+            return true end end
+      if k=="GetFullName" then return function()
+            return (tostring(data.Name or data.ClassName)) end end
+      if k=="GetConnectedParts" then return function() return {} end end
       if k=="GetState" then return function() return data._state or "Running" end end
       if k=="Raycast" then return function(_, origin, dir, params)
             -- A segment table lets the test describe real terrain, including the
@@ -174,6 +196,11 @@ local function newInstance(class)
       return data[k]
     end,
     __newindex=function(_,k,v)
+      -- a rejected write: the engine keeps the old position, which is exactly
+      -- what makes the reference's correction detector fire
+      if REJECT_ROOT and k=="CFrame" and data.Name=="HumanoidRootPart" then
+        return
+      end
       local prev = data[k]
       data[k]=v
       if WATCH and k=="AssemblyLinearVelocity" then
@@ -197,17 +224,34 @@ local RUNSERVICE = newInstance("RunService")
 
 local char = newInstance("Model"); char.Name = "Tester"
 local root = newInstance("Part"); root.Name = "HumanoidRootPart"
+root.Orientation = vnew(0,0,0)
+root.CFrame = CFrame.new(0,0,0)
+root.AssemblyLinearVelocity = vnew(0,0,0)
+root.AssemblyAngularVelocity = vnew(0,0,0)
 local hum  = newInstance("Humanoid"); hum.Health=100; hum.WalkSpeed=16
+hum.AutoRotate = true
 local torso = newInstance("Part"); torso.Name="Torso"; torso.CanCollide=true
 local head  = newInstance("Part"); head.Name="Head";   head.CanCollide=true
+torso.CFrame = CFrame.new(1000, 100, 0)
+head.CFrame  = CFrame.new(1000, 103, 0)
 char.Humanoid = hum
 char.HumanoidRootPart = root
-char._parts = {root, torso, head}   -- what GetDescendants() will walk
+char._parts = {root, torso, head}   -- what GetDescendants()/PivotTo walk
+-- Parent must be truthy or the flight aborts as "character disappeared"
+char.Parent = true; hum.Parent = true; root.Parent = true
+torso.Parent = true; head.Parent = true
 player.Character = char
 
 local WORKSPACE = newInstance("Workspace")
 WORKSPACE.CurrentCamera = newInstance("Camera")
 WORKSPACE.FallenPartsDestroyHeight = -500
+
+-- a stand-in kill brick so nearbyParts() has something to report
+local killBrick = newInstance("Part")
+killBrick.Name = "LavaKillBrick"; killBrick.CanCollide = false
+killBrick.Material = "Neon"; killBrick.Position = vnew(1000,100,0)
+WORKSPACE.GetPartBoundsInRadius = function(_, pos, radius, params)
+  return {killBrick} end
 
 game = {GetService=function(_,name)
   if name=="Players" then return {LocalPlayer=player} end
@@ -218,8 +262,16 @@ workspace = WORKSPACE
 
 task = {wait=function() end, spawn=function(f,...) f(...) end, delay=function() end}
 
+local RENDER_FNS = {}
+RUNSERVICE.BindToRenderStep   = function(_, name, prio, fn) RENDER_FNS[name] = fn end
+RUNSERVICE.UnbindFromRenderStep = function(_, name) RENDER_FNS[name] = nil end
+
+local CLIPBOARD = nil
+setclipboard = function(t) CLIPBOARD = t end
+
 local FAKE_T = 1000.0            -- simulate a game that has been up a while
-os = {clock=function() return FAKE_T end}
+os = {clock=function() return FAKE_T end,
+      date=function() return {hour=0,min=0,sec=0} end}
 
 return {CREATED=CREATED, fire=fire, char=char, hum=hum, root=root, torso=torso,
         head=head, player=player, vnew=vnew, getCreated=function(c)
@@ -228,10 +280,23 @@ return {CREATED=CREATED, fire=fire, char=char, hum=hum, root=root, torso=torso,
         advance=function(dt) FAKE_T = FAKE_T + dt end,
         heartbeat=function(dt) FAKE_T = FAKE_T + (dt or 1/60)
           return fire(RUNSERVICE,"Heartbeat",dt or 1/60) end,
-        stepN=function(n,dt) for _=1,n do FAKE_T = FAKE_T + (dt or 1/60)
-          fire(RUNSERVICE,"Heartbeat",dt or 1/60) end end,
+        -- the flight is bound to a RENDER STEP now, not Heartbeat
+        renderOnce=function(dt)
+          FAKE_T = FAKE_T + (dt or 1/60)
+          local n = 0
+          for _, fn in pairs(RENDER_FNS) do n = n + 1; fn(dt or 1/60) end
+          return n end,
+        stepN=function(n,dt)
+          for _=1,n do
+            FAKE_T = FAKE_T + (dt or 1/60)
+            for _, fn in pairs(RENDER_FNS) do fn(dt or 1/60) end
+          end end,
+        renderSubs=function()
+          local n=0; for _ in pairs(RENDER_FNS) do n=n+1 end; return n end,
         heartbeatSubs=function() local s=RUNSERVICE._sig and RUNSERVICE._sig.Heartbeat
           return s and #s._fns or 0 end,
+        clipboard=function() return CLIPBOARD end,
+        clearClipboard=function() CLIPBOARD = nil end,
         watchStart=function() WATCH = {} end,
         watchList=function() return WATCH or {} end,
         collideStart=function() COLLIDE_LOG = {} end,
@@ -245,6 +310,13 @@ return {CREATED=CREATED, fire=fire, char=char, hum=hum, root=root, torso=torso,
           table.insert(WORKSPACE._segments, {xFrom,xTo,y}) end,
         clearGrounds=function() WORKSPACE._segments = {} end,
         fireDied=function() return fire(hum, "Died") end,
+        fireHealth=function(v)
+          local prev = hum.Health
+          hum.Health = v
+          return fire(hum, "Health", v, prev) end,
+        fireState=function(st) return fire(hum, "StateChanged", nil, st) end,
+        setHealth=function(v) hum.Health = v end,
+        rejectRootWrites=function(on) REJECT_ROOT = on end,
         fireRespawn=function() return fire(player, "CharacterAdded") end,
         -- CFrame maths must happen in Lua or metamethods are lost
         teleport=function(x,y,z) root.CFrame = CFrame.new(x,y,z)
@@ -294,6 +366,7 @@ def buttons(substr):
 fly   = buttons("FLY")[0]
 close = buttons("X")[0]
 noclipBtn = buttons("NOCLIP")[0]
+copyBtn = buttons("COPY")[0]
 box   = values(getCreated("TextBox"))[0]
 
 def set_noclip(on):
@@ -320,13 +393,13 @@ H["addGround"](-1200, 1200, 70)      # ground under the whole 2000-stud route
 H["watchStart"]()
 H["collideStart"]()
 fire(fly, "MouseButton1Click")
-chk("flight started", H["heartbeatSubs"]() == 1, f"subs={H['heartbeatSubs']()}")
+chk("flight started", H["renderSubs"]() == 1, f"subs={H['heartbeatSubs']()}")
 H["stepN"](400)
 startX, endX = 1000.0, root["CFrame"]["Position"]["X"]
 travelled = startX - endX
 chk("travelled ~2000 studs", 1900 <= travelled <= 2100, f"{travelled:.1f} studs")
 chk("moved toward target (-X)", endX < startX, f"X {startX:.0f} -> {endX:.1f}")
-chk("flight ended on its own", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("flight ended on its own", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 
 print("\n=== T2: THE core claim - no horizontal velocity ever claimed ===")
 vels = values(H["watchList"]())
@@ -339,9 +412,13 @@ ys = sorted({round(v["y"], 2) for v in vels})
 chk("downward claim, never upward", all(y <= 0 for y in ys), f"Y claims {ys}")
 
 print("\n=== T3: speed is STEP_SIZE per frame, as in the logs ===")
-flight_frames = n
-chk("~2000/78 frames + ramp + descent", 25 <= flight_frames <= 40,
-    f"{flight_frames} frames x 78 = {flight_frames*78} studs")
+# velocity is written twice per frame: once re-applying the sticky target at the
+# top of the render step, once by the phase step. So writes ~= 2 x steps.
+writes = n
+steps = writes / 2.0
+expected = 2000.0 / 78.0
+chk("steps ~= 2000/78 + descent", abs(steps - (expected + 3)) <= 3,
+    f"{steps:.0f} steps: {expected:.1f} flight + ~3 descent + transition")
 
 print("\n=== T4: noclip OFF by default, opt-in via the toggle ===")
 chk("noclip starts OFF", "OFF" in str(noclipBtn["Text"]), repr(str(noclipBtn["Text"])))
@@ -367,7 +444,7 @@ fire(fly, "MouseButton1Click")
 H["stepN"](3)
 chk("noclip active during flight", collide_off(), str(torso["CanCollide"]))
 fire(fly, "MouseButton1Click")            # second press cancels
-chk("cancelled", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("cancelled", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 chk("collisions restored on abort", torso["CanCollide"] is True or torso["CanCollide"] == True,
     str(torso["CanCollide"]))
 
@@ -378,7 +455,7 @@ H["addGround"](-20000, 20000, 70)
 box["Text"] = "20000"
 fire(fly, "MouseButton1Click")
 H["stepN"](400)
-chk("run bounded", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("run bounded", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 chk("collisions restored after timeout",
     torso["CanCollide"] is True or torso["CanCollide"] == True, str(torso["CanCollide"]))
 
@@ -399,13 +476,13 @@ H["addGround"](-1200, 1200, 70)
 H["setField"](hum, "_state", "Physics")
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
-chk("no flight while Physics", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("no flight while Physics", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 H["setField"](hum, "_state", "Running")
 
 print("\n=== T9: invalid input handled ===")
 box["Text"] = ""
 fire(fly, "MouseButton1Click")
-chk("empty input refused", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("empty input refused", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 
 print("\n=== T10: X cleans up mid-flight ===")
 set_noclip(True)
@@ -414,7 +491,7 @@ box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
 H["stepN"](2)
 fire(close, "MouseButton1Click")
-chk("Heartbeat disconnected", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("Heartbeat disconnected", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 chk("collisions restored by X",
     torso["CanCollide"] is True or torso["CanCollide"] == True, str(torso["CanCollide"]))
 chk("ScreenGui destroyed",
@@ -437,7 +514,7 @@ H["addGround"](400, 1100, 70)          # solid ground only from X=1100 down to 4
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
 fire(fly, "MouseButton1Click")
-chk("refused (no flight started)", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("refused (no flight started)", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 st = stat()
 chk("says the ground runs out", "no ground" in st, st.split("\n")[0])
 chk("did not move", abs(root["CFrame"]["Position"]["X"] - 1000) < 1e-6,
@@ -455,10 +532,10 @@ H["stepN"](12)                          # past the ramp, into cruise
 y_here = root["CFrame"]["Position"]["Y"]
 chk("climbs above the hill", y_here > 300, f"Y={y_here:.1f} (hill 300, clearance 25)")
 H["stepN"](400)                       # let it finish, so T14 starts clean
-chk("T13 run completed before T14", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("T13 run completed before T14", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 
 print("\n=== T14: void guard aborts near FallenPartsDestroyHeight ===")
-assert H["heartbeatSubs"]() == 0, "a previous flight was still running"
+assert H["renderSubs"]() == 0, "a previous flight was still running"
 H["clearGrounds"]()
 H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
@@ -467,11 +544,11 @@ fire(fly, "MouseButton1Click")
 H["stepN"](2)
 H["teleport"](root["CFrame"]["Position"]["X"], -450, 0)   # below -500 + 100 margin
 H["stepN"](1)
-chk("aborted on the void guard", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("aborted on the void guard", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 chk("names the guard", "void guard" in stat(), stat().split("\n")[0])
 
 print("\n=== T15: death mid-flight stops the flight and restores everything ===")
-assert H["heartbeatSubs"]() == 0, "a previous flight was still running"
+assert H["renderSubs"]() == 0, "a previous flight was still running"
 H["clearGrounds"]()
 H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
@@ -481,7 +558,7 @@ fire(fly, "MouseButton1Click")
 H["stepN"](3)
 chk("noclip active", flat(torso["CanCollide"]), str(torso["CanCollide"]))
 H["fireDied"]()
-chk("flight stopped on death", H["heartbeatSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
+chk("flight stopped on death", H["renderSubs"]() == 0, f"subs={H['heartbeatSubs']()}")
 chk("collisions restored on death", torso["CanCollide"] is True or torso["CanCollide"] == True,
     str(torso["CanCollide"]))
 chk("status reports the death", "DIED" in stat(), stat().split("\n")[0])
@@ -494,6 +571,98 @@ H["fireRespawn"]()
 chk("collisions restored on respawn",
     torso["CanCollide"] is True or torso["CanCollide"] == True, str(torso["CanCollide"]))
 set_noclip(False)
+
+
+print("\n=== T17: reference mechanics - whole-model move, render step, Freefall ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+chk("bound to a RENDER STEP, not Heartbeat", H["renderSubs"]() == 1,
+    f"renderSubs={H['renderSubs']()} heartbeats={H['heartbeatSubs']()}")
+H["stepN"](8)
+# PivotTo must carry the limbs; a root-only write leaves them behind
+rp, tp, hp = (root["CFrame"]["Position"], torso["CFrame"]["Position"],
+              head["CFrame"]["Position"])
+chk("PivotTo moved the WHOLE model (torso follows)", abs(tp["X"] - rp["X"]) < 1e-6,
+    f"root.X={rp['X']:.1f} torso.X={tp['X']:.1f}")
+chk("head follows too", abs(hp["X"] - rp["X"]) < 1e-6, f"head.X={hp['X']:.1f}")
+chk("Freefall state forced", str(hum["_state"]) == "Freefall", str(hum["_state"]))
+chk("AutoRotate disabled for the flight", hum["AutoRotate"] is False,
+    str(hum["AutoRotate"]))
+H["stepN"](400)
+chk("AutoRotate restored afterwards", hum["AutoRotate"] is True, str(hum["AutoRotate"]))
+
+print("\n=== T18: vertical velocity is PRESERVED, not overwritten with a constant ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+ys = []
+for _ in range(12):
+    root["AssemblyLinearVelocity"] = H["vnew"](0, -13.5, 0)   # gravity-ish, varying
+    H["stepN"](1)
+    ys.append(round(root["AssemblyLinearVelocity"]["Y"], 4))
+chk("the script did not flatline Y to a constant",
+    len(set(ys)) == 1 and ys[0] == -13.5, f"Y values seen {sorted(set(ys))}")
+H["stepN"](400)
+
+print("\n=== T19: COPY LOG captures a usable diagnostic log ===")
+H["clearClipboard"]()
+fire(copyBtn, "MouseButton1Click")
+log = H["clipboard"]()
+chk("clipboard got the log", log is not None and len(str(log)) > 50,
+    f"{len(str(log)) if log else 0} chars")
+txt = str(log)
+chk("log records the START", "START #" in txt, txt.splitlines()[1] if txt else "")
+chk("log records the scan", "scanned" in txt, "")
+chk("log records Freefall start", "FREEFALL START" in txt, "")
+
+print("\n=== T20: a death mid-flight is recorded with the evidence ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](6)
+chk("flight running", H["renderSubs"]() == 1, f"subs={H['renderSubs']()}")
+H["setHealth"](0)
+H["fireDied"]()
+chk("flight stopped on death", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("log says DEATH", "DEATH" in txt, "")
+chk("log records health", "health" in txt, "")
+chk("log records position", "position" in txt, "")
+chk("log records the void floor", "floor of pt" in txt, "")
+chk("log lists nearby parts", "NEAR" in txt, "")
+
+H["setHealth"](100)                  # T20 killed the humanoid; restore it or the
+                                     # next test silently refuses to fly
+
+print("\n=== T21: correction fight aborts instead of dying silently ===")
+H["clearGrounds"]()
+H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+fire(fly, "MouseButton1Click")
+H["stepN"](6)
+chk("T21 flight actually started", H["renderSubs"]() == 1,
+    f"subs={H['renderSubs']()} (0 would mean it was refused, not that it aborted)")
+# the engine keeps refusing our write, so root.Position stays wrong and the
+# detector accumulates consecutive errors - what "sustained correction" means
+H["teleport"](2000, 100, 0)          # yanked way off the sticky target
+H["rejectRootWrites"](True)          # and now our correction is refused
+H["stepN"](14)
+H["rejectRootWrites"](False)
+chk("aborted the fight", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("log records CORRECTION FIGHT", "CORRECTION FIGHT" in txt, "")
 
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
