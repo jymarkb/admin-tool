@@ -481,6 +481,15 @@ def lastline(txt, needle):
     hits = [l for l in txt.splitlines() if needle in l]
     return hits[-1] if hits else "(no line with %r)" % needle
 
+def fly_now(airborne=True):
+    """Start a flight. The script rate-limits flights now (back-to-back flights
+    are when the -1000 kills happened), so step past the cooldown first. airborne
+    simulates the humanoid having left the ground, which the script waits for."""
+    H["advance"](13.0)
+    if airborne:
+        H["setField"](hum, "_state", "Freefall")
+    fire(fly, "MouseButton1Click")
+
 def stat():
     """The status TextLabel is the last one created."""
     return str(values(getCreated("TextLabel"))[-1]["Text"])
@@ -496,7 +505,7 @@ H["clearGrounds"]()
 H["addGround"](-1200, 1200, 70)      # ground under the whole 2000-stud route
 H["watchStart"]()
 H["collideStart"]()
-fire(fly, "MouseButton1Click")
+fly_now()
 chk("flight started", H["renderSubs"]() == 1, f"subs={H['renderSubs']()}")
 H["stepN"](400)
 startX, endX = 1000.0, root["CFrame"]["Position"]["X"]
@@ -520,9 +529,11 @@ print("\n=== T3: speed is STEP_SIZE per frame, as in the logs ===")
 # top of the render step, once by the phase step. So writes ~= 2 x steps.
 writes = n
 steps = writes / 2.0
-expected = 2000.0 / 78.0
-chk("steps ~= 2000/78 + descent", abs(steps - (expected + 3)) <= 3,
-    f"{steps:.0f} steps: {expected:.1f} flight + ~3 descent + transition")
+flight_steps = 2000.0 / 78.0
+# the count now includes a 6-frame vertical CLIMB and the climb->launch frame
+chk("steps ~= flight + climb + descent",
+    flight_steps <= steps <= flight_steps + 18,
+    f"{steps:.0f} steps: {flight_steps:.1f} travel + ~6 climb + 5 ramp + 3 descent")
 
 print("\n=== T4: noclip OFF by default, opt-in via the toggle ===")
 chk("noclip starts OFF", "OFF" in str(noclipBtn["Text"]), repr(str(noclipBtn["Text"])))
@@ -532,7 +543,7 @@ set_noclip(True)
 chk("toggle flips to ON", "NOCLIP: ON" in str(noclipBtn["Text"]), repr(str(noclipBtn["Text"])))
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["collideStart"]()
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](4)
 chk("noclip active during flight", flat(torso["CanCollide"]), str(torso["CanCollide"]))
 H["stepN"](400)
@@ -544,10 +555,10 @@ chk("Torso collides again", torso["CanCollide"] is True or torso["CanCollide"] =
 
 print("\n=== T5: noclip never leaks on abort ===")
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](3)
 chk("noclip active during flight", collide_off(), str(torso["CanCollide"]))
-fire(fly, "MouseButton1Click")            # second press cancels
+fly_now()            # second press cancels
 chk("cancelled", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 chk("collisions restored on abort", torso["CanCollide"] is True or torso["CanCollide"] == True,
     str(torso["CanCollide"]))
@@ -557,7 +568,7 @@ H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearGrounds"]()
 H["addGround"](-20000, 20000, 70)
 box["Text"] = "20000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](400)
 chk("run bounded", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 chk("collisions restored after timeout",
@@ -568,7 +579,7 @@ H["teleport"](2000, 100, 0); H["face"](-1, 0)
 H["clearGrounds"]()
 H["addGround"](-500, 2100, 70)
 box["Text"] = "500"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](400)
 trav = 2000 - root["CFrame"]["Position"]["X"]
 chk("~500 studs", 450 <= trav <= 600, f"{trav:.1f}")
@@ -579,20 +590,21 @@ H["clearGrounds"]()
 H["addGround"](-1200, 1200, 70)
 H["setField"](hum, "_state", "Physics")
 box["Text"] = "2000"
+H["advance"](13.0)
 fire(fly, "MouseButton1Click")
 chk("no flight while Physics", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 H["setField"](hum, "_state", "Running")
 
 print("\n=== T9: invalid input handled ===")
 box["Text"] = ""
-fire(fly, "MouseButton1Click")
+fly_now()
 chk("empty input refused", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 
 print("\n=== T10: X cleans up mid-flight ===")
 set_noclip(True)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](2)
 fire(close, "MouseButton1Click")
 chk("Heartbeat disconnected", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
@@ -606,7 +618,7 @@ H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearGrounds"]()
 H["addGround"](-200, 1200, 42)
 box["Text"] = "100"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](400)
 chk("landed near groundY+3", abs(root["CFrame"]["Position"]["Y"] - 45) < 6,
     f"Y={root['CFrame']['Position']['Y']:.1f} (ground 42)")
@@ -617,7 +629,7 @@ H["clearGrounds"]()
 H["addGround"](400, 1100, 70)          # solid ground only from X=1100 down to 400
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 chk("refused (no flight started)", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
 st = stat()
 chk("says the ground runs out", "no ground" in st, st.split("\n")[0])
@@ -631,7 +643,7 @@ H["addGround"](200, 600, 300)          # a 300-stud hill in the middle of the ro
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
 chk("reports the high terrain", "HIGH TERRAIN" in txt, lastline(txt, "HIGH TERRAIN"))
@@ -650,7 +662,7 @@ H["clearGrounds"]()
 H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](2)
 H["teleport"](root["CFrame"]["Position"]["X"], -450, 0)   # below -500 + 100 margin
 H["stepN"](1)
@@ -664,7 +676,7 @@ H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 set_noclip(True)
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](3)
 chk("noclip active", flat(torso["CanCollide"]), str(torso["CanCollide"]))
 H["fireDied"]()
@@ -688,6 +700,8 @@ H["clearGrounds"]()
 H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
+H["setField"](hum, "_state", "Running")   # must stay Running: the script must not force it
+H["advance"](13.0)
 fire(fly, "MouseButton1Click")
 chk("bound to a RENDER STEP, not Heartbeat", H["renderSubs"]() == 1,
     f"renderSubs={H['renderSubs']()} heartbeats={H['renderSubs']()}")
@@ -710,7 +724,7 @@ H["clearGrounds"]()
 H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 ys = []
 for _ in range(12):
     root["AssemblyLinearVelocity"] = H["vnew"](0, -13.5, 0)   # gravity-ish, varying
@@ -737,7 +751,7 @@ H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](6)
 chk("flight running", H["renderSubs"]() == 1, f"subs={H['renderSubs']()}")
 H["setHealth"](0)
@@ -760,7 +774,7 @@ H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](6)
 chk("T21 flight actually started", H["renderSubs"]() == 1,
     f"subs={H['renderSubs']()} (0 would mean it was refused, not that it aborted)")
@@ -782,7 +796,7 @@ H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](60)                        # 1.0s: lands, watch window still open
 chk("render step STILL bound after landing", H["renderSubs"]() == 1,
     f"subs={H['renderSubs']()} (0 = we stopped looking at the exact moment it matters)")
@@ -800,7 +814,7 @@ H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](60)                        # land, watch window opens
 chk("watching", H["renderSubs"]() == 1, f"subs={H['renderSubs']()}")
 H["setHealth"](0)
@@ -819,7 +833,7 @@ H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](60)                        # land (endPos recorded), still watching
 # simulate the field-log failure: the character is moved far away (respawn) and
 # then reported dead, so the single-sample position is useless
@@ -839,7 +853,7 @@ H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](4)
 brick = H["killBrick"]()
 H["emit"](root, "Touched", brick)
@@ -860,7 +874,7 @@ H["addSlab"](0, 66, 0, 4000, 4, 4000)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](60)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
@@ -877,7 +891,7 @@ H["addSlab"](-1000, 73, 0, 2000, 30, 2000)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](60)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
@@ -901,7 +915,7 @@ H["addSlab"](-990, 73, 0, 60, 30, 60)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](80)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
@@ -916,7 +930,7 @@ H["addGround"](-1200, 1200, 70)         # flat ground: no reason to climb
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](10)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
@@ -936,7 +950,7 @@ H["addBarrier"](400, 80, 200, "FrozenWallRight")
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
 chk("barrier count reported", "barriers | 1 crossing" in txt,
@@ -956,7 +970,7 @@ H["guardVolume"]("Bounds", H["vnew"](-1000, 73, 0))
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](60)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
@@ -972,7 +986,7 @@ H["teleport"](1000, 100, 0); H["face"](-1, 0)
 fire(clearBtn, "MouseButton1Click")
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](4)
 # exactly the field value
 H["setHealth"](-1000)
@@ -992,7 +1006,7 @@ H["teleport"](1000, 100, 0); H["face"](-1, 0)
 fire(clearBtn, "MouseButton1Click")
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](4)
 H["setHealth"](0)
 H["fireHealth"](0)
@@ -1008,7 +1022,7 @@ H["clearGrounds"](); H["addGround"](-1200, 1200, 70)
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
 H["clearClipboard"]()
 box["Text"] = "2000"
-fire(fly, "MouseButton1Click")
+fly_now()
 H["stepN"](60)
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
@@ -1028,21 +1042,82 @@ chk("log is emptied", "EXTERNAL KILL" not in txt and "START #" not in txt,
     f"{len(txt.splitlines())} line(s): {txt.strip()[:60]}")
 chk("says it was cleared", "log cleared" in txt, "")
 
-print("\n=== T33: the gap between flights is logged, to expose repetition ===")
+print("\n=== T33: rate limit - back-to-back flights are refused ===")
 H["clearGrounds"](); H["addGround"](-1200, 1200, 70)
 box["Text"] = "500"
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
-fire(fly, "MouseButton1Click")
-H["stepN"](60)
+fly_now()
+H["stepN"](60)                          # land; the cooldown starts
+fire(clearBtn, "MouseButton1Click")     # the log accumulates; start clean
 H["clearClipboard"]()
 H["teleport"](1000, 100, 0); H["face"](-1, 0)
-fire(fly, "MouseButton1Click")          # immediately, so the gap is tiny
+fire(fly, "MouseButton1Click")          # immediately: must be refused
 fire(copyBtn, "MouseButton1Click")
 txt = str(H["clipboard"]())
+chk("immediate re-fire is refused", "REFUSED | rate limit" in txt,
+    lastline(txt, "REFUSED"))
+chk("says how long is left", "remaining" in txt or "left before" in txt,
+    lastline(txt, "rate limit"))
+chk("no second START line", txt.count("START #") == 0, f"{txt.count('START #')} START lines")
+
+print("\n=== T37: after the cooldown a flight is allowed and the gap logged ===")
+fire(clearBtn, "MouseButton1Click")
+H["advance"](13.0)
+H["setField"](hum, "_state", "Freefall")
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+fire(fly, "MouseButton1Click")
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("flight allowed after the wait", "START #" in txt, lastline(txt, "START #"))
 chk("gap is logged", "gap since last flight" in txt, lastline(txt, "gap since"))
-chk("tiny gap is flagged as back-to-back", "back-to-back" in txt, "")
+chk("no back-to-back flag now", "back-to-back" not in txt,
+    lastline(txt, "gap since"))
 H["stepN"](400)
 
+print("\n=== T38: the climb is VERTICAL ONLY (no ground-level horizontal teleport) ===")
+H["clearGrounds"](); H["addGround"](-1200, 1200, 70)
+H["teleport"](1000, 100, 0); H["face"](-1, 0)
+H["clearClipboard"]()
+box["Text"] = "2000"
+H["setField"](hum, "_state", "Running")     # grounded: must not travel horizontally
+H["advance"](13.0)
+fire(fly, "MouseButton1Click")
+xs, ys = [], []
+for _ in range(3):                          # first 3 frames = inside the climb
+    H["stepN"](1)
+    xs.append(round(root["CFrame"]["Position"]["X"], 6))
+    ys.append(round(root["CFrame"]["Position"]["Y"], 6))
+chk("X is unchanged during the climb", len(set(xs)) == 1 and xs[0] == 1000.0,
+    f"X values {xs}")
+chk("but Y is rising", ys[-1] > ys[0], f"Y {ys[0]} -> {ys[-1]}")
+H["stepN"](8)                           # past CLIMB_FRAMES(6), into the wait
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("waits for the humanoid to be airborne", "WAIT AIRBORNE" in txt,
+    lastline(txt, "WAIT AIRBORNE"))
+chk("still has not travelled horizontally", root["CFrame"]["Position"]["X"] == 1000.0,
+    f"X={root['CFrame']['Position']['X']:.1f}")
+# and only then does it travel horizontally
+H["stepN"](40)
+chk("travels horizontally after the wait", root["CFrame"]["Position"]["X"] < 900,
+    f"X={root['CFrame']['Position']['X']:.1f}")
+H["stepN"](400)     # finish, or the NEXT test's click cancels this flight instead
+chk("T38 flight completed", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
+
+print("\n=== T39: an airborne humanoid travels without the wait ===")
+H["clearGrounds"](); H["addGround"](-2000, 2100, 70)   # must cover the start at X=2000
+H["teleport"](2000, 100, 0); H["face"](-1, 0)
+fire(clearBtn, "MouseButton1Click")
+H["clearClipboard"]()
+box["Text"] = "500"
+chk("T39 starts from idle", H["renderSubs"]() == 0, f"subs={H['renderSubs']()}")
+fly_now()                                   # state = Freefall
+H["stepN"](60)
+fire(copyBtn, "MouseButton1Click")
+txt = str(H["clipboard"]())
+chk("no WAIT AIRBORNE when already airborne", "WAIT AIRBORNE" not in txt, "")
+chk("AIRBORNE line confirms it", "AIRBORNE | state=" in txt, lastline(txt, "AIRBORNE"))
+H["stepN"](300)
 print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
 if FAILED:
     print("FAILED: " + ", ".join(FAILED))

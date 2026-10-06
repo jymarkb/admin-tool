@@ -53,6 +53,23 @@ local DEFAULT_STUDS = 2000
 local MIN_STUDS     = 10
 local MAX_STUDS     = 20000
 
+-- ----------------------------------------------------------------
+-- THE LAUNCH WINDOW
+-- ----------------------------------------------------------------
+-- Both -1000 HP kills were 0.03-0.04s in, in phase=launch, state=Running, on a
+-- flight started 1-2s after the previous one. The launch phase teleported 78
+-- studs HORIZONTALLY per frame while the humanoid was only ~9 studs up and still
+-- in a WALKING state. A walking character cannot cross 78 studs in one frame -
+-- that is unambiguous to a server, whereas a high airborne freefall teleport is
+-- not. So: climb vertically first, and do not move horizontally until the
+-- humanoid is genuinely off the ground.
+local CLIMB_FRAMES   = 6        -- vertical-only ascent to cruise altitude
+local AIRBORNE_WAIT  = 12       -- frames to wait for an airborne state before travelling
+
+-- Back-to-back flights: the kills came on consecutive runs 1-2s apart, while
+-- runs spaced 4.5s and 14.1s survived. Space them out.
+local COOLDOWN_AFTER_FLIGHT = 12   -- seconds before another flight is allowed
+
 local STEP_SIZE      = 78
 local MAX_FLIGHT_S   = 2.5
 local CRUISE_LEAD    = 120
@@ -136,6 +153,13 @@ local token      = 0
 local flight     = nil
 local lastRun    = {studs = 0, secs = 0}
 local lastFlightEndAt = nil     -- to surface rapid repetition in the log
+local cooldownShown   = false   -- so the button label is not rewritten every frame
+
+local function cooldownRemaining()
+	if not lastFlightEndAt then return 0 end
+	local left = COOLDOWN_AFTER_FLIGHT - (os.clock() - lastFlightEndAt)
+	return left > 0 and left or 0
+end
 local flightCount = 0
 
 local savedCollisions  = {}
@@ -687,7 +711,6 @@ stopFlight = function(reason)
 			endPos = p
 		end
 		lastRun = {studs = landed, secs = f.elapsed or 0}
-		lastFlightEndAt = os.clock()
 		logLine(("DONE | %.0f studs | %.2fs | Y %.1f"):format(landed, f.elapsed or 0, finalY))
 		if r then checkLandingInside(r.Position) end
 		-- keep watching: the field death came in the same second as DONE, and we
@@ -700,6 +723,10 @@ stopFlight = function(reason)
 				Color3.fromRGB(120, 255, 150))
 		end
 	end
+	lastFlightEndAt = os.clock()
+	logLine(("cooldown | %.0fs before the next flight (back-to-back flights are when "
+		.. "the kills happened)"):format(COOLDOWN_AFTER_FLIGHT))
+
 	-- on a clean landing the render step stays bound for the watch window; on any
 	-- abort or death we stop immediately
 	if reason or not f then
@@ -792,12 +819,54 @@ local function renderStep(dt)
 	end
 
 	-- 2. phase machine
+
+	-- ---- phase 1: CLIMB. Vertical only - no horizontal teleport at ground level.
+	-- Both -1000 kills happened in the old combined launch, teleporting 78 studs
+	-- sideways per frame at ~9 studs altitude while the humanoid was still in a
+	-- WALKING state.
+	if f.phase == "climb" then
+		f.frame = f.frame + 1
+		local alpha = math.min(f.frame / CLIMB_FRAMES, 1)
+		local y = f.startPos.Y + (f.cruiseY - f.startPos.Y) * alpha
+		f.currentTarget = Vector3.new(f.startPos.X, y, f.startPos.Z)
+		forceTransform(f, f.currentTarget)
+
+		if f.frame >= CLIMB_FRAMES then
+			local st = h:GetState()
+			local airborne = (st == Enum.HumanoidStateType.Freefall)
+				or (st == Enum.HumanoidStateType.Jumping)
+				or (st == Enum.HumanoidStateType.FallingDown)
+			if not airborne and (f.airWait or 0) < AIRBORNE_WAIT then
+				-- hold at cruise until the humanoid is genuinely off the ground;
+				-- travelling horizontally while it thinks it is walking is the
+				-- window that got us killed
+				f.airWait = (f.airWait or 0) + 1
+				if f.airWait == 1 then
+					logLine(("WAIT AIRBORNE | state=%s | holding at Y=%.1f (max %d frames)")
+						:format(tostring(st), f.cruiseY, AIRBORNE_WAIT))
+				end
+				return
+			end
+			if not airborne then
+				logLine(("WARNING | still %s after %d frames - travelling anyway")
+					:format(tostring(st), AIRBORNE_WAIT))
+			else
+				logLine(("AIRBORNE | state=%s | Y=%.1f | starting horizontal travel")
+					:format(tostring(st), r.Position.Y))
+			end
+			f.phase = "launch"
+			f.frame = 0
+		end
+		return
+	end
+
+	-- ---- phase 2: LAUNCH ramp, now that the humanoid is airborne.
 	if f.phase == "launch" then
 		f.frame = f.frame + 1
 		local alpha = math.min(f.frame / f.rampFrames, 1)
 		f.traveled = math.min(f.traveled + STEP_SIZE, f.total)
 		local xz = f.startPos + f.dir * f.traveled
-		local y  = f.startPos.Y + (f.cruiseY - f.startPos.Y) * alpha
+		local y  = f.cruiseY
 		f.currentTarget = Vector3.new(xz.X, y, xz.Z)
 		forceTransform(f, f.currentTarget)
 		if f.frame >= f.rampFrames then
@@ -913,6 +982,14 @@ end
 local function startFlight(requested)
 	if flying then return false, "already flying" end
 
+	-- rate limit: back-to-back flights are when the kills happened
+	local cd = cooldownRemaining()
+	if cd > 0 then
+		logLine(("REFUSED | rate limit - %.0fs left before another flight")
+			:format(cd))
+		return false, ("rate limit: %.0fs remaining"):format(cd)
+	end
+
 	local ch, h, r = getState()
 	if not (ch and h and r) then return false, "no character" end
 	if h.Health <= 0 then return false, "dead" end
@@ -999,7 +1076,7 @@ local function startFlight(requested)
 	token = token + 1
 	flying = true
 	flight = {
-		token = token, frame = 0, phase = "launch",
+		token = token, frame = 0, phase = "climb", airWait = 0,
 		dir = dir, startPos = startPos, target = startPos + dir * total,
 		total = total, traveled = 0, t0 = os.clock(), elapsed = 0,
 		cruiseY = cruiseY, rampFrames = 5,
@@ -1242,6 +1319,21 @@ local function sanitise(text)
 	end
 	return table.concat(out)
 end
+
+-- Permanent, cheap: only rewrites the button when the cooldown state changes, so
+-- the player can see the rate limit rather than wondering why a click did nothing.
+RunService.Heartbeat:Connect(function()
+	if flying then return end
+	local cd = cooldownRemaining()
+	if cd > 0 then
+		flyBtn.Text = ("COOLDOWN %.0fs"):format(cd)
+		flyBtn.BackgroundColor3 = Color3.fromRGB(70, 60, 40)
+		cooldownShown = true
+	elseif cooldownShown then
+		cooldownShown = false
+		updateButtons()
+	end
+end)
 
 updateButtons = function()
 	local n = tonumber(inputBox.Text)
