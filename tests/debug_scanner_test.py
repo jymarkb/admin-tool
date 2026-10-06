@@ -1,0 +1,738 @@
+"""Smoke + behaviour test for farmer/debug.lua (the V8 forensics scanner).
+
+That file is Luau (`+=`), so it is normalised with tools/luau_syntax_check.py
+before loading. Everything else is a black-box run: the real file is loaded
+against a stubbed Roblox API, then driven by firing the engine signals it
+subscribes to, and the assertions are made against the lines it actually emitted.
+
+`print` is captured instead of reading the script's own buffer, because
+addLogEntry() prints every entry - so the test sees exactly what the player sees
+in the log panel.
+
+    pip install --break-system-packages lupa
+    python3 tests/debug_scanner_test.py
+
+Stub notes (learned the hard way in tests/freefall_test.py):
+  * Vector3.Magnitude / .Unit are PROPERTIES, not methods.
+  * UI objects are a proxy over a backing table so __newindex fires on every
+    write; any flag a closure reads must be declared BEFORE the instance
+    metatable is built, or it resolves to a global and silently does nothing.
+  * fields the script reads without a guard (AbsoluteContentSize) must exist, or
+    `nil.Y` throws during load.
+"""
+import lupa, sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+from luau_syntax_check import normalise
+
+STUB = r'''
+local CREATED = {}
+local PROXY_DATA = {}
+local LOG = {}
+
+-- capture every printed line: addLogEntry() prints each entry
+local realprint = print
+print = function(...)
+  local n = select("#", ...)
+  local t = {}
+  for i = 1, n do t[i] = tostring((select(i, ...))) end
+  LOG[#LOG + 1] = table.concat(t, "\t")
+end
+
+local function signal()
+  local s = {_fns={}}
+  s.Connect = function(self, fn)
+    table.insert(self._fns, fn)
+    return {Disconnect=function()
+      for i, f in ipairs(s._fns) do if f == fn then table.remove(s._fns, i) break end end
+    end}
+  end
+  s.Wait = function() end
+  return s
+end
+local function sigOf(data, name)
+  if not data._sig[name] then data._sig[name] = signal() end
+  return data._sig[name]
+end
+local function fire(data, name, ...)
+  local s = data._sig[name]
+  if not s then return 0 end
+  local snap = {}
+  for i, f in ipairs(s._fns) do snap[i] = f end
+  local n = 0
+  for _, fn in ipairs(snap) do n = n + 1; fn(...) end
+  return n
+end
+
+-- ---- Vector3 -------------------------------------------------------------
+local V = {}
+local function vnew(x,y,z) return setmetatable({x=x or 0,y=y or 0,z=z or 0},V) end
+local function vmag(v) return math.sqrt(v.x^2+v.y^2+v.z^2) end
+local function vunit(v) local m=vmag(v); if m<1e-9 then return vnew(0,0,0) end
+                          return vnew(v.x/m,v.y/m,v.z/m) end
+V.__index=function(t,k)
+  if k=="X" then return rawget(t,"x") end
+  if k=="Y" then return rawget(t,"y") end
+  if k=="Z" then return rawget(t,"z") end
+  if k=="Magnitude" then return vmag(t) end
+  if k=="Unit" then return vunit(t) end
+  return V[k]
+end
+V.__add=function(a,b) return vnew(a.x+b.x,a.y+b.y,a.z+b.z) end
+V.__sub=function(a,b) return vnew(a.x-b.x,a.y-b.y,a.z-b.z) end
+V.__mul=function(a,b)
+  if type(b)=="number" then return vnew(a.x*b,a.y*b,a.z*b) end
+  if type(a)=="number" then return vnew(a*b.x,a*b.y,a*b.z) end
+  return vnew(a.x*b.x,a.y*b.y,a.z*b.z)
+end
+V.__div=function(a,b) if type(b)=="number" then return vnew(a.x/b,a.y/b,a.z/b) end
+  return vnew(a.x/b.x,a.y/b.y,a.z/b.z) end
+V.__unm=function(a) return vnew(-a.x,-a.y,-a.z) end
+V.Dot=function(a,b) return a.x*b.x+a.y*b.y+a.z*b.z end
+V.Cross=function(a,b) return vnew(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x) end
+V.__tostring=function(a) return string.format("(%.3f, %.3f, %.3f)",a.x,a.y,a.z) end
+Vector3 = {new=vnew, zero=vnew(0,0,0)}
+Vector2 = {new=function(x,y) return {X=x or 0, Y=y or 0} end}
+local function cross(a,b) return vnew(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x) end
+
+-- ---- CFrame --------------------------------------------------------------
+local C = {}
+CFrame = {}
+function CFrame.new(x,y,z)
+  if type(x)=="table" and y==nil then
+    return setmetatable({p=x,r=vnew(1,0,0),u=vnew(0,1,0),b=vnew(0,0,1)},C)
+  end
+  if type(x)=="table" and type(y)=="table" then
+    local look=vunit(y-x); local b=-look
+    local r=vunit(cross(vnew(0,1,0),b)); local u=cross(b,r)
+    return setmetatable({p=x,r=r,u=u,b=b},C)
+  end
+  return setmetatable({p=vnew(x,y,z),r=vnew(1,0,0),u=vnew(0,1,0),b=vnew(0,0,1)},C)
+end
+function CFrame.Angles(rx,ry,rz)
+  local cy,sy = math.cos(ry or 0), math.sin(ry or 0)
+  return setmetatable({p=vnew(0,0,0),r=vnew(cy,0,-sy),u=vnew(0,1,0),b=vnew(sy,0,cy)},C)
+end
+C.PointToObjectSpace=function(cf,p)
+  local d = p - cf.p
+  return vnew(d:Dot(cf.r), d:Dot(cf.u), d:Dot(cf.b)) end
+function C.__sub(a) return setmetatable({p=vnew(0,0,0),r=a.r,u=a.u,b=a.b},C) end
+function C.__add(a,b) return setmetatable({p=a.p+b,r=a.r,u=a.u,b=a.b},C) end
+function C.__mul(a,b)
+  local p=a.p+(a.r*b.p.x+a.u*b.p.y+a.b*b.p.z)
+  return setmetatable({p=p,
+    r=a.r*b.r.x+a.u*b.r.y+a.b*b.r.z,
+    u=a.r*b.u.x+a.u*b.u.y+a.b*b.u.z,
+    b=a.r*b.b.x+a.u*b.b.y+a.b*b.b.z},C)
+end
+C.__index=function(t,k)
+  if k=="Position" then return rawget(t,"p") end
+  if k=="LookVector" then return -1*rawget(t,"b") end
+  return C[k]
+end
+
+Enum = {
+  Font={Code="Code",Gotham="Gotham",GothamBold="GothamBold"},
+  HumanoidStateType={Physics="Physics",Running="Running",Freefall="Freefall",
+                     Landed="Landed",Jumping="Jumping",FallingDown="FallingDown",
+                     Dead="Dead",GettingUp="GettingUp",Climbing="Climbing"},
+  RaycastFilterType={Exclude="Exclude",Include="Include"},
+  RenderPriority={Character={Value=200},Camera={Value=200}},
+  SortOrder={LayoutOrder="LayoutOrder",Name="Name"},
+  TextTruncate={AtEnd="AtEnd",None="None"},
+  TextXAlignment={Left="Left",Center="Center",Right="Right"},
+  TextYAlignment={Top="Top",Center="Center"},
+  UserInputType={MouseButton1="mb1",Touch="touch",MouseMovement="mm"},
+  ZIndexBehavior={Sibling="Sibling"},
+  Material={Plastic="Plastic",Neon="Neon",SmoothPlastic="SmoothPlastic",Air="Air"},
+  EasingStyle={Quad="Quad"}, EasingDirection={Out="Out"},
+}
+Color3 = {fromRGB=function(r,g,b) return {r=r,g=g,b=b} end}
+Color3.new = Color3.fromRGB
+UDim2 = {new=function(xs,xo,ys,yo) return {X={Scale=xs,Offset=xo},Y={Scale=ys,Offset=yo}} end}
+UDim  = {new=function(s,o) return {Scale=s,Offset=o} end}
+TweenInfo = {new=function() return {} end}
+TweenService = {Create=function(self, obj, info, props)
+  return {Play=function() end, Cancel=function() end} end, GetService=function() return end}
+DateTime = {now=function() return {UnixTimestampMillis=1759800000000} end}
+RaycastParams = {new=function() return {FilterDescendantsInstances={}} end}
+OverlapParams = {new=function() return {FilterDescendantsInstances={}} end}
+math.clamp = function(v, lo, hi)
+  if v < lo then return lo end
+  if v > hi then return hi end
+  return v
+end
+
+local EVENTS = {MouseButton1Click=1,FocusLost=1,InputBegan=1,InputEnded=1,Changed=1,
+                InputChanged=1,Heartbeat=1,PreSimulation=1,PostSimulation=1,PreRender=1,
+                Died=1,CharacterAdded=1,StateChanged=1,Touched=1,MouseEnter=1,
+                MouseLeave=1,HealthChanged=1,DescendantAdded=1,ChildAdded=1}
+
+local function newInstance(class)
+  local data = {ClassName=class, _sig={}, Size=vnew(4,2,4), Material="Plastic",
+                CanCollide=true, Position=vnew(0,0,0), CFrame=CFrame.new(0,0,0),
+                Text="", Visible=true, Value=0, Name=class,
+                AbsoluteContentSize={X=0,Y=0}}
+  local proxy = {}
+  local mt = {
+    __index=function(_, k)
+      if k=="Destroy" then return function() data._destroyed=true end end
+      if k=="GetPropertyChangedSignal" then return function(_, p) return sigOf(data,p) end end
+      if k=="IsA" then return function(_, c)
+            return data.ClassName==c or (c=="BasePart" and data.ClassName=="Part") end end
+      if k=="WaitForChild" then return function(_, n) return data[n] end end
+      if k=="FindFirstChild" then return function(_, n) return data[n] end end
+      if k=="FindFirstChildOfClass" then return function(_, c)
+            for _, v in pairs(data) do
+              if type(v)=="table" and v.ClassName==c then return v end
+            end end end
+      if k=="GetChildren" then return function()
+            local out = {}
+            for _, v in pairs(data) do
+              if type(v)=="table" and v.ClassName then table.insert(out, v) end
+            end return out end end
+      if k=="GetDescendants" then return function()
+            local out = {}
+            local function walk(t)
+              for _, v in pairs(t) do
+                if type(v)=="table" and v.ClassName then
+                  table.insert(out, v); walk(v)
+                end
+              end
+            end
+            walk(data)
+            if data._parts then
+              for _, p in ipairs(data._parts) do table.insert(out, p) end
+            end
+            return out end end
+      if k=="GetState" then return function() return data._state or "Running" end end
+      if k=="ChangeState" then return function(_, st) data._state = st end end
+      if k=="Move" then return function(_, d) data.MoveDirection = d end end
+      if k=="MoveTo" then return function() end end
+      if k=="PivotTo" then return function(_, cf)
+            if data._parts then for _, p in ipairs(data._parts) do p.CFrame = cf end end
+            data.CFrame = cf; return true end end
+      if k=="GetFullName" then return function() return tostring(data.Name) end end
+      if k=="GetConnectedParts" then return function() return {} end end
+      if k=="Raycast" then return function(_, origin, dir, params)
+            -- _ground = nil means nothing below (a void); a number is the distance
+            local g = data._ground
+            if g == nil then return nil end
+            return {Distance = g, Instance = data._groundPart,
+                    Position = origin + dir * 0.1, Material = "Plastic"}
+          end end
+      if k=="GetPartBoundsInRadius" then return function(_, pos, r, params)
+            return data._overlap or {} end end
+      if k=="Play" then return function() end end
+      if k=="Stop" then return function() end end
+      if k=="LoadAnimation" then return function()
+            return {Play=function() end, Stop=function() end, IsPlaying=false} end end
+      if EVENTS[k] then return sigOf(data,k) end
+      return data[k]
+    end,
+    __newindex=function(_, k, v)
+      local prev = data[k]
+      data[k] = v
+      local s = data._sig[k]
+      if s then for _, fn in ipairs(s._fns) do fn(v, prev) end end
+    end,
+  }
+  setmetatable(proxy, mt)
+  PROXY_DATA[proxy] = data
+  CREATED[class] = CREATED[class] or {}
+  table.insert(CREATED[class], proxy)
+  return proxy
+end
+Instance = {new=function(c) return newInstance(c) end}
+
+-- ---- scene ---------------------------------------------------------------
+local player = newInstance("Player"); player.Name = "Tester"; player.UserId = 1
+local playerGui = newInstance("PlayerGui"); player.PlayerGui = playerGui
+local RUNSERVICE = newInstance("RunService")
+
+local char = newInstance("Model"); char.Name = "Tester"
+local root = newInstance("Part"); root.Name = "HumanoidRootPart"
+local torso = newInstance("Part"); torso.Name = "Torso"
+local head  = newInstance("Part"); head.Name = "Head"
+local hum = newInstance("Humanoid")
+hum.Health = 100; hum.MaxHealth = 100; hum.WalkSpeed = 16
+hum.AutoRotate = true; hum.FloorMaterial = "Plastic"; hum._state = "Running"
+
+root.CFrame = CFrame.new(0, 100, 0); root.Position = vnew(0,100,0)
+root.AssemblyLinearVelocity = vnew(0,0,0)
+root.AssemblyAngularVelocity = vnew(0,0,0)
+root.Orientation = vnew(0,0,0)
+torso.CFrame = CFrame.new(0, 99, 0); torso.Position = vnew(0,99,0)
+head.CFrame  = CFrame.new(0, 103, 0); head.Position = vnew(0,103,0)
+
+char.Humanoid = hum
+char.HumanoidRootPart = root
+char.Torso = torso          -- FindFirstChild("Torso") must find it, or the
+char.Head = head            -- rig-stretch check silently returns every tick
+char._parts = {root, torso, head}
+char.Parent = true; hum.Parent = true; root.Parent = true
+torso.Parent = true; head.Parent = true
+player.Character = char
+
+local WORKSPACE = newInstance("Workspace")
+WORKSPACE.CurrentCamera = newInstance("Camera")
+WORKSPACE.FallenPartsDestroyHeight = -500
+WORKSPACE._overlap = {}
+
+game = {GetService=function(_, name)
+  if name=="Players" then return {LocalPlayer=player} end
+  if name=="RunService" then return RUNSERVICE end
+  if name=="TweenService" then return TweenService end
+  if name=="Workspace" then return WORKSPACE end
+  return newInstance(name) end}
+workspace = WORKSPACE
+setclipboard = function(t) end
+task = {wait=function() end, spawn=function(f, ...) if f then f(...) end end,
+        delay=function(_, f) if f then f() end end, defer=function(f) if f then f() end end}
+
+local FAKE_T = 1000.0
+os = {clock=function() return FAKE_T end, date=function() return "00:00:00" end,
+      time=function() return FAKE_T end}
+
+local RENDER = {}
+RUNSERVICE.BindToRenderStep = function(_, name, prio, fn) RENDER[name] = fn end
+RUNSERVICE.UnbindFromRenderStep = function(_, name) RENDER[name] = nil end
+
+local H = {}
+H.root, H.hum, H.char, H.torso, H.head = root, hum, char, torso, head
+H.workspace, H.runsrv, H.player = WORKSPACE, RUNSERVICE, player
+H.getCreated = function(c) return CREATED[c] or {} end
+H.fire = fire
+H.emit = function(proxy, ev, ...) return fire(PROXY_DATA[proxy], ev, ...) end
+H.data = function(proxy) return PROXY_DATA[proxy] end
+H.vnew = vnew
+H.advance = function(dt) FAKE_T = FAKE_T + (dt or 1/60) end
+-- heartbeat drives the transform sampler AND the forensics tick
+H.tick = function(dt)
+  FAKE_T = FAKE_T + (dt or 1/60)
+  fire(RUNSERVICE, "Heartbeat", dt or 1/60)
+end
+H.stage = function(name, dt)
+  FAKE_T = FAKE_T + (dt or 1/60)
+  fire(RUNSERVICE, name or "PreSimulation", dt or 1/60)
+end
+H.stepN = function(n, dt)
+  for _=1,n do
+    FAKE_T = FAKE_T + (dt or 1/60)
+    fire(RUNSERVICE, "Heartbeat", dt or 1/60)
+  end
+end
+-- move the whole rig, the way a teleport would
+H.place = function(x, y, z)
+  local p = vnew(x, y, z)
+  root.Position = p
+  root.CFrame = CFrame.new(p)
+  if char._parts then
+    for _, part in ipairs(char._parts) do part.Position = p end
+  end
+  return p
+end
+H.setGround = function(distance, part)
+  local d = PROXY_DATA[WORKSPACE]
+  d._ground = distance
+  d._groundPart = part
+end
+H.setVel = function(x,y,z)
+  root.AssemblyLinearVelocity = vnew(x,y,z)
+end
+H.table = function(...) return {...} end
+H.log = function() return table.concat(LOG, "\n") end
+H.clearLog = function() LOG = {} end
+H.logCount = function() return #LOG end
+return H
+'''
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+script = normalise(open(os.path.join(ROOT, "farmer", "debug.lua")).read())
+
+
+def boot(source):
+    """Load the stub + a script into a fresh runtime. Returns (rt, H, new_globals).
+
+    new_globals is the set of globals the SCRIPT created, relative to the stub -
+    a local declared after its first use silently becomes one of these, which has
+    bitten this project five times.
+    """
+    rt = lupa.LuaRuntime(unpack_returned_tuples=True)
+    handle = rt.execute(STUB)
+    before = set(rt.globals().keys())
+    rt.execute(source)
+    return rt, handle, set(rt.globals().keys()) - before
+
+
+def pristine_source():
+    """farmer/debug.lua as it is on main, for baseline comparison."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "show", "origin/main:farmer/debug.lua"],
+                             cwd=ROOT, capture_output=True, text=True, timeout=30)
+        if out.returncode == 0 and out.stdout.strip():
+            return normalise(out.stdout)
+    except Exception:
+        pass
+    return None
+
+PASS = FAIL = 0
+FAILED = []
+def chk(name, cond, detail=""):
+    global PASS, FAIL
+    if cond:
+        PASS += 1
+        print(f"  PASS  {name:<52}{detail}")
+    else:
+        FAIL += 1
+        FAILED.append(name)
+        print(f"  FAIL  {name:<52}{detail}")
+
+def lastline(txt, needle):
+    hits = [l for l in txt.splitlines() if needle in l]
+    return hits[-1] if hits else f"(no line with {needle!r})"
+
+# baseline: the same stub against the unmodified scanner on main, so global
+# leaks inherited from it are not blamed on this patch
+BASELINE_GLOBALS = set()
+_pristine = pristine_source()
+if _pristine:
+    try:
+        _rt, _h, BASELINE_GLOBALS = boot(_pristine)
+        print(f"baseline (origin/main) leaks {len(BASELINE_GLOBALS)} global(s): "
+              f"{sorted(BASELINE_GLOBALS) or 'none'}")
+    except Exception as e:
+        print("baseline could not be loaded, skipping the comparison:", e)
+
+try:
+    L, H, NEW_GLOBALS = boot(script)
+except Exception as e:
+    print("LOAD ERROR:", e)
+    try:
+        print(L.eval('debug.traceback and debug.traceback() or ""'))
+    except Exception:
+        pass
+    sys.exit(1)
+
+print("farmer/debug.lua loaded against stubbed Roblox API")
+
+root, hum, torso = H["root"], H["hum"], H["torso"]
+fire = H["fire"]
+def make_part(name, x=0, y=0, z=0, size=10, collide=True, cls="Part"):
+    """Build a stub part and place it. Returns the proxy."""
+    part = L.eval(f'Instance.new("{cls}")')
+    part["Name"] = name
+    part["Size"] = H["vnew"](size, size, size)
+    part["CanCollide"] = collide
+    part["CFrame"] = L.eval(f'CFrame.new({x}, {y}, {z})')
+    part["Position"] = H["vnew"](x, y, z)
+    return part
+
+def set_nearby(parts):
+    """The stub's GetPartBoundsInRadius returns whatever the Workspace holds."""
+    wd = H["data"](H["workspace"])
+    wd["_overlap"] = H["table"](*parts)
+
+def buttons(sub):
+    return [b for b in list(H["getCreated"]("TextButton").values())
+            if sub in str(b["Text"])]
+
+print("\n=== T0: the script leaks no globals of its own ===")
+leaked = NEW_GLOBALS - BASELINE_GLOBALS
+chk("no new globals created by the script", not leaked,
+    f"leaked: {sorted(leaked)}" if leaked else
+    f"({len(BASELINE_GLOBALS)} inherited from main)")
+
+print("\n=== T1: the scanner starts and reports its baseline ===")
+txt = H["log"]()
+chk("SCANNER READY V8 is announced", "SCANNER READY V8" in txt, lastline(txt, "SCANNER READY"))
+chk("reports capture + forensics state", "capture=" in txt and "forensics=" in txt,
+    lastline(txt, "forensics="))
+chk("reports the baseline hp/maxHealth", "baseline | hp=100.0/100.0" in txt,
+    lastline(txt, "baseline |"))
+chk("announces the watch thresholds",
+    "bigJump=" in txt and "revert=" in txt and "rigStretch=" in txt,
+    lastline(txt, "watches |"))
+chk("Touched watchers subscribed", "TOUCH WATCH" in txt, lastline(txt, "TOUCH WATCH"))
+
+print("\n=== T2: THE GAP - a big jump that the server UNDOES (REVERTED) ===")
+set_nearby([make_part("COLL GUARD.BOTTOMS", 0, 99, 0, 30)])
+H["clearLog"]()
+H["place"](0, 100, 0)
+H["tick"]()
+H["place"](300, 100, 0)          # a 300-stud leap: this is the flight
+H["tick"]()
+txt = H["log"]()
+chk("the jump is logged as a move", "TRANSFORM_JUMP" in txt,
+    lastline(txt, "TRANSFORM_JUMP"))
+H["place"](0, 100, 0)            # the server puts us back
+H["tick"]()
+txt = H["log"]()
+chk("REVERTED is detected", "REVERTED" in txt, lastline(txt, "REVERTED"))
+chk("says the write did not stick", "did NOT stick" in txt,
+    lastline(txt, "did NOT stick"))
+chk("shows where we were put", "wrote to (" in txt, lastline(txt, "wrote to ("))
+
+print("\n=== T3: a big jump that HOLDS is reported as KEPT ===")
+H["clearLog"]()
+H["place"](0, 100, 0)
+H["tick"]()
+H["place"](300, 100, 0)
+H["tick"]()
+H["advance"](2.5)                 # past REVERT_WINDOW_S
+H["tick"]()
+txt = H["log"]()
+chk("KEPT is reported", "KEPT |" in txt, lastline(txt, "KEPT |"))
+chk("KEPT says how long it held", "held for" in txt, lastline(txt, "held for"))
+
+print("\n=== T4: the -1000 exploit kill is named, not mistaken for damage ===")
+set_nearby([make_part("Lake.Bounds", 500, 99, 0, 40)])
+H["clearLog"]()
+H["place"](500, 100, 0)
+hum["Health"] = -1000
+H["emit"](hum, "HealthChanged", -1000)
+txt = H["log"]()
+chk("EXTERNAL KILL is named", "EXTERNAL KILL" in txt, lastline(txt, "HEALTH |"))
+chk("says health was SET", "health was SET" in txt, "")
+chk("shows hp / maxHealth", "hp=-1000.0/100.0" in txt, lastline(txt, "hp=-1000"))
+chk("logs what was nearby at the kill", "NEAR AT KILL" in txt,
+    lastline(txt, "NEAR AT KILL"))
+hum["Health"] = 100
+H["emit"](hum, "HealthChanged", 100)
+
+print("\n=== T5: an ordinary death is NOT called external ===")
+H["clearLog"]()
+H["emit"](hum, "HealthChanged", 0)
+txt = H["log"]()
+chk("not flagged as external", "EXTERNAL KILL" not in txt, lastline(txt, "HEALTH |"))
+chk("called a normal change", "normal change" in txt, lastline(txt, "normal change"))
+hum["Health"] = 100
+
+print("\n=== T6: Died produces the full DEATH block ===")
+H["clearLog"]()
+H["emit"](hum, "Died")
+txt = H["log"]()
+chk("DEATH header", "DEATH" in txt, "")
+for field in ["reason", "health", "state", "phase", "velocity", "NEAR"]:
+    chk(f"death block reports {field}", f"| {field}" in txt or f"  {field}" in txt, "")
+
+print("\n=== T7: Touched is recorded and guard-named parts are flagged ===")
+H["clearLog"]()
+guest = H["getCreated"]("Model")[0] if H["getCreated"]("Model") else None
+sb = L.eval('''(function()
+  local p = Instance.new("Part")
+  p.Name = "COLL GUARD.WALL LEFT (COLL GUARD).Part"
+  return p end)()''')
+H["emit"](torso, "Touched", sb)
+txt = H["log"]()
+chk("TOUCHED is logged", "TOUCHED |" in txt, lastline(txt, "TOUCHED |"))
+chk("names the part", "COLL GUARD" in txt, "")
+chk("flags the guard naming", "GUARD-NAMED" in txt, lastline(txt, "GUARD-NAMED"))
+
+# the floor under your feet fires Touched constantly: report it once, then stay quiet
+H["clearLog"]()
+floor = make_part("NormalFloor")
+H["emit"](torso, "Touched", floor)
+H["advance"](1.0)
+H["emit"](torso, "Touched", floor)
+H["emit"](torso, "Touched", floor)
+txt = H["log"]()
+chk("an ordinary part is reported once", txt.count("TOUCHED") == 1,
+    f"{txt.count('TOUCHED')} TOUCHED line(s)")
+
+# a guard volume keeps reporting, rate-limited
+H["clearLog"]()
+H["emit"](torso, "Touched", sb)
+H["advance"](0.1)                      # inside the dedupe window
+H["emit"](torso, "Touched", sb)
+chk("a guard part is de-duplicated", H["log"]().count("TOUCHED") == 1,
+    f"{H['log']().count('TOUCHED')} TOUCHED line(s)")
+H["advance"](1.0)                      # past TOUCH_DEDUPE_S
+H["emit"](torso, "Touched", sb)
+chk("a guard part reports again later", H["log"]().count("TOUCHED") == 2,
+    f"{H['log']().count('TOUCHED')} TOUCHED line(s)")
+
+# a non-collidable trigger is always interesting
+H["clearLog"]()
+trigger = make_part("KillBrick", collide=False)
+H["emit"](torso, "Touched", trigger)
+H["advance"](1.0)
+H["emit"](torso, "Touched", trigger)
+chk("a non-collidable trigger keeps reporting",
+    H["log"]().count("TOUCHED") == 2, f"{H['log']().count('TOUCHED')} TOUCHED line(s)")
+
+print("\n=== T8: the src/dt bug - each channel now has its own previous sample ===")
+H["clearLog"]()
+H["place"](0, 100, 0)
+H["stage"]("PreSimulation", 1/60)          # primes that channel's previous sample
+for i in range(1, 5):
+    H["place"](i * 300, 100, 0)            # a 300-stud jump on this channel
+    H["stage"]("PreSimulation", 1/60)
+txt = H["log"]()
+chk("src=PreSimulation now appears", "src=PreSimulation" in txt,
+    lastline(txt, "src="))
+# a shared previous sample made dt a gap between DIFFERENT channels (dt=40.5 seen
+# in a real log). With per-channel samples dt must be a frame delta.
+dt_large = False
+for line in txt.splitlines():
+    if "src=PreSimulation" in line and "dt=" in line:
+        d = float(line.split("dt=")[1].split(" ")[0])
+        if d > 1.0:
+            dt_large = True
+chk("dt on PreSimulation is a frame delta, not a channel gap", not dt_large,
+    "no dt > 1.0" if not dt_large else "found a dt > 1.0")
+
+print("\n=== T9: zero velocity is flagged rather than faked by the clamp ===")
+H["clearLog"]()
+H["setVel"](0, 0, 0)
+H["place"](0, 100, 0); H["tick"]()
+H["place"](200, 100, 0); H["tick"]()
+txt = H["log"]()
+chk("zeroVel flag present", "zeroVel=1" in txt, lastline(txt, "zeroVel"))
+chk("explains the clamp", "clamp, not a real ratio" in txt, "")
+
+print("\n=== T10: NET displacement is reported while moving fast ===")
+H["clearLog"]()
+H["setVel"](500, 0, 0)
+for i in range(1, 8):
+    H["place"](200 + i * 20, 100, 0)
+    H["advance"](0.2)
+    H["tick"](0.2) if False else H["tick"](0.2)
+txt = H["log"]()
+chk("NET line emitted", "NET |" in txt, lastline(txt, "NET |"))
+chk("NET reports net studs", "net=" in txt, lastline(txt, "net="))
+H["setVel"](0, 0, 0)
+
+print("\n=== T11: rig stretch is reported when limbs lag the root ===")
+# NOTE: clearLog resets the rig baseline by design, so the baseline has to be
+# established AFTER the clear, not before it.
+H["clearLog"]()
+H["setVel"](0, 0, 0)
+H["place"](0, 100, 0)
+torso["Position"] = H["vnew"](0, 100, 0)     # resting rig: baseline, 0 offset
+H["tick"](0.5)
+chk("a healthy rig is silent",
+    "RIG STRETCH" not in H["log"](), "")
+torso["Position"] = H["vnew"](0, 90, 0)      # 10 studs off the root
+for i in range(6):
+    H["tick"](0.1)
+txt = H["log"]()
+chk("RIG STRETCH reported", "RIG STRETCH" in txt, lastline(txt, "RIG STRETCH"))
+chk("reports how far it stretched", "torso" in txt and "limit" in txt,
+    lastline(txt, "torso"))
+torso["Position"] = H["vnew"](0, 99, 0)
+H["clearLog"]()
+
+print("\n=== T12: coming to rest triggers a containment check ===")
+H["clearLog"]()
+H["setVel"](300, 0, 0)
+H["place"](800, 100, 0); H["tick"]()
+H["setVel"](0, 0, 0)
+set_nearby([])                               # nothing solid here
+for i in range(4):
+    H["advance"](0.1); H["tick"](0.1)
+txt = H["log"]()
+chk("AT REST reported when clear",
+    "AT REST" in txt and "INSIDE SOLID" not in txt, lastline(txt, "AT REST"))
+
+# an identical stop, but now inside a wall
+H["clearLog"]()
+H["setVel"](300, 0, 0)
+H["place"](1200, 100, 0); H["tick"]()
+set_nearby([make_part("COLL GUARD.WALL LEFT", 1200, 100, 0, 40)])
+H["setVel"](0, 0, 0)
+for i in range(4):
+    H["advance"](0.1); H["tick"](0.1)
+txt = H["log"]()
+chk("INSIDE SOLID reported when embedded", "INSIDE SOLID" in txt,
+    lastline(txt, "INSIDE SOLID"))
+chk("names the block we are inside", "COLL GUARD.WALL LEFT" in txt, "")
+set_nearby([])
+
+print("\n=== T13: the SNAPSHOT button produces a usable bundle ===")
+set_nearby([make_part("GuardAreas.Prehistoric", 800, 100, 0, 25)])
+H["clearLog"]()
+snap = buttons("SNAPSHOT")[0]
+fire(snap, "MouseButton1Click")
+txt = H["log"]()
+chk("SNAPSHOT header", "SNAPSHOT" in txt, lastline(txt, "SNAPSHOT"))
+chk("reports state/hp", "state=" in txt and "hp=" in txt, lastline(txt, "state="))
+chk("reports velocity", "vel=(" in txt, lastline(txt, "vel=("))
+chk("lists what is nearby", "SNAP NEAR" in txt, lastline(txt, "SNAP NEAR"))
+chk("reports the ground below", "ground below" in txt, lastline(txt, "ground below"))
+chk("reports what is straight ahead", "ahead |" in txt, lastline(txt, "ahead |"))
+
+print("\n=== T17: void proximity is measured with a ray, not guessed ===")
+H["clearLog"]()
+H["setVel"](0, 0, 0)
+H["place"](0, 500, 0)
+H["setGround"](None)                       # nothing below us
+H["advance"](2.0); H["tick"](0.1)
+txt = H["log"]()
+chk("nothing below is reported", "VOID WARNING" in txt, lastline(txt, "VOID WARNING"))
+chk("says how far it looked", "no ground within" in txt, "")
+
+H["clearLog"]()
+H["setGround"](10)                         # ground 13 studs below: fine
+H["advance"](2.0)
+for i in range(3):
+    H["tick"](0.1)
+chk("close ground is silent", "VOID WARNING" not in H["log"](), "")
+
+H["clearLog"]()
+H["setGround"](90, make_part("GuardAreas.Prehistoric", 0, 400, 0, 20))
+H["advance"](2.0); H["tick"](0.1)
+txt = H["log"]()
+chk("a 93-stud drop is reported", "VOID WARNING" in txt, lastline(txt, "VOID WARNING"))
+chk("reports the real gap", "93.0 studs below" in txt, "")
+chk("names the surface below", "GuardAreas.Prehistoric" in txt, "")
+H["setGround"](10)
+
+H["clearLog"]()
+H["setGround"](12, make_part("COLL GUARD.WALL RIGHT", 0, 100, -12, 20))
+fire(snap, "MouseButton1Click")
+txt = H["log"]()
+chk("names the obstacle ahead", "COLL GUARD.WALL RIGHT" in txt,
+    lastline(txt, "ahead |"))
+chk("flags it as guard-named", "GUARD-NAMED" in txt, "")
+
+print("\n=== T14: FORENSICS can be turned OFF and the watches stop ===")
+H["clearLog"]()
+fb = buttons("FORENSICS")[0]
+fire(fb, "MouseButton1Click")
+txt = H["log"]()
+chk("toggle reports OFF", "FORENSICS | OFF" in txt, lastline(txt, "FORENSICS |"))
+chk("button label changes", "FORENSICS: OFF" == str(fb["Text"]), repr(str(fb["Text"])))
+H["clearLog"]()
+H["place"](0, 100, 0); H["tick"]()
+H["place"](400, 100, 0); H["tick"]()
+H["place"](0, 100, 0); H["tick"]()
+txt = H["log"]()
+chk("no REVERTED while off", "REVERTED" not in txt, "")
+fire(fb, "MouseButton1Click")
+chk("toggle reports ON again", "FORENSICS | ON" in H["log"](),
+    lastline(H["log"](), "FORENSICS |"))
+
+print("\n=== T15: CLEAR also resets the forensics state ===")
+H["clearLog"]()
+H["place"](0, 100, 0); H["tick"]()
+H["place"](400, 100, 0); H["tick"]()     # arms pendingJump
+clr = buttons("Clear")[0]
+fire(clr, "MouseButton1Click")
+H["clearLog"]()
+H["place"](0, 100, 0); H["tick"]()       # must NOT be reported as REVERTED
+txt = H["log"]()
+chk("no stale REVERTED after CLEAR", "REVERTED" not in txt, "")
+
+print("\n=== T16: StateChanged reports the humanoid state with context ===")
+H["clearLog"]()
+H["emit"](hum, "StateChanged", "Running", "Freefall")
+txt = H["log"]()
+chk("STATE logged", "STATE |" in txt, lastline(txt, "STATE |"))
+chk("shows old -> new", "-> Freefall" in txt, "")
+chk("includes nc and floor", "nc=" in txt and "floor=" in txt, "")
+
+print(f"\n{'='*60}\nRESULT: {PASS} passed, {FAIL} failed")
+if FAILED:
+    print("FAILED: " + ", ".join(FAILED))
+sys.exit(1 if FAIL else 0)
