@@ -17,7 +17,9 @@ import re
 import sys
 
 POS = r"\((-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\)"
-STEP = re.compile(r"step (\d{3}) \| s=([\d.]+) -> ([\d.]+).*?asked " + POS)
+# v6-glide puts "jump 35.0 studs" between the step number and the s= range, so the
+# prefix is not pinned to one wording
+STEP = re.compile(r"step (\d{3}) \| .*?s=([\d.]+) -> ([\d.]+).*?asked " + POS)
 # the check line changed shape in v5-smooth ("0.500s step | 10/10 write(s) stuck"),
 # so the age is picked out of the prefix instead of being pinned to one wording
 CHECK = re.compile(r"check (\d{3}) \| ([^|]*)\|[^|]*\|?\s*now " + POS +

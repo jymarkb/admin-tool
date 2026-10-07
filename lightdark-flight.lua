@@ -36,27 +36,30 @@
 -- ================================================================
 -- CONFIG
 -- ================================================================
-local SCRIPT_VERSION   = "v5-smooth"   -- printed in the log so a paste says which build ran
+local SCRIPT_VERSION   = "v6-glide"   -- printed in the log so a paste says which build ran
 local STEP_STUDS       = 35      -- studs written per step
 local STEP_INTERVAL    = 0.5     -- seconds between writes
 local SNAP_TO_START    = true    -- if we are not at the first waypoint, write ourselves there
 local START_SNAP_STUDS = 60      -- further than this from it counts as "not there"
 local NOCLIP           = true    -- parts non-collidable for the flight, restored after
 local TOLERANCE        = 3.0     -- studs: within this of a position counts as "there"
--- HOW A STEP IS WALKED. A step is 35 studs, but it is not one jump: between two
--- steps the character is moved along the path in WRITES_PER_STEP small writes -
--- the cadence the reference uses (~20 a second). The speed is unchanged at
--- 35 studs / 0.5s, only the jumping goes.
--- Overridable from the console: _G.LIGHTDARK_HOLD_S = 0 restores one write per
--- step, which is what the 23:38 and 01:00 runs did.
-local HOLD_EVERY_S     = tonumber(_G.LIGHTDARK_HOLD_S) or 0.05    -- seconds between writes (0 = one write per step)
-local WRITES_PER_STEP  = HOLD_EVERY_S > 0
-	and math.max(1, math.floor(STEP_INTERVAL / HOLD_EVERY_S + 0.5)) or 1
-local WRITE_EVERY_S    = STEP_INTERVAL / WRITES_PER_STEP
-local WRITE_STUDS      = STEP_STUDS / WRITES_PER_STEP
--- GRAVITY. A CFrame write teleports; it does not stop the fall. Over 73s the fall
--- compounds - the 01:00 run reached -622 studs/s and was up to 31 studs below the
--- path at every check - so the downward velocity is zeroed on every write.
+-- HOW A STEP FLIES: JUMP, THEN GLIDE.
+--   JUMP  - one full write, position AND height, to the next waypoint. 35 studs
+--           every 0.5s, exactly as before.
+--   GLIDE - between jumps, only ONE of the xyz is corrected: the height (Y),
+--           because that is the axis gravity eats. X and Z are left exactly where
+--           the jump put them, so there is no horizontal correction to make and the
+--           glide runs straight. The falling speed is zeroed on every write, so the
+--           height does not have to be chased and the character stays airborne.
+-- _G.LIGHTDARK_GLIDE_S = 0 turns the glide off (one write per step - what the
+--   23:38, 01:00 and 07:00 field runs did).
+-- _G.LIGHTDARK_GLIDE_AXIS = "XYZ" would correct all three (what v4.1 did), "XZ"
+--   the ground only.
+local GLIDE_EVERY_S    = tonumber(_G.LIGHTDARK_GLIDE_S) or tonumber(_G.LIGHTDARK_HOLD_S) or 0.05
+local GLIDE_AXIS       = _G.LIGHTDARK_GLIDE_AXIS or "Y"
+-- GRAVITY. A CFrame write teleports; it leaves the falling speed alone, so the fall
+-- compounds. The 07:00 run read -279 studs/s while every check said HELD, and it
+-- was killed. The velocity is zeroed on every write.
 -- _G.LIGHTDARK_ZERO_VEL = false switches that off.
 local ZERO_FALL        = _G.LIGHTDARK_ZERO_VEL ~= false
 local ABORT_AFTER_REVERTS = 3    -- consecutive server reverts before giving up
@@ -475,9 +478,9 @@ local flight = {
 	pending = nil, held = 0, reverted = 0, elsewhere = 0,
 	stepHeld = 0, stepSagged = 0, stepReverted = 0, stepElsewhere = 0,
 	revertStreak = 0, recent = {}, arrived = false, hp = nil, state = nil,
-	stopReason = nil, conn = nil, character = nil, humanoid = nil, root = nil,
-	sagged = 0, worstSag = 0, sagLogged = 0, writeAt = 0,
-	writes = 0, falls = 0, fastestFall = 0,
+	stopReason = nil, conn = nil, nextAt = 0, character = nil, humanoid = nil, root = nil,
+	sagged = 0, worstSag = 0, sagLogged = 0, glideAt = 0,
+	jumps = 0, glides = 0, falls = 0, fastestFall = 0,
 }
 local summaryDone = false
 
@@ -510,10 +513,31 @@ end
 -- by different things - the server puts us back along the ground, gravity pulls us
 -- down - so they are measured apart and the culprit is named.
 -- ================================================================
-local function checkWrite(now)
+local function zeroFall()
+	-- the only thing that stops a fall. A CFrame write does not: it teleports and
+	-- leaves AssemblyLinearVelocity untouched, which is how the field runs ended up
+	-- falling at hundreds of studs a second while hanging in place.
+	if not ZERO_FALL then return false end
+	local v = flight.root.AssemblyLinearVelocity
+	if v and v.Y < -0.5 then
+		if -v.Y > flight.fastestFall then flight.fastestFall = -v.Y end
+		flight.root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+		flight.falls += 1
+		return true
+	end
+	return false
+end
+
+-- ================================================================
+-- THE CHECK. The jump is judged one step later: the character should still be
+-- where the write put it. Horizontal and vertical are undone by different things
+-- - the server puts us back along the ground, gravity pulls us down - so they are
+-- measured apart and the culprit is named.
+-- ================================================================
+local function checkJump(now)
 	local p = flight.pending
-	if not p or not p.awaitCheck then return end
-	p.awaitCheck = false
+	if not p then return end
+	flight.pending = nil
 
 	local here = flight.root.Position
 	local dxz = xzDist(here, p.wroteTo)
@@ -522,55 +546,53 @@ local function checkWrite(now)
 	local lifted = p.wroteTo.Y - p.before.Y
 	local sag = 0
 	if dy < -TOLERANCE then sag = -dy end
-	local where = string.format("write %d/%d of step %d", p.micro, WRITES_PER_STEP, p.step)
 
+	local verdict
 	if dxz <= TOLERANCE and sag == 0 then
-		p.held += 1
+		verdict = "HELD"
 		flight.held += 1
+		flight.stepHeld += 1
 		flight.revertStreak = 0
-		p.verdict = "HELD"
 	elseif dxz <= TOLERANCE then
 		-- the horizontal claim survived; the height did not. Gravity, not the server.
-		p.sagged += 1
+		verdict = "SAGGED"
 		flight.sagged += 1
+		flight.stepSagged += 1
 		flight.revertStreak = 0
-		if -dy > p.worst then p.worst = -dy end
 		if -dy > flight.worstSag then flight.worstSag = -dy end
-		if p.sagged <= 2 then
-			log("%s SAGGED    | %s: we are %.1f studs below the write (asked +%.1f, lost %.1f) - the height did not hold, the position did - gravity, not the server",
-				stamp(), where, -dy, lifted, -dy)
-		end
+		log("%s SAGGED    | step %d: we are %.1f studs below the write (asked +%.1f, lost %.1f) - the height did not hold, the position did - gravity, not the server",
+			stamp(), p.step, -dy, lifted, -dy)
 		if flight.sagLogged < 6 then
 			flight.sagLogged += 1
-			log("%s           | the write lifted us %.1f studs and we fell %.1f of it in %.2fs. Gravity pulls %.1f studs in that time; the reference writes every ~0.05s so it only ever loses 0.2 studs.",
-				stamp(), lifted, -dy, now - p.at, 0.5 * 196.2 * (now - p.at) ^ 2)
-			log("%s           | a CFrame write teleports and leaves the falling speed alone, so the fall compounds - it has to be zeroed on every write.",
-				stamp())
 			local grounded = flight.humanoid and flight.humanoid.FloorMaterial ~= Enum.Material.Air
+			log("%s           | the jump lifted us %.1f studs and we fell %.1f of it in %.2fs - the glide should have caught it, so check whether the glide is running.",
+				stamp(), lifted, -dy, now - p.at)
 			if grounded then
 				log("%s           | we were STANDING on the floor when this was checked (floor=%s) - the height was already gone.",
 					stamp(), tostring(flight.humanoid.FloorMaterial))
 			end
 		end
-		p.verdict = "SAGGED"
 	elseif backXZ <= TOLERANCE then
-		p.refused += 1
 		flight.reverted += 1
+		flight.stepReverted += 1
 		flight.revertStreak += 1
-		log("%s REVERTED  | %s: the server undid it - wrote %s then %s | now %s | %.1f studs back along the ground | ref reached this point at t+%.2fs",
-			stamp(), where, fmtPos(p.wroteTo), fmtPos(p.before), fmtPos(here), backXZ, refTimeAt(p.targetS))
-		p.verdict = "REVERTED"
+		verdict = "REVERTED - the server undid it"
+		log("%s REVERTED  | step %d: the server undid it - wrote %s then %s | now %s | %.1f studs back along the ground | ref reached this point at t+%.2fs",
+			stamp(), p.step, fmtPos(p.wroteTo), fmtPos(p.before), fmtPos(here), backXZ, refTimeAt(p.targetS))
 	else
-		p.refused += 1
 		flight.elsewhere += 1
+		flight.stepElsewhere += 1
 		flight.revertStreak += 1
-		log("%s MOVED     | %s: neither where we wrote nor where we were - wrote %s then %s | now %s | ref reached this point at t+%.2fs",
-			stamp(), where, fmtPos(p.wroteTo), fmtPos(p.before), fmtPos(here), refTimeAt(p.targetS))
-		p.verdict = "MOVED ELSEWHERE"
+		verdict = "MOVED ELSEWHERE"
+		log("%s MOVED     | step %d: neither where we wrote nor where we were - wrote %s then %s | now %s | ref reached this point at t+%.2fs",
+			stamp(), p.step, fmtPos(p.wroteTo), fmtPos(p.before), fmtPos(here), refTimeAt(p.targetS))
 	end
 
+	log("%s check %03d | %.3fs after the jump | now %s | %.1f studs from the write (XZ), %.1f in Y (%.1f from where it started) | %s",
+		stamp(), p.step, now - p.at, fmtPos(here), dxz, dy, backXZ, verdict)
+
 	-- the window: refusals that were interrupted by an echo still count together
-	local refused = p.verdict == "REVERTED" or p.verdict == "MOVED ELSEWHERE"
+	local refused = verdict == "REVERTED - the server undid it" or verdict == "MOVED ELSEWHERE"
 	table.insert(flight.recent, refused)
 	while #flight.recent > ABORT_WINDOW do table.remove(flight.recent, 1) end
 	local windowHits = 0
@@ -578,10 +600,6 @@ local function checkWrite(now)
 
 	setCounters()
 	if not flight.stopReason and flight.revertStreak == ABORT_AFTER_REVERTS then
-		-- measured: the -1000 follows a run of rejected claims, not any one API
-		-- call. The 04:26 flight died after 15 rejections, the 23:38 flight 0.06s
-		-- after its 4th. Stopping on the third is the difference between logging
-		-- the run and logging a corpse.
 		log("%s DANGER     | %d server reverts in a row - the -1000 has followed a run like this | stopping",
 			stamp(), flight.revertStreak)
 		flight.stopReason = string.format(
@@ -596,117 +614,78 @@ local function checkWrite(now)
 end
 
 -- ================================================================
--- THE WALK. A step is 35 studs, but it is not one jump: the character is moved
--- along the path in WRITES_PER_STEP small writes at the reference's cadence.
+-- THE JUMP. Position and height in one write, every 0.5s: 35 studs of path.
 -- ================================================================
-local function beginStep(now)
+local function doJump(now)
 	local before = flight.root.Position
 	local here, offPath = projectToPath(before)
 	if flight.step == 0 then flight.startPos = before end
 	if flight.step > 0 and here < flight.s - 1 then
-		log("%s LAGGING   | s=%.1f but the character is at s=%.1f | the last write did not hold - retrying from where it is",
+		log("%s LAGGING   | s=%.1f but the character is at s=%.1f | the last write did not hold - jumping from where it is",
 			stamp(), flight.s, here)
 	end
 	local fromS = here
 	flight.s = here
 	if offPath > 60 then
-		log("%s DRIFT      | %.1f studs off the path - the next write pulls back onto it", stamp(), offPath)
+		log("%s DRIFT      | %.1f studs off the path - the next jump pulls back onto it", stamp(), offPath)
 	end
 
-	-- the ladder: step N ends at N x 35 studs, so the flown route is exactly the
-	-- log's (146 x 35 = 5097.9). If the character is a whole step behind the
-	-- ladder, fly from where it really is instead of chasing the ideal line.
+	-- the ladder: step N ends at N x 35 studs, so the flown route is the log's own
 	local ladder = (flight.step + 1) * STEP_STUDS
 	local targetS = math.min(ladder, TOTAL)
-	if here < ladder - STEP_STUDS then
-		targetS = math.min(here + STEP_STUDS, TOTAL)
-	end
+	if here < ladder - STEP_STUDS then targetS = math.min(here + STEP_STUDS, TOTAL) end
 	local target = samplePath(targetS)
+
+	-- the write. Yaw carried over: a bare CFrame.new() resets the facing, which
+	-- yanks the character round and is not what the reference does.
+	local yaw = flight.root.Orientation.Y
+	flight.root.CFrame = CFrame.new(target) * CFrame.Angles(0, math.rad(yaw), 0)
+	local fell = zeroFall()
+	local landed = flight.root.Position
+	local off = (landed - target).Magnitude
+
 	flight.step += 1
 	flight.s = targetS
-	flight.pending = {
-		step = flight.step, from = before, fromS = fromS, target = target, targetS = targetS,
-		wroteTo = before, before = before, at = now, startAt = now,
-		micro = 0, awaitCheck = false,
-		held = 0, sagged = 0, refused = 0, worst = 0, verdict = "HELD",
-	}
-end
+	flight.jumps += 1
+	flight.pending = { step = flight.step, before = before, fromS = fromS,
+		wroteTo = target, target = target, targetS = targetS, at = now }
+	flight.glideAt = now + GLIDE_EVERY_S
+	if targetS >= TOTAL - 0.001 then flight.arrived = true end
 
-local function writeHere(pos)
-	-- THE WRITE. One direct root.CFrame assignment - the mechanism the working
-	-- lightdark log shows. Yaw carried over: a bare CFrame.new() resets the
-	-- facing, which yanks the character round and is not what the reference does.
-	local yaw = flight.root.Orientation.Y
-	flight.root.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(yaw), 0)
-	if ZERO_FALL then
-		local v = flight.root.AssemblyLinearVelocity
-		if v and v.Y < -0.5 then
-			if -v.Y > flight.fastestFall then flight.fastestFall = -v.Y end
-			flight.root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-			flight.falls += 1
-		end
-	end
-	flight.writes += 1
-	return flight.root.Position
-end
-
-local function microWrite(now)
-	local p = flight.pending
-	if not p then return end
-	p.micro += 1
-	local frac = p.micro / WRITES_PER_STEP
-	local pos = p.from + (p.target - p.from) * frac
-	p.before = flight.root.Position
-	p.wroteTo = writeHere(pos)
-	p.at = now
-	p.awaitCheck = true
-end
-
-local function completeStep(now)
-	local p = flight.pending
-	if not p then return end
-
-	local here = flight.root.Position
-	local off = (here - p.target).Magnitude
-	local dxz = xzDist(here, p.wroteTo)
-	local dy = here.Y - p.wroteTo.Y
-	local backXZ = xzDist(here, p.from)
-
-	local verdict
-	if p.refused > 0 then verdict = "REVERTED"; flight.stepReverted += 1
-	elseif p.sagged > 0 then verdict = "SAGGED"; flight.stepSagged += 1
-	else verdict = "HELD"; flight.stepHeld += 1
-	end
-
-	log("%s step %03d | s=%.1f -> %.1f of %.1f (%d%%) | asked %s | landed %s | off by %.2f | ref t+%.2fs",
-		stamp(), p.step, p.fromS, p.targetS, TOTAL, math.floor((p.targetS / TOTAL) * 100),
-		fmtPos(p.target), fmtPos(here), off, refTimeAt(p.targetS))
+	log("%s step %03d | jump %.1f studs | s=%.1f -> %.1f of %.1f (%d%%) | asked %s | landed %s | off by %.2f | ref t+%.2fs",
+		stamp(), flight.step, STEP_STUDS, fromS, targetS, TOTAL,
+		math.floor((targetS / TOTAL) * 100), fmtPos(target), fmtPos(landed), off, refTimeAt(targetS))
 	log("%s          | %s", stamp(), worldLine())
-	log("%s check %03d | %.3fs step | %d/%d write(s) stuck | now %s | %.1f studs from the write (XZ), %.1f in Y (%.1f from where it started) | %s",
-		stamp(), p.step, now - p.startAt, p.held, WRITES_PER_STEP,
-		fmtPos(here), dxz, dy, backXZ, verdict)
+	if fell then
+		log("%s          | the fall was stopped on this write - it had reached %.1f studs/s", stamp(), flight.fastestFall)
+	end
 
 	setText(progressLabel, string.format("PROGRESS  | step %d of %d | %.1f of %.1f studs (%d%%)",
-		p.step, STEPS, p.targetS, TOTAL, math.floor((p.targetS / TOTAL) * 100)))
-	setText(posLabel, "POSITION  | " .. fmtPos(here))
+		flight.step, STEPS, targetS, TOTAL, math.floor((targetS / TOTAL) * 100)))
+	setText(posLabel, "POSITION  | " .. fmtPos(landed))
+end
 
-	flight.pending = nil
-	if p.targetS >= TOTAL - 0.001 then
-		flight.arrived = true
-		local fromWrite = xzDist(here, p.wroteTo)
-		local fromStart = xzDist(here, p.from)
-		log("%s check %03d | FINAL | now %s | %.1f from the write, %.1f from where it started | %s",
-			stamp(), p.step, fmtPos(here), fromWrite, fromStart,
-			fromWrite <= TOLERANCE and "HELD"
-				or (fromStart <= TOLERANCE and "REVERTED - the server put us back" or "MOVED ELSEWHERE"))
+-- ================================================================
+-- THE GLIDE. Between jumps, ONLY ONE of the xyz is corrected. X and Z are left
+-- exactly where the jump put them, so there is no horizontal correction to make
+-- and nothing to jitter: the character glides straight while airborne.
+-- ================================================================
+local function doGlide(now)
+	local p = flight.pending
+	if not p then return end
+	local here = flight.root.Position
+	local pos
+	if GLIDE_AXIS == "Y" then
+		pos = Vector3.new(here.X, p.wroteTo.Y, here.Z)   -- the height, and nothing else
+	elseif GLIDE_AXIS == "XZ" then
+		pos = Vector3.new(p.wroteTo.X, here.Y, p.wroteTo.Z)
 	else
-		beginStep(now)
-		if p.step % PROGRESS_EVERY == 0 then
-			log("%s PROGRESS   | step %d of %d | %.1f of %.1f studs | %d%% | ref reached this at t+%.2fs",
-				stamp(), p.step, STEPS, math.min(flight.s, TOTAL), TOTAL,
-				math.floor((math.min(flight.s, TOTAL) / TOTAL) * 100), refTimeAt(flight.s))
-		end
+		pos = p.wroteTo                                  -- all three (what v4.1 did)
 	end
+	local yaw = flight.root.Orientation.Y
+	flight.root.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(yaw), 0)
+	zeroFall()
+	flight.glides += 1
 end
 
 local function finish(reason)
@@ -759,16 +738,16 @@ local function finish(reason)
 	end
 	log("steps     | %d HELD | %d SAGGED | %d REVERTED | %d moved elsewhere",
 		flight.stepHeld, flight.stepSagged, flight.stepReverted, flight.stepElsewhere)
-	log("writes    | %d write(s) every %.3fs (%.1f studs each) | %d held | %d sagged | %d refused",
-		flight.writes, WRITE_EVERY_S, WRITE_STUDS,
+	log("writes    | %d jump(s) + %d glide(s) = %d write(s) | %d held | %d sagged | %d refused",
+		flight.jumps, flight.glides, flight.jumps + flight.glides,
 		flight.held, flight.sagged, flight.reverted + flight.elsewhere)
 	if flight.sagged > 0 then
 		log("sag       | worst height lost between writes: %.1f studs | %d write(s) brought down by gravity",
 			flight.worstSag, flight.sagged)
 	end
 	if ZERO_FALL then
-		log("fall      | the downward velocity was zeroed on %d of %d write(s) | fastest fall seen %.1f studs/s",
-			flight.falls, flight.writes, flight.fastestFall)
+		log("fall      | the falling speed was zeroed on %d of %d write(s) | fastest fall seen %.1f studs/s",
+			flight.falls, flight.jumps + flight.glides, flight.fastestFall)
 	end
 	if flight.reverted + flight.elsewhere > 0 then
 		local refused = 0
@@ -828,10 +807,10 @@ local function startFlight()
 		held = 0, reverted = 0, elsewhere = 0, revertStreak = 0, recent = {}, arrived = false,
 		stepHeld = 0, stepSagged = 0, stepReverted = 0, stepElsewhere = 0,
 		hp = humanoid.Health, state = tostring(humanoid:GetState()),
-		stopReason = nil, conn = nil,
+		stopReason = nil, conn = nil, nextAt = 0,
 		character = character, humanoid = humanoid, root = root,
-		sagged = 0, worstSag = 0, sagLogged = 0, writeAt = 0,
-		writes = 0, falls = 0, fastestFall = 0,
+		sagged = 0, worstSag = 0, sagLogged = 0, glideAt = 0,
+		jumps = 0, glides = 0, falls = 0, fastestFall = 0,
 	}
 	summaryDone = false
 	_G.LIGHTDARK_FLIGHT_RUNNING = true
@@ -846,10 +825,16 @@ local function startFlight()
 		stamp(), fmtPos(root.Position), dash(humanoid.Health), tostring(humanoid:GetState()))
 	log("%s not called| ChangeState(Freefall) and AutoRotate stay untouched - the -1000 pair",
 		stamp())
-	log("%s walk      | %d write(s) per step, %.1f studs each, every %.3fs - the path is walked, not jumped (the reference writes at ~0.05s too)",
-		stamp(), WRITES_PER_STEP, WRITE_STUDS, WRITE_EVERY_S)
+	log("%s jump      | one full write per step - position AND height - %.1f studs every %.2fs",
+		stamp(), STEP_STUDS, STEP_INTERVAL)
+	if GLIDE_EVERY_S > 0 then
+		log("%s glide     | between jumps only ONE axis is corrected: %s, every %.3fs - X and Z are left where the jump put them, so the glide runs straight and the character stays airborne",
+			stamp(), GLIDE_AXIS == "Y" and "the height (Y)" or ("the " .. GLIDE_AXIS .. " axis"), GLIDE_EVERY_S)
+	else
+		log("%s glide     | OFF (one write per step - what the field runs did, and their height was eaten)", stamp())
+	end
 	if ZERO_FALL then
-		log("%s fall      | the downward velocity is zeroed on every write - a teleport leaves the falling speed alone, and over 73s it compounds until every write is followed by a 30-stud drop",
+		log("%s fall      | the falling speed is zeroed on every write - a teleport leaves it alone and it compounds (the 07:00 run read -279 studs/s while every check said HELD, and the kill followed)",
 			stamp())
 	else
 		log("%s fall      | ZERO_FALL is OFF - the fall accumulates and the height will be eaten", stamp())
@@ -882,11 +867,9 @@ local function startFlight()
 	setStatus("flying | 35 studs every 0.5s", Color3.fromRGB(255, 220, 120))
 	setCounters()
 
-	beginStep(os.clock())
-	log("%s FLYING     | the first write is now", stamp())
-	local t0 = os.clock()
-	flight.writeAt = t0 + WRITE_EVERY_S
-	microWrite(t0)
+	log("%s FLYING     | the first jump is now", stamp())
+	flight.nextAt = os.clock() + STEP_INTERVAL
+	doJump(os.clock())
 
 	flight.conn = RunService.Heartbeat:Connect(function()
 		if _G.LIGHTDARK_FLIGHT_STOP then
@@ -919,31 +902,45 @@ local function startFlight()
 			flight.hp = flight.humanoid.Health
 		end
 
-		-- every write is judged one write-interval after it went out, so the check
-		-- measures what the interval did to it (at one write per step that is the
-		-- full 0.5s of gravity the 23:38 run lost its height to)
-		if flight.pending then
-			if flight.pending.awaitCheck and now - flight.pending.at >= WRITE_EVERY_S - 1e-6 then
-				checkWrite(now)
-			end
-			if not flight.pending.awaitCheck and flight.pending.micro >= WRITES_PER_STEP then
-				completeStep(now)
-			end
+		-- THE GLIDE: only the one axis, at the reference's cadence
+		if GLIDE_EVERY_S > 0 and flight.pending and flight.running
+			and now >= flight.glideAt - 1e-6 then
+			flight.glideAt = flight.glideAt + GLIDE_EVERY_S
+			if flight.glideAt < now then flight.glideAt = now + GLIDE_EVERY_S end
+			doGlide(now)
 		end
 
-		-- 1e-6: 30 frames of 1/60 sum to 0.49999999999999994, which is not >= the
-		-- next 0.05s slot, so an exact scheduler would drift a frame late.
-		if flight.running and not flight.arrived and not flight.stopReason and flight.pending
-			and now >= flight.writeAt - 1e-6 then
-			flight.writeAt = flight.writeAt + WRITE_EVERY_S
-			if flight.writeAt < now then flight.writeAt = now + WRITE_EVERY_S end
-			microWrite(now)
-		end
-
+		-- 1e-6: 30 frames of 1/60 sum to 0.49999999999999994, which is not >= 0.5,
+		-- so an exact scheduler would run one frame late every step.
 		if flight.arrived then
-			finish("landed at the forest pad")
-		elseif flight.stopReason then
-			finish(flight.stopReason)
+			if now >= flight.nextAt - 1e-6 then
+				local here = flight.root.Position
+				local p = flight.pending
+				local fromWrite = p and xzDist(here, p.wroteTo) or 0
+				local fromBefore = p and xzDist(here, p.before) or 0
+				if p then checkJump(now) end
+				log("%s check %03d | FINAL | now %s | %.1f from the write, %.1f from where it started | %s",
+					stamp(), p and p.step or flight.step, fmtPos(here), fromWrite, fromBefore,
+					fromWrite <= TOLERANCE and "HELD"
+						or (fromBefore <= TOLERANCE and "REVERTED - the server put us back" or "MOVED ELSEWHERE"))
+				finish("landed at the forest pad")
+			end
+			return
+		end
+		if now >= flight.nextAt - 1e-6 then
+			flight.nextAt = flight.nextAt + STEP_INTERVAL
+			if flight.nextAt < now then flight.nextAt = now + STEP_INTERVAL end
+			if flight.pending then checkJump(now) end
+			if flight.stopReason then
+				finish(flight.stopReason)
+				return
+			end
+			doJump(now)
+			if flight.step % PROGRESS_EVERY == 0 and not flight.arrived then
+				log("%s PROGRESS   | step %d of %d | %.1f of %.1f studs | %d%% | ref reached this at t+%.2fs",
+					stamp(), flight.step, STEPS, math.min(flight.s, TOTAL), TOTAL,
+					math.floor((math.min(flight.s, TOTAL) / TOTAL) * 100), refTimeAt(flight.s))
+			end
 		end
 	end)
 end

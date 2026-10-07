@@ -438,9 +438,9 @@ chk("parented to PlayerGui when it is available", g["GUIPARENT"]() == "PlayerGui
     g["GUIPARENT"]())
 chk("the log says the panel is up", "| panel on screen (parent: PlayerGui)" in txt,
     lines(txt, "UI        |")[:1])
-chk("the log names the build", "build v5-smooth" in txt, lines(txt, "READY     |")[:1])
+chk("the log names the build", "build v6-glide" in txt, lines(txt, "READY     |")[:1])
 chk("START is the button that flies", "START  (fly the path" in g["BUTTONS"](), "")
-chk("the title carries the version", "v5-smooth" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
+chk("the title carries the version", "v6-glide" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
 chk("the close X is there", "X" in g["BUTTONS"](), g["BUTTONS"]()[:80])
 chk("STOP is there", "STOP" in g["BUTTONS"](), "")
 chk("COPY LOG is there", "COPY LOG" in g["BUTTONS"](), "")
@@ -488,22 +488,41 @@ steps = step_lines(txt_all)
 chk("config states the pace", "35.0 studs every 0.50s x 146 steps = 73.0s" in txt_all,
     lines(txt_all, "config    |")[:1])
 chk("146 steps landed", len(steps) == 146, f"{len(steps)} steps")
-chk("each step was walked in 10 writes", g_all["WCOUNT"]() == 1460,
-    f"{g_all['WCOUNT']()} root writes")
-def _gap(i):
-    a, b = g_all["WAT"](i), g_all["WAT"](i + 1)
-    return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
-gaps = [_gap(i) for i in range(1, 10)]
-chk("the writes really are 3.5 studs apart", all(3.4 < g < 3.7 for g in gaps),
-    f"first step gaps {['%.2f' % g for g in gaps]}")
-chk("so a 35-stud step is ten small writes",
-    abs(sum(gaps) - 31.5) < 0.6,   # 9 gaps between the 10 writes of the step
-    f"step 1: 10 writes spanning {sum(gaps):.2f} studs")
-def _step_of(pos):
-    acc = 0.0
-    for i in range(1, g_all["WCOUNT"]()):
-        acc += _gap(i)
-    return acc
+chk("each step is one jump plus ten glide corrections",
+    g_all["WCOUNT"]() == 146 + 1460, f"{g_all['WCOUNT']()} root writes")
+chk("the summary splits them", "146 jump(s) + 1460 glide(s) = 1606 write(s)" in txt_all,
+    lines(txt_all, "writes    |")[:1])
+def deltas(g):
+    """Every root write in order: the jump (big, carries position AND height) and
+    the glides (between jumps, one axis only)."""
+    out = []
+    for i in range(1, g["WCOUNT"]()):
+        a, b = g["WAT"](i), g["WAT"](i + 1)
+        out.append((b[0] - a[0], b[1] - a[1], b[2] - a[2]))
+    return out
+
+
+def hop(d):
+    return (d[0] ** 2 + d[1] ** 2 + d[2] ** 2) ** 0.5
+
+
+ds = deltas(g_all)
+jumps = [d for d in ds if hop(d) > 5.0]
+glides = [d for d in ds if hop(d) <= 5.0]
+# deltas start at the SECOND write, so the first jump is the initial write itself
+chk("146 of the writes are the jumps", len(jumps) + 1 == 146, f"{len(jumps)} + 1 jumps")
+chk("a jump carries the position AND the height",
+    all(hop(d) > 15.0 for d in jumps), f"smallest jump {min(hop(d) for d in jumps):.1f} studs")
+chk("the straight legs are 35 studs",
+    sum(1 for d in jumps if abs(hop(d) - 35.0) < 3.0) >= 140,
+    f"{sum(1 for d in jumps if abs(hop(d) - 35.0) < 3.0)} of {len(jumps)} jumps; the tail "
+    f"shortens because the path's last waypoints bend down to the pad")
+chk("a glide updates ONLY one of the xyz - the height",
+    all(abs(d[0]) < 0.05 and abs(d[2]) < 0.05 for d in glides),
+    f"worst drift in X/Z across {len(glides)} glides: "
+    f"{max(max(abs(d[0]), abs(d[2])) for d in glides):.3f} studs")
+chk("and it moves the height by less than a stud",
+    all(abs(d[1]) < 1.0 for d in glides), f"biggest Y step {max(abs(d[1]) for d in glides):.2f}")
 chk("nothing needed zeroing with no gravity on", g_all["WZERO"]() == 0,
     f"{g_all['WZERO']()} velocity writes")
 chk("the first write is 35 studs along the route", "s=0.0 -> 35.0 of 5097.9" in steps[0],
@@ -553,8 +572,8 @@ chk("the landing drop is reflown",
 
 chk("every step is checked, and the landing gets a FINAL line",
     len(check_lines(txt_all)) == 147, f"{len(check_lines(txt_all))} verdicts")
-chk("the checks all say the whole step stuck",
-    all("/10 write(s) stuck" in l for l in check_lines(txt_all)[:-1]),
+chk("the checks are a step after the jump and say it held",
+    all("0.50" in l and "| HELD" in l for l in check_lines(txt_all)[:-1]),
     check_lines(txt_all)[0][:90])
 chk("not one write was undone",
     not lines(txt_all, "REVERTED - the server") and not lines(txt_all, "MOVED ELSEWHERE"), "")
@@ -580,7 +599,7 @@ chk("noclip is restored, not leaked",
 chk("every part is collidable again", all(p.CanCollide for p in g_all["PARTS"]().values()), "")
 chk("the panel agrees at the end", "THE WRITES STICK" in g_all["LABELSTART"]("STATUS"),
     g_all["LABELSTART"]("STATUS"))
-chk("the counters agree", "1460 held | 0 sagged | 0 reverted" in g_all["LABELSTART"]("WRITES"),
+chk("the counters agree", "146 held | 0 sagged | 0 reverted" in g_all["LABELSTART"]("WRITES"),
     g_all["LABELSTART"]("WRITES"))
 
 print("\n=== T5: COPY LOG copies what is on screen ===")
@@ -676,7 +695,7 @@ print("\n=== T13: the UI cannot be lost, and the flight survives without it ==="
 # build is pcall-guarded, the parent falls back, and the log says which happened.
 txt_nogui, g_nogui = run(seconds=3, fail_gui=True, click=False)
 chk("a blocked ScreenGui does not kill the script",
-    "READY     |" in txt_nogui and "build v5-smooth" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
+    "READY     |" in txt_nogui and "build v6-glide" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
 chk("the log says the panel is NOT up", "UI        | NOT BUILT" in txt_nogui,
     lines(txt_nogui, "UI        |")[:1])
 chk("it names the reason", "ScreenGui blocked" in txt_nogui, lines(txt_nogui, "UI        |")[:1])
@@ -712,8 +731,8 @@ chk("the fall is reported, with both axes",
 chk("it says gravity did it, not the server",
     "gravity, not the server" in txt_g, "")
 chk("it explains the arithmetic",
-    "we fell" in txt_g and "the reference writes every ~0.05s" in txt_g,
-    lines(txt_g, "the write lifted us")[:1])
+    "the jump lifted us" in txt_g and "the glide should have caught it" in txt_g,
+    lines(txt_g, "the jump lifted us")[:1])
 chk("a sag is NOT counted as a server revert",
     "REVERTED - the server" not in txt_g, "")
 chk("it says the height was already gone when we looked",
@@ -751,14 +770,17 @@ askedY = [asked_xyz(l)[1] for l in hsteps[:10] if asked_xyz(l)]
 worst = max(abs(a - c) for a, c in zip(askedY, checkY))
 chk("the character is where the write put it, vertically too", worst <= 3.0,
     f"worst {worst:.2f} studs of drift across 10 steps")
-chk("the log says the path is walked, not jumped",
-    "10 write(s) per step, 3.5 studs each, every 0.050s" in txt_h, lines(txt_h, "walk      |")[:1])
-chk("and that the fall is zeroed", "the downward velocity is zeroed on every write" in txt_h,
+chk("the log says a step is a jump",
+    "one full write per step - position AND height" in txt_h, lines(txt_h, "jump      |")[:1])
+chk("the log says the glide touches one axis only",
+    "between jumps only ONE axis is corrected: the height (Y)" in txt_h,
+    lines(txt_h, "glide     |")[:1])
+chk("and that the fall is zeroed", "the falling speed is zeroed on every write" in txt_h,
     lines(txt_h, "fall      |")[:1])
 txt_hf, g_hf = run(seconds=FLIGHT_SECS, gravity=True)
 wlines = [l for l in txt_hf.splitlines() if "writes    | " in l]
-chk("the summary counts the writes", bool(wlines) and "1460 write(s) every 0.050s" in wlines[0],
-    wlines[:1])
+chk("the summary counts the writes",
+    bool(wlines) and "146 jump(s) + 1460 glide(s)" in wlines[0], wlines[:1])
 chk("and the fall is zeroed all the way down", "zeroed on " in txt_hf and
     "fastest fall seen" in txt_hf, [l for l in txt_hf.splitlines() if "fall      |" in l][:1])
 chk("no step lost its height", "0 SAGGED" in txt_hf,
@@ -835,40 +857,49 @@ chk("3 in a row never fires on it", "never fires - the refusals are not consecut
 chk("3 of the last 4 fires before the death", "check 16 (3 of the last 4 refused)" in rtext, "")
 chk("and it says the death came after", "the -1000 has followed a run like this" not in rtext and
     "hp=-1000.0 at step 18" in rtext, "")
+# and it must still read the CURRENT build's lines, which are shaped differently
+v6_step = ("[00:11.500] step 007 | jump 35.0 studs | s=210.0 -> 245.0 of 5097.9 (4%) | "
+           "asked (100.0, 112.7, -330.0) | landed (100.0, 112.7, -330.0) | off by 0.00 | ref t+0.85s")
+v6_check = ("[00:12.000] check 007 | 0.500s after the jump | now (100.0, 112.7, -330.0) | "
+            "0.0 studs from the write (XZ), 0.0 in Y (35.0 from where it started) | HELD")
+v6_steps, v6_checks = _rd.parse([v6_step, v6_check])
+chk("the reader reads the v6 jump line", len(v6_steps) == 1 and v6_steps[7]["pos"] == (100.0, 112.7, -330.0),
+    v6_steps)
+chk("the reader reads the v6 check line", len(v6_checks) == 1 and v6_checks[0]["age"] == 0.5
+    and v6_checks[0]["said"] == "HELD", v6_checks)
 
-print("\n=== T19: the walk is smooth - no hops, no accumulated fall ===")
-# The 01:00 run held the position 20x/s but never touched the velocity, so the
-# fall grew to -622 studs/s and the character was 31 studs down at every check:
-# a yo-yo, not a flight. Here gravity is real and the walk is on. Every number
-# below is measured off the engine trace, not asserted from the log's prose.
+print("\n=== T19: the glide - one axis, straight, and the fall stopped ===")
+# The 07:00 run held the position 20x/s with the WHOLE CFrame and never touched the
+# velocity: the fall reached -279 studs/s while every check said HELD, and the kill
+# followed. Here gravity is real and the glide is on. Every number below is measured
+# off the engine trace, not read from the log's prose.
 txt_sm, g_sm = run(seconds=20, gravity=True)
+ds = deltas(g_sm)
+jumps = [d for d in ds if hop(d) > 5.0]
+glides = [d for d in ds if hop(d) <= 5.0]
 
-def _wpos(i):
-    return g_sm["WAT"](i)
-
-gaps = []
-for i in range(1, g_sm["WCOUNT"]()):
-    a, b = _wpos(i), _wpos(i + 1)
-    gaps.append(sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5)
-chk("no write jumps: the biggest hop is a few studs", max(gaps) < 4.2,
-    f"largest gap {max(gaps):.2f} studs over {len(gaps)} writes")
-chk("no write stalls either", min(gaps) > 2.8, f"smallest gap {min(gaps):.2f} studs")
-chk("the walk is 20 writes a second at 3.5 studs", g_sm["WCOUNT"]() == 401,
-    f"{g_sm['WCOUNT']()} writes in 20s")
-chk("the fall is stopped on nearly every write", g_sm["WZERO"]() >= 395,
-    f"{g_sm['WZERO']()} of {g_sm['WCOUNT']()} writes zeroed the velocity")
+chk("the jumps are the 35-stud steps", len(jumps) == 40 and all(abs(hop(d) - 35.0) < 2.0 for d in jumps),
+    f"{len(jumps)} jumps, first {hop(jumps[0]):.1f} studs")
+chk("every glide touches only Y", all(abs(d[0]) < 0.05 and abs(d[2]) < 0.05 for d in glides),
+    f"{len(glides)} glides, worst X/Z drift {max(max(abs(d[0]), abs(d[2])) for d in glides):.3f}")
+chk("so the glide cannot jitter sideways",
+    max(abs(d[0]) for d in glides) < 0.05 and max(abs(d[2]) for d in glides) < 0.05, "")
+chk("the height is corrected a fraction of a stud at a time",
+    max(abs(d[1]) for d in glides) < 1.0, f"biggest Y correction {max(abs(d[1]) for d in glides):.2f}")
 
 sm_lines = [l for l in txt_sm.splitlines() if re.match(r"^\[[\d:.]+\] check \d{3} \|", l)]
 dys = [float(re.search(r"([-\d.]+) in Y", l).group(1)) for l in sm_lines]
 chk("the character stays on the written line, vertically too", min(dys) > -1.0,
-    f"deepest {min(dys):.2f} studs below the write (the one-write-per-step run was 42)")
-chk("nothing is reported as sagging", not lines(txt_sm, "SAGGED"),
-    lines(txt_sm, "SAGGED")[:1])
-chk("no step is SAGGED in the summary either, mid-flight", "SAGGED     |" not in txt_sm, "")
+    f"deepest {min(dys):.2f} studs below the write (the field run: 31)")
+chk("nothing is reported as sagging", not lines(txt_sm, "SAGGED"), lines(txt_sm, "SAGGED")[:1])
+chk("the fall never gets going", g_sm["VHIST"]() < 12.0,
+    f"fastest fall at the end {g_sm['VHIST']():.1f} studs/s (the field run: 622)")
+chk("the velocity was written only to stop it", g_sm["WZERO"]() > 380,
+    f"{g_sm['WZERO']()} velocity writes of {g_sm['WCOUNT']()}")
 
-# and the same weather with the walk OFF must still reproduce the field failure
+# and the same weather with the glide OFF must still reproduce the field failure
 txt_ow, g_ow = run(seconds=6, gravity=True, hold=0)
-chk("with the walk off it is the 01:00 run again: 25 studs of sag",
+chk("with the glide off it is the field run again: 25 studs of sag",
     "we are 25.3 studs below the write" in txt_ow, lines(txt_ow, "SAGGED")[:1])
 chk("and that run writes once per step", g_ow["WCOUNT"]() <= 13,
     f"{g_ow['WCOUNT']()} writes in 6s")
