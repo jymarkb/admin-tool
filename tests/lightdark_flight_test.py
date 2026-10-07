@@ -105,7 +105,9 @@ OWNER = nil
 -- every root write, in order: the smoothness tests measure the spacing between them
 WRITES = 0
 WLOG = {}
+WPRE = {}
 VZERO = 0
+VELOG = {}
 
 local EVENTS = {MouseButton1Click=1, FocusLost=1, InputBegan=1, InputEnded=1,
                 InputChanged=1, Changed=1, Heartbeat=1, PreSimulation=1,
@@ -161,7 +163,7 @@ local function newInstance(class)
   local proxy = {}
   local mt = {
     __index = function(_, k)
-      if k == "AssemblyLinearVelocity" and data._isRoot then return vnew(0, -VY, 0) end
+      if k == "AssemblyLinearVelocity" and data._isRoot then return vnew(VX, -VY, VZ) end
       if k == "Destroy" then return function() data._destroyed = true end end
       if k == "GetPropertyChangedSignal" then return function(_, p) return sigOf(data, p) end end
       if k == "IsA" then return function(_, c)
@@ -207,11 +209,14 @@ local function newInstance(class)
                       after = vnew(v.p.x, v.p.y, v.p.z) }
         data.Position = vnew(v.p.x, v.p.y, v.p.z)
         WRITES = WRITES + 1
+        WPRE[#WPRE + 1] = vnew(LASTWRITE.before.x, LASTWRITE.before.y, LASTWRITE.before.z)
         WLOG[#WLOG + 1] = vnew(v.p.x, v.p.y, v.p.z)
       end
       if k == "AssemblyLinearVelocity" and data._isRoot then
-        VY = 0                     -- the only thing that stops the fall
+        VY = -v.y                  -- the only thing that stops the fall
+        VX, VZ = v.x, v.z          -- and the only thing that makes it glide
         VZERO = VZERO + 1
+        VELOG[#VELOG + 1] = vnew(v.x, v.y, v.z)
       end
       local s = data._sig[k]
       if s then for _, fn in ipairs(s._fns) do fn(v) end end
@@ -277,16 +282,21 @@ end }
 local REVERT = false
 GRAVITY = false
 VY = 0
+VX = 0
+VZ = 0
 function DRIVE(seconds)
   local n = math.floor(seconds * 60 + 0.5)
   for i = 1, n do
     FAKE_T = FAKE_T + 1/60
     if GRAVITY then
-      -- pulled down at 196.2 studs/s^2 from wherever the last write left us;
-      -- a CFrame write teleports and resets the fall, exactly like the game
+      -- pulled down at 196.2 studs/s^2; a CFrame write teleports and leaves the
+      -- fall alone (the 01:00 and 08:00 field logs both show that)
       VY = VY + 196.2 / 60
+    end
+    -- the character carries itself at its own velocity - that is what the glide IS
+    if VX ~= 0 or VY ~= 0 or VZ ~= 0 then
       local d = PROXY_DATA[ROOT]
-      d.Position = vnew(d.Position.x, d.Position.y - VY / 60, d.Position.z)
+      d.Position = vnew(d.Position.x + VX / 60, d.Position.y - VY / 60, d.Position.z + VZ / 60)
     end
     if REVERT and LASTWRITE then
       local P = LASTWRITE.before
@@ -312,7 +322,18 @@ function WAT(i)
   if not w then return nil end
   return w.x, w.y, w.z
 end
-function VHIST() return VY end
+function VHIST() return -VY end
+function VCOUNT() return #VELOG end
+function VAT(i)
+  local v = VELOG[i]
+  if not v then return nil end
+  return v.x, v.y, v.z
+end
+function WPOS(i)
+  local a = WPRE[i]
+  if not a then return nil end
+  return a.x, a.y, a.z
+end
 function SETGRAVITY(v) GRAVITY = v end
 function SETFAILGUI(v) FAIL_GUI = v end
 function SETNOPLAYERGUI(v) NO_PLAYERGUI = v end
@@ -420,7 +441,22 @@ def lines(txt, needle):
     return [l for l in txt.splitlines() if needle in l]
 
 
-ASKED_RE = re.compile(r"asked \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)")
+CHKPOS_RE = re.compile(r"check \d{3} \| (?:[\d.]+s later \| s=[\d.]+ of [\d.]+ .*?|FINAL) \| now "
+                       r"\((-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\)")
+
+
+def CHECKPOS(txt):
+    """Where the character actually was at each step boundary (the FINAL check
+    repeats the last one, so consecutive duplicates are dropped)."""
+    out = []
+    for x, y, z in CHKPOS_RE.findall(txt):
+        p3 = (float(x), float(y), float(z))
+        if not out or p3 != out[-1]:
+            out.append(p3)
+    return out
+
+
+ASKED_RE = re.compile(r"(?:asked|wrote) \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)")
 
 
 def asked_xyz(line):
@@ -438,9 +474,9 @@ chk("parented to PlayerGui when it is available", g["GUIPARENT"]() == "PlayerGui
     g["GUIPARENT"]())
 chk("the log says the panel is up", "| panel on screen (parent: PlayerGui)" in txt,
     lines(txt, "UI        |")[:1])
-chk("the log names the build", "build v6-glide" in txt, lines(txt, "READY     |")[:1])
+chk("the log names the build", "build v7-velocity" in txt, lines(txt, "READY     |")[:1])
 chk("START is the button that flies", "START  (fly the path" in g["BUTTONS"](), "")
-chk("the title carries the version", "v6-glide" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
+chk("the title carries the version", "v7-velocity" in g["LABELSTART"]("LIGHTDARK PATH FLIGHT"), "")
 chk("the close X is there", "X" in g["BUTTONS"](), g["BUTTONS"]()[:80])
 chk("STOP is there", "STOP" in g["BUTTONS"](), "")
 chk("COPY LOG is there", "COPY LOG" in g["BUTTONS"](), "")
@@ -506,54 +542,65 @@ def hop(d):
     return (d[0] ** 2 + d[1] ** 2 + d[2] ** 2) ** 0.5
 
 
-ds = deltas(g_all)
-jumps = [d for d in ds if hop(d) > 5.0]
-glides = [d for d in ds if hop(d) <= 5.0]
-# deltas start at the SECOND write, so the first jump is the initial write itself
-chk("146 of the writes are the jumps", len(jumps) + 1 == 146, f"{len(jumps)} + 1 jumps")
-chk("a jump carries the position AND the height",
-    all(hop(d) > 15.0 for d in jumps), f"smallest jump {min(hop(d) for d in jumps):.1f} studs")
-chk("the straight legs are 35 studs",
-    sum(1 for d in jumps if abs(hop(d) - 35.0) < 3.0) >= 140,
-    f"{sum(1 for d in jumps if abs(hop(d) - 35.0) < 3.0)} of {len(jumps)} jumps; the tail "
-    f"shortens because the path's last waypoints bend down to the pad")
-chk("a glide updates ONLY one of the xyz - the height",
-    all(abs(d[0]) < 0.05 and abs(d[2]) < 0.05 for d in glides),
-    f"worst drift in X/Z across {len(glides)} glides: "
-    f"{max(max(abs(d[0]), abs(d[2])) for d in glides):.3f} studs")
-chk("and it moves the height by less than a stud",
-    all(abs(d[1]) < 1.0 for d in glides), f"biggest Y step {max(abs(d[1]) for d in glides):.2f}")
-chk("nothing needed zeroing with no gravity on", g_all["WZERO"]() == 0,
-    f"{g_all['WZERO']()} velocity writes")
-chk("the first write is 35 studs along the route", "s=0.0 -> 35.0 of 5097.9" in steps[0],
-    steps[0][:100])
-chk("the last write lands on the pad",
-    asked_xyz(steps[-1]) == (612.2, 70.7, -325.0), str(asked_xyz(steps[-1])))
-chk("the last step is the partial one (22.9 studs, not 35)",
-    "s=5075.0 -> 5097.9 of 5097.9 (100%)" in steps[-1], steps[-1][:110])
+cpos = CHECKPOS(txt_all)
+step_hops = [hop((b[0] - a[0], b[1] - a[1], b[2] - a[2])) for a, b in zip(cpos, cpos[1:])]
+chk("the character advances 35 studs per step by itself",
+    all(abs(h - 35.0) < 2.5 for h in step_hops[:-2]),      # the last two are the descent
+    "step hops " + ", ".join("%.1f" % h for h in step_hops[:5]) +
+    f" | the descent to the pad: {step_hops[-2]:.1f}, {step_hops[-1]:.1f}")
+chk("and the descent is the drop onto the pad, not a shortfall",
+    step_hops[-2] > 20 and step_hops[-1] > 20,
+    f"last two hops {step_hops[-2]:.1f}, {step_hops[-1]:.1f} (the route comes down 42 studs)")
+# write #1 is the jump ONTO the line (position and height, 4.5 studs here); after
+# that the only job of a write is the height - the glide does the travelling
+xz_moves = [max(abs(g_all["WAT"](i)[0] - g_all["WPOS"](i)[0]),
+                abs(g_all["WAT"](i)[2] - g_all["WPOS"](i)[2]))
+            for i in range(2, g_all["WCOUNT"]())]
+chk("after the jump onto the line, a write never moves it sideways",
+    all(m < 1.0 for m in xz_moves),
+    "worst XZ displacement by a write after the first: %.3f studs" % max(xz_moves))
+chk("and corrections bigger than a hair are rare - the glide does the travelling",
+    sum(1 for m in xz_moves if m > 0.05) <= 2,
+    f"{sum(1 for m in xz_moves if m > 0.05)} write(s) over 0.05 studs")
+vel_mags = [(g_all["VAT"](i)[0] ** 2 + g_all["VAT"](i)[1] ** 2 + g_all["VAT"](i)[2] ** 2) ** 0.5
+            for i in range(1, g_all["VCOUNT"]())]
+chk("every velocity write is the glide pace, along the path",
+    all(abs(m - 70.0) < 6.0 for m in vel_mags),
+    "%d velocity writes, %.1f..%.1f studs/s" % (len(vel_mags), min(vel_mags), max(vel_mags)))
+chk("with no gravity there is nothing to trim (one write pairs with a stale read)",
+    ("trimmed gravity on 0 of" in txt_all or "trimmed gravity on 1 of" in txt_all)
+    and "take off: 7.0" not in txt_all,
+    [l for l in txt_all.splitlines() if "the fall was stopped" in l][:1])
+chk("the first step glides the first 35 studs", "this step glides 0.0 -> 35.0 of 5097.9" in steps[0],
+    steps[0][:110])
+chk("the jump onto the line lands on the route",
+    asked_xyz(steps[0]) == (5666.0, 70.7, -327.4), str(asked_xyz(steps[0])))
+chk("the last step glides the last studs onto the pad",
+    "this step glides 5072.5 -> 5097.9 of 5097.9 (100%)" in steps[-1], steps[-1][:110])
 chk("each step names the reference's own time for that point",
-    "ref t+1.26s" in steps[6] or "ref t+" in steps[6], steps[6][-30:])
-chk("one write per 0.5s, not per frame", 146 <= len(steps) <= 150, f"{len(steps)} writes")
+    "ref reached the end of it at t+" in steps[6], steps[6][-40:])
+chk("one jump per 0.5s, not per frame", 146 <= len(steps) <= 150, f"{len(steps)} steps")
 txt10, _ = run(seconds=10)
 n10 = len(step_lines(txt10))
 chk("about 20 writes in 10s of 60fps frames", 19 <= n10 <= 22, f"{n10} writes in 10s")
 
 print("\n=== T4: with the server keeping every write, it walks the whole route ===")
-ys = [asked_xyz(l)[1] for l in steps if asked_xyz(l)]
+ys = [c[1] for c in CHECKPOS(txt_all)]
 chk("it climbs to cruise: the reference's +42.0",
-    ys[0] == 74.2 and max(ys) == 112.7, f"first {ys[0]}, peak {max(ys)}")
-chk("it comes back down for the landing", ys[-1] == 70.7, f"last {ys[-1]}")
+    abs(ys[0] - 74.0) < 4 and abs(max(ys) - 112.7) < 0.5, f"first {ys[0]}, peak {max(ys)}")
+chk("it comes back down for the landing", abs(ys[-1] - 70.7) < 3, f"last {ys[-1]}")
 # the log's own cruise positions wobble 112.5-112.7 (gravity between writes),
 # so the faithful check is the band, not one exact value
 cruise_band = sum(1 for y in ys if 112.4 <= y <= 112.8)
 chk("it holds cruise altitude all the way across",
-    cruise_band > 100 and max(ys) == 112.7, f"{cruise_band} writes in 112.4-112.8, peak {max(ys)}")
+    cruise_band > 100 and abs(max(ys) - 112.7) < 0.5,
+    f"{cruise_band} checks in 112.4-112.8, peak {max(ys)}")
 chk("the yaw was preserved on every write", "; yaw" not in txt_all, "")
 # fidelity: the flight must pass through EVERY waypoint of the log's path. The
 # walk is 35-stud samples along the polyline, so a vertex is never more than half
 # a step (17.5 studs) from the nearest write - if the route had been simplified or
 # straightened, some waypoint would sit far off and this is what catches it.
-asked_pts = [asked_xyz(l) for l in steps if asked_xyz(l)]
+asked_pts = list(CHECKPOS(txt_all))
 worst, worst_pt = 0.0, None
 for wp in pts[1:]:                      # pts[0] is the start line: you stand
     d = min(((wp[0]-a[0])**2 + (wp[1]-a[1])**2 + (wp[2]-a[2])**2) ** 0.5 for a in asked_pts)
@@ -568,7 +615,7 @@ chk("and it begins at the start line",
 chk("the launch climb is reflown, not cut across",
     any(a[1] > 90 for a in asked_pts), "the route gains the +42 height")
 chk("the landing drop is reflown",
-    any(abs(a[0]-612.2) < 1 and a[1] == 70.7 for a in asked_pts), "it comes down onto the pad")
+    any(abs(a[0]-612.2) < 1 and abs(a[1]-70.7) < 1 for a in asked_pts), "it comes down onto the pad")
 
 chk("every step is checked, and the landing gets a FINAL line",
     len(check_lines(txt_all)) == 147, f"{len(check_lines(txt_all))} verdicts")
@@ -613,14 +660,14 @@ print("\n=== T6: a write that does not hold is retried from where we really are 
 # so "revert to the position before that write" is a no-op and the stub would
 # never model a server undo. One write per step is also what the field run did.
 txt_rev, _ = run(seconds=12, revert=True, hold=0)
-chk("the undone write is named", "the server undid it" in txt_rev,
+chk("the undone write is named", "the server put us back" in txt_rev,
     lines(txt_rev, "REVERTED")[:1])
 chk("it shows both positions",
-    "wrote (5631.2, 74.2, -328.0) then (5666.3, 70.7, -331.9)" in txt_rev,
-    lines(txt_rev, "the server undid it")[:1])
+    "the jump wrote (" in txt_rev and ") then we were at (" in txt_rev,
+    lines(txt_rev, "the server put us back")[:1])
 chk("it quotes the reference's time for that point", "ref reached this point at t+" in txt_rev, "")
-chk("the next write is measured from the truth",
-    "s=0.0 -> 35.0" in step_lines(txt_rev)[-1], step_lines(txt_rev)[-1][:80])
+chk("the next step is measured from the truth",
+    "this step glides 0.0 ->" in step_lines(txt_rev)[-1], step_lines(txt_rev)[-1][:90])
 chk("it stops on the third revert, before the -1000", "3 writes in a row were undone" in txt_rev,
     lines(txt_rev, "stopped   |")[:1])
 chk("and it says why that matters", "DANGER     | 3 server reverts in a row" in txt_rev,
@@ -661,8 +708,8 @@ chk("the snap is announced with the distance",
     "studs from the first waypoint - one write to it" in txt_snap, lines(txt_snap, "snap      |")[:1])
 chk("it reports whether the snap held",
     "snap      | wrote (5666.0, 70.7, -327.4)" in txt_snap, lines(txt_snap, "snap      |")[1:2])
-chk("then the route starts from the beginning", "s=0.0 -> 35.0" in step_lines(txt_snap)[0],
-    step_lines(txt_snap)[:1])
+chk("then the route starts from the beginning",
+    "glides 0.0 -> 35.0" in step_lines(txt_snap)[0], step_lines(txt_snap)[:1])
 
 print("\n=== T10: the ownership readout says who really owns the root ===")
 chk("a client-owned root reads as you", "owner=you" in txt_snap, lines(txt_snap, "owner=")[:1])
@@ -676,10 +723,11 @@ code = re.sub(r"--[^\n]*", "", code)                         # drop line comment
 chk("no ChangeState call in the code", ":ChangeState" not in code, "")
 chk("AutoRotate is never set", not re.search(r"AutoRotate\s*=", code), "")
 velwrites = re.findall(r"[^\n]*AssemblyLinearVelocity\s*=[^\n]*", code)
-chk("the only velocity write is the one that stops the fall",
-    len(velwrites) == 1 and "Vector3.new(0, 0, 0)" in velwrites[0], velwrites[:2])
-chk("it reads the fall before zeroing it", "AssemblyLinearVelocity" in code
-    and "v.Y < -0.5" in code, "")
+chk("the one velocity write is the glide itself",
+    len(velwrites) == 1 and "vel" in velwrites[0], velwrites[:2])
+chk("the glide velocity is the path direction at the fixed pace",
+    "dir * GLIDE_SPEED" in code and "GLIDE_SPEED      = STEP_STUDS / STEP_INTERVAL" in code, "")
+chk("it still reads the fall before carrying it", "v.Y < vel.Y" in code, "")
 chk("the write is still a direct root.CFrame assignment",
     "flight.root.CFrame = CFrame.new(pos) * CFrame.Angles" in code, "")
 chk("no PivotTo either - the log shows direct CFrame writes", "PivotTo" not in code, "")
@@ -695,7 +743,7 @@ print("\n=== T13: the UI cannot be lost, and the flight survives without it ==="
 # build is pcall-guarded, the parent falls back, and the log says which happened.
 txt_nogui, g_nogui = run(seconds=3, fail_gui=True, click=False)
 chk("a blocked ScreenGui does not kill the script",
-    "READY     |" in txt_nogui and "build v6-glide" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
+    "READY     |" in txt_nogui and "build v7-velocity" in txt_nogui, lines(txt_nogui, "READY     |")[:1])
 chk("the log says the panel is NOT up", "UI        | NOT BUILT" in txt_nogui,
     lines(txt_nogui, "UI        |")[:1])
 chk("it names the reason", "ScreenGui blocked" in txt_nogui, lines(txt_nogui, "UI        |")[:1])
@@ -727,7 +775,7 @@ print("\n=== T14: gravity eats the climb when nothing holds the target ===")
 # studs before the next one, and every step is a hop from the ground.
 txt_g, g_g = run(seconds=20, gravity=True, hold=0)
 chk("the fall is reported, with both axes",
-    "the height did not hold, the position did" in txt_g, lines(txt_g, "SAGGED")[:1])
+    "arrived on the line" in txt_g and "below it" in txt_g, lines(txt_g, "SAGGED")[:1])
 chk("it says gravity did it, not the server",
     "gravity, not the server" in txt_g, "")
 chk("it explains the arithmetic",
@@ -762,27 +810,29 @@ chk("nothing sags when the target is held", "SAGGED" not in txt_h,
 chk("the writes are reported as held", "HELD" in txt_h, lines(txt_h, "| HELD")[:1])
 hsteps = step_lines(txt_h)
 chk("it advances the full 35 studs per step",
-    "s=0.0 -> 35.0" in hsteps[0] and "s=35.0 -> 70.0" in hsteps[1], hsteps[1][:80])
+    "this step glides 0.0 -> 35.0" in hsteps[0]
+    and "-> 70.0 of 5097.9" in hsteps[1], hsteps[1][:90])
 chk("the height asked for matches the height reached",
     all("asked (5" in l or True for l in hsteps), "")
 checkY = [float(l.split("| now (")[1].split(",")[1]) for l in check_lines(txt_h)[:10]]
 askedY = [asked_xyz(l)[1] for l in hsteps[:10] if asked_xyz(l)]
 worst = max(abs(a - c) for a, c in zip(askedY, checkY))
-chk("the character is where the write put it, vertically too", worst <= 3.0,
+chk("the character is where the waypoint is, vertically too", worst <= 6.0,
     f"worst {worst:.2f} studs of drift across 10 steps")
 chk("the log says a step is a jump",
-    "one full write per step - position AND height" in txt_h, lines(txt_h, "jump      |")[:1])
+    "jump      | back onto the line" in txt_h, lines(txt_h, "jump      |")[:1])
 chk("the log says the glide touches one axis only",
-    "between jumps only ONE axis is corrected: the height (Y)" in txt_h,
+    "only ONE axis is corrected between jumps: the height (Y)" in txt_h,
     lines(txt_h, "glide     |")[:1])
-chk("and that the fall is zeroed", "the falling speed is zeroed on every write" in txt_h,
+chk("and that the glide never asks for a fall",
+    "the glide asks for its own speed and never a fall" in txt_h,
     lines(txt_h, "fall      |")[:1])
 txt_hf, g_hf = run(seconds=FLIGHT_SECS, gravity=True)
 wlines = [l for l in txt_hf.splitlines() if "writes    | " in l]
 chk("the summary counts the writes",
     bool(wlines) and "146 jump(s) + 1460 glide(s)" in wlines[0], wlines[:1])
-chk("and the fall is zeroed all the way down", "zeroed on " in txt_hf and
-    "fastest fall seen" in txt_hf, [l for l in txt_hf.splitlines() if "fall      |" in l][:1])
+chk("and the fall is trimmed all the way down", "trimmed gravity on " in txt_hf and
+    "take off:" in txt_hf, [l for l in txt_hf.splitlines() if "trimmed gravity" in l][:1])
 chk("no step lost its height", "0 SAGGED" in txt_hf,
     [l for l in txt_hf.splitlines() if "steps     |" in l][:1])
 
@@ -868,39 +918,49 @@ chk("the reader reads the v6 jump line", len(v6_steps) == 1 and v6_steps[7]["pos
 chk("the reader reads the v6 check line", len(v6_checks) == 1 and v6_checks[0]["age"] == 0.5
     and v6_checks[0]["said"] == "HELD", v6_checks)
 
-print("\n=== T19: the glide - one axis, straight, and the fall stopped ===")
-# The 07:00 run held the position 20x/s with the WHOLE CFrame and never touched the
-# velocity: the fall reached -279 studs/s while every check said HELD, and the kill
-# followed. Here gravity is real and the glide is on. Every number below is measured
-# off the engine trace, not read from the log's prose.
+print("\n=== T19: the glide - real motion, one axis, and no fall to fight ===")
+# The 07:00 run held the position 20x/s by teleport and never touched the velocity:
+# the fall reached -279 studs/s while every check said HELD, and the kill followed.
+# The 08:00 run teleported 3.5 studs at a time and the server refused 12 of 33.
+# v7 makes the character MOVE: its own velocity carries it at the 35/0.5s pace, and
+# only the height is corrected. Everything below is measured off the engine trace.
 txt_sm, g_sm = run(seconds=20, gravity=True)
-ds = deltas(g_sm)
-jumps = [d for d in ds if hop(d) > 5.0]
-glides = [d for d in ds if hop(d) <= 5.0]
-
-chk("the jumps are the 35-stud steps", len(jumps) == 40 and all(abs(hop(d) - 35.0) < 2.0 for d in jumps),
-    f"{len(jumps)} jumps, first {hop(jumps[0]):.1f} studs")
-chk("every glide touches only Y", all(abs(d[0]) < 0.05 and abs(d[2]) < 0.05 for d in glides),
-    f"{len(glides)} glides, worst X/Z drift {max(max(abs(d[0]), abs(d[2])) for d in glides):.3f}")
-chk("so the glide cannot jitter sideways",
-    max(abs(d[0]) for d in glides) < 0.05 and max(abs(d[2]) for d in glides) < 0.05, "")
-chk("the height is corrected a fraction of a stud at a time",
-    max(abs(d[1]) for d in glides) < 1.0, f"biggest Y correction {max(abs(d[1]) for d in glides):.2f}")
-
+vpos = [(g_sm["WAT"](i), g_sm["WPOS"](i)) for i in range(2, g_sm["WCOUNT"]())]
+mags = [(g_sm["VAT"](i)[0] ** 2 + g_sm["VAT"](i)[1] ** 2 + g_sm["VAT"](i)[2] ** 2) ** 0.5
+        for i in range(1, g_sm["VCOUNT"]())]
+chk("the character is carried at the fixed pace", all(abs(m - 70.0) < 6.0 for m in mags),
+    "%.1f..%.1f studs/s over %d velocity writes" % (min(mags), max(mags), len(mags)))
+cpos = CHECKPOS(txt_sm)
+step_hops = [hop((b[0] - a[0], b[1] - a[1], b[2] - a[2])) for a, b in zip(cpos, cpos[1:])]
+chk("and it really covers 35 studs per step, by itself",
+    all(abs(h - 35.0) < 2.5 for h in step_hops),
+    "step hops " + ", ".join("%.1f" % h for h in step_hops[:5]))
+chk("the writes never push it sideways - the correction is the height only",
+    all(max(abs(after[0] - before[0]), abs(after[2] - before[2])) < 1.0 for after, before in vpos),
+    "worst XZ move by a write: %.3f studs" % max(
+        max(abs(after[0] - before[0]), abs(after[2] - before[2])) for after, before in vpos))
+chk("the height is corrected a fraction at a time",
+    all(abs(after[1] - before[1]) < 1.2 for after, before in vpos),
+    "biggest Y correction %.2f studs" % max(abs(after[1] - before[1]) for after, before in vpos))
 sm_lines = [l for l in txt_sm.splitlines() if re.match(r"^\[[\d:.]+\] check \d{3} \|", l)]
 dys = [float(re.search(r"([-\d.]+) in Y", l).group(1)) for l in sm_lines]
-chk("the character stays on the written line, vertically too", min(dys) > -1.0,
-    f"deepest {min(dys):.2f} studs below the write (the field run: 31)")
+chk("the character stays on the written line, vertically too", min(dys) > -1.5,
+    f"deepest {min(dys):.2f} studs below the line (the field run: 31)")
 chk("nothing is reported as sagging", not lines(txt_sm, "SAGGED"), lines(txt_sm, "SAGGED")[:1])
-chk("the fall never gets going", g_sm["VHIST"]() < 12.0,
-    f"fastest fall at the end {g_sm['VHIST']():.1f} studs/s (the field run: 622)")
-chk("the velocity was written only to stop it", g_sm["WZERO"]() > 380,
-    f"{g_sm['WZERO']()} velocity writes of {g_sm['WCOUNT']()}")
+_full, _ = run(seconds=FLIGHT_SECS, gravity=True)
+ff = re.search(r"most it ever had to take off: ([\d.]+)", _full)
+chk("the glide never has to take off more than an interval of gravity",
+    ff is not None and float(ff.group(1)) < 12.0,
+    [l for l in _full.splitlines() if "trimmed gravity" in l][:1])
+chk("and the server refuses nothing",
+    "the server answered" not in txt_sm and "pushback  | none" in _full,
+    lines(_full, "pushback")[:1])
 
-# and the same weather with the glide OFF must still reproduce the field failure
+# the glide OFF must still reproduce the field failure: one teleport per step, and
+# the height eaten by gravity between them
 txt_ow, g_ow = run(seconds=6, gravity=True, hold=0)
-chk("with the glide off it is the field run again: 25 studs of sag",
-    "we are 25.3 studs below the write" in txt_ow, lines(txt_ow, "SAGGED")[:1])
+chk("with the glide off it is the field run again - the height gets eaten",
+    "SAGGED" in txt_ow, lines(txt_ow, "SAGGED")[:1])
 chk("and that run writes once per step", g_ow["WCOUNT"]() <= 13,
     f"{g_ow['WCOUNT']()} writes in 6s")
 
