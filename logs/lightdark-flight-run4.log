@@ -1,0 +1,19 @@
+FIELD RUN 4 - build v5-smooth (08:00 paste into chat)
+The full paste was in chat; these are the deciding lines, kept here so the run is
+on record with the others.
+
+  walk      | 10 write(s) per step, 3.5 studs each, every 0.050s
+  step 001  | asked (5631.2, 74.2, -328.0) | landed (5627.7, 74.2, -328.4) | off by 3.53
+  check 001 | 0.558s step | 7/10 write(s) stuck
+  check 003 | 4/10 write(s) stuck
+  DEATH     | hp=-1000.0 at step 4 | EXTERNAL KILL: hp was SET
+  writes    | 33 write(s) | 21 held | 0 sagged | 0 refused
+  fall      | the downward velocity was zeroed on 30 of 33 write(s) | fastest fall seen 19.6 studs/s
+  verdict   | INCONCLUSIVE - reads did not match either position
+  stopped   | the character died at step 4
+  (velocity read at the checks: -3.3, -10.6, -11.4, -10.6 studs/s)
+
+READING: 12 of 33 writes were answered with a DIFFERENT position the moment they
+landed (off by 3.53, 7/10 stuck, 4/10 stuck). The character never actually moved -
+it was teleported 3.5 studs at a time with its velocity at zero - and the kill
+followed 1.7s in. This is the run v7-velocity answers.

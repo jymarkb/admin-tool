@@ -1,0 +1,13 @@
+FIELD RUN 3 - build v4.1-window (06:00 paste into chat)
+The full paste was in chat; these are the deciding lines, kept here so the run is
+on record with the others. Nothing in this file is reconstructed arithmetic.
+
+  steps     | 9 HELD | 0 SAGGED | 0 REVERTED
+  DEATH     | hp=-1000.0 at step 9
+  (velocity read at the checks: -80, -159, -215, -279 studs/s)
+  (state line, repeatedly: Freefall -> Landed | floor=Plain)
+
+READING: not one write was refused, every check read "0.0 studs from the write",
+and the character still died - from a fall that was never stopped. The key tells
+that apart from the older kills: 0 REVERTED means the server was NOT the one
+undoing the flight, and the -1000 arrived with the fall already at -279 studs/s.
