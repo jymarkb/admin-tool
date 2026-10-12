@@ -658,14 +658,60 @@ local function holdingSource()
             if (c:IsA("Tool") or c:IsA("Model")) and string.find(string.lower(c.Name), "egg", 1, true) then
                 return "char:" .. c.Name
             end
+            local okA, cAttrs = pcall(function() return c:GetAttributes() end)
+            if okA and typeof(cAttrs) == "table" then
+                if cAttrs.IsEgg == true or cAttrs.ItemType == "Egg" or (cAttrs.CarrierUserId and tostring(cAttrs.CarrierUserId) == tostring(LocalPlayer.UserId)) then
+                    return "char_attr:" .. c.Name
+                end
+            end
         end
     end
     local cra = Workspace:FindFirstChild("ClientRenderedAssets")
-    if cra and carryUid then
-        local expectedName = tostring(LocalPlayer.UserId) .. "_" .. tostring(carryUid)
-        local m = cra:FindFirstChild(expectedName)
-        if m and (m:IsA("BasePart") or m:FindFirstChildWhichIsA("BasePart", true)) then
-            return "cra:" .. m.Name
+    if cra then
+        local myUid = tostring(LocalPlayer.UserId)
+        local cUidLower = carryUid and string.lower(tostring(carryUid))
+        local expectedName = carryUid and (myUid .. "_" .. tostring(carryUid))
+        if expectedName then
+            local m = cra:FindFirstChild(expectedName)
+            if m and (m:IsA("BasePart") or m:FindFirstChildWhichIsA("BasePart", true)) then
+                return "cra:" .. m.Name
+            end
+        end
+        -- Case-insensitive match in CRA
+        if cUidLower then
+            for _, m in ipairs(cra:GetChildren()) do
+                local mLow = string.lower(m.Name)
+                if string.find(mLow, myUid, 1, true) and string.find(mLow, cUidLower, 1, true) then
+                    if m:IsA("BasePart") or m:FindFirstChildWhichIsA("BasePart", true) then
+                        return "cra_match:" .. m.Name
+                    end
+                end
+            end
+        end
+        -- Proximity match: carried egg model belonging to user within 15 studs of character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local myPos = char.HumanoidRootPart.Position
+            for _, m in ipairs(cra:GetChildren()) do
+                if string.find(m.Name, myUid, 1, true) then
+                    local p = m:IsA("BasePart") and m or m:FindFirstChildWhichIsA("BasePart", true)
+                    if p and (p.Position - myPos).Magnitude <= 15 then
+                        return "cra_near:" .. m.Name
+                    end
+                end
+            end
+        end
+    end
+    -- Authoritative server snapshot check
+    if carryUid and eggCache and eggCache.byUid and eggCache.byUid[carryUid] then
+        local rec = eggCache.byUid[carryUid]
+        if typeof(rec) == "table" then
+            local cId = rec.CarrierUserId
+            if cId and tostring(cId) == tostring(LocalPlayer.UserId) then
+                return "snapshot_carrier:" .. tostring(carryUid)
+            end
+            if rec.State == "Carried" and not X.isCarriedByOther(carryUid, rec) then
+                return "snapshot_carried:" .. tostring(carryUid)
+            end
         end
     end
     if carryMarkers and markersActiveCheck(carryMarkers) then
@@ -2381,8 +2427,13 @@ end
 local function stillCarrying()
     if not weAreCarrying then return false end
     if isHoldingEgg() then return true end
-    if carryMarkers and not markersActive(carryMarkers) then return false end   -- object is gone
-    if carryUid and eggCache.byUid[carryUid] and not isHoldingEgg() then return false end
+    if carryUid and X.isCarriedByOther(carryUid) then return false end
+    if carryUid and eggCache and eggCache.byUid and eggCache.byUid[carryUid] then
+        local rec = eggCache.byUid[carryUid]
+        if rec.State == "Dropped" or (rec.CarrierUserId and tostring(rec.CarrierUserId) ~= tostring(LocalPlayer.UserId)) then
+            return false
+        end
+    end
     return true
 end
 
@@ -2676,7 +2727,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             -- Brief confirmation window after spam (was pure fire-and-dash).
             -- Client hold visuals / CRA model can lag 0.5–1.5s behind a successful RF, so we must NOT
             -- treat "no isHoldingEgg yet" as failure when the server already accepted the carry.
-            local confDeadline = os.clock() + 0.55
+            local confDeadline = os.clock() + 1.6
             local confHow = nil
             local function rfAccepted()
                 if not rfDone or not rfOk then return false end
@@ -2728,11 +2779,10 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                 print(("[AutoFarm] pickup confirmed via %s on attempt %d"):format(tostring(confHow), attemptNo))
                 break
             else
-                -- No hard refusal and no hold yet: head home tentatively.
-                carried, how = true, "rf_no_wait"
-                print(("[AutoFarm] tentative pickup (no hold yet) attempt %d — RF done=%s ok=%s"):format(
-                    attemptNo, tostring(rfDone), tostring(rfOk)))
-                break
+                -- Attempt did not confirm pickup; do NOT start return trip empty-handed!
+                warn(("[AutoFarm] pickup attempt %d unconfirmed (RF done=%s ok=%s res=%s) — retrying at egg"):format(
+                    attemptNo, tostring(rfDone), tostring(rfOk), describeVal(rfRes)))
+                task.wait(0.15)
             end
         end
         cleanup()
@@ -2927,8 +2977,15 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     else
                         local ep = extPos(rec)
                         local afterBump = bumped and eggCache.tIssue >= X.lastRagdollAt
-                        if everGone or X.snapHidesCarried then
-                            -- listed again = it is lying on the ground (1 scan is enough right after a bump)
+                        local carriedByUs = (rec.CarrierUserId and tostring(rec.CarrierUserId) == tostring(LocalPlayer.UserId))
+                            or (rec.State == "Carried" and not X.isCarriedByOther(uid, rec))
+                        if carriedByUs then
+                            -- Server snapshot confirms WE are the carrier! Never treat as dropped!
+                            seenBack = 0
+                            why = nil
+                            lostSince = nil
+                        elseif everGone or X.snapHidesCarried then
+                            -- listed again without being carried by us = it is lying on the ground (1 scan is enough right after a bump)
                             seenBack = seenBack + 1
                             if seenBack >= ((afterBump or now < fastUntil) and 1 or 2) then why = "egg listed in the field again" end
                         elseif afterBump and not staleMode then
@@ -2952,11 +3009,14 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             elseif not why and carryMarkers and markerSince and now - markerSince >= 0.3 then
                 if markersActive(carryMarkers) then
                     lostSince = nil
-                else
+                elseif bumped or isRagdolled or now < fastUntil or dropEvt then
                     lostSince = lostSince or now
                     if now - lostSince >= (now < fastUntil and 0.3 or DROP_CONFIRM) then
-                        why = "object gone: " .. tostring(carryMarkers.label)
+                        why = "object gone after bump: " .. tostring(carryMarkers.label)
                     end
+                else
+                    -- Smooth unbumped walk: transient VFX marker despawn is never a drop!
+                    lostSince = nil
                 end
             end
 
@@ -2998,8 +3058,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         -- LAST LINE OF DEFENCE: if a boss bump knocked the egg loose without any signal firing, we must not call the
         -- trip a success. Re-check the field with fresh scans; an egg still lying far from the zone = not delivered.
         local function verifyDelivered()
-            if not (bumped or X.snapHidesCarried) then return nil end
-            if staleMode and not X.snapHidesCarried then return nil end    -- listing shows carried eggs: can't tell
+            if not bumped then return nil end    -- Never bumped = delivery guaranteed upon arrival
             local t0, waited, seq0, seen, absent = os.clock(), 0, eggCache.seq, 0, 0
             task.spawn(X.forceScan)
             while waited < 3 and (isManual or autoFarmToken == myTok) do
