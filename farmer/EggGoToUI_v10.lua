@@ -225,10 +225,9 @@ local DEFAULT_SETTINGS = {
     RarityFilter       = {"Divine", "Eternal", "Secret"},
     AutoReturn         = true,
     Velocity           = false,
-    VelocityValue      = 330,
-    CarryVelocityValue = 300,
+    VelocityValue      = 350,
+    CarryVelocityValue = 320,
     Recovery           = true,
-    BoostFPS           = false,
     MaxBumpRetries     = 8,
 }
 
@@ -291,9 +290,6 @@ local function validateSettings(t)
     if t.Recovery ~= nil and typeof(t.Recovery) ~= "boolean" then
         return false, "Recovery must be true/false"
     end
-    if t.BoostFPS ~= nil and typeof(t.BoostFPS) ~= "boolean" then
-        return false, "BoostFPS must be true/false"
-    end
     if t.MaxBumpRetries ~= nil and typeof(t.MaxBumpRetries) ~= "number" then
         return false, "MaxBumpRetries must be a number"
     end
@@ -338,11 +334,15 @@ local X = {
     SAFE_DETECT_RADIUS    = 14,    -- watcher: XZ studs that count as "in the safe zone"
     SAFE_DELIVERED_RADIUS = 22,    -- an egg that vanishes this close to the zone was DELIVERED, not dropped
     startupGraceUntil     = os.clock() + 5.0,  -- 5s grace period on startup (Issue #7)
-    fpsBoosterActive      = false,             -- FPS booster flag (Issue #3)
     maxBumpRetries        = 8,                 -- Max bump retries before retarget (Issue #6)
     lastPhysicsNeutralizeAt = 0,               -- Throttling physics neutralization (Issue #2)
     lastRaycastCheck      = 0,                 -- Throttling raycasts in rubberband (Issue #2)
     lastRtt               = nil,               -- Live measured server RPC round-trip time in ms
+    recoveryCount         = 0,                 -- Total zero-wait recoveries executed
+    jointsTable           = {},                -- Motor6D joints index
+    recoveryConnections   = {},                -- Character recovery event listeners
+    slamDampenerEnabled   = true,              -- Anti-slam downward velocity absorber
+    attributeSpoofEnabled = true,              -- Spoof RagdollEndTime to 0
 }
 local wasRagdolledForVelocity = false
 local RAGDOLL_HOLD_TIME = 0.12
@@ -688,18 +688,6 @@ local function holdingSource()
                 end
             end
         end
-        -- Proximity match: carried egg model belonging to user within 15 studs of character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local myPos = char.HumanoidRootPart.Position
-            for _, m in ipairs(cra:GetChildren()) do
-                if string.find(m.Name, myUid, 1, true) then
-                    local p = m:IsA("BasePart") and m or m:FindFirstChildWhichIsA("BasePart", true)
-                    if p and (p.Position - myPos).Magnitude <= 15 then
-                        return "cra_near:" .. m.Name
-                    end
-                end
-            end
-        end
     end
     -- Authoritative server snapshot check
     if carryUid and eggCache and eggCache.byUid and eggCache.byUid[carryUid] then
@@ -750,12 +738,59 @@ local function neutraliseEggPhysics(char, force)
 end
 
 -- ==================================================
--- RAGDOLL
+-- RAGDOLL & ZERO-WAIT RECOVERY HELPERS
 -- ==================================================
+local checkcaller = checkcaller or function() return false end
+local newcclosure = newcclosure or function(f) return f end
+
+local cachedPlayerControls = nil
+local function enablePlayerControls()
+    pcall(function()
+        if not cachedPlayerControls then
+            local ps = LocalPlayer:FindFirstChildOfClass("PlayerScripts")
+            local pm = ps and ps:FindFirstChild("PlayerModule")
+            if pm then
+                local mod = require(pm)
+                if mod and mod.GetControls then
+                    cachedPlayerControls = mod:GetControls()
+                end
+            end
+        end
+        if cachedPlayerControls and cachedPlayerControls.Enable then
+            cachedPlayerControls:Enable()
+        end
+    end)
+end
+
+local function clearRagdollAttributes()
+    pcall(function()
+        LocalPlayer:SetAttribute("RagdollEndTime", 0)
+        LocalPlayer:SetAttribute("RagdollTime", 0)
+        LocalPlayer:SetAttribute("IsRagdoll", false)
+        LocalPlayer:SetAttribute("Ragdolled", false)
+    end)
+    local char = LocalPlayer.Character
+    if char then
+        pcall(function()
+            char:SetAttribute("RagdollEndTime", 0)
+            char:SetAttribute("RagdollTime", 0)
+            char:SetAttribute("IsRagdoll", false)
+            char:SetAttribute("Ragdolled", false)
+        end)
+    end
+end
+
 local function getRagdollReason(hum)
     if not hum then return nil end
     local re = LocalPlayer:GetAttribute("RagdollEndTime")
-    if typeof(re) == "number" and re > Workspace:GetServerTimeNow() then return "RagdollEnd" end
+    if typeof(re) == "number" and re > Workspace:GetServerTimeNow() then
+        if recoveryEnabled then
+            clearRagdollAttributes()
+            enablePlayerControls()
+        else
+            return "RagdollEnd"
+        end
+    end
     local s = hum:GetState()
     if s == Enum.HumanoidStateType.Ragdoll then return "Ragdoll" end
     if s == Enum.HumanoidStateType.FallingDown then return "FallingDown" end
@@ -907,14 +942,16 @@ end
 -- Robust slot resolution in Workspace.AreaEggSlotsClient:
 -- Matches direct 32-hex UID, recursive/attribute Uid, Forest/Area pattern ("FirstAreaEgg_..._Forest:Slot_00X"),
 -- or 3D world position within 6 studs of the expected nest position.
-function X.findEggSlot(area, uid, nestId, areaId, pos)
+function X.findEggSlot(area, uid, nestId, areaId, pos, cachedChildren)
     if not area or not uid or uid == "" then return nil end
     -- 1. Direct child match (standard 32-hex UID used in 95% of areas)
     local direct = area:FindFirstChild(uid)
     if direct then return direct end
 
+    local children = cachedChildren or area:GetChildren()
+
     -- 2. Attribute match or name contains UID
-    for _, ch in ipairs(area:GetChildren()) do
+    for _, ch in ipairs(children) do
         if ch.Name == uid or string.find(ch.Name, uid, 1, true) then
             return ch
         end
@@ -928,7 +965,7 @@ function X.findEggSlot(area, uid, nestId, areaId, pos)
     local nStr = tostring(nestId or "")
     local aStr = tostring(areaId or "")
     if nStr ~= "" or aStr ~= "" then
-        for _, ch in ipairs(area:GetChildren()) do
+        for _, ch in ipairs(children) do
             local nm = ch.Name
             local matchArea = (aStr == "") or (string.find(nm, aStr, 1, true) ~= nil)
             local matchNest = false
@@ -950,7 +987,7 @@ function X.findEggSlot(area, uid, nestId, areaId, pos)
 
     -- 4. World Position match (within 6 studs of expected nest position)
     if pos and typeof(pos) == "Vector3" then
-        for _, ch in ipairs(area:GetChildren()) do
+        for _, ch in ipairs(children) do
             local cp = nil
             if ch:IsA("BasePart") then
                 cp = ch.Position
@@ -967,17 +1004,27 @@ function X.findEggSlot(area, uid, nestId, areaId, pos)
     return nil
 end
 
--- Check if egg is placed in any player's base plot (Workspace.PlacedEggRenders.<UserId>_<EggUid>)
+-- Cached base plot renders check (Workspace.PlacedEggRenders.<UserId>_<EggUid>)
+-- Cached for 0.8s to avoid looping hundreds of instances on every frame/egg check
+local baseRendersCache = nil
+local lastBaseRendersTime = 0
 function X.isEggInBaseRenders(uid)
     if not uid or uid == "" then return false end
-    local per = Workspace:FindFirstChild("PlacedEggRenders")
-    if not per then return false end
-    for _, ch in ipairs(per:GetChildren()) do
-        if string.find(ch.Name, uid, 1, true) then
-            return true
+    local now = os.clock()
+    if not baseRendersCache or (now - lastBaseRendersTime) > 0.8 then
+        lastBaseRendersTime = now
+        baseRendersCache = {}
+        local per = Workspace:FindFirstChild("PlacedEggRenders")
+        if per then
+            for _, ch in ipairs(per:GetChildren()) do
+                local nm = ch.Name
+                baseRendersCache[nm] = true
+                local eggUidPart = string.match(nm, "_(.+)$")
+                if eggUidPart then baseRendersCache[eggUidPart] = true end
+            end
         end
     end
-    return false
+    return baseRendersCache[uid] == true
 end
 
 -- Per-area cross-check of the snapshot against the client slots (called from every successful scan).
@@ -986,6 +1033,7 @@ function X.updateSlotGhosts(by, recs)
     if not X.USE_SLOT_CHECK or not area or typeof(recs) ~= "table" then X.missCount = {}; return end
     -- Issue #7 fix: Startup grace period gives streaming/slots 5s to load before ghost filtering
     if os.clock() < (X.startupGraceUntil or 0) then return end
+    local areaChildren = area:GetChildren()
     local perArea = {}
     for _, r in ipairs(recs) do
         local u = typeof(r) == "table" and tostring(r.Uid or "") or ""
@@ -995,7 +1043,7 @@ function X.updateSlotGhosts(by, recs)
             if not pa then pa = { n = 0, has = 0, missing = {} }; perArea[a] = pa end
             pa.n = pa.n + 1
             local p = X.recPos(r)
-            local slotObj = X.findEggSlot(area, u, r.NestId, r.AreaId, p)
+            local slotObj = X.findEggSlot(area, u, r.NestId, r.AreaId, p, areaChildren)
             local hasSlot = slotObj ~= nil
             local mine = (X.weDropped[u] and os.clock() - X.weDropped[u] < 60) or (dropRetry and dropRetry.uid == u) or X.looseUids[u]
 
@@ -1547,14 +1595,33 @@ for p, r in pairs(PET_RARITY_PRESETS) do
 end
 table.sort(presetMatches, function(a, b) return #a.key > #b.key end)
 
+local presetRarityCache = {}
 local function getPresetRarity(sp)
+    if not sp or sp == "" then return nil end
+    local cached = presetRarityCache[sp]
+    if cached ~= nil then
+        if cached == false then return nil end
+        return cached.rarity, cached.pet
+    end
     local n = normName(sp)
-    if n == "" then return nil end
-    for _, e in ipairs(presetMatches) do if n == e.key then return e.rarity, e.pet end end
+    if n == "" then
+        presetRarityCache[sp] = false
+        return nil
+    end
+    for _, e in ipairs(presetMatches) do
+        if n == e.key then
+            presetRarityCache[sp] = { rarity = e.rarity, pet = e.pet }
+            return e.rarity, e.pet
+        end
+    end
     local pad = " " .. n .. " "
     for _, e in ipairs(presetMatches) do
-        if pad:find(" " .. e.key .. " ", 1, true) then return e.rarity, e.pet end
+        if pad:find(" " .. e.key .. " ", 1, true) then
+            presetRarityCache[sp] = { rarity = e.rarity, pet = e.pet }
+            return e.rarity, e.pet
+        end
     end
+    presetRarityCache[sp] = false
     return nil
 end
 
@@ -1579,176 +1646,10 @@ end
 -- APPLY SETTINGS
 -- ==================================================
 -- ==================================================
--- FPS BOOSTER ENGINE (POTATO / HIGH PERFORMANCE MODE)
 -- ==================================================
-local originalLightingState = nil
-local disabledParticles = {}
-
-local function setFPSBooster(enable)
-    X.fpsBoosterActive = enable
-    if currentSettings then currentSettings.BoostFPS = enable end
-
-    local Lighting = game:GetService("Lighting")
-    local Terrain = Workspace:FindFirstChildOfClass("Terrain")
-
-    if enable then
-        if not originalLightingState then
-            originalLightingState = {
-                GlobalShadows = Lighting.GlobalShadows,
-                FogEnd = Lighting.FogEnd,
-                Brightness = Lighting.Brightness,
-            }
-        end
-        pcall(function()
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 9e9
-        end)
-
-        for _, effect in ipairs(Lighting:GetChildren()) do
-            if effect:IsA("PostEffect") or effect:IsA("BloomEffect") or effect:IsA("BlurEffect")
-               or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect")
-               or effect:IsA("DepthOfFieldEffect") then
-                pcall(function() effect.Enabled = false end)
-            end
-        end
-
-        if Terrain then
-            pcall(function()
-                Terrain.WaterWaveSize = 0
-                Terrain.WaterWaveSpeed = 0
-                Terrain.WaterReflectance = 0
-            end)
-        end
-
-        -- Disable expensive particle systems in background without freezing thread or hooking DescendantAdded
-        task.spawn(function()
-            for _, inst in ipairs(Workspace:GetDescendants()) do
-                if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Smoke")
-                   or inst:IsA("Fire") or inst:IsA("Sparkles") then
-                    if inst.Enabled then
-                        disabledParticles[inst] = true
-                        pcall(function() inst.Enabled = false end)
-                    end
-                end
-            end
-        end)
-        print("[EggGoToUI v10] FPS Booster: ENABLED (Lightweight potato mode active)")
-    else
-        if originalLightingState then
-            pcall(function()
-                Lighting.GlobalShadows = originalLightingState.GlobalShadows
-                Lighting.FogEnd = originalLightingState.FogEnd
-                Lighting.Brightness = originalLightingState.Brightness
-            end)
-        end
-        for _, effect in ipairs(Lighting:GetChildren()) do
-            if effect:IsA("PostEffect") or effect:IsA("BloomEffect") or effect:IsA("BlurEffect")
-               or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect")
-               or effect:IsA("DepthOfFieldEffect") then
-                pcall(function() effect.Enabled = true end)
-            end
-        end
-        for inst in pairs(disabledParticles) do
-            if inst and inst.Parent then
-                pcall(function() inst.Enabled = true end)
-            end
-        end
-        table.clear(disabledParticles)
-        print("[EggGoToUI v10] FPS Booster: DISABLED")
-    end
-    if typeof(upFpsBoostBtn) == "function" then pcall(upFpsBoostBtn) end
-end
-X.setFPSBooster = setFPSBooster
-
 -- ==================================================
--- LIVE TELEMETRY (FPS & PING DISPLAY)
+-- SETTINGS APPLIER
 -- ==================================================
-local lastFpsTime = os.clock()
-local renderFrames = 0
-local currentFPS = 60
-local currentPing = 0
-local lastPingTime = 0
-
--- Measure real visual GPU frames dynamically via RenderStepped
-addConnection(RunService.RenderStepped:Connect(function()
-    renderFrames = renderFrames + 1
-    local now = os.clock()
-    local dt = now - lastFpsTime
-    if dt >= 0.25 then
-        currentFPS = math.floor((renderFrames / math.max(0.001, dt)) + 0.5)
-        renderFrames = 0
-        lastFpsTime = now
-    end
-end))
-
-local function updateTelemetry()
-    local now = os.clock()
-    if now - lastPingTime >= 0.5 then
-        lastPingTime = now
-
-        local pingVal = nil
-
-        -- 1. Try Stats.Network.ServerStatsItem["Data Ping"]
-        pcall(function()
-            local stats = game:GetService("Stats")
-            local net = stats and stats:FindFirstChild("Network")
-            local ssi = net and net:FindFirstChild("ServerStatsItem")
-            local dp = ssi and ssi:FindFirstChild("Data Ping")
-            if dp then
-                local v = dp:GetValue()
-                if typeof(v) == "number" and v > 0 then pingVal = v end
-            end
-        end)
-
-        -- 2. Try Native Player:GetNetworkPing()
-        if not pingVal or pingVal <= 0 then
-            pcall(function()
-                local p = LocalPlayer:GetNetworkPing()
-                if typeof(p) == "number" and p > 0 then
-                    pingVal = p * 1000
-                end
-            end)
-        end
-
-        -- 3. Live Server Round-Trip Latency (from snapshot RPC)
-        if not pingVal or pingVal <= 0 then
-            if X.lastRtt and X.lastRtt > 0 then
-                pingVal = X.lastRtt
-            end
-        end
-
-        -- 4. Try PerformanceStats folder
-        if not pingVal or pingVal <= 0 then
-            pcall(function()
-                local stats = game:GetService("Stats")
-                local ps = stats and stats:FindFirstChild("PerformanceStats")
-                local pItem = ps and (ps:FindFirstChild("Ping") or ps:FindFirstChild("Data Ping"))
-                if pItem then
-                    local v = pItem:GetValue()
-                    if typeof(v) == "number" and v > 0 then pingVal = v end
-                end
-            end)
-        end
-
-        currentPing = math.floor((pingVal and pingVal > 0) and pingVal or 0)
-    end
-
-    if fpsPingLabel and fpsPingLabel.Parent then
-        if currentPing > 0 then
-            fpsPingLabel.Text = ("%d FPS  •  %d ms"):format(currentFPS, currentPing)
-            if currentFPS >= 50 and currentPing <= 120 then
-                fpsPingLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
-            elseif currentFPS >= 30 and currentPing <= 220 then
-                fpsPingLabel.TextColor3 = Color3.fromRGB(255, 210, 100)
-            else
-                fpsPingLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
-            end
-        else
-            fpsPingLabel.Text = ("%d FPS  •  -- ms"):format(currentFPS)
-            fpsPingLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        end
-    end
-end
 
 local function applySettings(t)
     local ok, err = validateSettings(t)
@@ -1821,10 +1722,6 @@ local function applySettings(t)
     currentSettings.CarryVelocityValue = X.baseCarryVelocity
     currentSettings.Recovery = recoveryEnabled
     currentSettings.AutoReturn = autoReturnEnabled
-    if t.BoostFPS ~= nil then
-        if t.BoostFPS ~= X.fpsBoosterActive then setFPSBooster(t.BoostFPS) end
-    end
-    currentSettings.BoostFPS = X.fpsBoosterActive
     if t.MaxBumpRetries ~= nil and t.MaxBumpRetries > 0 then
         X.maxBumpRetries = t.MaxBumpRetries
     end
@@ -2080,7 +1977,7 @@ function X.autoHigher(rar)
     return rk >= minRank
 end
 
--- lower = picked first: Divine 1, Eternal 2, Secret 3, Scramble Requirements (missing in storage only) 4, everything else selected 5.xx (rarer first)
+-- lower = picked first: Divine 1, Eternal 2, Secret 3, Scramble Requirements (missing in storage only) 4, New/Unknown 4.5, everything else selected 5.xx (rarer first)
 function X.eggTier(r)
     if not r or typeof(r) ~= "table" then return 5 end
     local rar = effectiveRarity(r)
@@ -2089,7 +1986,42 @@ function X.eggTier(r)
     if X.isScrambleMissingEgg and X.isScrambleMissingEgg(catStr) then
         return 4
     end
+    if X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r) then
+        return 4.5
+    end
     return 5 + (10 - (X.RARITY_RANK[rar] or 0)) / 100
+end
+
+local function isNewOrUnknownEgg(r)
+    if not r or typeof(r) ~= "table" then return false end
+    local catStr = tostring(r.AssetCategory or "")
+    -- 1. Blank or explicitly unknown AssetCategory
+    if catStr == "" or catStr == "Unknown" or catStr:lower() == "unknown" then
+        return true
+    end
+    -- 2. Unresolvable rarity
+    local rar = resolveRaw(r)
+    if not rar or rar == "Unknown" then
+        return true
+    end
+    -- 3. Explicit new/unknown metadata flags
+    if r.IsNew == true or r.New == true or r.Unknown == true or r.isUnknown == true then
+        return true
+    end
+    return false
+end
+X.isNewOrUnknownEgg = isNewOrUnknownEgg
+
+local function matchSpeciesFilter(rawCat)
+    if X.isScrambleMissingEgg and X.isScrambleMissingEgg(rawCat) then return true end
+    if selectedSpecies["All"] then return true end
+    if selectedSpecies[rawCat] == true then return true end
+    local disp = X.getDisplayEggName and X.getDisplayEggName(rawCat)
+    if disp and selectedSpecies[disp] == true then return true end
+    for sel in pairs(selectedSpecies) do
+        if X.matchEggSpecies(sel, rawCat) then return true end
+    end
+    return false
 end
 
 local function passesFilters(r)
@@ -2113,10 +2045,7 @@ local function passesFilters(r)
         return false
     end
 
-    if X.isGhost(r) then return false end      -- v9.1: taken / empty nest
-    if X.isCarriedByOther(u, r) then return false end
-    if X.deliveredUids[u] then return false end
-    if X.isEggInBaseRenders(u) then return false end
+    if X.isGhost(r) then return false end      -- v9.1: taken / empty nest / base plot / delivered
 
     -- Mutation filter
     if next(activeMutationFilter) then
@@ -2132,26 +2061,17 @@ local function passesFilters(r)
     local catStr = tostring(r.AssetCategory or "")
     local rar = effectiveRarity(r)
 
-    -- Option 1: Selected Egg (Species filter & Scramble Auto-Priority)
-    local function matchSpeciesFilter(rawCat)
-        if X.isScrambleMissingEgg and X.isScrambleMissingEgg(rawCat) then return true end
-        if selectedSpecies["All"] then return true end
-        if selectedSpecies[rawCat] == true then return true end
-        local disp = X.getDisplayEggName and X.getDisplayEggName(rawCat)
-        if disp and selectedSpecies[disp] == true then return true end
-        for sel in pairs(selectedSpecies) do
-            if X.matchEggSpecies(sel, rawCat) then return true end
-        end
-        return false
+    -- UNIVERSAL OVERRIDE (Requirement #2):
+    -- All new / unknown eggs automatically show even when none on farm dropdown selected!
+    if isNewOrUnknownEgg(r) then
+        return true
     end
 
     local isSpeciesSelected = false
     if X.isScrambleMissingEgg and X.isScrambleMissingEgg(catStr) then
         isSpeciesSelected = true
     elseif selectedSpecies["All"] then
-        if not X.hasRarity() then
-            isSpeciesSelected = true
-        end
+        isSpeciesSelected = true
     else
         isSpeciesSelected = matchSpeciesFilter(catStr)
     end
@@ -2915,7 +2835,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                 end
 
                 -- CRITICAL FIX (Issue #5):
-                -- Cancel walk to safezone and halt movement immediately on bump:
+                -- Cancel walk to safezone, halt horizontal movement, and ground fast on bump:
                 local chTmp = LocalPlayer.Character
                 local hTmp = chTmp and chTmp:FindFirstChildOfClass("Humanoid")
                 local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
@@ -2923,6 +2843,10 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     pcall(function()
                         hTmp:Move(Vector3.zero)
                         hTmp.WalkToPoint = rTmp.Position
+                        -- Zero horizontal fling immediately so we stay right at the bump location:
+                        local curY = rTmp.AssemblyLinearVelocity.Y
+                        rTmp.AssemblyLinearVelocity = Vector3.new(0, curY > 0 and -45 or (curY > -30 and -45 or curY), 0)
+                        rTmp.AssemblyAngularVelocity = Vector3.zero
                     end)
                 end
 
@@ -3483,89 +3407,273 @@ local function toggleAutoFarm()
 end
 
 -- ==================================================
--- RECOVERY ROUTINE
+-- ZERO-WAIT INSTANT RAGDOLL RECOVERY ENGINE
+-- Ported from instant-ragdoll-recovery.lua (v2.0 Zero-Wait)
 -- ==================================================
-local function recoveryRoutine(h, r)
-    if recoveryActive then return end
+
+-- Execute Zero-Wait Instant Recovery
+local function executeInstantRecovery(reason)
+    if not recoveryEnabled then return end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 then return end
+
+    X.recoveryCount = (X.recoveryCount or 0) + 1
     recoveryActive = true
-    local ch = h.Parent
-    if not ch then recoveryActive = false; return end
-    if lastGoodCFrame and r and r.Parent then X.markTeleport(); pcall(function() r.CFrame = lastGoodCFrame end) end
-
-    local anchored = false
-    pcall(function()
-        r.AssemblyLinearVelocity = Vector3.new()
-        r.AssemblyAngularVelocity = Vector3.new()
-        r.Anchored = true
-        anchored = true
-    end)
-    local function rel()
-        if anchored and r and r.Parent then pcall(function() r.Anchored = false end); anchored = false end
-    end
-
-    local hs = os.clock()
-    while os.clock() - hs < RAGDOLL_HOLD_TIME do
-        if not recoveryEnabled then rel(); recoveryActive = false; return end
-        task.wait()
-    end
-    if not recoveryEnabled then rel(); recoveryActive = false; return end
     recoveryState = RECOVERY_STATE.RECOVERING
 
-    for _, o in ipairs(ch:GetDescendants()) do
-        if o:IsA("Motor6D") and not o.Enabled then pcall(function() o.Enabled = true end) end
-    end
-    pcall(function() h.PlatformStand = false; h.Sit = false; h.AutoRotate = true end)
-    pcall(function()
-        h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-        h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-        h:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
-    end)
-    rel()
-    pcall(function() h:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-    task.wait(0.1)
-    if h.Parent then pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end) end
+    -- 1. Wipe RagdollEndTime to 0 so game scripts NEVER wait
+    clearRagdollAttributes()
 
-    local w = 0
-    while getRagdollReason(h) and w < 2 do task.wait(0.1); w = w + 0.1 end
+    -- 2. Zero-Frame Motor6D Joint Restoration
+    local restored = 0
+    if X.jointsTable and #X.jointsTable > 0 then
+        for _, motor in ipairs(X.jointsTable) do
+            if motor and motor.Parent and not motor.Enabled then
+                motor.Enabled = true
+                restored = restored + 1
+            end
+        end
+    else
+        for _, o in ipairs(char:GetDescendants()) do
+            if o:IsA("Motor6D") and not o.Enabled then
+                pcall(function() o.Enabled = true end)
+            end
+        end
+    end
+
+    -- 3. Clear PlatformStand and Sit immediately
+    hum.PlatformStand = false
+    hum.Sit = false
+    hum.AutoRotate = true
+
+    -- 4. Re-enable humanoid recovery states & force Running
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+    end)
+
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+
+    -- 5. Restore WalkSpeed if the game zeroed it
+    if hum.WalkSpeed < 16.0 then
+        hum.WalkSpeed = velocityEnabled and targetVelocity or math.max(savedWalkSpeed, 16.0)
+    end
+
+    -- 6. Immediately re-enable PlayerModule controls (WASD)
+    enablePlayerControls()
+
+    -- 7. Anti-Fling Braking & Fast Grounding
+    -- Stay right at the bump location (cancel horizontal fling) and go down fast if airborne
+    if hrp then
+        local curVel = hrp.AssemblyLinearVelocity
+        local fastY = curVel.Y
+        -- If boss launched us upward, cancel upward launch and drive downward fast
+        if fastY > 0 then
+            fastY = -45
+        elseif fastY > -30 then
+            -- If floating or descending slowly, accelerate downward fast to touch ground immediately
+            fastY = -45
+        end
+        -- Zero horizontal fling velocity so character stays right at the bump location beside the egg
+        hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    -- 8. Neutralize carried egg physics mass
+    neutraliseEggPhysics(char, true)
+
+    recoveryState = RECOVERY_STATE.NONE
     recoveryActive = false
+    isRagdolled = false
 end
 
+-- Backward compatibility alias
+local function recoveryRoutine(h, r)
+    executeInstantRecovery("Routine")
+end
+
+-- Heartbeat Safety Net (Zero-Frame Enforcement)
 local function applyRecovery()
     if not recoveryEnabled then return end
     local ch = LocalPlayer.Character
     local h = ch and ch:FindFirstChildOfClass("Humanoid")
     local r = ch and ch:FindFirstChild("HumanoidRootPart")
-    if not h or not r then return end
-    local reason = getRagdollReason(h)
-    if reason and not ragdollStale then
-        if recoveryState == RECOVERY_STATE.NONE then
-            recoveryState = RECOVERY_STATE.RAGDOLLED
-            if h.MoveDirection.Magnitude > 0.05 then lastMoveDirection = h.MoveDirection.Unit end
-            task.spawn(recoveryRoutine, h, r)
+    if not h or not r or h.Health <= 0 then return end
+
+    -- Keep active WalkSpeed track
+    if h.WalkSpeed >= 16.0 and not velocityEnabled then
+        savedWalkSpeed = h.WalkSpeed
+    end
+
+    -- 1. Check if server set RagdollEndTime > 0; if so, clear it immediately
+    local rEnd = LocalPlayer:GetAttribute("RagdollEndTime")
+    if typeof(rEnd) == "number" and rEnd > 0 then
+        clearRagdollAttributes()
+        enablePlayerControls()
+    end
+
+    -- 2. Check for disabled motors
+    local disabled = 0
+    if X.jointsTable then
+        for _, m in ipairs(X.jointsTable) do
+            if m and m.Parent and not m.Enabled then
+                disabled = disabled + 1
+                m.Enabled = true
+            end
         end
-        if not r.Anchored then
-            local hz = Vector3.new(r.AssemblyLinearVelocity.X,0,r.AssemblyLinearVelocity.Z)
-            if hz.Magnitude > 2 then pcall(function() r.AssemblyLinearVelocity = Vector3.new(0,r.AssemblyLinearVelocity.Y,0) end) end
+    end
+    if disabled > 0 then
+        executeInstantRecovery(string.format("%dMotorsFixed", disabled))
+    end
+
+    -- 3. Fast Grounding & Anti-Drift (Zero slow-float)
+    if r then
+        local timeSinceHit = os.clock() - (X.lastRagdollAt or 0)
+        if timeSinceHit < 0.6 then
+            local curVel = r.AssemblyLinearVelocity
+            local vy = curVel.Y
+            -- If airborne following a bump, pull down fast to ground immediately (never slow-float)
+            if h.FloorMaterial == Enum.Material.Air then
+                if vy > -35 then vy = -45 end
+            end
+            -- Prevent horizontal knockback drift unless actively moving with WASD
+            if h.MoveDirection.Magnitude <= 0.05 then
+                r.AssemblyLinearVelocity = Vector3.new(0, vy, 0)
+                r.AssemblyAngularVelocity = Vector3.zero
+            else
+                r.AssemblyLinearVelocity = Vector3.new(curVel.X, vy, curVel.Z)
+            end
         end
-    else
-        if recoveryState ~= RECOVERY_STATE.NONE then recoveryState = RECOVERY_STATE.NONE end
+    end
+
+    -- 4. Ensure controls and WalkSpeed are intact
+    if h.WalkSpeed < 16.0 then
+        h.WalkSpeed = velocityEnabled and targetVelocity or math.max(savedWalkSpeed, 16.0)
+        enablePlayerControls()
+    end
+
+    -- 5. Check if humanoid in ragdoll/fallen state
+    local s = h:GetState()
+    if s == Enum.HumanoidStateType.Ragdoll
+        or s == Enum.HumanoidStateType.FallingDown
+        or s == Enum.HumanoidStateType.Physics
+        or h.PlatformStand
+        or h.Sit then
+        executeInstantRecovery(tostring(s.Name))
     end
 end
 
-local function bindFastRagdoll(h, r)
-    return h.StateChanged:Connect(function(_, ns)
-        local isRagState = ns == Enum.HumanoidStateType.Ragdoll
-            or ns == Enum.HumanoidStateType.FallingDown
-            or ns == Enum.HumanoidStateType.Physics
-        if isRagState then X.ragdollEpoch = X.ragdollEpoch + 1; X.lastRagdollAt = os.clock() end   -- v8: a hit is counted even with Recovery off
-        if not recoveryEnabled then return end
-        if recoveryState ~= RECOVERY_STATE.NONE then return end
+-- Character Binding & Event Listeners
+local function bindCharacter(char)
+    if X.recoveryConnections then
+        for _, conn in ipairs(X.recoveryConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
+    end
+    X.recoveryConnections = {}
+    X.jointsTable = {}
+
+    if not char then return end
+    local hum = char:WaitForChild("Humanoid", 5)
+    local hrp = char:WaitForChild("HumanoidRootPart", 5)
+    if not hum or not hrp then return end
+
+    if hum.WalkSpeed >= 16.0 and not velocityEnabled then
+        savedWalkSpeed = hum.WalkSpeed
+    end
+
+    -- Index all Motor6D joints and hook Enabled property
+    local function registerMotor(obj)
+        if obj:IsA("Motor6D") then
+            table.insert(X.jointsTable, obj)
+            local conn = obj:GetPropertyChangedSignal("Enabled"):Connect(function()
+                if recoveryEnabled and not obj.Enabled then
+                    obj.Enabled = true
+                    executeInstantRecovery("JointLock")
+                end
+            end)
+            table.insert(X.recoveryConnections, conn)
+        end
+    end
+
+    for _, desc in ipairs(char:GetDescendants()) do
+        registerMotor(desc)
+    end
+
+    local descConn = char.DescendantAdded:Connect(function(desc)
+        registerMotor(desc)
+    end)
+    table.insert(X.recoveryConnections, descConn)
+
+    -- State Listener
+    local stateConn = hum.StateChanged:Connect(function(oldState, newState)
+        local isRagState = newState == Enum.HumanoidStateType.Ragdoll
+            or newState == Enum.HumanoidStateType.FallingDown
+            or newState == Enum.HumanoidStateType.Physics
         if isRagState then
-            recoveryState = RECOVERY_STATE.RAGDOLLED
-            if h.MoveDirection.Magnitude > 0.05 then lastMoveDirection = h.MoveDirection.Unit end
-            task.spawn(recoveryRoutine, h, r)
+            X.ragdollEpoch = X.ragdollEpoch + 1
+            X.lastRagdollAt = os.clock()
+        end
+        if recoveryEnabled and isRagState then
+            executeInstantRecovery(tostring(newState.Name))
         end
     end)
+    table.insert(X.recoveryConnections, stateConn)
+
+    -- PlatformStand / Sit Watcher
+    local platConn = hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
+        if recoveryEnabled and hum.PlatformStand then
+            hum.PlatformStand = false
+            executeInstantRecovery("PlatformStand")
+        end
+    end)
+    table.insert(X.recoveryConnections, platConn)
+
+    local sitConn = hum:GetPropertyChangedSignal("Sit"):Connect(function()
+        if recoveryEnabled and hum.Sit then
+            hum.Sit = false
+            executeInstantRecovery("Sit")
+        end
+    end)
+    table.insert(X.recoveryConnections, sitConn)
+
+    -- RagdollEndTime Attribute Watcher on Player & Character
+    local attrConn1 = LocalPlayer:GetAttributeChangedSignal("RagdollEndTime"):Connect(function()
+        if recoveryEnabled then
+            local rEnd = LocalPlayer:GetAttribute("RagdollEndTime")
+            if typeof(rEnd) == "number" and rEnd > 0 then
+                executeInstantRecovery("RagdollTimerZeroed")
+            end
+        end
+    end)
+    table.insert(X.recoveryConnections, attrConn1)
+
+    local attrConn2 = char:GetAttributeChangedSignal("RagdollEndTime"):Connect(function()
+        if recoveryEnabled then
+            local rEnd = char:GetAttribute("RagdollEndTime")
+            if typeof(rEnd) == "number" and rEnd > 0 then
+                executeInstantRecovery("CharRagdollTimerZeroed")
+            end
+        end
+    end)
+    table.insert(X.recoveryConnections, attrConn2)
+
+    neutraliseEggPhysics(char, true)
+end
+
+-- Backward compatibility alias
+local function bindFastRagdoll(h, r)
+    local ch = h and h.Parent
+    if ch then bindCharacter(ch) end
+    return nil
 end
 
 -- ==================================================
@@ -3580,21 +3688,17 @@ local function applyVelocity()
     if isRagdolled then
         wasRagdolledForVelocity = true
         if h.MoveDirection.Magnitude > 0.05 then lastMoveDirection = h.MoveDirection.Unit end
+        -- Always halt horizontal knockback when hit/ragdolled to stay at bump location
         if not r.Anchored then
-            local hz = Vector3.new(r.AssemblyLinearVelocity.X,0,r.AssemblyLinearVelocity.Z)
-            if hz.Magnitude > 2 then pcall(function() r.AssemblyLinearVelocity = Vector3.new(0,r.AssemblyLinearVelocity.Y,0) end) end
+            local hz = Vector3.new(r.AssemblyLinearVelocity.X, 0, r.AssemblyLinearVelocity.Z)
+            if hz.Magnitude > 2 then pcall(function() r.AssemblyLinearVelocity = Vector3.new(0, r.AssemblyLinearVelocity.Y, 0) end) end
         end
         return
     end
     if wasRagdolledForVelocity then
         wasRagdolledForVelocity = false
         pcall(function() h.WalkSpeed = targetVelocity end)
-        if lastMoveDirection.Magnitude > 0.05 then
-            pcall(function() r.AssemblyLinearVelocity = Vector3.new(
-                lastMoveDirection.X * targetVelocity,
-                r.AssemblyLinearVelocity.Y,
-                lastMoveDirection.Z * targetVelocity) end)
-        end
+        -- Do not artificially launch forward upon recovery; let active MoveDirection govern movement naturally
     end
     local isCarryingNow = weAreCarrying or isHoldingEgg()
     if isCarryingNow then
@@ -3735,25 +3839,69 @@ function X.detectRubberband()
     end
 end
 
-local walkSpeedHookActive = false
-local oldNewIndex = nil
-installWalkSpeedHook = function()
-    if walkSpeedHookActive then return end
-    if not hookmetamethod then return end
+local metamethodsInstalled = false
+local function installRecoveryMetamethods()
+    if metamethodsInstalled then return end
+    if typeof(hookmetamethod) ~= "function" then return end
     pcall(function()
+        -- Hook 1: GetAttribute spoofing
+        -- Whenever game client scripts ask for "RagdollEndTime" or "RagdollTime", return 0 so they NEVER wait!
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if method == "GetAttribute" then
+                if recoveryEnabled and (X.attributeSpoofEnabled ~= false) and not checkcaller() then
+                    local attrName = ...
+                    if attrName == "RagdollEndTime" or attrName == "RagdollTime" then
+                        return 0
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+
+        -- Hook 2: __newindex protection (Ultra fast-path key check)
+        -- Blocks game scripts from setting Motor6D.Enabled = false, PlatformStand = true, or zeroing WalkSpeed
+        local oldNewIndex
         oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-            if key == "WalkSpeed" and velocityEnabled then
-                local ok, isHum = pcall(function() return self:IsA("Humanoid") end)
-                if ok and isHum then
-                    return oldNewIndex(self, key, targetVelocity)
+            if key == "WalkSpeed" then
+                if (velocityEnabled or recoveryEnabled) and not checkcaller() then
+                    local char = LocalPlayer.Character
+                    if char and self.Parent == char then
+                        local ok, isHum = pcall(function() return self:IsA("Humanoid") end)
+                        if ok and isHum then
+                            local spd = velocityEnabled and targetVelocity or math.max(savedWalkSpeed, 16.0)
+                            return oldNewIndex(self, key, spd)
+                        end
+                    end
+                end
+            elseif key == "PlatformStand" then
+                if recoveryEnabled and value == true and not checkcaller() then
+                    local char = LocalPlayer.Character
+                    if char and self.Parent == char then
+                        return oldNewIndex(self, key, false)
+                    end
+                end
+            elseif key == "Enabled" then
+                if recoveryEnabled and value == false and not checkcaller() then
+                    local char = LocalPlayer.Character
+                    if char then
+                        local ok, isMotor = pcall(function() return self:IsA("Motor6D") end)
+                        if ok and isMotor and self:IsDescendantOf(char) then
+                            return oldNewIndex(self, key, true)
+                        end
+                    end
                 end
             end
             return oldNewIndex(self, key, value)
         end)
-        walkSpeedHookActive = true
-        print("[EggGoToUI v10] WalkSpeed hook installed (prevents egg-weight rubberband)")
+
+        metamethodsInstalled = true
+        print("[EggGoToUI v10] Zero-Wait recovery & speed metamethod hooks installed successfully.")
     end)
 end
+installWalkSpeedHook = installRecoveryMetamethods
+pcall(installRecoveryMetamethods)
 
 local function enableVelocity()
     installWalkSpeedHook()
@@ -3780,9 +3928,11 @@ local closeBtn
 local tabEggs
 local tabPets
 local tabScramble
+local tabUtility
 local tabBtnEggs
 local tabBtnPets
 local tabBtnScramble
+local tabBtnUtility
 local switchTab
 local refreshScrambleUI
 local logScramble
@@ -3812,9 +3962,6 @@ local upVelIn
 local upCarryVelIn
 local toggleMenuVisible
 local logAuto
-local fpsBoostToggleBtn
-local fpsPingLabel
-local upFpsBoostBtn
 
 -- ==================================================
 -- TAB 2 BUILDER
@@ -6280,18 +6427,10 @@ tfix.Size = UDim2.new(1,0,0,12); tfix.Position = UDim2.new(0,0,1,-12)
 tfix.BackgroundColor3 = Color3.fromRGB(32,40,60); tfix.BorderSizePixel=0; tfix.Parent=titleBar
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1,-195,1,0); title.Position = UDim2.new(0,12,0,0)
+title.Size = UDim2.new(1,-80,1,0); title.Position = UDim2.new(0,12,0,0)
 title.BackgroundTransparency=1; title.Text="Egg Go-To v10 (Master)"
 title.TextColor3=Color3.fromRGB(220,230,255); title.TextSize=13; title.Font=Enum.Font.GothamBold
 title.TextXAlignment=Enum.TextXAlignment.Left; title.Parent=titleBar
-
-fpsPingLabel = Instance.new("TextLabel")
-fpsPingLabel.Name = "FpsPingLabel"
-fpsPingLabel.Size = UDim2.new(0,150,1,0); fpsPingLabel.Position = UDim2.new(1,-190,0,0)
-fpsPingLabel.BackgroundTransparency = 1; fpsPingLabel.Text = "60 FPS  •  -- ms"
-fpsPingLabel.TextColor3 = Color3.fromRGB(120,255,150); fpsPingLabel.TextSize = 11
-fpsPingLabel.Font = Enum.Font.GothamBold; fpsPingLabel.TextXAlignment = Enum.TextXAlignment.Right
-fpsPingLabel.Parent = titleBar
 
 closeBtn = Instance.new("TextButton")
 closeBtn.Size=UDim2.new(0,30,0,24); closeBtn.Position=UDim2.new(1,-38,0.5,-12)
@@ -6353,6 +6492,18 @@ tabBtnScramble.Font = Enum.Font.GothamBold
 tabBtnScramble.Parent = sidebar
 Instance.new("UICorner", tabBtnScramble).CornerRadius = UDim.new(0, 6)
 
+tabBtnUtility = Instance.new("TextButton")
+tabBtnUtility.Name = "TabBtnUtility"
+tabBtnUtility.Size = UDim2.new(0, 34, 0, 34)
+tabBtnUtility.Position = UDim2.new(0.5, -17, 0, 130)
+tabBtnUtility.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+tabBtnUtility.Text = "🛠️"
+tabBtnUtility.TextColor3 = Color3.fromRGB(160, 185, 220)
+tabBtnUtility.TextSize = 18
+tabBtnUtility.Font = Enum.Font.GothamBold
+tabBtnUtility.Parent = sidebar
+Instance.new("UICorner", tabBtnUtility).CornerRadius = UDim.new(0, 6)
+
 local contentContainer = Instance.new("Frame")
 contentContainer.Name = "ContentContainer"
 contentContainer.Size = UDim2.new(1, -SIDEBAR_W, 1, -36)
@@ -6401,6 +6552,32 @@ tabScramble.ClipsDescendants = true
 tabScramble.Visible = false
 tabScramble.Parent = contentContainer
 
+-- Tab 4: Utility Suite (Empty for now)
+tabUtility = Instance.new("ScrollingFrame")
+tabUtility.Name = "TabUtility"
+tabUtility.Size = UDim2.new(1, 0, 1, 0)
+tabUtility.Position = UDim2.new(0, 0, 0, 0)
+tabUtility.BackgroundTransparency = 1
+tabUtility.BorderSizePixel = 0
+tabUtility.ScrollBarThickness = 5
+tabUtility.CanvasSize = UDim2.new(0, 0, 0, 0)
+tabUtility.AutomaticCanvasSize = Enum.AutomaticSize.Y
+tabUtility.ClipsDescendants = true
+tabUtility.Visible = false
+tabUtility.Parent = contentContainer
+
+local tabUtilityLayout = Instance.new("UIListLayout")
+tabUtilityLayout.Padding = UDim.new(0, 8)
+tabUtilityLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabUtilityLayout.Parent = tabUtility
+
+local tabUtilityPad = Instance.new("UIPadding")
+tabUtilityPad.PaddingTop = UDim.new(0, 10)
+tabUtilityPad.PaddingBottom = UDim.new(0, 12)
+tabUtilityPad.PaddingLeft = UDim.new(0, 10)
+tabUtilityPad.PaddingRight = UDim.new(0, 10)
+tabUtilityPad.Parent = tabUtility
+
 refreshPetCards = nil
 
 switchTab = function(tabName)
@@ -6409,12 +6586,17 @@ switchTab = function(tabName)
         tabEggs.Visible = true
         tabPets.Visible = false
         tabScramble.Visible = false
+        if tabUtility then tabUtility.Visible = false end
         tabBtnEggs.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
         tabBtnEggs.TextColor3 = Color3.new(1, 1, 1)
         tabBtnPets.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnPets.TextColor3 = Color3.fromRGB(160, 185, 220)
         tabBtnScramble.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnScramble.TextColor3 = Color3.fromRGB(160, 185, 220)
+        if tabBtnUtility then
+            tabBtnUtility.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+            tabBtnUtility.TextColor3 = Color3.fromRGB(160, 185, 220)
+        end
     elseif tabName == "Pets" then
         main.Size = UDim2.new(0, 380, 0, 520)
         if X.closeRarity then X.closeRarity() end
@@ -6429,12 +6611,17 @@ switchTab = function(tabName)
         tabEggs.Visible = false
         tabPets.Visible = true
         tabScramble.Visible = false
+        if tabUtility then tabUtility.Visible = false end
         tabBtnEggs.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnEggs.TextColor3 = Color3.fromRGB(160, 185, 220)
         tabBtnPets.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
         tabBtnPets.TextColor3 = Color3.new(1, 1, 1)
         tabBtnScramble.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnScramble.TextColor3 = Color3.fromRGB(160, 185, 220)
+        if tabBtnUtility then
+            tabBtnUtility.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+            tabBtnUtility.TextColor3 = Color3.fromRGB(160, 185, 220)
+        end
         if refreshPetCards then refreshPetCards() end
     elseif tabName == "Scramble" then
         main.Size = UDim2.new(0, 380, 0, 520)
@@ -6450,18 +6637,49 @@ switchTab = function(tabName)
         tabEggs.Visible = false
         tabPets.Visible = false
         tabScramble.Visible = true
+        if tabUtility then tabUtility.Visible = false end
         tabBtnEggs.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnEggs.TextColor3 = Color3.fromRGB(160, 185, 220)
         tabBtnPets.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
         tabBtnPets.TextColor3 = Color3.fromRGB(160, 185, 220)
         tabBtnScramble.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
         tabBtnScramble.TextColor3 = Color3.new(1, 1, 1)
+        if tabBtnUtility then
+            tabBtnUtility.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+            tabBtnUtility.TextColor3 = Color3.fromRGB(160, 185, 220)
+        end
         if refreshScrambleUI then refreshScrambleUI() end
+    elseif tabName == "Utility" then
+        main.Size = UDim2.new(0, 380, 0, 520)
+        if X.closeRarity then X.closeRarity() end
+        if farmDropdownOpen then
+            farmDropdownOpen = false
+            if farmDropdownList then
+                farmDropdownList.Visible = false
+                farmDropdownList.Size = UDim2.new(0, 258, 0, 0)
+            end
+            if typeof(updateFarmBtnText) == "function" then updateFarmBtnText() end
+        end
+        tabEggs.Visible = false
+        tabPets.Visible = false
+        tabScramble.Visible = false
+        if tabUtility then tabUtility.Visible = true end
+        tabBtnEggs.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnEggs.TextColor3 = Color3.fromRGB(160, 185, 220)
+        tabBtnPets.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnPets.TextColor3 = Color3.fromRGB(160, 185, 220)
+        tabBtnScramble.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+        tabBtnScramble.TextColor3 = Color3.fromRGB(160, 185, 220)
+        if tabBtnUtility then
+            tabBtnUtility.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
+            tabBtnUtility.TextColor3 = Color3.new(1, 1, 1)
+        end
     end
 end
 tabBtnEggs.MouseButton1Click:Connect(function() switchTab("Eggs") end)
 tabBtnPets.MouseButton1Click:Connect(function() switchTab("Pets") end)
 tabBtnScramble.MouseButton1Click:Connect(function() switchTab("Scramble") end)
+tabBtnUtility.MouseButton1Click:Connect(function() switchTab("Utility") end)
 
 local COL_W = 152; local COL_GAP = 12; local ROW_H = 28; local ROW_GAP = 4
 
@@ -6518,29 +6736,34 @@ carryVelInputBox.PlaceholderText="300"; carryVelInputBox.TextColor3=Color3.new(1
 carryVelInputBox.TextSize=12; carryVelInputBox.Font=Enum.Font.GothamBold; carryVelInputBox.ClearTextOnFocus=false
 carryVelInputBox.TextXAlignment=Enum.TextXAlignment.Left; carryVelInputBox.Parent=carryFrame
 
--- Row 2: Recovery (left) + Boost FPS (mid) + Velocity Live Status (right)
+-- Row 2: Recovery (left) + Velocity Live Status (right)
 local ROW2_Y = ROW1_Y + ROW_H + ROW_GAP
-recoveryToggleBtn = Instance.new("TextButton")
-recoveryToggleBtn.Size=UDim2.new(0,98,0,ROW_H); recoveryToggleBtn.Position=UDim2.new(0,12,0,ROW2_Y)
-recoveryToggleBtn.BackgroundColor3=Color3.fromRGB(35,135,75); recoveryToggleBtn.Text="[ON] Recovery"
-recoveryToggleBtn.TextColor3=Color3.new(1,1,1); recoveryToggleBtn.TextSize=12
-recoveryToggleBtn.Font=Enum.Font.GothamBold; recoveryToggleBtn.Parent=tabEggs
-Instance.new("UICorner",recoveryToggleBtn).CornerRadius=UDim.new(0,6)
+local REC_BTN_W = 152
+local VEL_LBL_W = 152
+local ROW2_GAP  = 6
 
-fpsBoostToggleBtn = Instance.new("TextButton")
-fpsBoostToggleBtn.Name="FpsBoostToggleBtn"
-fpsBoostToggleBtn.Size=UDim2.new(0,104,0,ROW_H); fpsBoostToggleBtn.Position=UDim2.new(0,12+98+6,0,ROW2_Y)
-fpsBoostToggleBtn.BackgroundColor3=Color3.fromRGB(42,48,65); fpsBoostToggleBtn.Text="[OFF] Boost FPS"
-fpsBoostToggleBtn.TextColor3=Color3.fromRGB(210,220,240); fpsBoostToggleBtn.TextSize=12
-fpsBoostToggleBtn.Font=Enum.Font.GothamBold; fpsBoostToggleBtn.Parent=tabEggs
-Instance.new("UICorner",fpsBoostToggleBtn).CornerRadius=UDim.new(0,6)
+recoveryToggleBtn = Instance.new("TextButton")
+recoveryToggleBtn.Size = UDim2.new(0, REC_BTN_W, 0, ROW_H)
+recoveryToggleBtn.Position = UDim2.new(0, 12, 0, ROW2_Y)
+recoveryToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+recoveryToggleBtn.Text = "[ON] Recovery"
+recoveryToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+recoveryToggleBtn.TextSize = 11
+recoveryToggleBtn.Font = Enum.Font.GothamBold
+recoveryToggleBtn.Parent = tabEggs
+Instance.new("UICorner", recoveryToggleBtn).CornerRadius = UDim.new(0, 6)
 
 velStatusLabel = Instance.new("TextLabel")
-velStatusLabel.Size=UDim2.new(0,114,0,ROW_H); velStatusLabel.Position=UDim2.new(0,12+98+6+104+6,0,ROW2_Y)
-velStatusLabel.BackgroundColor3=Color3.fromRGB(24,29,40); velStatusLabel.Text="  Vel: 0"
-velStatusLabel.TextColor3=Color3.fromRGB(140,190,240); velStatusLabel.TextSize=11
-velStatusLabel.Font=Enum.Font.GothamBold; velStatusLabel.TextXAlignment=Enum.TextXAlignment.Left
-velStatusLabel.Parent=tabEggs; Instance.new("UICorner",velStatusLabel).CornerRadius=UDim.new(0,6)
+velStatusLabel.Size = UDim2.new(0, VEL_LBL_W, 0, ROW_H)
+velStatusLabel.Position = UDim2.new(0, 12 + REC_BTN_W + ROW2_GAP, 0, ROW2_Y)
+velStatusLabel.BackgroundColor3 = Color3.fromRGB(24, 29, 40)
+velStatusLabel.Text = "Vel: 0"
+velStatusLabel.TextColor3 = Color3.fromRGB(140, 190, 240)
+velStatusLabel.TextSize = 11
+velStatusLabel.Font = Enum.Font.GothamBold
+velStatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+velStatusLabel.Parent = tabEggs
+Instance.new("UICorner", velStatusLabel).CornerRadius = UDim.new(0, 6)
 
 -- Row 3: Farm dropdown (multi-select)
 local ROW3_Y = ROW2_Y + ROW_H + ROW_GAP
@@ -6734,113 +6957,136 @@ buildMainUI()
 -- ==================================================
 -- EGG CARD  (compact single-row list item)
 -- ==================================================
+-- ==================================================
+-- EGG CARD POOL & RENDERER (Zero-Allocation DOM Recycling)
+-- ==================================================
 local CARD_HEIGHT = 34   -- compact row height
+local cardPool = {}
 
-local function createEggCard(idx, r)
+local function updateOrCreateCard(idx, r)
     if typeof(r) ~= "table" then return end
-    local uid     = tostring(r.Uid or "")
-    local rawCat  = tostring(r.AssetCategory or "Unknown")
+    local uid      = tostring(r.Uid or "")
+    local rawCat   = tostring(r.AssetCategory or "Unknown")
     local dispName = (X.getDisplayEggName and X.getDisplayEggName(rawCat)) or rawCat
-    local slot    = tostring(r.NestId or "?")
-    local area    = tostring(r.AreaId or "?")
-    local pos     = extPos(r)
-    local mut     = mutLabel(r)
-    local hl      = highlightRarity(r)
-    local fullRar = effectiveRarity(r)
-    local rarCol  = ALL_RARITY_COLORS[fullRar] or RARITY_DEFAULT_COLOR
+    local slot     = tostring(r.NestId or "?")
+    local area     = tostring(r.AreaId or "?")
+    local pos      = extPos(r)
+    local mut      = mutLabel(r)
+    local hl       = highlightRarity(r)
+    local fullRar  = effectiveRarity(r)
+    local rarCol   = ALL_RARITY_COLORS[fullRar] or RARITY_DEFAULT_COLOR
 
-    -- card background: slightly tinted for high-rarity eggs
     local isFarming = (uid ~= "" and (uid == X.currentWalkingEggUid or uid == carryUid))
     local bg = isFarming and Color3.fromRGB(24, 60, 42)
         or (hl and Color3.fromRGB(45, 18, 18) or Color3.fromRGB(26, 30, 40))
-    local card = Instance.new("Frame")
-    card.Size             = UDim2.new(1, -12, 0, CARD_HEIGHT)
-    card.BackgroundColor3 = bg
-    card.BorderSizePixel  = 0
-    card.Parent           = listFrame
-    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
 
-    -- left rarity colour strip (always present)
-    local strip = Instance.new("Frame")
-    strip.Size             = UDim2.new(0, 3, 1, -6)
-    strip.Position         = UDim2.new(0, 4, 0, 3)
-    strip.BackgroundColor3 = rarCol
-    strip.BorderSizePixel  = 0
-    strip.Parent           = card
-    Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
+    local item = cardPool[idx]
+    if not item then
+        local card = Instance.new("Frame")
+        card.Size             = UDim2.new(1, -12, 0, CARD_HEIGHT)
+        card.BackgroundColor3 = bg
+        card.BorderSizePixel  = 0
+        card.Parent           = listFrame
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
 
-    local LEFT = 13   -- x offset after the strip
+        local strip = Instance.new("Frame")
+        strip.Size             = UDim2.new(0, 3, 1, -6)
+        strip.Position         = UDim2.new(0, 4, 0, 3)
+        strip.BackgroundColor3 = rarCol
+        strip.BorderSizePixel  = 0
+        strip.Parent           = card
+        Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
 
-    -- index + egg name (top half)
-    local nm = Instance.new("TextLabel")
-    nm.Size               = UDim2.new(1, -(LEFT + 82), 0, 18)
-    nm.Position           = UDim2.new(0, LEFT, 0, 2)
-    nm.BackgroundTransparency = 1
-    local titleSuffix     = isFarming and "  [FARMING]" or ""
-    nm.Text               = ("#%d  %s%s"):format(idx, dispName, titleSuffix)
-    nm.TextColor3         = isFarming and Color3.fromRGB(120, 255, 170)
-        or (hl and Color3.fromRGB(255, 195, 195) or Color3.fromRGB(215, 225, 255))
-    nm.TextSize           = 12
-    nm.Font               = Enum.Font.GothamBold
-    nm.TextXAlignment     = Enum.TextXAlignment.Left
-    nm.TextTruncate       = Enum.TextTruncate.AtEnd
-    nm.Parent             = card
+        local LEFT = 13   -- x offset after the strip
+        local nm = Instance.new("TextLabel")
+        nm.Size               = UDim2.new(1, -(LEFT + 82), 0, 18)
+        nm.Position           = UDim2.new(0, LEFT, 0, 2)
+        nm.BackgroundTransparency = 1
+        nm.TextSize           = 12
+        nm.Font               = Enum.Font.GothamBold
+        nm.TextXAlignment     = Enum.TextXAlignment.Left
+        nm.TextTruncate       = Enum.TextTruncate.AtEnd
+        nm.Parent             = card
 
-    -- secondary line: area · nest · [internal category if different] · mutation
+        local sub = Instance.new("TextLabel")
+        sub.Size               = UDim2.new(1, -(LEFT + 82), 0, 13)
+        sub.Position           = UDim2.new(0, LEFT, 0, 19)
+        sub.BackgroundTransparency = 1
+        sub.TextColor3         = Color3.fromRGB(130, 145, 175)
+        sub.TextSize           = 10
+        sub.Font               = Enum.Font.Gotham
+        sub.TextXAlignment     = Enum.TextXAlignment.Left
+        sub.TextTruncate       = Enum.TextTruncate.AtEnd
+        sub.Parent             = card
+
+        local rab = Instance.new("TextLabel")
+        rab.Size               = UDim2.new(0, 68, 0, 16)
+        rab.Position           = UDim2.new(1, -134, 0.5, -8)
+        rab.BackgroundColor3   = rarCol
+        rab.TextColor3         = Color3.new(1, 1, 1)
+        rab.TextSize           = 9
+        rab.Font               = Enum.Font.GothamBold
+        rab.TextXAlignment     = Enum.TextXAlignment.Center
+        rab.TextTruncate       = Enum.TextTruncate.AtEnd
+        rab.Parent             = card
+        Instance.new("UICorner", rab).CornerRadius = UDim.new(0, 4)
+
+        local gb = Instance.new("TextButton")
+        gb.Size             = UDim2.new(0, 54, 0, 24)
+        gb.Position         = UDim2.new(1, -62, 0.5, -12)
+        gb.BackgroundColor3 = isFarming and Color3.fromRGB(30, 115, 65) or Color3.fromRGB(38, 125, 75)
+        gb.Text             = isFarming and "Farm" or "Get"
+        gb.TextColor3       = Color3.new(1, 1, 1)
+        gb.TextSize         = 12
+        gb.Font             = Enum.Font.GothamBold
+        gb.Parent           = card
+        Instance.new("UICorner", gb).CornerRadius = UDim.new(0, 5)
+
+        item = { card = card, strip = strip, nm = nm, sub = sub, rab = rab, gb = gb, pos = pos, uid = uid }
+        cardPool[idx] = item
+
+        gb.MouseButton1Click:Connect(function()
+            if autoFarmEnabled then toggleAutoFarm() end
+            if item.pos then getEgg(item.pos, item.uid, statusLabel)
+            else statusLabel.Text = "No position"; statusLabel.TextColor3 = Color3.fromRGB(255, 120, 120) end
+        end)
+    end
+
+    item.pos = pos
+    item.uid = uid
+    item.card.LayoutOrder = idx
+    item.card.BackgroundColor3 = bg
+    item.strip.BackgroundColor3 = rarCol
+
+    local isNewOrUnk = X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r)
+    local titleSuffix = isFarming and "  [FARMING]" or (isNewOrUnk and "  [NEW/UNKNOWN]" or "")
+    item.nm.Text = ("#%d  %s%s"):format(idx, dispName, titleSuffix)
+    item.nm.TextColor3 = isFarming and Color3.fromRGB(120, 255, 170)
+        or (isNewOrUnk and Color3.fromRGB(255, 220, 110)
+        or (hl and Color3.fromRGB(255, 195, 195) or Color3.fromRGB(215, 225, 255)))
+
     local subParts = { area, slot }
     if dispName ~= rawCat and rawCat ~= "Unknown" then
         table.insert(subParts, "[" .. rawCat .. "]")
     end
     if mut then table.insert(subParts, mut) end
-    local sub = Instance.new("TextLabel")
-    sub.Size               = UDim2.new(1, -(LEFT + 82), 0, 13)
-    sub.Position           = UDim2.new(0, LEFT, 0, 19)
-    sub.BackgroundTransparency = 1
-    sub.Text               = table.concat(subParts, " · ")
-    sub.TextColor3         = Color3.fromRGB(130, 145, 175)
-    sub.TextSize           = 10
-    sub.Font               = Enum.Font.Gotham
-    sub.TextXAlignment     = Enum.TextXAlignment.Left
-    sub.TextTruncate       = Enum.TextTruncate.AtEnd
-    sub.Parent             = card
+    item.sub.Text = table.concat(subParts, " · ")
 
-    -- rarity badge (vertically centred, to the left of the Get button)
-    local rab = Instance.new("TextLabel")
-    rab.Size               = UDim2.new(0, 68, 0, 16)
-    rab.Position           = UDim2.new(1, -134, 0.5, -8)
-    rab.BackgroundColor3   = rarCol
-    rab.Text               = " " .. fullRar .. " "
-    rab.TextColor3         = Color3.new(1, 1, 1)
-    rab.TextSize           = 9
-    rab.Font               = Enum.Font.GothamBold
-    rab.TextXAlignment     = Enum.TextXAlignment.Center
-    rab.TextTruncate       = Enum.TextTruncate.AtEnd
-    rab.Parent             = card
-    Instance.new("UICorner", rab).CornerRadius = UDim.new(0, 4)
+    item.rab.Text = " " .. fullRar .. " "
+    item.rab.BackgroundColor3 = rarCol
 
-    -- compact Get button
-    local gb = Instance.new("TextButton")
-    gb.Size             = UDim2.new(0, 54, 0, 24)
-    gb.Position         = UDim2.new(1, -62, 0.5, -12)
-    gb.BackgroundColor3 = isFarming and Color3.fromRGB(30, 115, 65) or Color3.fromRGB(38, 125, 75)
-    gb.Text             = isFarming and "Farm" or "Get"
-    gb.TextColor3       = Color3.new(1, 1, 1)
-    gb.TextSize         = 12
-    gb.Font             = Enum.Font.GothamBold
-    gb.Parent           = card
-    Instance.new("UICorner", gb).CornerRadius = UDim.new(0, 5)
-    gb.MouseButton1Click:Connect(function()
-        if autoFarmEnabled then toggleAutoFarm() end
-        if pos then getEgg(pos, uid, statusLabel)
-        else statusLabel.Text = "No position"; statusLabel.TextColor3 = Color3.fromRGB(255, 120, 120) end
-    end)
+    item.gb.BackgroundColor3 = isFarming and Color3.fromRGB(30, 115, 65) or Color3.fromRGB(38, 125, 75)
+    item.gb.Text = isFarming and "Farm" or "Get"
+    item.card.Visible = true
 end
 
 -- ==================================================
 -- SCAN / RENDER
 -- ==================================================
 local function clearList()
-    for _, c in ipairs(listFrame:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+    for _, it in ipairs(cardPool) do
+        it.card.Visible = false
+    end
 end
 
 local function ingestSpecies(records)
@@ -6871,61 +7117,64 @@ local function renderRecords(records, quiet)
     -- OFF-SCREEN GATE (Issue #2): Skip card DOM updates if window is closed or not on Eggs tab
     if not main.Visible or not tabEggs.Visible then return end
     local now = os.clock()
-    if now - lastRenderTime < 0.5 then return end
+    if now - lastRenderTime < 0.25 then return end
     lastRenderTime = now
 
     local sl = quiet and { Text = "", TextColor3 = Color3.new() } or statusLabel
-    clearList()
-    if ingestSpecies(records) and rebuildFarmDropdownItems then rebuildFarmDropdownItems() end
-    if #records==0 then
-        sl.Text="No eggs found"; sl.TextColor3=Color3.fromRGB(255,160,100)
-        listFrame.CanvasSize=UDim2.new(0,0,0,0); return
+    if ingestSpecies(records) and farmDropdownOpen and rebuildFarmDropdownItems then
+        rebuildFarmDropdownItems()
     end
-    local d=0; local mc=0; local rc=0; local hid=0; local unv=0; local biomes={}
-    X.hiddenLogged = X.hiddenLogged or {}
+    if #records == 0 then
+        sl.Text = "No eggs found"; sl.TextColor3 = Color3.fromRGB(255,160,100)
+        clearList()
+        listFrame.CanvasSize = UDim2.new(0, 0, 0, 0); return
+    end
+
+    local d = 0; local mc = 0; local rc = 0; local hid = 0; local unv = 0; local biomes = {}
     for _, r in ipairs(records) do
         if typeof(r) == "table" then
-            local gh, why = X.isGhost(r)
-            if gh then
-                hid=hid+1
-                local hu = tostring(r.Uid or "")
-                if not X.hiddenLogged[hu] then
-                    X.hiddenLogged[hu] = true
-                    print(("[EggGoToUI] hidden %s (%s) reason: %s"):format(tostring(r.AssetCategory), hu, tostring(why)))
-                end
-            elseif X.isUnverified(r) then unv=unv+1 end
             if passesFilters(r) then
-                d=d+1
-                local okc, ec = pcall(createEggCard, d, r)     -- v8: one bad record must not wipe the whole list
-                if not okc then warn("[EggGoToUI] card error:", ec) end
-                if mutLabel(r) then mc=mc+1 end
-                if highlightRarity(r) then rc=rc+1 end
-                if r.AreaId then biomes[tostring(r.AreaId)]=true end
+                d = d + 1
+                local okc, ec = pcall(updateOrCreateCard, d, r)
+                if not okc then warn("[EggGoToUI] card update error:", ec) end
+                if mutLabel(r) then mc = mc + 1 end
+                if highlightRarity(r) then rc = rc + 1 end
+                if r.AreaId then biomes[tostring(r.AreaId)] = true end
+            else
+                local gh, why = X.isGhost(r)
+                if gh then hid = hid + 1
+                elseif X.isUnverified(r) then unv = unv + 1 end
             end
         end
     end
-    listFrame.CanvasSize=UDim2.new(0,0,0,d*(CARD_HEIGHT+3))
-    if d==0 then
-        sl.Text="No eggs match active filters"; sl.TextColor3=Color3.fromRGB(255,160,100); return
+
+    -- Hide remaining cards in the pool beyond active count d
+    for j = d + 1, #cardPool do
+        cardPool[j].card.Visible = false
     end
-    local bc=0; for _ in pairs(biomes) do bc=bc+1 end
-    local farmCount=0; for _ in pairs(selectedSpecies) do farmCount=farmCount+1 end
-    local suffix = selectedSpecies["All"] and "" or (" | "..(farmCount).." species")
-    local sum=("%d eggs across %d biome(s)%s"):format(d,bc,suffix)
-    if hid>0 then sum=sum..(" | %d hidden"):format(hid) end
-    if unv>0 then sum=sum..(" | %d unverified"):format(unv) end
-    if mc>0 then sum=sum..(" | %d mutated"):format(mc) end
-    if rc>0 then sum=sum..(" | ⚠ %d HIGH"):format(rc) end
-    sl.Text=sum
-    sl.TextColor3=rc>0 and Color3.fromRGB(255,120,120) or Color3.fromRGB(120,255,150)
+
+    listFrame.CanvasSize = UDim2.new(0, 0, 0, d * (CARD_HEIGHT + 3))
+    if d == 0 then
+        sl.Text = "No eggs match active filters"; sl.TextColor3 = Color3.fromRGB(255,160,100); return
+    end
+    local bc = 0; for _ in pairs(biomes) do bc = bc + 1 end
+    local farmCount = 0; for _ in pairs(selectedSpecies) do farmCount = farmCount + 1 end
+    local suffix = selectedSpecies["All"] and "" or (" | " .. (farmCount) .. " species")
+    local sum = ("%d eggs across %d biome(s)%s"):format(d, bc, suffix)
+    if hid > 0 then sum = sum .. (" | %d hidden"):format(hid) end
+    if unv > 0 then sum = sum .. (" | %d unverified"):format(unv) end
+    if mc > 0 then sum = sum .. (" | %d mutated"):format(mc) end
+    if rc > 0 then sum = sum .. (" | ⚠ %d HIGH"):format(rc) end
+    sl.Text = sum
+    sl.TextColor3 = rc > 0 and Color3.fromRGB(255,120,120) or Color3.fromRGB(120,255,150)
 end
 
 local function scanEggs()
-    statusLabel.Text="Fetching all eggs..."; statusLabel.TextColor3=Color3.fromRGB(255,220,100)
+    statusLabel.Text = "Fetching all eggs..."; statusLabel.TextColor3 = Color3.fromRGB(255,220,100)
     task.spawn(function()
         local recs, e = X.fetchTimed(4)
         if not recs then
-            statusLabel.Text="Error: "..tostring(e); statusLabel.TextColor3=Color3.fromRGB(255,120,120); return
+            statusLabel.Text = "Error: " .. tostring(e); statusLabel.TextColor3 = Color3.fromRGB(255,120,120); return
         end
         local by = {}
         for _, r in ipairs(recs) do
@@ -6933,7 +7182,7 @@ local function scanEggs()
             if u ~= "" then by[u] = r end
         end
         pcall(X.updateSlotGhosts, by, recs)
-        lastFetchedRecords=recs; renderRecords(recs)
+        lastFetchedRecords = recs; renderRecords(recs)
     end)
 end
 
@@ -6947,15 +7196,13 @@ local lastListSig = nil
 onEggCacheUpdate = function(recs)
     lastFetchedRecords = recs
     if typeof(recs) ~= "table" then return end
-    if ingestSpecies(recs) and rebuildFarmDropdownItems then
+    if ingestSpecies(recs) and farmDropdownOpen and rebuildFarmDropdownItems then
         rebuildFarmDropdownItems()
     end
     local parts = { tostring(#recs), tostring(X.currentWalkingEggUid or ""), tostring(carryUid or "") }
     for _, r in ipairs(recs) do
         if typeof(r) == "table" and passesFilters(r) then
-            local p = extPos(r)
-            table.insert(parts, tostring(r.Uid or "") .. tostring(r.AssetCategory or "") .. (mutLabel(r) or "")
-                .. (p and ("@%.0f,%.0f,%.0f"):format(p.X, p.Y, p.Z) or ""))
+            table.insert(parts, tostring(r.Uid or "") .. ":" .. tostring(r.AssetCategory or "") .. ":" .. (r.Mutations and #r.Mutations or 0))
         end
     end
     local sig = table.concat(parts, "|")
@@ -7415,29 +7662,7 @@ recoveryToggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-function upFpsBoostBtn()
-    if not fpsBoostToggleBtn then return end
-    if X.fpsBoosterActive then
-        fpsBoostToggleBtn.Text = "[ON] Boost FPS"
-        fpsBoostToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
-        fpsBoostToggleBtn.TextColor3 = Color3.new(1, 1, 1)
-    else
-        fpsBoostToggleBtn.Text = "[OFF] Boost FPS"
-        fpsBoostToggleBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
-        fpsBoostToggleBtn.TextColor3 = Color3.fromRGB(210, 220, 240)
-    end
-end
-
-fpsBoostToggleBtn.MouseButton1Click:Connect(function()
-    setFPSBooster(not X.fpsBoosterActive)
-    upFpsBoostBtn()
-    if currentSettings then
-        currentSettings.BoostFPS = X.fpsBoosterActive
-        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
-    end
-end)
-
-upVelBtn(); upRecBtn(); upFpsBoostBtn(); updateFarmBtnText()
+upVelBtn(); upRecBtn(); updateFarmBtnText()
 
 function toggleMenuVisible()
     main.Visible = not main.Visible
@@ -7456,8 +7681,16 @@ local function fullCleanup()
     recoveryEnabled = false
     recoveryActive = false
     disableVelocity()
-    if X.fpsBoosterActive then setFPSBooster(false) end
     disconnectAll()
+    if X.recoveryConnections then
+        for _, conn in ipairs(X.recoveryConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        table.clear(X.recoveryConnections)
+    end
+    if X.jointsTable then table.clear(X.jointsTable) end
+    if cardPool then table.clear(cardPool) end
+    enablePlayerControls()
     local ch = LocalPlayer.Character
     local h = ch and ch:FindFirstChildOfClass("Humanoid")
     local r = ch and ch:FindFirstChild("HumanoidRootPart")
@@ -7502,10 +7735,7 @@ addConnection(RunService.Heartbeat:Connect(function()
     X.detectRubberband()
     applyVelocity()
 
-    -- 2. Telemetry (FPS, Ping)
-    updateTelemetry()
-
-    -- 3. UI Label updates throttled to 10 Hz (every 0.1s)
+    -- 2. UI Label updates throttled to 10 Hz (every 0.1s)
     local now = os.clock()
     if now - lastHeartbeatUiUpdate >= 0.1 then
         lastHeartbeatUiUpdate = now
@@ -7514,24 +7744,21 @@ addConnection(RunService.Heartbeat:Connect(function()
         local h = ch and ch:FindFirstChildOfClass("Humanoid")
         local r = ch and ch:FindFirstChild("HumanoidRootPart")
         if not h or not r then
-            if velStatusLabel then velStatusLabel.Text = "  Vel: --" end
+            if velStatusLabel then velStatusLabel.Text = "Vel: --" end
             return
         end
         local hv = Vector3.new(r.AssemblyLinearVelocity.X, 0, r.AssemblyLinearVelocity.Z)
         local v = math.floor(hv.Magnitude)
         if isRagdolled then
-            local tag = recoveryEnabled and "RECOVERY" or "RAGDOLL"
-            velStatusLabel.Text = ("  Vel: %d | %s"):format(v, tag)
+            local tag = recoveryEnabled and "REC" or "RAG"
+            velStatusLabel.Text = ("Vel: %d | %s"):format(v, tag)
             velStatusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
         else
             local egg = isHoldingEgg()
-            velStatusLabel.Text = ("  Vel: %d%s%s%s%s"):format(
+            velStatusLabel.Text = ("Vel: %d%s%s"):format(
                 v,
                 egg and " | Egg" or "",
-                recoveryActive and " | Rec" or "",
-                targetVelocity < X.baseVelocity and (" | ↓" .. math.floor(targetVelocity)) or "",
-                (X.rubberCount > 0 and (" | RB " .. X.rubberCount) or "")
-                    .. (velocityEnabled and (X.rbGate == "off" and " | Off" or (X.rbSpd and (" | " .. math.floor(X.rbSpd)) or "")) or "")
+                recoveryActive and " | Rec" or ""
             )
             velStatusLabel.TextColor3 = velocityEnabled and Color3.fromRGB(100, 240, 255) or Color3.fromRGB(140, 190, 240)
         end
@@ -7539,17 +7766,12 @@ addConnection(RunService.Heartbeat:Connect(function()
 end))
 
 addConnection(LocalPlayer.CharacterAdded:Connect(function(ch)
-    task.wait(0.5)
+    task.wait(0.2)
     recoveryActive=false; recoveryState=RECOVERY_STATE.NONE
     lastMoveDirection=Vector3.zero; isRagdolled=false
     wasRagdolledForVelocity=false; lastGoodCFrame=nil
+    bindCharacter(ch)
     local h=ch:FindFirstChildOfClass("Humanoid")
-    local r=ch:FindFirstChild("HumanoidRootPart")
-    if h and r then
-        if stateChangedConn then pcall(function() stateChangedConn:Disconnect() end) end
-        stateChangedConn=bindFastRagdoll(h,r)
-        addConnection(stateChangedConn)
-    end
     if velocityEnabled then
         setFrictionless(true)
         if h then savedWalkSpeed=h.WalkSpeed end
@@ -7559,18 +7781,14 @@ end))
 do
     local ch=LocalPlayer.Character
     if ch then
-        local h=ch:FindFirstChildOfClass("Humanoid")
-        local r=ch:FindFirstChild("HumanoidRootPart")
-        if h and r then
-            stateChangedConn=bindFastRagdoll(h,r)
-            addConnection(stateChangedConn)
-        end
+        bindCharacter(ch)
     end
 end
 
 -- Init
+installRecoveryMetamethods()
 applySettings(deepCopy(DEFAULT_SETTINGS))
-upVelBtn(); upRecBtn(); upFpsBoostBtn(); updateFarmBtnText()
+upVelBtn(); upRecBtn(); updateFarmBtnText()
 rebuildFarmDropdownItems()
 if X.refreshRarityUI then X.refreshRarityUI() end
 velInputBox.Text=tostring(math.floor(X.baseVelocity))

@@ -1,39 +1,12 @@
 {
-  "AutoReturn": true,
-  "CarryVelocityValue": 250,
   "MutationFilter": [],
-  "RarityFilter": [
-    "Divine",
-    "Eternal",
-    "Secret"
-  ],
+  "SafeZone": { "Y": 70, "X": 536.7310180664063, "Z": -368.697998046875 },
+  "RarityFilter": ["Divine", "Eternal", "Secret"],
+  "Velocity": true,
+  "SpeciesFilter": ["Hellhound", "Holy Peacock", "Spirit Hare", "Spirit Panda"],
+  "CarryVelocityValue": 310,
+  "MaxBumpRetries": 8,
   "Recovery": true,
-  "SafeZone": {
-    "X": 536.7310180664063,
-    "Y": 70,
-    "Z": -368.697998046875
-  },
-  "SpeciesFilter": [
-    "Ankylosaurus",
-    "Bladehide",
-    "Centapede",
-    "Cosmic Gecko",
-    "Cosmic Gorilla",
-    "Cosmic Skeleton Boss",
-    "Dodo",
-    "Gorilla King",
-    "Imp",
-    "Mantis",
-    "Pterodactyl",
-    "Red Panda",
-    "Sacred Moth",
-    "Snowy Owl",
-    "Spideron",
-    "Stag",
-    "Swordfish",
-    "Toro",
-    "Winged Lamb"
-  ],
-  "Velocity": false,
-  "VelocityValue": 300
+  "VelocityValue": 350,
+  "AutoReturn": true
 }
