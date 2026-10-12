@@ -23,7 +23,7 @@
        - Network push deduplication: filtered FieldEggShifted / BatchShifted dirty triggers.
 
     3. BOOST FPS ENGINE (POTATO MODE) (Issue #3):
-       - Added high-performance Potato / Boost FPS toggle (UI button + sidebar icon '⚡').
+       - Added high-performance Potato / Boost FPS toggle (UI button in Main controls).
        - Disables global shadows, fog, lighting post-processing (Bloom, Blur, ColorCorrection,
          SunRays, DepthOfField), terrain water wave speed/size/reflectance, particle emitters,
          smoke, fire, trails, sparkles, and sets Workspace BasePart materials to SmoothPlastic.
@@ -199,7 +199,7 @@ local PET_RARITY_PRESETS = {
     ["Hellhound"]="Legendary", ["Rattlesnake"]="Legendary",
     ["Burrowing Owl"]="Rare", ["Citadel Snail"]="Epic",
     ["Colossal Mammoth"]="Cosmic", ["Ascended Vermilion Phoenix"]="Divine",
-    ["Balrog"]="Eternal", ["Basilisk"]="Secret",
+    ["Balrog"]="Eternal", ["Basilisk"]="Cosmic",
     ["Archdemon Dragon"]="Divine", ["Ash Gecko"]="Epic",
     ["DesertLark"]="Rare", ["Uncoiled Armadillo"]="Epic",
     ["DeathstalkerScorpion"]="Mythic", ["Ringlord"]="Secret",
@@ -342,6 +342,7 @@ local X = {
     maxBumpRetries        = 8,                 -- Max bump retries before retarget (Issue #6)
     lastPhysicsNeutralizeAt = 0,               -- Throttling physics neutralization (Issue #2)
     lastRaycastCheck      = 0,                 -- Throttling raycasts in rubberband (Issue #2)
+    lastRtt               = nil,               -- Live measured server RPC round-trip time in ms
 }
 local wasRagdolledForVelocity = false
 local RAGDOLL_HOLD_TIME = 0.12
@@ -400,8 +401,6 @@ X.EGG_SPECIES_ALIASES = {
     ["lava dragon"] = "dragon",
     ["jellyfish"] = "pure jellyfish",
     ["pure jellyfish"] = "jellyfish",
-    ["shark"] = "mutant shark",
-    ["mutant shark"] = "shark",
     ["godzilla"] = "kaiju",
     ["kaiju"] = "godzilla",
     ["king kong"] = "gorilla king",
@@ -431,7 +430,6 @@ X.CATEGORY_TO_DISPLAY = {
     ["Dream Axolotl"] = "Axolotl",
     ["Warden"] = "King Snake",
     ["Jellyfish"] = "Pure Jellyfish",
-    ["Shark"] = "Mutant Shark",
     ["King Kong"] = "Gorilla King",      -- King Kong egg asset -> Gorilla King pet display
     ["ScorchedDragon"] = "Scorched Dragon", -- no-space variant from game scan
     ["Cave Dragon"] = "Cosmic Dragon",   -- Cave Dragon egg asset -> Cosmic Dragon pet display
@@ -1620,28 +1618,77 @@ X.setFPSBooster = setFPSBooster
 -- LIVE TELEMETRY (FPS & PING DISPLAY)
 -- ==================================================
 local lastFpsTime = os.clock()
-local frameCount = 0
+local renderFrames = 0
 local currentFPS = 60
 local currentPing = 0
+local lastPingTime = 0
+
+-- Measure real visual GPU frames dynamically via RenderStepped
+addConnection(RunService.RenderStepped:Connect(function()
+    renderFrames = renderFrames + 1
+    local now = os.clock()
+    local dt = now - lastFpsTime
+    if dt >= 0.25 then
+        currentFPS = math.floor((renderFrames / math.max(0.001, dt)) + 0.5)
+        renderFrames = 0
+        lastFpsTime = now
+    end
+end))
 
 local function updateTelemetry()
-    frameCount = frameCount + 1
     local now = os.clock()
-    if now - lastFpsTime >= 0.5 then
-        currentFPS = math.floor(frameCount / math.max(0.001, now - lastFpsTime) + 0.5)
-        frameCount = 0
-        lastFpsTime = now
+    if now - lastPingTime >= 0.5 then
+        lastPingTime = now
 
-        local okP, pingVal = pcall(function() return LocalPlayer:GetNetworkPing() * 1000 end)
-        if not okP or not pingVal or pingVal <= 0 then
+        local pingVal = nil
+
+        -- 1. Try Stats.Network.ServerStatsItem["Data Ping"]
+        pcall(function()
+            local stats = game:GetService("Stats")
+            local net = stats and stats:FindFirstChild("Network")
+            local ssi = net and net:FindFirstChild("ServerStatsItem")
+            local dp = ssi and ssi:FindFirstChild("Data Ping")
+            if dp then
+                local v = dp:GetValue()
+                if typeof(v) == "number" and v > 0 then pingVal = v end
+            end
+        end)
+
+        -- 2. Try Native Player:GetNetworkPing()
+        if not pingVal or pingVal <= 0 then
             pcall(function()
-                local stats = game:GetService("Stats")
-                pingVal = stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+                local p = LocalPlayer:GetNetworkPing()
+                if typeof(p) == "number" and p > 0 then
+                    pingVal = p * 1000
+                end
             end)
         end
-        currentPing = math.floor((pingVal and pingVal > 0) and pingVal or 0)
 
-        if fpsPingLabel and fpsPingLabel.Parent then
+        -- 3. Live Server Round-Trip Latency (from snapshot RPC)
+        if not pingVal or pingVal <= 0 then
+            if X.lastRtt and X.lastRtt > 0 then
+                pingVal = X.lastRtt
+            end
+        end
+
+        -- 4. Try PerformanceStats folder
+        if not pingVal or pingVal <= 0 then
+            pcall(function()
+                local stats = game:GetService("Stats")
+                local ps = stats and stats:FindFirstChild("PerformanceStats")
+                local pItem = ps and (ps:FindFirstChild("Ping") or ps:FindFirstChild("Data Ping"))
+                if pItem then
+                    local v = pItem:GetValue()
+                    if typeof(v) == "number" and v > 0 then pingVal = v end
+                end
+            end)
+        end
+
+        currentPing = math.floor((pingVal and pingVal > 0) and pingVal or 0)
+    end
+
+    if fpsPingLabel and fpsPingLabel.Parent then
+        if currentPing > 0 then
             fpsPingLabel.Text = ("%d FPS  •  %d ms"):format(currentFPS, currentPing)
             if currentFPS >= 50 and currentPing <= 120 then
                 fpsPingLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
@@ -1650,6 +1697,9 @@ local function updateTelemetry()
             else
                 fpsPingLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
             end
+        else
+            fpsPingLabel.Text = ("%d FPS  •  -- ms"):format(currentFPS)
+            fpsPingLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
     end
 end
@@ -2102,9 +2152,13 @@ local onEggCacheUpdate = nil   -- set later by the UI: redraws the egg list on e
 -- Every fetch now runs in its own thread with a timeout, so one hung call can never freeze the scanner again.
 function X.fetchTimed(timeout)
     local done, recs, err = false, nil, nil
+    local t0 = os.clock()
     task.spawn(function()
         local r, e = fetchSnapshotRecords()
         recs, err, done = r, e, true
+        if r then
+            X.lastRtt = math.max(1, math.floor((os.clock() - t0) * 1000))
+        end
     end)
     local t = 0
     while not done and t < timeout do task.wait(0.05); t = t + 0.05 end
@@ -3700,7 +3754,6 @@ local upCarryVelIn
 local toggleMenuVisible
 local logAuto
 local fpsBoostToggleBtn
-local sidebarFpsBoostBtn
 local fpsPingLabel
 local upFpsBoostBtn
 
@@ -6176,7 +6229,7 @@ title.TextXAlignment=Enum.TextXAlignment.Left; title.Parent=titleBar
 fpsPingLabel = Instance.new("TextLabel")
 fpsPingLabel.Name = "FpsPingLabel"
 fpsPingLabel.Size = UDim2.new(0,150,1,0); fpsPingLabel.Position = UDim2.new(1,-190,0,0)
-fpsPingLabel.BackgroundTransparency = 1; fpsPingLabel.Text = "60 FPS  •  0 ms"
+fpsPingLabel.BackgroundTransparency = 1; fpsPingLabel.Text = "60 FPS  •  -- ms"
 fpsPingLabel.TextColor3 = Color3.fromRGB(120,255,150); fpsPingLabel.TextSize = 11
 fpsPingLabel.Font = Enum.Font.GothamBold; fpsPingLabel.TextXAlignment = Enum.TextXAlignment.Right
 fpsPingLabel.Parent = titleBar
@@ -6240,18 +6293,6 @@ tabBtnScramble.TextSize = 18
 tabBtnScramble.Font = Enum.Font.GothamBold
 tabBtnScramble.Parent = sidebar
 Instance.new("UICorner", tabBtnScramble).CornerRadius = UDim.new(0, 6)
-
-sidebarFpsBoostBtn = Instance.new("TextButton")
-sidebarFpsBoostBtn.Name = "SidebarFpsBoostBtn"
-sidebarFpsBoostBtn.Size = UDim2.new(0, 34, 0, 34)
-sidebarFpsBoostBtn.Position = UDim2.new(0.5, -17, 0, 130)
-sidebarFpsBoostBtn.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
-sidebarFpsBoostBtn.Text = "⚡"
-sidebarFpsBoostBtn.TextColor3 = Color3.fromRGB(160, 185, 220)
-sidebarFpsBoostBtn.TextSize = 18
-sidebarFpsBoostBtn.Font = Enum.Font.GothamBold
-sidebarFpsBoostBtn.Parent = sidebar
-Instance.new("UICorner", sidebarFpsBoostBtn).CornerRadius = UDim.new(0, 6)
 
 local contentContainer = Instance.new("Frame")
 contentContainer.Name = "ContentContainer"
@@ -6650,7 +6691,9 @@ local function createEggCard(idx, r)
     local rarCol  = ALL_RARITY_COLORS[fullRar] or RARITY_DEFAULT_COLOR
 
     -- card background: slightly tinted for high-rarity eggs
-    local bg = hl and Color3.fromRGB(45, 18, 18) or Color3.fromRGB(26, 30, 40)
+    local isFarming = (uid ~= "" and (uid == X.currentWalkingEggUid or uid == carryUid))
+    local bg = isFarming and Color3.fromRGB(24, 60, 42)
+        or (hl and Color3.fromRGB(45, 18, 18) or Color3.fromRGB(26, 30, 40))
     local card = Instance.new("Frame")
     card.Size             = UDim2.new(1, -12, 0, CARD_HEIGHT)
     card.BackgroundColor3 = bg
@@ -6674,8 +6717,10 @@ local function createEggCard(idx, r)
     nm.Size               = UDim2.new(1, -(LEFT + 82), 0, 18)
     nm.Position           = UDim2.new(0, LEFT, 0, 2)
     nm.BackgroundTransparency = 1
-    nm.Text               = ("#%d  %s"):format(idx, dispName)
-    nm.TextColor3         = hl and Color3.fromRGB(255, 195, 195) or Color3.fromRGB(215, 225, 255)
+    local titleSuffix     = isFarming and "  [FARMING]" or ""
+    nm.Text               = ("#%d  %s%s"):format(idx, dispName, titleSuffix)
+    nm.TextColor3         = isFarming and Color3.fromRGB(120, 255, 170)
+        or (hl and Color3.fromRGB(255, 195, 195) or Color3.fromRGB(215, 225, 255))
     nm.TextSize           = 12
     nm.Font               = Enum.Font.GothamBold
     nm.TextXAlignment     = Enum.TextXAlignment.Left
@@ -6718,8 +6763,8 @@ local function createEggCard(idx, r)
     local gb = Instance.new("TextButton")
     gb.Size             = UDim2.new(0, 54, 0, 24)
     gb.Position         = UDim2.new(1, -62, 0.5, -12)
-    gb.BackgroundColor3 = Color3.fromRGB(38, 125, 75)
-    gb.Text             = "Get"
+    gb.BackgroundColor3 = isFarming and Color3.fromRGB(30, 115, 65) or Color3.fromRGB(38, 125, 75)
+    gb.Text             = isFarming and "Farm" or "Get"
     gb.TextColor3       = Color3.new(1, 1, 1)
     gb.TextSize         = 12
     gb.Font             = Enum.Font.GothamBold
@@ -6766,10 +6811,8 @@ local lastRenderTime = 0
 local function renderRecords(records, quiet)
     -- OFF-SCREEN GATE (Issue #2): Skip card DOM updates if window is closed or not on Eggs tab
     if not main.Visible or not tabEggs.Visible then return end
-    -- Skip destroying and recreating card list DOM during active autofarm to eliminate GC lag
-    if autoFarmEnabled then return end
     local now = os.clock()
-    if now - lastRenderTime < 1.5 then return end
+    if now - lastRenderTime < 0.5 then return end
     lastRenderTime = now
 
     local sl = quiet and { Text = "", TextColor3 = Color3.new() } or statusLabel
@@ -6845,7 +6888,10 @@ local lastListSig = nil
 onEggCacheUpdate = function(recs)
     lastFetchedRecords = recs
     if typeof(recs) ~= "table" then return end
-    local parts = { tostring(#recs) }
+    if ingestSpecies(recs) and rebuildFarmDropdownItems then
+        rebuildFarmDropdownItems()
+    end
+    local parts = { tostring(#recs), tostring(X.currentWalkingEggUid or ""), tostring(carryUid or "") }
     for _, r in ipairs(recs) do
         if typeof(r) == "table" and passesFilters(r) then
             local p = extPos(r)
@@ -7316,18 +7362,10 @@ function upFpsBoostBtn()
         fpsBoostToggleBtn.Text = "[ON] Boost FPS"
         fpsBoostToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
         fpsBoostToggleBtn.TextColor3 = Color3.new(1, 1, 1)
-        if sidebarFpsBoostBtn then
-            sidebarFpsBoostBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
-            sidebarFpsBoostBtn.TextColor3 = Color3.fromRGB(120, 255, 150)
-        end
     else
         fpsBoostToggleBtn.Text = "[OFF] Boost FPS"
         fpsBoostToggleBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
         fpsBoostToggleBtn.TextColor3 = Color3.fromRGB(210, 220, 240)
-        if sidebarFpsBoostBtn then
-            sidebarFpsBoostBtn.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
-            sidebarFpsBoostBtn.TextColor3 = Color3.fromRGB(160, 185, 220)
-        end
     end
 end
 
@@ -7339,17 +7377,6 @@ fpsBoostToggleBtn.MouseButton1Click:Connect(function()
         if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
     end
 end)
-
-if sidebarFpsBoostBtn then
-    sidebarFpsBoostBtn.MouseButton1Click:Connect(function()
-        setFPSBooster(not X.fpsBoosterActive)
-        upFpsBoostBtn()
-        if currentSettings then
-            currentSettings.BoostFPS = X.fpsBoosterActive
-            if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
-        end
-    end)
-end
 
 upVelBtn(); upRecBtn(); upFpsBoostBtn(); updateFarmBtnText()
 
