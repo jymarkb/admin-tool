@@ -42,17 +42,17 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 -- CONFIGURATION
 ----------------------------------------------------------------
 
-local TARGET_BIOMES = { "Snow", "Jungle", "Desert", "Ocean", "Volcano", "Abyss Ocean", "Prehistoric", "Cosmic", "Cherry Blossom", "Titan", "Light Dark" }
+local TARGET_BIOMES = { "Snow",  "Cosmic", "Cherry Blossom", "Titan Temple", "Light Dark", "Enchanted Forest" }
 local selectedBiomeIndex = 1
 local selectedBiome = TARGET_BIOMES[selectedBiomeIndex]
 
-local RUN_WALKSPEED       = 500.0
+local RUN_WALKSPEED       = 750.0
 local BASE_WALKSPEED      = 16.0
 local AERIAL_SPEED        = 750.0
-local BAIT_BURST_S        = 2.2
+local BAIT_BURST_S        = 0.5
 local STRIKE_TIMEOUT_S    = 15.0
-local MIN_FREEZE_HOLD_S   = 0.85
-local MAX_FREEZE_TIMEOUT  = 3.5
+local MIN_FREEZE_HOLD_S   = 0.3
+local MAX_FREEZE_TIMEOUT  = 1.5
 local GUI_NAME            = "GrokAerialVelocityEngineV3"
 
 local currentToken        = 0
