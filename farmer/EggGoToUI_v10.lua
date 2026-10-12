@@ -61,7 +61,11 @@ if _G.EggGoToUI_Cleanup then
     pcall(_G.EggGoToUI_Cleanup)
 end
 _G.EggGoToUI_Stop = false
-_G.EggGoToUI_Stop = false
+
+if _G.SpamPickup_Cleanup then
+    pcall(_G.SpamPickup_Cleanup)
+end
+_G.SpamPickup_Cleanup = nil
 
 local Players           = game:GetService("Players")
 local Workspace         = game:GetService("Workspace")
@@ -135,7 +139,7 @@ local PET_RARITY_PRESETS = {
     ["Lava Gecko"]="Rare", ["Lava Frog"]="Epic", ["Flaming Bull"]="Legendary",
     ["Lava Iguana"]="Legendary", ["Chillin Chilli"]="Mythic", ["Cerberus"]="Secret",
     ["Phoenix"]="Eternal", ["Lava Dragon"]="Eternal", ["Parrotfish"]="Rare",
-    ["Swordfish"]="Epic", ["Shark"]="Legendary", ["Mutant Shark"]="Secret", ["Orca"]="Mythic",
+    ["Swordfish"]="Epic", ["Shark"]="Secret", ["Mutant Shark"]="Secret", ["Orca"]="Mythic",
     ["Whale Shark"]="Cosmic", ["Beluga Whale"]="Cosmic", ["Kraken"]="Secret",
     ["El Maja"]="Eternal", ["Dodo"]="Rare", ["Pterodactyl"]="Legendary",
     ["Ankylosaurus"]="Mythic", ["Triceratops"]="Cosmic", ["Bronto"]="Cosmic",
@@ -229,6 +233,11 @@ local DEFAULT_SETTINGS = {
     CarryVelocityValue = 320,
     Recovery           = true,
     MaxBumpRetries     = 8,
+    PickupEnabled      = true,
+    PickupReachAssist  = true,
+    PickupMaxDistance  = 35,
+    PickupBurstCount   = 8,
+    PickupShowMiniHud  = false,
 }
 
 local activeMutationFilter = {}
@@ -293,6 +302,21 @@ local function validateSettings(t)
     if t.MaxBumpRetries ~= nil and typeof(t.MaxBumpRetries) ~= "number" then
         return false, "MaxBumpRetries must be a number"
     end
+    if t.PickupEnabled ~= nil and typeof(t.PickupEnabled) ~= "boolean" then
+        return false, "PickupEnabled must be true/false"
+    end
+    if t.PickupReachAssist ~= nil and typeof(t.PickupReachAssist) ~= "boolean" then
+        return false, "PickupReachAssist must be true/false"
+    end
+    if t.PickupMaxDistance ~= nil and typeof(t.PickupMaxDistance) ~= "number" then
+        return false, "PickupMaxDistance must be a number"
+    end
+    if t.PickupBurstCount ~= nil and typeof(t.PickupBurstCount) ~= "number" then
+        return false, "PickupBurstCount must be a number"
+    end
+    if t.PickupShowMiniHud ~= nil and typeof(t.PickupShowMiniHud) ~= "boolean" then
+        return false, "PickupShowMiniHud must be true/false"
+    end
     return true
 end
 
@@ -317,7 +341,6 @@ local isRagdolled       = false
 local ragdollSince       = nil     -- when the current ragdoll-like reason first appeared
 local ragdollStale       = false   -- reason has lasted too long -> treat as a false positive
 local lastRagdollReason  = nil
-local RAGDOLL_STALE_AFTER = 2.5    -- a real hit-ragdoll ends well before this
 
 -- v8 shared state + helpers live in ONE table (this script is close to Luau's 200-locals-per-function limit).
 local X = {
@@ -343,9 +366,37 @@ local X = {
     recoveryConnections   = {},                -- Character recovery event listeners
     slamDampenerEnabled   = true,              -- Anti-slam downward velocity absorber
     attributeSpoofEnabled = true,              -- Spoof RagdollEndTime to 0
+    RAGDOLL_STALE_AFTER   = 2.5,               -- a real hit-ragdoll ends well before this
+    wasRagdolledForVelocity = false,
+    -- Tab 4 Utility Pickup Configuration
+    PICKUP_CONFIG         = {
+        Enabled          = DEFAULT_SETTINGS.PickupEnabled,
+        ReachAssist      = DEFAULT_SETTINGS.PickupReachAssist,
+        MaxReachDistance = DEFAULT_SETTINGS.PickupMaxDistance,
+        SpamBurstCount   = DEFAULT_SETTINGS.PickupBurstCount,
+        ShowMiniHud      = DEFAULT_SETTINGS.PickupShowMiniHud,
+    },
+    -- Movement constants
+    SLOW_ZONE             = 25,
+    TELEPORT_ZONE         = 8,
+    SNAP_RADIUS           = 60,                -- autofarm: snap onto egg within this distance
+    SNAP_Y_OFFSET         = 3,
+    SAFE_ARRIVE_RADIUS    = 8,
+    SAFE_SNAP_RADIUS      = 60,
+    -- Autofarm constants
+    AUTO_RETRY            = 4,
+    PICKUP_SPAM           = 1,
+    AUTO_NEXT_DELAY       = 0.8,
+    AUTO_EMPTY_WAIT       = 2.0,
+    AUTO_CARRY_WAIT       = 0.4,
+    HOLD_RELEASE_TIMEOUT  = 8,
+    WALK_TIMEOUT          = 90,
+    EGG_SCAN_INTERVAL     = 1.0,
+    DROP_CONFIRM          = 0.6,
+    -- Egg Card Pool
+    CARD_HEIGHT           = 34,
+    cardPool              = {},
 }
-local wasRagdolledForVelocity = false
-local RAGDOLL_HOLD_TIME = 0.12
 
 -- v9 state + helpers (kept in X because the script is close to Luau's 200-locals limit)
 X.baseVelocity      = 330    -- travel speed (going to egg). targetVelocity = this minus rubberband drops
@@ -401,6 +452,8 @@ X.EGG_SPECIES_ALIASES = {
     ["lava dragon"] = "dragon",
     ["jellyfish"] = "pure jellyfish",
     ["pure jellyfish"] = "jellyfish",
+    ["shark"] = "mutant shark",
+    ["mutant shark"] = "shark",
     ["godzilla"] = "kaiju",
     ["kaiju"] = "godzilla",
     ["king kong"] = "gorilla king",
@@ -430,6 +483,7 @@ X.CATEGORY_TO_DISPLAY = {
     ["Dream Axolotl"] = "Axolotl",
     ["Warden"] = "King Snake",
     ["Jellyfish"] = "Pure Jellyfish",
+    ["Shark"] = "Mutant Shark",
     ["King Kong"] = "Gorilla King",      -- King Kong egg asset -> Gorilla King pet display
     ["ScorchedDragon"] = "Scorched Dragon", -- no-space variant from game scan
     ["Cave Dragon"] = "Cosmic Dragon",   -- Cave Dragon egg asset -> Cosmic Dragon pet display
@@ -829,7 +883,7 @@ local function updateRagdollStatus()
             end
         end
         ragdollSince = ragdollSince or os.clock()
-        if os.clock() - ragdollSince > RAGDOLL_STALE_AFTER then ragdollStale = true end
+        if os.clock() - ragdollSince > X.RAGDOLL_STALE_AFTER then ragdollStale = true end
     else
         ragdollSince = nil; ragdollStale = false
     end
@@ -1628,7 +1682,8 @@ end
 local function resolveRaw(r)
     if typeof(r) ~= "table" then return nil end
     local sp = tostring(r.AssetCategory or "")
-    local pr = getPresetRarity(sp)
+    local disp = (typeof(X) == "table" and typeof(X.getDisplayEggName) == "function" and X.getDisplayEggName(sp)) or sp
+    local pr = getPresetRarity(disp) or getPresetRarity(sp)
     if pr then return pr end
     local uid = tostring(r.Uid or "")
     local lv = rarityByUid[uid]
@@ -1726,6 +1781,20 @@ local function applySettings(t)
         X.maxBumpRetries = t.MaxBumpRetries
     end
     currentSettings.MaxBumpRetries = X.maxBumpRetries
+
+    if t.PickupEnabled ~= nil then X.PICKUP_CONFIG.Enabled = t.PickupEnabled end
+    if t.PickupReachAssist ~= nil then X.PICKUP_CONFIG.ReachAssist = t.PickupReachAssist end
+    if t.PickupMaxDistance ~= nil and t.PickupMaxDistance > 0 then X.PICKUP_CONFIG.MaxReachDistance = t.PickupMaxDistance end
+    if t.PickupBurstCount ~= nil and t.PickupBurstCount > 0 then X.PICKUP_CONFIG.SpamBurstCount = t.PickupBurstCount end
+    if t.PickupShowMiniHud ~= nil then X.PICKUP_CONFIG.ShowMiniHud = t.PickupShowMiniHud end
+
+    currentSettings.PickupEnabled = X.PICKUP_CONFIG.Enabled
+    currentSettings.PickupReachAssist = X.PICKUP_CONFIG.ReachAssist
+    currentSettings.PickupMaxDistance = X.PICKUP_CONFIG.MaxReachDistance
+    currentSettings.PickupBurstCount = X.PICKUP_CONFIG.SpamBurstCount
+    currentSettings.PickupShowMiniHud = X.PICKUP_CONFIG.ShowMiniHud
+    if typeof(X.syncPickupUI) == "function" then pcall(X.syncPickupUI) end
+
     return true
 end
 
@@ -1760,26 +1829,38 @@ local function getCarryRemote()
     return ok and r or nil
 end
 
-local function carryEgg(uid, sl)
-    sl.Text = "Sending carry..."
-    sl.TextColor3 = Color3.fromRGB(255, 220, 100)
+local function carryEgg(uid, sl, burstCount)
+    if not uid or uid == "" then return false end
+    burstCount = burstCount or 1
+    if sl then
+        sl.Text = "Sending carry..."
+        sl.TextColor3 = Color3.fromRGB(255, 220, 100)
+    end
     local rf = getCarryRemote()
-    if not rf then sl.Text = "Carry RF not found"; sl.TextColor3 = Color3.fromRGB(255,120,120); return false end
-    local ok, e = pcall(function() rf:InvokeServer({ Uid = uid }) end)
-    if ok then sl.Text = "Carry sent!"; sl.TextColor3 = Color3.fromRGB(120,255,150); return true end
-    sl.Text = "Carry failed: " .. tostring(e); sl.TextColor3 = Color3.fromRGB(255,120,120); return false
+    if not rf then
+        if sl then sl.Text = "Carry RF not found"; sl.TextColor3 = Color3.fromRGB(255, 120, 120) end
+        return false
+    end
+    local payload = { Uid = uid }
+    local anyOk = false
+    for i = 1, burstCount do
+        task.spawn(function()
+            local ok, e = pcall(function() return rf:InvokeServer(payload) end)
+            if ok then anyOk = true end
+        end)
+    end
+    if sl then
+        sl.Text = "Carry sent!"
+        sl.TextColor3 = Color3.fromRGB(120, 255, 150)
+    end
+    return true
 end
+X.carryEgg = carryEgg
 
 -- ==================================================
 -- MOVEMENT
 -- ==================================================
 walkToken = walkToken or 0
-local SLOW_ZONE      = 25
-local TELEPORT_ZONE  = 8
-local SNAP_RADIUS    = 60    -- autofarm: once within this many studs (XZ) of the egg, CFrame-snap onto it
-local SNAP_Y_OFFSET  = 3     -- stand slightly above the egg centre so we don't clip into the ground
-local SAFE_ARRIVE_RADIUS = 8   -- counts as "arrived" at the safe zone within this many studs (XZ)
-local SAFE_SNAP_RADIUS   = 60  -- within this many studs of the safe zone, CFrame-snap onto it
 
 local function getBesideOffset(targetPos, currentPos, dist)
     dist = dist or 2.8
@@ -1790,6 +1871,38 @@ local function getBesideOffset(targetPos, currentPos, dist)
     local besidePos = Vector3.new(targetPos.X + dir.X * dist, groundY, targetPos.Z + dir.Z * dist)
     local lookTarget = Vector3.new(targetPos.X, groundY, targetPos.Z)
     return besidePos, lookTarget
+end
+
+local function applyReachAssist(targetPos)
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root or typeof(targetPos) ~= "Vector3" then return end
+    local dist = (Vector3.new(targetPos.X, 0, targetPos.Z) - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude
+    local maxReach = (X.PICKUP_CONFIG and X.PICKUP_CONFIG.MaxReachDistance) or 35
+    if dist > 3 and dist <= maxReach then
+        local bPos, lookTarget = getBesideOffset(targetPos, root.Position, 2.8)
+        if typeof(X) == "table" and typeof(X.markTeleport) == "function" then
+            X.markTeleport()
+        end
+        pcall(function()
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.CFrame = CFrame.lookAt(bPos, lookTarget)
+        end)
+    end
+end
+
+local function triggerProximityPrompt(prompt)
+    if not prompt or not prompt.Parent then return end
+    if typeof(fireproximityprompt) == "function" then
+        pcall(fireproximityprompt, prompt, 0)
+        pcall(fireproximityprompt, prompt)
+    end
+    pcall(function()
+        if typeof(prompt.InputHoldBegin) == "function" then
+            prompt:InputHoldBegin()
+            task.delay(0.01, function() pcall(function() prompt:InputHoldEnd() end) end)
+        end
+    end)
 end
 
 -- Hop straight onto the safe-zone point (zero velocity, keep facing, ground-level).
@@ -1906,7 +2019,7 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                         end
                     end)
                     task.wait(0.08)
-                elseif xz <= TELEPORT_ZONE then
+                elseif xz <= X.TELEPORT_ZONE then
                     h:Move(Vector3.zero); X.markTeleport()
                     pcall(function()
                         r.AssemblyLinearVelocity = Vector3.zero
@@ -1918,7 +2031,7 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                         end
                     end)
                     task.wait(0.08)
-                elseif xz > SLOW_ZONE then
+                elseif xz > X.SLOW_ZONE then
                     h:MoveTo(dest); task.wait(0.3)
                 else
                     local d = Vector3.new(dest.X - rp.X, 0, dest.Z - rp.Z).Unit
@@ -1987,7 +2100,7 @@ function X.eggTier(r)
         return 4
     end
     if X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r) then
-        return 4.5
+        return 99 -- Unknown eggs are not auto-farmed (manual get only)
     end
     return 5 + (10 - (X.RARITY_RANK[rar] or 0)) / 100
 end
@@ -2092,16 +2205,6 @@ end
 local autoFarmBtn, statusLabel
 local autoFarmEnabled = false
 local autoFarmToken   = 0       -- incremented to stop an in-flight run
-local AUTO_RETRY      = 4
-local PICKUP_SPAM     = 1   -- clean single InvokeServer per attempt (prevents network queuing / ping spikes)
-local AUTO_NEXT_DELAY = 0.8     -- pause between eggs
-local AUTO_EMPTY_WAIT = 2.0     -- wait when no matching eggs
-local AUTO_CARRY_WAIT = 0.4     -- wait after carry RF for server to action
-
-local HOLD_RELEASE_TIMEOUT = 8     -- max wait for the carried egg to be delivered/released
-local WALK_TIMEOUT         = 90    -- give up on a single egg after this many seconds
-local EGG_SCAN_INTERVAL    = 1.0   -- FIXED cadence of the live egg scan while autofarm is on
-local DROP_CONFIRM         = 0.6   -- seconds the carried object must be gone before we call it dropped
 
 -- Our OWN carry state (never trust a heuristic to say we carry something we never picked up)
 weAreCarrying        = false
@@ -2231,7 +2334,7 @@ local function startEggScanner()
                     if X.scanBusySince == mine then X.scanBusySince = nil end
                 end)
             end
-            nextT = nextT + EGG_SCAN_INTERVAL            -- fixed schedule, not "wait after"
+            nextT = nextT + X.EGG_SCAN_INTERVAL            -- fixed schedule, not "wait after"
             local w = nextT - os.clock()
             if w < 0 then nextT = os.clock(); w = 0 end  -- fell behind: don't burst-catch-up
             task.wait(math.max(w, 0.05))
@@ -2330,7 +2433,7 @@ function X.deliverWait(myTok)
     X.snapToSafe()
     if not carryMarkers then task.wait(0.3); return true end
     local t, lastSnap, streak = 0, 0, 0
-    while t < HOLD_RELEASE_TIMEOUT and (autoFarmToken == myTok or walkToken == myTok) do
+    while t < X.HOLD_RELEASE_TIMEOUT and (autoFarmToken == myTok or walkToken == myTok) do
         if not markersActive(carryMarkers) then
             streak = streak + 1
             if streak >= 3 then return true end
@@ -2426,7 +2529,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         while not completed and phase == "walking" and (isManual or autoFarmToken == myTok) and walkToken == walkTok do
             task.wait(0.15)
             if completed or phase ~= "walking" or (not isManual and autoFarmToken ~= myTok) or walkToken ~= walkTok then break end
-            if os.clock() - t0 > WALK_TIMEOUT then
+            if os.clock() - t0 > X.WALK_TIMEOUT then
                 walkToken = walkToken + 1; finish(false); break
             end
 
@@ -2452,10 +2555,10 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                 local found = eggCache.byUid[uid]
                 if found then
                     -- Verify found passes filters! If it doesn't pass filters (e.g. state changed to Carried/Claimed), abort!
-                    if not passesFilters(found) and not (dropRetry and dropRetry.uid == uid) then
+                    if not isManual and not passesFilters(found) and not (dropRetry and dropRetry.uid == uid) then
                         walkToken = walkToken + 1
                         lastFailReason = tag .. "Egg no longer valid (stolen/filtered) — next..."
-                        if not isManual then X.blacklistStolen(uid) end
+                        X.blacklistStolen(uid)
                         finish(false); break
                     end
                     missing = 0
@@ -2588,7 +2691,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         local stolen = false
         local lastRfInfo = "no reply"
         local mine = (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60) or (dropRetry and dropRetry.uid == uid) or X.looseUids[uid]
-        local maxTry = AUTO_RETRY
+        local maxTry = X.AUTO_RETRY
         do   -- v9.2: no slot for this egg although the slot folder is populated -> most likely an empty nest: try only twice
             local ar = Workspace:FindFirstChild("AreaEggSlotsClient")
             if X.USE_SLOT_CHECK and ar and #ar:GetChildren() > 0 and not X.findEggSlot(ar, uid, rec0 and rec0.NestId, rec0 and rec0.AreaId, livePos) and not mine then maxTry = math.min(maxTry, 2) end
@@ -2777,8 +2880,8 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         walkToken = walkToken + 1
         rtok = walkToken
         local done, arrived, dropped = false, false, false
-        walkTo(SAFE_ZONE, SAFE_ARRIVE_RADIUS, rtok, function() arrived = true; done = true end,
-               { stuckHop = true, snapRadius = SAFE_SNAP_RADIUS })
+        walkTo(SAFE_ZONE, X.SAFE_ARRIVE_RADIUS, rtok, function() arrived = true; done = true end,
+               { stuckHop = true, snapRadius = X.SAFE_SNAP_RADIUS })
         X.requestEggRefresh()   -- scan issued right after the pickup: tells us whether the listing hides a carried egg
 
         local basePos = livePos            -- where the egg lay before we grabbed it
@@ -2871,7 +2974,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             if dSafe <= X.SAFE_DETECT_RADIUS then
                 arrived = true; done = true; break
             end
-            if dSafe <= SAFE_SNAP_RADIUS and not isRagdolled and now - lastSnapT >= 0.25 then
+            if dSafe <= X.SAFE_SNAP_RADIUS and not isRagdolled and now - lastSnapT >= 0.25 then
                 lastSnapT = now; X.snapToSafe()   -- the 50-stud teleport, now also from here (not only inside the walker)
             end
 
@@ -2935,7 +3038,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     lostSince = nil
                 elseif bumped or isRagdolled or now < fastUntil or dropEvt then
                     lostSince = lostSince or now
-                    if now - lostSince >= (now < fastUntil and 0.3 or DROP_CONFIRM) then
+                    if now - lostSince >= (now < fastUntil and 0.3 or X.DROP_CONFIRM) then
                         why = "object gone after bump: " .. tostring(carryMarkers.label)
                     end
                 else
@@ -3057,7 +3160,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         end                                     -- (not arrived: the loop's gate finishes the delivery)
         X.requestEggRefresh()                   -- redraw the egg list now instead of waiting for luck
         finish(arrived)
-    end, { snapRadius = SNAP_RADIUS, snapBeside = true, stuckHop = true })
+    end, { snapRadius = X.SNAP_RADIUS, snapBeside = true, stuckHop = true })
 
     while not completed and (isManual or autoFarmToken == myTok) and (walkToken == walkTok or (rtok and walkToken == rtok)) do task.wait(0.15) end
     if not isManual and autoFarmToken ~= myTok then walkToken = walkToken + 1 end
@@ -3101,7 +3204,7 @@ function X.pickNearest(records)
     if dToSafe <= 60 then
         local bestSteal, bestStealTier, bestStealDist = nil, math.huge, math.huge
         for _, r in ipairs(records) do
-            if typeof(r) == "table" and passesFilters(r) then
+            if typeof(r) == "table" and passesFilters(r) and not (X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r)) then
                 local u = tostring(r.Uid or "")
                 if not X.isCarriedByOther(u, r) then
                     local p = extPos(r)
@@ -3128,7 +3231,7 @@ function X.pickNearest(records)
     -- Divine -> Eternal -> Secret -> Scramble Requirements -> farthest
     local best, bestTier, bestDist = nil, math.huge, 0
     for _, r in ipairs(records) do
-        if typeof(r) == "table" and passesFilters(r) then
+        if typeof(r) == "table" and passesFilters(r) and not (X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r)) then
             local u = tostring(r.Uid or "")
             if not X.isCarriedByOther(u, r) then
                 local p = extPos(r)
@@ -3189,7 +3292,7 @@ local function autoFarmLoop()
                 statusLabel.Text = "[AutoFarm] Delivering carried egg..."
                 statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
                 X.switchToCarry()
-                if autoReturnEnabled then walkSync(SAFE_ZONE, SAFE_ARRIVE_RADIUS, myTok, { stuckHop = true, snapRadius = SAFE_SNAP_RADIUS }) end
+                if autoReturnEnabled then walkSync(SAFE_ZONE, X.SAFE_ARRIVE_RADIUS, myTok, { stuckHop = true, snapRadius = X.SAFE_SNAP_RADIUS }) end
                 if carryMarkers or isHoldingEgg() then X.deliverWait(myTok) end
                 X.requestEggRefresh()
             end
@@ -3256,7 +3359,12 @@ local function autoFarmLoop()
                             dropRetry = nil
                         else
                             target = eggCache.byUid and eggCache.byUid[dropRetry.uid]
-                            if not target and os.clock() - (dropRetry.t or 0) < 6 then waitingDrop = true end
+                            if target and X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(target) then
+                                target = nil
+                                dropRetry = nil
+                            elseif not target and os.clock() - (dropRetry.t or 0) < 6 then
+                                waitingDrop = true
+                            end
                         end
                     end
                 end
@@ -3285,7 +3393,7 @@ local function autoFarmLoop()
                         statusLabel.Text = "[AutoFarm] No matching eggs — waiting..."
                         statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
                         local w = 0
-                        while w < AUTO_EMPTY_WAIT and autoFarmEnabled and autoFarmToken == myTok do
+                        while w < X.AUTO_EMPTY_WAIT and autoFarmEnabled and autoFarmToken == myTok do
                             task.wait(0.25); w = w + 0.25
                         end
                         skip = true
@@ -3338,7 +3446,7 @@ local function autoFarmLoop()
                         if cch then neutraliseEggPhysics(cch, false) end
 
                         local w = 0
-                        local nextDelay = dropRetry and 0.25 or AUTO_NEXT_DELAY
+                        local nextDelay = dropRetry and 0.25 or X.AUTO_NEXT_DELAY
                         while w < nextDelay and autoFarmEnabled and autoFarmToken == myTok do
                             task.wait(0.1); w = w + 0.1
                         end
@@ -3686,7 +3794,7 @@ local function applyVelocity()
     local r = ch and ch:FindFirstChild("HumanoidRootPart")
     if not h or not r then return end
     if isRagdolled then
-        wasRagdolledForVelocity = true
+        X.wasRagdolledForVelocity = true
         if h.MoveDirection.Magnitude > 0.05 then lastMoveDirection = h.MoveDirection.Unit end
         -- Always halt horizontal knockback when hit/ragdolled to stay at bump location
         if not r.Anchored then
@@ -3695,8 +3803,8 @@ local function applyVelocity()
         end
         return
     end
-    if wasRagdolledForVelocity then
-        wasRagdolledForVelocity = false
+    if X.wasRagdolledForVelocity then
+        X.wasRagdolledForVelocity = false
         pcall(function() h.WalkSpeed = targetVelocity end)
         -- Do not artificially launch forward upon recovery; let active MoveDirection govern movement naturally
     end
@@ -3966,7 +4074,7 @@ local logAuto
 -- ==================================================
 -- TAB 2 BUILDER
 -- ==================================================
-local function buildPetsTabUI()
+function X.buildPetsTabUI()
 -- ==================================================
 -- TAB 2: PETS & AUTOMATION SUITE
 -- ==================================================
@@ -5278,7 +5386,7 @@ end
 -- ==================================================
 -- TAB 3 BUILDER: DR. SCRAMBLE TRADE-IN SUITE
 -- ==================================================
-local function buildScrambleTabUI()
+function X.buildScrambleTabUI()
     local tabScrambleLayout = Instance.new("UIListLayout")
     tabScrambleLayout.Padding = UDim.new(0, 8)
     tabScrambleLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -6354,9 +6462,170 @@ local function buildScrambleTabUI()
 end
 
 -- ==================================================
+-- TAB 4 BUILDER: UTILITY SUITE (SPAM PICKUP & REACH ASSIST)
+-- ==================================================
+function X.buildUtilityTabUI()
+    local PICKUP_CONFIG = X.PICKUP_CONFIG
+
+    local function getBestFocusedTarget()
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return nil end
+
+        local charPos  = root.Position
+        local charLook = root.CFrame.LookVector
+        local cam = Workspace.CurrentCamera
+        local camPos  = cam and cam.CFrame.Position or charPos
+        local camLook = cam and cam.CFrame.LookVector or charLook
+
+        local bestTarget, highestScore = nil, -math.huge
+        local maxDist = PICKUP_CONFIG.MaxReachDistance or 35
+
+        if eggCache and eggCache.byUid then
+            for uid, r in pairs(eggCache.byUid) do
+                local isCarriedByOther = r.CarrierUserId and tostring(r.CarrierUserId) ~= tostring(LocalPlayer.UserId)
+                if r.State ~= "Claimed" and not isCarriedByOther then
+                    local pos = extPos(r)
+                    if pos then
+                        local dist = (pos - charPos).Magnitude
+                        if dist <= maxDist then
+                            local dir = dist > 0.01 and (pos - charPos).Unit or charLook
+                            local charDot = charLook:Dot(dir)
+                            local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
+                            local camDot = camLook:Dot(camDir)
+                            local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
+                            if dist <= 6 then score = score + 3 end
+                            if score > highestScore then
+                                highestScore = score
+                                bestTarget = {
+                                    Type = "EggRecord",
+                                    Uid = uid,
+                                    Name = (X.getDisplayEggName and X.getDisplayEggName(r)) or tostring(r.AssetCategory or "Egg"),
+                                    Position = pos,
+                                    Distance = dist,
+                                    Prompt = nil
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        local slotsFolder = Workspace:FindFirstChild("AreaEggSlotsClient")
+        if slotsFolder then
+            for _, ch in ipairs(slotsFolder:GetChildren()) do
+                local pos = ch:IsA("BasePart") and ch.Position or (ch:IsA("Model") and ch:GetPivot().Position)
+                if pos then
+                    local dist = (pos - charPos).Magnitude
+                    if dist <= maxDist then
+                        local dir = dist > 0.01 and (pos - charPos).Unit or charLook
+                        local charDot = charLook:Dot(dir)
+                        local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
+                        local camDot = camLook:Dot(camDir)
+                        local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
+                        if dist <= 6 then score = score + 3 end
+                        local uid = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
+                        if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
+                        if score > highestScore then
+                            highestScore = score
+                            bestTarget = {
+                                Type = "SlotDirect",
+                                Uid = uid or (bestTarget and bestTarget.Uid),
+                                Name = ch.Name,
+                                Position = pos,
+                                Distance = dist,
+                                Prompt = ch:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            }
+                        end
+                    end
+                end
+            end
+        end
+
+        return bestTarget
+    end
+
+    local function executePickupSpam(target)
+        if not target then return end
+        if PICKUP_CONFIG.ReachAssist and target.Position then
+            applyReachAssist(target.Position)
+        end
+        if target.Prompt then
+            triggerProximityPrompt(target.Prompt)
+        end
+        if target.Uid then
+            carryEgg(target.Uid, nil, PICKUP_CONFIG.SpamBurstCount or 8)
+        end
+    end
+
+    -- ========================================================================
+    -- UI: SIMPLE TWO-COLUMN (TEXT | ON/OFF)
+    -- ========================================================================
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 36)
+    row.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    row.BorderSizePixel = 0
+    row.LayoutOrder = 1
+    row.Parent = tabUtility
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+    local stroke = Instance.new("UIStroke", row)
+    stroke.Color = Color3.fromRGB(45, 55, 75)
+    stroke.Thickness = 1
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -70, 1, 0)
+    lbl.Position = UDim2.new(0, 12, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "Spam Pickup [E]"
+    lbl.TextColor3 = Color3.fromRGB(220, 230, 255)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 52, 0, 24)
+    toggleBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.TextSize = 11
+    toggleBtn.Parent = row
+    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 5)
+
+    local function updateButtonStates()
+        toggleBtn.Text = PICKUP_CONFIG.Enabled and "ON" or "OFF"
+        toggleBtn.BackgroundColor3 = PICKUP_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleBtn.TextColor3 = PICKUP_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+    updateButtonStates()
+    X.syncPickupUI = updateButtonStates
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        PICKUP_CONFIG.Enabled = not PICKUP_CONFIG.Enabled
+        if currentSettings then currentSettings.PickupEnabled = PICKUP_CONFIG.Enabled end
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        updateButtonStates()
+    end)
+
+    -- User Input — TAP E
+    addConnection(UserInputService.InputBegan:Connect(function(input)
+        if not PICKUP_CONFIG.Enabled then return end
+        if UserInputService:GetFocusedTextBox() ~= nil then return end
+        if input.KeyCode == Enum.KeyCode.E then
+            local target = getBestFocusedTarget()
+            if target then
+                executePickupSpam(target)
+            end
+        end
+    end))
+
+    X.utilityCleanup = function() end
+end
+
+-- ==================================================
 -- MAIN UI BUILDER
 -- ==================================================
-local function buildMainUI()
+function X.buildMainUI()
 -- ==================================================
 -- UI
 -- ==================================================
@@ -6949,20 +7218,19 @@ end)
 
 
     -- Populate Tab 2
-    buildPetsTabUI()
+    X.buildPetsTabUI()
     -- Populate Tab 3 (Dr. Scramble Trade-In)
-    buildScrambleTabUI()
+    X.buildScrambleTabUI()
+    -- Populate Tab 4 (Utility Suite)
+    X.buildUtilityTabUI()
 end
-buildMainUI()
+X.buildMainUI()
 -- ==================================================
 -- EGG CARD  (compact single-row list item)
 -- ==================================================
 -- ==================================================
 -- EGG CARD POOL & RENDERER (Zero-Allocation DOM Recycling)
 -- ==================================================
-local CARD_HEIGHT = 34   -- compact row height
-local cardPool = {}
-
 local function updateOrCreateCard(idx, r)
     if typeof(r) ~= "table" then return end
     local uid      = tostring(r.Uid or "")
@@ -6980,10 +7248,10 @@ local function updateOrCreateCard(idx, r)
     local bg = isFarming and Color3.fromRGB(24, 60, 42)
         or (hl and Color3.fromRGB(45, 18, 18) or Color3.fromRGB(26, 30, 40))
 
-    local item = cardPool[idx]
+    local item = X.cardPool[idx]
     if not item then
         local card = Instance.new("Frame")
-        card.Size             = UDim2.new(1, -12, 0, CARD_HEIGHT)
+        card.Size             = UDim2.new(1, -12, 0, X.CARD_HEIGHT)
         card.BackgroundColor3 = bg
         card.BorderSizePixel  = 0
         card.Parent           = listFrame
@@ -7043,12 +7311,24 @@ local function updateOrCreateCard(idx, r)
         Instance.new("UICorner", gb).CornerRadius = UDim.new(0, 5)
 
         item = { card = card, strip = strip, nm = nm, sub = sub, rab = rab, gb = gb, pos = pos, uid = uid }
-        cardPool[idx] = item
+        X.cardPool[idx] = item
 
         gb.MouseButton1Click:Connect(function()
             if autoFarmEnabled then toggleAutoFarm() end
-            if item.pos then getEgg(item.pos, item.uid, statusLabel)
-            else statusLabel.Text = "No position"; statusLabel.TextColor3 = Color3.fromRGB(255, 120, 120) end
+            local targetPos = item.pos
+            if not targetPos and item.uid then
+                local curRec = eggCache.byUid and eggCache.byUid[item.uid]
+                targetPos = curRec and extPos(curRec)
+                if not targetPos and X.nestPos then
+                    targetPos = X.nestPos[item.uid]
+                end
+            end
+            if targetPos then
+                getEgg(targetPos, item.uid, statusLabel)
+            else
+                statusLabel.Text = "No position"
+                statusLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
+            end
         end)
     end
 
@@ -7084,7 +7364,7 @@ end
 -- SCAN / RENDER
 -- ==================================================
 local function clearList()
-    for _, it in ipairs(cardPool) do
+    for _, it in ipairs(X.cardPool) do
         it.card.Visible = false
     end
 end
@@ -7149,11 +7429,11 @@ local function renderRecords(records, quiet)
     end
 
     -- Hide remaining cards in the pool beyond active count d
-    for j = d + 1, #cardPool do
-        cardPool[j].card.Visible = false
+    for j = d + 1, #X.cardPool do
+        X.cardPool[j].card.Visible = false
     end
 
-    listFrame.CanvasSize = UDim2.new(0, 0, 0, d * (CARD_HEIGHT + 3))
+    listFrame.CanvasSize = UDim2.new(0, 0, 0, d * (X.CARD_HEIGHT + 3))
     if d == 0 then
         sl.Text = "No eggs match active filters"; sl.TextColor3 = Color3.fromRGB(255,160,100); return
     end
@@ -7682,6 +7962,9 @@ local function fullCleanup()
     recoveryActive = false
     disableVelocity()
     disconnectAll()
+    if typeof(X.utilityCleanup) == "function" then
+        pcall(X.utilityCleanup)
+    end
     if X.recoveryConnections then
         for _, conn in ipairs(X.recoveryConnections) do
             pcall(function() conn:Disconnect() end)
@@ -7689,7 +7972,7 @@ local function fullCleanup()
         table.clear(X.recoveryConnections)
     end
     if X.jointsTable then table.clear(X.jointsTable) end
-    if cardPool then table.clear(cardPool) end
+    if X.cardPool then table.clear(X.cardPool) end
     enablePlayerControls()
     local ch = LocalPlayer.Character
     local h = ch and ch:FindFirstChildOfClass("Humanoid")
@@ -7769,7 +8052,7 @@ addConnection(LocalPlayer.CharacterAdded:Connect(function(ch)
     task.wait(0.2)
     recoveryActive=false; recoveryState=RECOVERY_STATE.NONE
     lastMoveDirection=Vector3.zero; isRagdolled=false
-    wasRagdolledForVelocity=false; lastGoodCFrame=nil
+    X.wasRagdolledForVelocity=false; lastGoodCFrame=nil
     bindCharacter(ch)
     local h=ch:FindFirstChildOfClass("Humanoid")
     if velocityEnabled then

@@ -46,7 +46,8 @@ In "Steal an Egg", egg names vary across server recipes, inventory profile recor
      - `Sacred Moth` $\longleftrightarrow$ `Moth`
      - `Winged Lamb` $\longleftrightarrow$ `Lamb`
      - `King Kong` $\longleftrightarrow$ `Gorilla King`
-   - **Distinct Species Independence**: `Shark` (Ocean biome, Legendary) and `Mutant Shark` (Titan Temple biome, Secret) are strictly distinct and independent species with zero cross-aliasing.
+     - `Shark` $\longleftrightarrow$ `Mutant Shark`
+   - **Shark Egg & Mutant Shark Pet Mapping**: In-game egg asset category `Shark` / `Shark Egg` is bidirectionally aliased to `Mutant Shark` (Secret rarity), ensuring that egg detection recognizes Shark eggs for Scramble recipes, species filtering, and pet inventory matching.
    - Guarantees that server recipe requirements (e.g. `Galaxy Gecko`, `Cave Dragon`) instantly recognize satchel inventory eggs (`Cosmic Gecko Egg`, `Cosmic Dragon Egg`) and map world spawns.
 
 ---
@@ -70,14 +71,14 @@ flowchart TD
    - **Crucial Inventory Gate:** Scramble requirements are strictly matched only while missing from inventory. Once owned or assigned to trade candidate slots, they are no longer matched as missing requirements.
 2. **Option 2: Rarity Filter**:
    - Matches any egg whose rarity matches enabled rarity toggles (`Divine`, `Eternal`, `Secret`, `Mythic`, `Legendary`, `Rare`, `Uncommon`, `Common`).
-3. **Universal Override: New & Unknown Eggs**:
-   - Any egg with unresolvable or `"Unknown"` rarity, missing preset classification, unverified field discovery (`missCount == 1`), or explicit new/unknown metadata **automatically shows in the farm list**, even when `"None"` is selected in the Farm dropdown.
-   - Rendered with a distinctive gold `[NEW/UNKNOWN]` indicator in `createEggCard`.
-   - Priority Tier in AutoFarm: Tier 4.5 (harvested right after Secret and Scramble missing eggs).
+3. **Universal Override: New & Unknown Eggs (UI List Only, Manual "Get")**:
+   - Any egg with unresolvable or `"Unknown"` rarity, missing preset classification, unverified field discovery (`missCount == 1`), or explicit new/unknown metadata **automatically shows on the UI egg list** (`updateOrCreateCard`), rendered with a distinctive gold `[NEW/UNKNOWN]` indicator in `createEggCard`.
+   - **Excluded from AutoFarm (`pickNearest`):** AutoFarm strictly skips Unknown eggs (`not isNewOrUnknownEgg(r)`), preventing automated harvesting of unverified/unknown egg types.
+   - **Manual Target via "Get" Button:** Players can manually target any Unknown egg at any time by clicking the **"Get"** button on the right of its card in Tab 1.
 4. **Independent Match Isolation**:
-   - An egg is farmed if it satisfies **any** enabled option: `return isNewOrUnknown or isSpeciesSelected or isRarityMatch`.
+   - For AutoFarm, an egg is farmed if it satisfies **either** enabled option: `return isSpeciesSelected or isRarityMatch` (and is not an Unknown egg).
 5. **Priority Order**:
-   $$\text{Divine (Tier 1)} \longrightarrow \text{Eternal (Tier 2)} \longrightarrow \text{Secret (Tier 3)} \longrightarrow \mathbf{\text{Scramble Missing (Tier 4)}} \longrightarrow \mathbf{\text{New / Unknown (Tier 4.5)}} \longrightarrow \text{Farther Eggs (Tier 5+)}$$
+   $$\text{Divine (Tier 1)} \longrightarrow \text{Eternal (Tier 2)} \longrightarrow \text{Secret (Tier 3)} \longrightarrow \mathbf{\text{Scramble Missing (Tier 4)}} \longrightarrow \text{Farther Eggs (Tier 5+)}$$
 
 ---
 
@@ -216,13 +217,70 @@ Ported from [`instant-ragdoll-recovery.lua`](../instant-ragdoll-recovery.lua) to
 
 ---
 
-## 11. Tab 4: Utility Suite Architecture
+## 11. Tab 4: Utility Suite Architecture (Minimal Two-Column Layout: Text | ON/OFF)
 1. **Sidebar Navigation Rail**:
    - Tab 1: 🥚 Eggs (`Y = 10`)
    - Tab 2: 🐾 Pets (`Y = 50`)
    - Tab 3: 🌀 Dr. Scramble (`Y = 90`)
    - Tab 4: 🛠️ Utility (`Y = 130`)
-2. **Dedicated Scrolling Container (`tabUtility`)**:
-   - Standard `ScrollingFrame` container inside `contentContainer` with `AutomaticCanvasSize = Enum.AutomaticSize.Y`, `UIListLayout` (padding 8px), and `UIPadding` (10px horizontal, 10px vertical).
+2. **Dedicated Container (`tabUtility`)**:
+   - Clean container inside `contentContainer` (`334px` width) with `UIListLayout` (padding 8px) and `UIPadding` (10px horizontal, 10px vertical).
    - Fully wired into `switchTab("Utility")` with active state highlighting and mutual exclusivity across tabs.
+3. **Pure Two-Column Toggle Row (`Text | ON/OFF`)**:
+   - Single clean setting row (`36px` height):
+     - **Left Column:** `TextLabel` showing `"Spam Pickup [E]"` (aligned left, bold, readable).
+     - **Right Column:** `TextButton` showing `"ON"` (green `35, 135, 75`) or `"OFF"` (dark `45, 50, 65`).
+   - Zero other text or widgets on the panel (no status labels, headers, or guides).
+4. **Embedded Logic & High-Performance Operations**:
+   - All logic from `Pickup.lua` is fully embedded and deduplicated:
+     - **Code Reuse:** Dispatches carry RPCs via unified `carryEgg(uid, sl, burstCount)`, eliminating duplicate network remote lookups and loops.
+     - **Direct Authoritative Cache:** Directly queries `eggCache.byUid` from the primary egg scanner rather than maintaining a duplicate snapshot polling loop or duplicate network event listeners.
+     - **On-Demand Target Evaluation (FPS Fix):** Evaluates camera and character focus scores ONLY when `[E]` is tapped. Completely eliminates the `RunService.Heartbeat` per-frame Workspace hierarchy scan that caused frame drops.
+     - **Reach Assist:** Repositions character $2.8\text{ studs}$ beside the egg facing it and marks teleport via `X.markTeleport()`.
+     - **Keybind Listener:** Listens on `[E]` keypress with typing suppression (`GetFocusedTextBox() ~= nil`).
+5. **Clean Lifecycle**:
+   - Managed cleanly in `fullCleanup()` via `X.utilityCleanup` and connection disconnection.
+
+---
+
+## 12. Luau Local Variable Limit Optimization (200-Locals Architecture Fix)
+1. **Root Cause Analysis ("No UI Show" on Execution)**:
+   - Luau and Lua 5.3 strictly limit any single function scope to a maximum of **200 local variables**.
+   - Because `EggGoToUI_v10.lua` is wrapped in `local ok, err = pcall(function() ... end)`, the entire top-level script belongs to a single function scope.
+   - When Tab 4 Utility logic was introduced, the outer local variable count increased to **202 locals**, exceeding the 200 threshold.
+   - Luau enforces this at compile time (`too many local variables (limit is 200)`), causing `loadstring()` / script compilers to immediately abort before any code runs, resulting in no UI rendering.
+   - Additionally, `X.PICKUP_CONFIG = PICKUP_CONFIG` was positioned above `local X = { ... }`, attempting to index a nil global.
+2. **Refactoring & Scope Consolidation**:
+   - Integrated `PICKUP_CONFIG` directly into table `X` (`X.PICKUP_CONFIG = { ... }`), aliased locally within `buildUtilityTabUI()`.
+   - Converted tab builder functions to methods on `X`: `X.buildPetsTabUI()`, `X.buildScrambleTabUI()`, `X.buildUtilityTabUI()`, `X.buildMainUI()`.
+   - Consolidated movement constants into table `X`: `X.SLOW_ZONE`, `X.TELEPORT_ZONE`, `X.SNAP_RADIUS`, `X.SNAP_Y_OFFSET`, `X.SAFE_ARRIVE_RADIUS`, `X.SAFE_SNAP_RADIUS`.
+   - Consolidated autofarm constants into table `X`: `X.AUTO_RETRY`, `X.PICKUP_SPAM`, `X.AUTO_NEXT_DELAY`, `X.AUTO_EMPTY_WAIT`, `X.AUTO_CARRY_WAIT`, `X.HOLD_RELEASE_TIMEOUT`, `X.WALK_TIMEOUT`, `X.EGG_SCAN_INTERVAL`, `X.DROP_CONFIRM`.
+   - Consolidated card recycling DOM into table `X`: `X.CARD_HEIGHT`, `X.cardPool`.
+   - Consolidated ragdoll flags into table `X`: `X.RAGDOLL_STALE_AFTER`, `X.wasRagdolledForVelocity`.
+3. **Verification**:
+   - Outer local variable count reduced from **202 to 177** (23 slots buffer below the 200 limit).
+   - AST validation and Lua compiler testing confirmed clean syntax and successful load (`LUA_OK`, 0 errors).
+
+---
+
+## 13. Shark Egg, Carry Deduplication & Performance Optimization Fixes
+1. **Issue 1: Shark Egg $\longleftrightarrow$ Mutant Shark Pet Alignment**:
+   - In-game egg model uses `AssetCategory = "Shark"`, whereas the hatched pet / Scramble recipe requirement is `"Mutant Shark"`.
+   - Restored bidirectional aliasing in `X.EGG_SPECIES_ALIASES`: `["shark"] = "mutant shark"` and `["mutant shark"] = "shark"`.
+   - Added display mapping in `X.CATEGORY_TO_DISPLAY`: `["Shark"] = "Mutant Shark"`.
+   - Aligned preset rarity in `PET_RARITY_PRESETS`: `["Shark"] = "Secret"` and updated `resolveRaw(r)` to check display name resolution, ensuring Shark eggs match Secret rarity filters and Scramble requirements.
+2. **Issue 2: Carry Remote Deduplication**:
+   - Unified carry invocation into `carryEgg(uid, sl, burstCount)` with exported `X.carryEgg`.
+   - Tab 4 Spam Pickup reuses `carryEgg` for $8\times$ burst invocations rather than maintaining duplicate remote finders and independent task loops.
+3. **Issue 3: FPS Optimization**:
+   - Removed `RunService.Heartbeat` continuous focus scanning (`getBestFocusedTarget` was iterating the egg cache and running `Workspace.AreaEggSlotsClient:GetChildren()` every single frame).
+   - Removed redundant 2.5s snapshot polling loop and duplicate network event listeners (`FieldEggShifted`, `BatchShifted`, `OwnerDropped`, `FieldEggGone`).
+   - Focused target calculation is now executed purely on-demand when `[E]` is pressed.
+4. **Issue 4: Unknown Eggs Excluded from AutoFarm (List Display & Manual "Get" Only)**:
+   - Unknown / unverified eggs (`isNewOrUnknownEgg(r)`) continue to appear unconditionally on the Tab 1 list with the `[NEW/UNKNOWN]` indicator.
+   - AutoFarm candidate selection in `pickNearest` explicitly ignores all Unknown eggs (`and not (X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r))`), ensuring AutoFarm never automatically targets or harvests them.
+   - Players can manually target any Unknown egg by clicking the green **"Get"** button on its card.
+   - Enhanced `getEgg` click handler with multi-tier fallback position lookup (`item.pos -> eggCache.byUid[uid] -> X.nestPos[uid]`) and exempted manual gets from filter invalidation aborts.
+
+
 
