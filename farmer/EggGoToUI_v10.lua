@@ -241,6 +241,7 @@ local DEFAULT_SETTINGS = {
     TrapEvade          = true,
     AutoTreadmill      = false,
     AutoDismount       = false,
+    AutoCatchButterflies = false,
 }
 
 local activeMutationFilter = {}
@@ -320,6 +321,9 @@ local function validateSettings(t)
     if t.PickupShowMiniHud ~= nil and typeof(t.PickupShowMiniHud) ~= "boolean" then
         return false, "PickupShowMiniHud must be true/false"
     end
+    if t.AutoCatchButterflies ~= nil and typeof(t.AutoCatchButterflies) ~= "boolean" then
+        return false, "AutoCatchButterflies must be true/false"
+    end
     return true
 end
 
@@ -391,6 +395,12 @@ local X = {
     activeTraps           = {},
     autoTreadmillEnabled  = DEFAULT_SETTINGS.AutoTreadmill or false,
     autoDismountEnabled   = DEFAULT_SETTINGS.AutoDismount or false,
+    autoButterflyEnabled  = DEFAULT_SETTINGS.AutoCatchButterflies or false,
+    butterflyEventActive  = false,
+    butterflyCount        = 0,
+    butterflyEventExpiresAt = 0,
+    butterflyMonitorInitialized = false,
+    BUTTERFLY_ZONE        = Vector3.new(6697.747, 70.724, -376.004),
     noEggSince            = nil,
     nightResetTriggered   = false,
     mountedAtClockTime    = nil,
@@ -2071,6 +2081,10 @@ local function applySettings(t)
     if t.AutoDismount ~= nil then X.autoDismountEnabled = t.AutoDismount end
     currentSettings.AutoDismount = X.autoDismountEnabled == true
     if typeof(X.syncAutoDismountUI) == "function" then pcall(X.syncAutoDismountUI) end
+
+    if t.AutoCatchButterflies ~= nil then X.autoButterflyEnabled = t.AutoCatchButterflies end
+    currentSettings.AutoCatchButterflies = X.autoButterflyEnabled == true
+    if typeof(X.syncAutoButterflyUI) == "function" then pcall(X.syncAutoButterflyUI) end
 
     return true
 end
@@ -4217,6 +4231,7 @@ local function autoFarmLoop()
 
         if not skip and not weAreCarrying and X.isOnTreadmill() then
             local shouldDismount = false
+            local isButterflyDismount = false
             if X.autoDismountEnabled then
                 if X.checkNightReset() then
                     shouldDismount = true
@@ -4227,21 +4242,35 @@ local function autoFarmLoop()
                     end
                 end
             end
+            if not shouldDismount and X.autoButterflyEnabled and X.isButterflyEventActive() then
+                shouldDismount = true
+                isButterflyDismount = true
+            end
 
             if shouldDismount then
                 X.nightResetTriggered = false
                 X.lastNightResetAt = os.clock()
-                X.nightResetGraceUntil = os.clock() + 12.0
                 X.noEggSince = nil
-                statusLabel.Text = "[AutoFarm] Night reset! Dismounting & Walking to Safezone..."
-                statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-                X.executeAutoDismount(true, function()
-                    return not autoFarmEnabled or autoFarmToken ~= myTok
-                end)
-                statusLabel.Text = "[AutoFarm] Arrived at Safezone. Waiting 12s for egg spawn..."
-                statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
-                task.wait(0.3)
-                skip = true
+                if isButterflyDismount then
+                    statusLabel.Text = "[AutoFarm] Butterfly event active! Dismounting Treadmill..."
+                    statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
+                    X.executeAutoDismount(false, function()
+                        return not autoFarmEnabled or autoFarmToken ~= myTok
+                    end)
+                    task.wait(0.2)
+                    skip = true
+                else
+                    X.nightResetGraceUntil = os.clock() + 12.0
+                    statusLabel.Text = "[AutoFarm] Night reset! Dismounting & Walking to Safezone..."
+                    statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                    X.executeAutoDismount(true, function()
+                        return not autoFarmEnabled or autoFarmToken ~= myTok
+                    end)
+                    statusLabel.Text = "[AutoFarm] Arrived at Safezone. Waiting 12s for egg spawn..."
+                    statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+                    task.wait(0.3)
+                    skip = true
+                end
             else
                 statusLabel.Text = "[AutoFarm] Training on Treadmill (Waiting for night reset)..."
                 statusLabel.TextColor3 = Color3.fromRGB(80, 220, 120)
@@ -4361,6 +4390,14 @@ local function autoFarmLoop()
                             statusLabel.Text = string.format("[AutoFarm] Night reset: eggs respawning (%.1fs/12s)...", remaining)
                             statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
                             task.wait(0.3)
+                            skip = true
+                        elseif X.autoButterflyEnabled and X.isButterflyEventActive() then
+                            X.noEggSince = nil
+                            statusLabel.Text = "[AutoFarm] Butterfly Event Active! Heading to Zone..."
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
+                            X.executeAutoButterfly(function()
+                                return not autoFarmEnabled or autoFarmToken ~= myTok or X.hasFarmEggAvailable() or not X.isButterflyEventActive()
+                            end)
                             skip = true
                         elseif X.autoTreadmillEnabled then
                             if not X.noEggSince then
@@ -8188,6 +8225,401 @@ function X.executeAutoTreadmill(cancelCheck)
 end
 
 -- ==================================================
+-- AUTO CATCH BUTTERFLIES SUITE
+-- ==================================================
+function X.isButterflyNetTool(item)
+    if not item or not item:IsA("Tool") then return false end
+    if item.Name == "Butterfly Net" or item.Name:lower():find("butterfly") then return true end
+    if item:GetAttribute("ButterflyNet") == true or item:GetAttribute("ItemType") == "ButterflyNet" then return true end
+    if item:GetAttribute("DisplayName") == "Butterfly Net" then return true end
+    return false
+end
+
+function X.equipButterflyNet()
+    local char = LocalPlayer.Character
+    if not char then return false, nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+
+    -- 1. Check if already equipped on Character
+    for _, item in ipairs(char:GetChildren()) do
+        if X.isButterflyNetTool(item) then
+            return true, item
+        end
+    end
+
+    -- 2. Check in Backpack
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local netTool = nil
+    if bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            if X.isButterflyNetTool(item) then
+                netTool = item
+                break
+            end
+        end
+    end
+
+    -- 3. If missing from both, attempt to claim it from server
+    if not netTool then
+        local rfClaim = X.getNetRemote("RF/Butterflies/AskClaimNet")
+        if rfClaim then
+            pcall(function() rfClaim:InvokeServer() end)
+            task.wait(0.3)
+            if bp then
+                for _, item in ipairs(bp:GetChildren()) do
+                    if X.isButterflyNetTool(item) then
+                        netTool = item
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    -- 4. Equip into Character
+    if netTool and hum then
+        pcall(function() hum:EquipTool(netTool) end)
+        task.wait(0.1)
+        return true, netTool
+    end
+
+    return false, nil
+end
+
+function X.getInstancePosition(inst)
+    if not inst then return nil end
+    if inst:IsA("BasePart") then return inst.Position end
+    if inst:IsA("Model") then
+        if inst.PrimaryPart then return inst.PrimaryPart.Position end
+        local p = inst:FindFirstChildWhichIsA("BasePart", true)
+        if p then return p.Position end
+        if typeof(inst.GetPivot) == "function" then
+            local ok, piv = pcall(function() return inst:GetPivot().Position end)
+            if ok and piv then return piv end
+        end
+    end
+    return nil
+end
+
+function X.getButterflies()
+    local list = {}
+    local bFolder = Workspace:FindFirstChild("Butterflies")
+    if bFolder then
+        for _, child in ipairs(bFolder:GetChildren()) do
+            if child:IsA("Model") or child:IsA("BasePart") then
+                table.insert(list, child)
+            end
+        end
+    end
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child ~= bFolder and child.Name:lower():find("butterfl") then
+            if child:IsA("Model") or child:IsA("BasePart") then
+                table.insert(list, child)
+            end
+        end
+    end
+    return list
+end
+
+function X.hasButterfliesInWorkspace()
+    local bFolder = Workspace:FindFirstChild("Butterflies")
+    if bFolder and #bFolder:GetChildren() > 0 then
+        return true
+    end
+    local list = X.getButterflies()
+    return #list > 0
+end
+
+function X.isButterflyEventActive()
+    if not X.autoButterflyEnabled then return false end
+    if X.butterflyEventActive then
+        if X.butterflyEventExpiresAt and X.butterflyEventExpiresAt > 0 and os.clock() > X.butterflyEventExpiresAt then
+            if not X.hasButterfliesInWorkspace() then
+                X.butterflyEventActive = false
+                return false
+            end
+        end
+        return true
+    end
+    if X.hasButterfliesInWorkspace() then
+        X.butterflyEventActive = true
+        return true
+    end
+    if os.clock() - (X.lastLiveEventFetch or 0) > 10 then
+        X.lastLiveEventFetch = os.clock()
+        local rfRunning = X.getNetRemote("RF/LiveEvents/FetchRunning")
+        if rfRunning then
+            local ok, running = pcall(function() return rfRunning:InvokeServer() end)
+            if ok and typeof(running) == "table" then
+                local found = false
+                for k, v in pairs(running) do
+                    local str = tostring(k) .. " " .. tostring(v)
+                    if typeof(v) == "table" then
+                        for subK, subV in pairs(v) do
+                            str = str .. " " .. tostring(subK) .. "=" .. tostring(subV)
+                        end
+                    end
+                    if str:lower():find("butterfl") then
+                        found = true
+                        break
+                    end
+                end
+                if found then
+                    X.butterflyEventActive = true
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+function X.getClosestButterfly()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil, nil end
+    local list = X.getButterflies()
+    local best = nil
+    local bestDist = math.huge
+    for _, b in ipairs(list) do
+        local pos = X.getInstancePosition(b)
+        if pos then
+            local d = (root.Position - pos).Magnitude
+            if d < bestDist then
+                bestDist = d
+                best = b
+            end
+        end
+    end
+    return best, bestDist
+end
+
+function X.hasFarmEggAvailable()
+    if weAreCarrying or (typeof(isHoldingEgg) == "function" and isHoldingEgg()) then return true end
+    if dropRetry and dropRetry.uid then return true end
+    if eggCache and eggCache.records and #eggCache.records > 0 then
+        local okPick, best = pcall(X.pickNearest, eggCache.records)
+        if okPick and typeof(best) == "table" then
+            return true
+        end
+    end
+    return false
+end
+
+function X.executeAutoButterfly(cancelCheck)
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not char or not root or not hum then return false end
+
+    if X.isOnTreadmill() then
+        X.executeAutoDismount(false)
+        task.wait(0.2)
+    end
+
+    local zone = X.BUTTERFLY_ZONE
+    local dist = X.distXZ(root.Position, zone)
+
+    if dist > 3.0 then
+        if cancelCheck and cancelCheck() then return false end
+        statusLabel.Text = string.format("[AutoFarm] Walking to Butterfly Event (%.0fm)...", dist)
+        statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
+        local arrived = X.walkToTarget(zone, 2.0, cancelCheck)
+        if not arrived then return false end
+    end
+
+    if cancelCheck and cancelCheck() then return false end
+
+    pcall(function()
+        root.AssemblyLinearVelocity = Vector3.zero
+        hum:Move(Vector3.zero)
+    end)
+
+    statusLabel.Text = "[AutoFarm] Equipping Butterfly Net..."
+    statusLabel.TextColor3 = Color3.fromRGB(255, 150, 255)
+    local okNet, netTool = X.equipButterflyNet()
+    if not okNet then
+        warn("[AutoFarm] Warning: Butterfly Net not found in inventory or character!")
+    end
+
+    local rfSwing = X.getNetRemote("RF/Butterflies/AskSwing")
+    local lastSwing = 0
+
+    while (not cancelCheck or not cancelCheck()) and X.isButterflyEventActive() do
+        char = LocalPlayer.Character
+        root = char and char:FindFirstChild("HumanoidRootPart")
+        hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if not char or not root or not hum or hum.Health <= 0 then break end
+
+        if not netTool or netTool.Parent ~= char then
+            local hasTool, curTool = X.equipButterflyNet()
+            if hasTool then netTool = curTool end
+        end
+
+        local targetB, targetDist = X.getClosestButterfly()
+        local distFromCenter = X.distXZ(root.Position, zone)
+
+        -- Hold position strictly at the requested location (no wandering/chasing)
+        if distFromCenter > 2.5 then
+            pcall(function() hum:MoveTo(zone) end)
+        else
+            pcall(function() hum:Move(Vector3.zero) end)
+        end
+
+        if targetB and targetDist then
+            statusLabel.Text = string.format("[AutoFarm] Catching Butterfly (%.1fm, Zone Locked)...", targetDist)
+            statusLabel.TextColor3 = Color3.fromRGB(255, 140, 240)
+
+            -- Rotate in place to face butterfly without taking any steps
+            local bPos = X.getInstancePosition(targetB)
+            if bPos then
+                local lookDir = Vector3.new(bPos.X - root.Position.X, 0, bPos.Z - root.Position.Z)
+                if lookDir.Magnitude > 0.5 then
+                    pcall(function()
+                        root.CFrame = CFrame.lookAt(root.Position, root.Position + lookDir.Unit)
+                    end)
+                end
+            end
+        else
+            statusLabel.Text = "[AutoFarm] Holding Zone (6697, 70, -376) — Net Ready..."
+            statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
+        end
+
+        if os.clock() - lastSwing >= 0.3 then
+            lastSwing = os.clock()
+            if rfSwing then
+                pcall(function() rfSwing:InvokeServer() end)
+                if targetB then
+                    pcall(function() rfSwing:InvokeServer(targetB) end)
+                    local tUid = targetB:GetAttribute("Uid") or targetB:GetAttribute("Id") or targetB.Name
+                    if tUid then
+                        pcall(function() rfSwing:InvokeServer(tUid) end)
+                    end
+                end
+            end
+            local rfSwarm = X.getNetRemote("RF/Butterflies/AskSwarm")
+            if rfSwarm then
+                pcall(function() rfSwarm:InvokeServer() end)
+                if targetB then
+                    pcall(function() rfSwarm:InvokeServer(targetB) end)
+                end
+            end
+            if netTool and netTool.Parent == char then
+                pcall(function() netTool:Activate() end)
+            end
+        end
+
+        task.wait(0.2)
+    end
+
+    if hum then pcall(function() hum:Move(Vector3.zero) end) end
+    return true
+end
+
+function X.initButterflyMonitor()
+    if X.butterflyMonitorInitialized then return end
+    X.butterflyMonitorInitialized = true
+    X.butterflyEventActive = false
+    X.butterflyCount = 0
+
+    local evAnnounce = X.getNetRemote("RE/Butterflies/Announce")
+    if evAnnounce and evAnnounce:IsA("RemoteEvent") then
+        addConnection(evAnnounce.OnClientEvent:Connect(function(...)
+            X.butterflyEventActive = true
+            X.butterflyEventExpiresAt = os.clock() + 300
+        end))
+    end
+
+    local evSpawned = X.getNetRemote("RE/Butterflies/Spawned")
+    if evSpawned and evSpawned:IsA("RemoteEvent") then
+        addConnection(evSpawned.OnClientEvent:Connect(function(data)
+            X.butterflyEventActive = true
+            X.butterflyEventExpiresAt = os.clock() + 300
+            if typeof(data) == "table" and data.Count then
+                X.butterflyCount = tonumber(data.Count) or 1
+            else
+                X.butterflyCount = math.max(1, (X.butterflyCount or 0) + 1)
+            end
+        end))
+    end
+
+    local evRemoved = X.getNetRemote("RE/Butterflies/Removed")
+    if evRemoved and evRemoved:IsA("RemoteEvent") then
+        addConnection(evRemoved.OnClientEvent:Connect(function(...)
+            if X.butterflyCount and X.butterflyCount > 0 then
+                X.butterflyCount = X.butterflyCount - 1
+            end
+            if X.butterflyCount == 0 and not X.hasButterfliesInWorkspace() then
+                X.butterflyEventActive = false
+            end
+        end))
+    end
+
+    local evNetClaimed = X.getNetRemote("RE/Butterflies/NetClaimed")
+    if evNetClaimed and evNetClaimed:IsA("RemoteEvent") then
+        addConnection(evNetClaimed.OnClientEvent:Connect(function(...)
+            pcall(X.equipButterflyNet)
+        end))
+    end
+
+    local evEscaped = X.getNetRemote("RE/Butterflies/Escaped")
+    if evEscaped and evEscaped:IsA("RemoteEvent") then
+        addConnection(evEscaped.OnClientEvent:Connect(function(...)
+            if X.butterflyCount and X.butterflyCount > 0 then
+                X.butterflyCount = X.butterflyCount - 1
+            end
+            if X.butterflyCount == 0 and not X.hasButterfliesInWorkspace() then
+                X.butterflyEventActive = false
+            end
+        end))
+    end
+
+    local evLiveBegan = X.getNetRemote("RE/LiveEvents/Began")
+    if evLiveBegan and evLiveBegan:IsA("RemoteEvent") then
+        addConnection(evLiveBegan.OnClientEvent:Connect(function(eventData)
+            local str = tostring(eventData)
+            if typeof(eventData) == "table" then
+                str = tostring(eventData.Name or eventData.Type or eventData.Id or "")
+            end
+            if str:lower():find("butterfl") then
+                X.butterflyEventActive = true
+                X.butterflyEventExpiresAt = os.clock() + 300
+            end
+        end))
+    end
+
+    local evLiveEnded = X.getNetRemote("RE/LiveEvents/Ended")
+    if evLiveEnded and evLiveEnded:IsA("RemoteEvent") then
+        addConnection(evLiveEnded.OnClientEvent:Connect(function(eventData)
+            local str = tostring(eventData)
+            if typeof(eventData) == "table" then
+                str = tostring(eventData.Name or eventData.Type or eventData.Id or "")
+            end
+            if str == "" or str:lower():find("butterfl") then
+                X.butterflyEventActive = false
+                X.butterflyCount = 0
+            end
+        end))
+    end
+
+    local bFolder = Workspace:FindFirstChild("Butterflies")
+    if bFolder then
+        addConnection(bFolder.ChildAdded:Connect(function()
+            X.butterflyEventActive = true
+        end))
+        addConnection(bFolder.ChildRemoved:Connect(function()
+            if #bFolder:GetChildren() <= 1 and not X.hasButterfliesInWorkspace() then
+                task.delay(1, function()
+                    if not X.hasButterfliesInWorkspace() then
+                        X.butterflyEventActive = false
+                    end
+                end)
+            end
+        end))
+    end
+end
+
+-- ==================================================
 -- TAB 4 BUILDER: UTILITY SUITE (SPAM PICKUP & REACH ASSIST)
 -- ==================================================
 function X.buildUtilityTabUI()
@@ -8700,6 +9132,55 @@ function X.buildUtilityTabUI()
                 btnPen.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
             end
         end)
+    end)
+
+    -- ========================================================================
+    -- ROW 6: AUTO CATCH BUTTERFLIES (TEXT | ON/OFF)
+    -- ========================================================================
+    local rowButterfly = Instance.new("Frame")
+    rowButterfly.Size = UDim2.new(1, 0, 0, 36)
+    rowButterfly.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowButterfly.BorderSizePixel = 0
+    rowButterfly.LayoutOrder = 6
+    rowButterfly.Parent = tabUtility
+    Instance.new("UICorner", rowButterfly).CornerRadius = UDim.new(0, 6)
+    local strokeBf = Instance.new("UIStroke", rowButterfly)
+    strokeBf.Color = Color3.fromRGB(45, 55, 75)
+    strokeBf.Thickness = 1
+
+    local lblBf = Instance.new("TextLabel")
+    lblBf.Size = UDim2.new(1, -70, 1, 0)
+    lblBf.Position = UDim2.new(0, 12, 0, 0)
+    lblBf.BackgroundTransparency = 1
+    lblBf.Text = "Auto Catch Butterflies"
+    lblBf.TextColor3 = Color3.fromRGB(220, 230, 255)
+    lblBf.Font = Enum.Font.GothamBold
+    lblBf.TextSize = 12
+    lblBf.TextXAlignment = Enum.TextXAlignment.Left
+    lblBf.Parent = rowButterfly
+
+    local toggleBfBtn = Instance.new("TextButton")
+    toggleBfBtn.Size = UDim2.new(0, 52, 0, 24)
+    toggleBfBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    toggleBfBtn.Font = Enum.Font.GothamBold
+    toggleBfBtn.TextSize = 11
+    toggleBfBtn.Parent = rowButterfly
+    Instance.new("UICorner", toggleBfBtn).CornerRadius = UDim.new(0, 5)
+
+    local function updateButterflyButtonState()
+        local en = X.autoButterflyEnabled == true
+        toggleBfBtn.Text = en and "ON" or "OFF"
+        toggleBfBtn.BackgroundColor3 = en and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleBfBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+    updateButterflyButtonState()
+    X.syncAutoButterflyUI = updateButterflyButtonState
+
+    toggleBfBtn.MouseButton1Click:Connect(function()
+        X.autoButterflyEnabled = not X.autoButterflyEnabled
+        if currentSettings then currentSettings.AutoCatchButterflies = X.autoButterflyEnabled end
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        updateButterflyButtonState()
     end)
 
     X.utilityCleanup = function()
@@ -9321,6 +9802,7 @@ end
 X.buildMainUI()
 if typeof(X.initTrapEvade) == "function" then pcall(X.initTrapEvade) end
 if typeof(X.initNightResetMonitor) == "function" then pcall(X.initNightResetMonitor) end
+if typeof(X.initButterflyMonitor) == "function" then pcall(X.initButterflyMonitor) end
 -- ==================================================
 -- EGG CARD  (compact single-row list item)
 -- ==================================================
@@ -9874,6 +10356,7 @@ copyBtn.MouseButton1Click:Connect(function()
     for k in pairs(X.selectedRarities) do table.insert(rl,k) end
     table.sort(rl); currentSettings.RarityFilter=rl
     currentSettings.SafeZone={X=SAFE_ZONE.X,Y=SAFE_ZONE.Y,Z=SAFE_ZONE.Z}
+    currentSettings.AutoCatchButterflies = X.autoButterflyEnabled == true
 
     local j=settingsToJSON(currentSettings)
     if not j then

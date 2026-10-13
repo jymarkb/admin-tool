@@ -636,3 +636,31 @@ Manual Radar Variable State              DEAD (NIL)       ACTIVE           FIXED
   4. **Post-Pickup Control & Physics Recovery**:
      - Immediately upon securing the egg (and when the spam loop terminates), calls `enablePlayerControls()`, calls `neutraliseEggPhysics(char, true)` to remove mass and disable collision on egg parts, and verifies `Humanoid.WalkSpeed >= 16.0`.
      - Zeroes no horizontal velocity on exit, allowing natural player movement to continue uninterrupted.
+
+---
+
+## 14. Auto Catch Butterflies Suite & Priority Farm Coordination
+1. **Feature Overview**:
+   - Automatically detects live Butterfly events in the game world, prioritizing egg farming and egg delivery above event attendance.
+   - When no high-priority matching eggs exist on the map (or eggs are on respawn cooldown) and the Butterfly event is active:
+     - Automatically travels to event coordinates: `Vector3.new(6697.747, 70.724, -376.004)` (Zone 6).
+     - Automatically equips the **"Butterfly Net"** from the inventory (`Backpack`), with server claim fallback (`RF/Butterflies/AskClaimNet`).
+     - Holds strictly stationary at the requested coordinate (`hum:Move(Vector3.zero)`) without wandering or chasing butterflies, rotating in-place to face nearby targets.
+     - Actively swings the net (`RF/Butterflies/AskSwing`, `RF/Butterflies/AskSwarm`, and `tool:Activate()`).
+2. **Priority Farm Architecture ("Farm First Before Butterflies")**:
+   - **Egg Delivery Priority**: If `weAreCarrying == true`, eggs are always delivered to the SafeZone first before any butterfly actions are considered.
+   - **Dropped Egg Recovery Priority**: If `dropRetry` is active, dropped eggs take priority over butterflies.
+   - **Target Egg Priority**: If any egg matching active user filters (Divine, Eternal, Secret, Scramble, etc.) exists in `eggCache.records`, `X.hasFarmEggAvailable()` returns `true` and the bot farms the egg immediately.
+   - **Treadmill Dismount Coordination**: If the character is training on the treadmill when the butterfly event starts, `shouldDismount` triggers immediately (`isButterflyDismount = true`), dismounting without forcing a 12s night reset grace wait.
+   - **Dynamic Catch Abort**: While walking to the butterfly zone or actively swinging at butterflies, `cancelCheck` evaluates `X.hasFarmEggAvailable()`. The millisecond a priority egg spawns on the map, the butterfly routine terminates within $\le 0.2\text{s}$ to return to egg harvesting.
+3. **Butterfly Net Resolution & Equipping**:
+   - `X.isButterflyNetTool(item)`: Matches tool by name (`"Butterfly Net"`), attribute `ButterflyNet == true`, attribute `ItemType == "ButterflyNet"`, or attribute `DisplayName == "Butterfly Net"`.
+   - `X.equipButterflyNet()`: Checks if already equipped on `Character`. If in `Backpack`, equips via `Humanoid:EquipTool(tool)`. If missing from both, queries server via `RF/Butterflies/AskClaimNet:InvokeServer()` and re-checks `Backpack`.
+4. **Network & Workspace Event Detection**:
+   - `X.initButterflyMonitor()`: Connects event listeners to `RE/Butterflies/Announce`, `RE/Butterflies/Spawned`, `RE/Butterflies/Removed`, `RE/Butterflies/Escaped`, `RE/LiveEvents/Began`, `RE/LiveEvents/Ended`, and Workspace `Butterflies` folder changes.
+   - Fallback detection via `Workspace:FindFirstChild("Butterflies")`, Workspace models named `"butterfl"`, and throttled checks of `RF/LiveEvents/FetchRunning`.
+5. **Tab 4 Utility Suite Row 6**:
+   - **Row 6:** `Auto Catch Butterflies` | `[ON / OFF]`
+     - **Left Column:** `TextLabel` showing `"Auto Catch Butterflies"`.
+     - **Right Column:** `TextButton` showing `"ON"` (green `35, 135, 75`) or `"OFF"` (dark `45, 50, 65`).
+     - State serialized into `currentSettings.AutoCatchButterflies` and synchronized with JSON import/export.
