@@ -94,7 +94,7 @@ local function getSafeUiParent()
 end
 local PlayerGui = getSafeUiParent()
 
-local SAFE_ZONE = Vector3.new(536.731, 70, -368.698)
+local SAFE_ZONE = Vector3.new(534.090, 70.724, -326.616)
 
 local MUTATION_COLORS = {
     ["Golden"]  = Color3.fromRGB(220, 180, 30),
@@ -139,7 +139,7 @@ local PET_RARITY_PRESETS = {
     ["Lava Gecko"]="Rare", ["Lava Frog"]="Epic", ["Flaming Bull"]="Legendary",
     ["Lava Iguana"]="Legendary", ["Chillin Chilli"]="Mythic", ["Cerberus"]="Secret",
     ["Phoenix"]="Eternal", ["Lava Dragon"]="Eternal", ["Parrotfish"]="Rare",
-    ["Swordfish"]="Epic", ["Shark"]="Secret", ["Mutant Shark"]="Secret", ["Orca"]="Mythic",
+    ["Swordfish"]="Epic", ["Shark"]="Legendary", ["Mutant Shark"]="Secret", ["Orca"]="Mythic",
     ["Whale Shark"]="Cosmic", ["Beluga Whale"]="Cosmic", ["Kraken"]="Secret",
     ["El Maja"]="Eternal", ["Dodo"]="Rare", ["Pterodactyl"]="Legendary",
     ["Ankylosaurus"]="Mythic", ["Triceratops"]="Cosmic", ["Bronto"]="Cosmic",
@@ -238,6 +238,7 @@ local DEFAULT_SETTINGS = {
     PickupMaxDistance  = 35,
     PickupBurstCount   = 8,
     PickupShowMiniHud  = false,
+    TrapEvade          = true,
 }
 
 local activeMutationFilter = {}
@@ -376,6 +377,15 @@ local X = {
         SpamBurstCount   = DEFAULT_SETTINGS.PickupBurstCount,
         ShowMiniHud      = DEFAULT_SETTINGS.PickupShowMiniHud,
     },
+    -- Tab 4 Utility Trap Evade Configuration
+    TRAP_CONFIG           = {
+        Enabled       = DEFAULT_SETTINGS.TrapEvade,
+        DangerRadius  = 16.0,                -- expanded hazard bubble around each trap
+        ClearanceDist = 14.0,                -- wide lateral detour distance (left/right)
+        LookaheadDist = 28.0,                -- forward lookahead distance to detect traps early
+        DisableHitbox = true,
+    },
+    activeTraps           = {},
     -- Movement constants
     SLOW_ZONE             = 25,
     TELEPORT_ZONE         = 8,
@@ -452,8 +462,6 @@ X.EGG_SPECIES_ALIASES = {
     ["lava dragon"] = "dragon",
     ["jellyfish"] = "pure jellyfish",
     ["pure jellyfish"] = "jellyfish",
-    ["shark"] = "mutant shark",
-    ["mutant shark"] = "shark",
     ["godzilla"] = "kaiju",
     ["kaiju"] = "godzilla",
     ["king kong"] = "gorilla king",
@@ -483,7 +491,6 @@ X.CATEGORY_TO_DISPLAY = {
     ["Dream Axolotl"] = "Axolotl",
     ["Warden"] = "King Snake",
     ["Jellyfish"] = "Pure Jellyfish",
-    ["Shark"] = "Mutant Shark",
     ["King Kong"] = "Gorilla King",      -- King Kong egg asset -> Gorilla King pet display
     ["ScorchedDragon"] = "Scorched Dragon", -- no-space variant from game scan
     ["Cave Dragon"] = "Cosmic Dragon",   -- Cave Dragon egg asset -> Cosmic Dragon pet display
@@ -1795,6 +1802,16 @@ local function applySettings(t)
     currentSettings.PickupShowMiniHud = X.PICKUP_CONFIG.ShowMiniHud
     if typeof(X.syncPickupUI) == "function" then pcall(X.syncPickupUI) end
 
+    if t.TrapEvade ~= nil then X.TRAP_CONFIG.Enabled = t.TrapEvade end
+    currentSettings.TrapEvade = X.TRAP_CONFIG.Enabled
+    if typeof(X.syncTrapEvadeUI) == "function" then pcall(X.syncTrapEvadeUI) end
+    if X.TRAP_CONFIG.Enabled then
+        if typeof(X.applyAllTrapNeutralization) == "function" then pcall(X.applyAllTrapNeutralization) end
+        if typeof(X.applyCanTouchProtection) == "function" then pcall(X.applyCanTouchProtection) end
+    else
+        if typeof(X.restoreAllTraps) == "function" then pcall(X.restoreAllTraps) end
+    end
+
     return true
 end
 
@@ -1866,6 +1883,15 @@ local function getBesideOffset(targetPos, currentPos, dist)
     dist = dist or 2.8
     local diff = Vector3.new(currentPos.X - targetPos.X, 0, currentPos.Z - targetPos.Z)
     local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
+    if typeof(X) == "table" and X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and typeof(X.getNearestTrapDist) == "function" then
+        local trapDist, trapPos = X.getNearestTrapDist(targetPos)
+        if trapDist <= 16.0 and trapPos then
+            local awayFromTrap = Vector3.new(targetPos.X - trapPos.X, 0, targetPos.Z - trapPos.Z)
+            if awayFromTrap.Magnitude > 0.1 then
+                dir = awayFromTrap.Unit
+            end
+        end
+    end
     local groundY = currentPos.Y
     if math.abs(groundY - targetPos.Y) > 6 then groundY = targetPos.Y end
     local besidePos = Vector3.new(targetPos.X + dir.X * dist, groundY, targetPos.Z + dir.Z * dist)
@@ -1920,6 +1946,319 @@ function X.snapToSafe()
         r.CFrame = CFrame.new(SAFE_ZONE.X, targetY, SAFE_ZONE.Z) * (r.CFrame - r.CFrame.Position)
     end)
     return true
+end
+
+-- ==================================================
+-- TRAP EVASION & HITBOX NEUTRALIZATION ENGINE
+-- ==================================================
+function X.getNearestTrapDist(pos)
+    if not pos or not X.activeTraps then return math.huge, nil end
+    local minDist, nearest = math.huge, nil
+    for inst, data in pairs(X.activeTraps) do
+        if inst.Parent then
+            local tPos = data.Position
+            if not tPos then
+                if inst:IsA("BasePart") then
+                    tPos = inst.Position
+                elseif inst:IsA("Model") then
+                    local okP, p = pcall(function() return inst:GetPivot().Position end)
+                    tPos = okP and p or nil
+                end
+                data.Position = tPos
+            end
+            if tPos then
+                local dist = Vector3.new(tPos.X - pos.X, 0, tPos.Z - pos.Z).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    nearest = tPos
+                end
+            end
+        else
+            X.activeTraps[inst] = nil
+        end
+    end
+    return minDist, nearest
+end
+
+function X.getTrapDetourPoint(rp, dest)
+    if not rp or not dest or not X.activeTraps then return nil end
+    local cfg = X.TRAP_CONFIG
+    if not (cfg and cfg.Enabled) then return nil end
+
+    local dangerRadius  = cfg.DangerRadius or 16.0    -- Expanded area around trap
+    local clearanceDist = cfg.ClearanceDist or 14.0   -- Wide lateral space (left/right)
+    local lookaheadDist = cfg.LookaheadDist or 28.0   -- Early detection along path
+
+    local toDest = Vector3.new(dest.X - rp.X, 0, dest.Z - rp.Z)
+    local distDest = toDest.Magnitude
+    if distDest < 1.5 then return nil end
+
+    local forwardDir = toDest.Unit
+    local leftDir  = Vector3.new(-forwardDir.Z, 0, forwardDir.X)
+    local rightDir = Vector3.new(forwardDir.Z, 0, -forwardDir.X)
+
+    local mostThreatening = nil
+    local minScore = math.huge
+    local nearestDist = math.huge
+
+    for inst, data in pairs(X.activeTraps) do
+        if inst.Parent then
+            local tPos = data.Position
+            if not tPos then
+                if inst:IsA("BasePart") then
+                    tPos = inst.Position
+                elseif inst:IsA("Model") then
+                    local okP, p = pcall(function() return inst:GetPivot().Position end)
+                    tPos = okP and p or nil
+                end
+                data.Position = tPos
+            end
+            if tPos then
+                local toTrap = Vector3.new(tPos.X - rp.X, 0, tPos.Z - rp.Z)
+                local distToTrap = toTrap.Magnitude
+                if distToTrap < nearestDist then
+                    nearestDist = distToTrap
+                end
+
+                if distToTrap <= lookaheadDist then
+                    local forwardProj = toTrap:Dot(forwardDir)
+                    local lateralDist = math.abs(toTrap:Dot(leftDir))
+
+                    -- Trap blocks path corridor or we are inside its danger bubble:
+                    if (forwardProj >= -3 and forwardProj <= math.min(distDest, lookaheadDist) and lateralDist < dangerRadius)
+                       or (distToTrap <= dangerRadius) then
+                        local score = distToTrap + lateralDist * 0.4
+                        if score < minScore then
+                            minScore = score
+                            mostThreatening = {
+                                Position = tPos,
+                                Distance = distToTrap,
+                                ForwardProj = forwardProj,
+                                SideDot = toTrap:Dot(leftDir),
+                            }
+                        end
+                    end
+                end
+            end
+        else
+            X.activeTraps[inst] = nil
+        end
+    end
+
+    if not mostThreatening then return nil, nearestDist end
+
+    -- Decide lateral evasion direction (Left vs Right):
+    -- If trap is to our left (SideDot >= 0), steer to the RIGHT
+    -- If trap is to our right (SideDot < 0), steer to the LEFT
+    local steerDir = (mostThreatening.SideDot >= 0) and rightDir or leftDir
+
+    -- Calculate detour waypoint with wide clearance:
+    local groundY = rp.Y
+    if mostThreatening.Distance <= 12 then
+        -- Close proximity: push away from trap while keeping forward momentum
+        local away = Vector3.new(rp.X - mostThreatening.Position.X, 0, rp.Z - mostThreatening.Position.Z)
+        local awayDir = away.Magnitude > 0.1 and away.Unit or steerDir
+        local blend = (forwardDir * 0.35 + awayDir * 0.9).Unit
+        return Vector3.new(rp.X + blend.X * clearanceDist, groundY, rp.Z + blend.Z * clearanceDist), nearestDist
+    else
+        -- Approaching: arc wide to the side
+        local forwardLead = math.clamp(mostThreatening.ForwardProj * 0.6, 5, 14)
+        return Vector3.new(
+            rp.X + forwardDir.X * forwardLead + steerDir.X * clearanceDist,
+            groundY,
+            rp.Z + forwardDir.Z * forwardLead + steerDir.Z * clearanceDist
+        ), nearestDist
+    end
+end
+
+function X.neutralizeTrap(inst)
+    if not inst or not inst.Parent then return end
+    pcall(function()
+        if inst:IsA("BasePart") then
+            inst.CanTouch = false
+            inst.CanCollide = false
+            inst.CanQuery = false
+        end
+        local hb = inst:FindFirstChild("Hitbox")
+        if hb and hb:IsA("BasePart") then
+            hb.CanTouch = false
+            hb.CanCollide = false
+            hb.CanQuery = false
+            local curCF = hb.CFrame
+            if curCF.Y > -100 then
+                local record = X.activeTraps[inst]
+                if record and not record.OrigHitboxCF then
+                    record.OrigHitboxCF = curCF
+                end
+                hb.CFrame = CFrame.new(curCF.X, -500, curCF.Z)
+            end
+        end
+    end)
+end
+
+function X.restoreTrap(inst)
+    if not inst or not inst.Parent then return end
+    local record = X.activeTraps[inst]
+    pcall(function()
+        if inst:IsA("BasePart") then
+            inst.CanTouch = true
+            inst.CanCollide = true
+            inst.CanQuery = true
+        end
+        local hb = inst:FindFirstChild("Hitbox")
+        if hb and hb:IsA("BasePart") then
+            hb.CanTouch = true
+            hb.CanCollide = false
+            hb.CanQuery = true
+            if record and record.OrigHitboxCF then
+                hb.CFrame = record.OrigHitboxCF
+            end
+        end
+    end)
+end
+
+function X.applyAllTrapNeutralization()
+    if not X.activeTraps then return end
+    for inst, data in pairs(X.activeTraps) do
+        if inst.Parent then
+            X.neutralizeTrap(inst)
+        else
+            X.activeTraps[inst] = nil
+        end
+    end
+end
+
+function X.restoreAllTraps()
+    if not X.activeTraps then return end
+    for inst, data in pairs(X.activeTraps) do
+        if inst.Parent then
+            X.restoreTrap(inst)
+        end
+    end
+end
+
+function X.applyCanTouchProtection()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local protect = X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local nm = part.Name:lower()
+            if nm:find("foot") or nm:find("leg") or nm:find("root") or nm:find("torso") then
+                pcall(function() part.CanTouch = not protect end)
+            end
+        end
+    end
+end
+
+function X.registerFieldTrap(child)
+    if not child or not child.Parent then return end
+    local name = child.Name:lower()
+    if not (name:find("trap", 1, true) or child.Name == "PlayerTrap") then return end
+    if X.activeTraps[child] then return end
+
+    local pos = nil
+    if child:IsA("BasePart") then
+        pos = child.Position
+    elseif child:IsA("Model") then
+        local okP, p = pcall(function() return child:GetPivot().Position end)
+        pos = okP and p or nil
+    end
+
+    local hb = child:FindFirstChild("Hitbox")
+    local origCF = (hb and hb:IsA("BasePart")) and hb.CFrame or nil
+
+    local record = {
+        Instance = child,
+        Hitbox = hb,
+        OrigHitboxCF = origCF,
+        Position = pos,
+    }
+    X.activeTraps[child] = record
+
+    if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
+        X.neutralizeTrap(child)
+    end
+
+    child.ChildAdded:Connect(function(sub)
+        if sub.Name == "Hitbox" and sub:IsA("BasePart") then
+            record.Hitbox = sub
+            if not record.OrigHitboxCF then record.OrigHitboxCF = sub.CFrame end
+            if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
+                X.neutralizeTrap(child)
+            end
+        end
+    end)
+
+    child.AncestryChanged:Connect(function(_, parent)
+        if not parent or not child:IsDescendantOf(Workspace) then
+            X.activeTraps[child] = nil
+        end
+    end)
+end
+
+function X.initTrapEvade()
+    local transient = Workspace:FindFirstChild("Transient")
+    if transient then
+        for _, c in ipairs(transient:GetChildren()) do
+            X.registerFieldTrap(c)
+        end
+        addConnection(transient.ChildAdded:Connect(function(c)
+            X.registerFieldTrap(c)
+        end))
+        addConnection(transient.ChildRemoved:Connect(function(c)
+            X.activeTraps[c] = nil
+        end))
+    end
+
+    addConnection(Workspace.ChildAdded:Connect(function(c)
+        if c.Name == "Transient" then
+            for _, sub in ipairs(c:GetChildren()) do
+                X.registerFieldTrap(sub)
+            end
+            addConnection(c.ChildAdded:Connect(function(sub)
+                X.registerFieldTrap(sub)
+            end))
+            addConnection(c.ChildRemoved:Connect(function(sub)
+                X.activeTraps[sub] = nil
+            end))
+        end
+    end))
+
+    -- Initial sweep
+    if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
+        X.applyCanTouchProtection()
+        X.applyAllTrapNeutralization()
+    end
+
+    -- Background supervisor: maintains CanTouch protection & sweeps for newly armed traps
+    task.spawn(function()
+        while screenGui and screenGui.Parent do
+            task.wait(1.0)
+            if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
+                X.applyCanTouchProtection()
+                X.applyAllTrapNeutralization()
+            end
+        end
+    end)
+
+    -- Manual walk auto-jump radar: if walking manually within 6.5 studs of a trap, jump over it
+    task.spawn(function()
+        while screenGui and screenGui.Parent do
+            task.wait(0.12)
+            if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and autoFarmToken == 0 then
+                local ch = LocalPlayer.Character
+                local r = ch and ch:FindFirstChild("HumanoidRootPart")
+                local h = ch and ch:FindFirstChildOfClass("Humanoid")
+                if r and h and h.MoveDirection.Magnitude > 0.05 then
+                    local trapDist, _ = X.getNearestTrapDist(r.Position)
+                    if trapDist <= 6.5 and not h.Jump then
+                        h.Jump = true
+                    end
+                end
+            end
+        end
+    end)
 end
 
 -- dest may be a Vector3 OR a function returning the latest Vector3 (live-tracked target).
@@ -2001,7 +2340,16 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                         chkT = now
                     end
                 end
-                if snapRadius and xz <= snapRadius then
+                -- Trap Evade: Check if an armed trap obstructs our path
+                local detourPoint, nearestTrapDist = nil, math.huge
+                if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and typeof(X.getTrapDetourPoint) == "function" then
+                    detourPoint, nearestTrapDist = X.getTrapDetourPoint(rp, dest)
+                    -- Emergency safety: if within 6.5 studs of a trap, jump to guarantee clearance
+                    if nearestTrapDist and nearestTrapDist <= 6.5 and h and not h.Jump then
+                        h.Jump = true
+                    end
+                end
+                if snapRadius and xz <= snapRadius and not detourPoint then
                     -- Close enough: hop onto target (beside egg if snapBeside, otherwise safe zone)
                     h:Move(Vector3.zero)
                     X.markTeleport()
@@ -2018,6 +2366,13 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                             r.CFrame = CFrame.new(dest.X, yPos, dest.Z) * (r.CFrame - r.CFrame.Position)
                         end
                     end)
+                    task.wait(0.08)
+                elseif detourPoint then
+                    -- Wide lateral evasion around trap: steer towards detour waypoint (left/right)
+                    local steerVec = Vector3.new(detourPoint.X - rp.X, 0, detourPoint.Z - rp.Z)
+                    if steerVec.Magnitude > 0.5 then
+                        h:Move(steerVec.Unit, false)
+                    end
                     task.wait(0.08)
                 elseif xz <= X.TELEPORT_ZONE then
                     h:Move(Vector3.zero); X.markTeleport()
@@ -2589,6 +2944,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         end
     end)
 
+    local isEggNearTrap = (X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and X.getNearestTrapDist(livePos) <= 16.0)
     walkTo(function() return livePos end, 6, walkTok, function()
         phase = "carrying"                          -- stops the tracker (set before any yield)
         if cancelled() then finish(false); return end
@@ -4079,15 +4435,15 @@ function X.buildPetsTabUI()
 -- TAB 2: PETS & AUTOMATION SUITE
 -- ==================================================
 local tabPetsLayout = Instance.new("UIListLayout")
-tabPetsLayout.Padding = UDim.new(0, 8)
+tabPetsLayout.Padding = UDim.new(0, 6)
 tabPetsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 tabPetsLayout.Parent = tabPets
 
 local tabPetsPad = Instance.new("UIPadding")
-tabPetsPad.PaddingTop = UDim.new(0, 8)
-tabPetsPad.PaddingBottom = UDim.new(0, 12)
-tabPetsPad.PaddingLeft = UDim.new(0, 10)
-tabPetsPad.PaddingRight = UDim.new(0, 10)
+tabPetsPad.PaddingTop = UDim.new(0, 6)
+tabPetsPad.PaddingBottom = UDim.new(0, 6)
+tabPetsPad.PaddingLeft = UDim.new(0, 8)
+tabPetsPad.PaddingRight = UDim.new(0, 8)
 tabPetsPad.Parent = tabPets
 
 -- Networking helper
@@ -4130,18 +4486,37 @@ local function formatStatNumber(val)
     if typeof(val) ~= "number" then return nil end
     local absVal = math.abs(val)
     if absVal >= 1e12 then
-        return string.format("%.1fT", val / 1e12)
+        return string.format("%.1fT", val / 1e12):gsub("%.0T", "T")
     elseif absVal >= 1e9 then
-        return string.format("%.1fB", val / 1e9)
+        return string.format("%.1fB", val / 1e9):gsub("%.0B", "B")
     elseif absVal >= 1e6 then
-        return string.format("%.1fM", val / 1e6)
+        return string.format("%.1fM", val / 1e6):gsub("%.0M", "M")
     elseif absVal >= 1e3 then
-        return string.format("%.1fK", val / 1e3)
+        return string.format("%.1fK", val / 1e3):gsub("%.0K", "K")
     elseif absVal >= 10 then
-        return string.format("%.1f", val)
+        return string.format("%.1f", val):gsub("%.0$", "")
     else
-        return string.format("%.2f", val)
+        return string.format("%.2f", val):gsub("%.00$", "")
     end
+end
+
+local function formatEarnString(val)
+    if typeof(val) == "number" then
+        return "+$" .. (formatStatNumber(val) or tostring(val)) .. "/s"
+    end
+    local s = tostring(val or "")
+    if s == "" or s == "--/s" or s == "--" then return "+$0/s" end
+    if not s:find("/s") then s = s .. "/s" end
+    if not s:find("%$") then
+        if s:find("^%+") then
+            s = "+$" .. s:sub(2)
+        else
+            s = "+$" .. s
+        end
+    elseif not s:find("^%+") then
+        s = "+" .. s
+    end
+    return s
 end
 
 local function formatPetWeight(weightVal, scaleVal)
@@ -4181,14 +4556,9 @@ local function extractPetStats(petData, inst)
     local weightNum = 0
 
     if type(petData) == "table" then
-        local rawEarn = petData["Money/s"] or petData.EarnRate or petData.MoneyRate or petData.Earn or petData.Rate or petData.Income or petData.CoinsPerSec or petData.CoinsPerSecond or petData.Cps or petData.Production
+        local rawEarn = petData["Money/s"] or petData.EarnRate or petData.MoneyRate or petData.Earn or petData.Rate or petData.Income or petData.CoinsPerSec or petData.CoinsPerSecond or petData.Cps or petData.Production or petData.Value
         if rawEarn ~= nil then
-            if type(rawEarn) == "number" then
-                earn = "+" .. formatStatNumber(rawEarn) .. "/s"
-            else
-                earn = tostring(rawEarn)
-                if not string.find(earn, "/s") then earn = earn .. "/s" end
-            end
+            earn = formatEarnString(rawEarn)
         end
 
         local rawWeight = petData.Weight or petData.Mass or petData.Kg or petData.Size
@@ -4202,14 +4572,9 @@ local function extractPetStats(petData, inst)
         pcall(function()
             local attrs = inst:GetAttributes() or {}
             if not earn then
-                local aEarn = attrs["Money/s"] or attrs.EarnRate or attrs.MoneyRate or attrs.Earn or attrs.Rate or attrs.Income
+                local aEarn = attrs["Money/s"] or attrs.EarnRate or attrs.MoneyRate or attrs.Earn or attrs.Rate or attrs.Income or attrs.Value
                 if aEarn ~= nil then
-                    if type(aEarn) == "number" then
-                        earn = "+" .. formatStatNumber(aEarn) .. "/s"
-                    else
-                        earn = tostring(aEarn)
-                        if not string.find(earn, "/s") then earn = earn .. "/s" end
-                    end
+                    earn = formatEarnString(aEarn)
                 end
             end
             if not weight or weight == "-- kg" then
@@ -4224,7 +4589,7 @@ local function extractPetStats(petData, inst)
                     if desc:IsA("TextLabel") and desc.Visible and #desc.Text > 0 then
                         local t = desc.Text
                         if not earn and (string.find(t, "/s") or string.find(t, "/sec")) then
-                            earn = t
+                            earn = formatEarnString(t)
                         end
                         if (not weight or weight == "-- kg") and (string.find(t:lower(), "kg") or string.find(t:lower(), "lbs")) then
                             local wStr, wN = formatPetWeight(t, 1)
@@ -4239,7 +4604,7 @@ local function extractPetStats(petData, inst)
         end)
     end
 
-    return earn or "--/s", weight or "-- kg", weightNum
+    return earn or "+$0/s", weight or "-- kg", weightNum
 end
 
 local function countInventoryEggs()
@@ -4335,6 +4700,252 @@ local function updateInventorySummaryUI()
 end
 
 
+function X.parseEarnNumber(str)
+    if typeof(str) == "number" then return str end
+    if not str or typeof(str) ~= "string" then return 0 end
+    local mult = 1
+    local upper = str:upper()
+    if upper:find("T") then mult = 1e12
+    elseif upper:find("B") then mult = 1e9
+    elseif upper:find("M") then mult = 1e6
+    elseif upper:find("K") then mult = 1e3
+    end
+    local clean = str:gsub("[^%d%.]", "")
+    local num = tonumber(clean)
+    return num and (num * mult) or 0
+end
+
+function X.formatPriceString(val)
+    if typeof(val) == "number" then
+        return "$" .. (formatStatNumber(val) or tostring(val))
+    end
+    local s = tostring(val or "")
+    if s == "" then return "$0" end
+    s = s:gsub("[%s💵]+", "")
+    if not s:find("%$") then s = "$" .. s end
+    return s
+end
+
+X.speciesConfigCache = {}
+X.configsIndexed = false
+
+function X.indexAllConfigs()
+    if X.configsIndexed then return end
+    local confFolder = ReplicatedStorage:FindFirstChild("Data")
+        and ReplicatedStorage.Data:FindFirstChild("Assets")
+        and ReplicatedStorage.Data.Assets:FindFirstChild("Configs")
+    if not confFolder then return end
+
+    for _, mod in ipairs(confFolder:GetChildren()) do
+        if mod:IsA("ModuleScript") then
+            local ok, data = pcall(require, mod)
+            if ok and type(data) == "table" and data.EarningRate then
+                local rate = tonumber(data.EarningRate)
+                if rate and rate > 0 then
+                    local cKey = mod.Name:lower():gsub("[^%w]", "")
+                    X.speciesConfigCache[cKey] = rate
+                    if data.DisplayName and data.DisplayName ~= "" then
+                        local dKey = tostring(data.DisplayName):lower():gsub("[^%w]", "")
+                        X.speciesConfigCache[dKey] = rate
+                    end
+                end
+            end
+        end
+    end
+    -- Authoritative Shark separation:
+    -- In game configs, Config [Finned Thresher] is Shark (15,000/s)
+    -- Config [Shark] is Mutant Shark (215,000,000/s)
+    X.speciesConfigCache["shark"] = 15000
+    X.speciesConfigCache["mutantshark"] = 215000000
+    X.speciesConfigCache["finnedthresher"] = 15000
+    X.configsIndexed = true
+end
+
+function X.getSpeciesBaseRate(speciesName, categoryName)
+    X.indexAllConfigs()
+
+    local function norm(s)
+        return s and tostring(s):lower():gsub("[^%w]", "") or nil
+    end
+
+    local nSpecies = norm(speciesName)
+    local nCat = norm(categoryName)
+
+    if nSpecies == "shark" and nCat ~= "mutantshark" then
+        return 15000
+    elseif nSpecies == "mutantshark" or nCat == "mutantshark" then
+        return 215000000
+    end
+
+    if nCat and X.speciesConfigCache[nCat] then
+        return X.speciesConfigCache[nCat]
+    end
+    if nSpecies and X.speciesConfigCache[nSpecies] then
+        return X.speciesConfigCache[nSpecies]
+    end
+
+    if X.EGG_SPECIES_ALIASES then
+        for _, k in ipairs({categoryName, speciesName}) do
+            local alias = k and (X.EGG_SPECIES_ALIASES[k] or X.EGG_SPECIES_ALIASES[tostring(k):lower()])
+            if alias then
+                local nAlias = norm(alias)
+                if nAlias and X.speciesConfigCache[nAlias] then
+                    return X.speciesConfigCache[nAlias]
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+function X.initInternalEngine()
+    if X._internalEngineInited then return end
+    X._internalEngineInited = true
+    pcall(function()
+        local EggRecords = require(ReplicatedStorage.Shared.Util.EggRecords)
+        local getUpvals = (typeof(debug) == "table" and typeof(debug.getupvalues) == "function" and debug.getupvalues)
+            or (typeof(getupvalues) == "function" and getupvalues)
+        if getUpvals and EggRecords and type(EggRecords.SellPrice) == "function" then
+            local u1 = getUpvals(EggRecords.SellPrice)
+            if u1 and type(u1[3]) == "table" and type(u1[3].SalePrice) == "function" then
+                local u2 = getUpvals(u1[3].SalePrice)
+                if u2 and type(u2[2]) == "table" and type(u2[2].RatePerSecond) == "function" then
+                    X.internalRatePerSecond = u2[2].RatePerSecond
+                end
+            end
+        end
+    end)
+end
+
+function X.getEggEarnRate(r)
+    if typeof(r) ~= "table" then return "+$0/s" end
+
+    -- 1. Direct record fields
+    local raw = r["Money/s"] or r.EarnRate or r.MoneyRate or r.Earn or r.Rate or r.Income or r.CoinsPerSec or r.CoinsPerSecond or r.Cps or r.Production
+    if raw ~= nil then
+        return formatEarnString(raw)
+    end
+
+    -- 2. Nested Stats / Attributes in r
+    if typeof(r.Stats) == "table" then
+        local sEarn = r.Stats["Money/s"] or r.Stats.EarnRate or r.Stats.Earn or r.Stats.Rate
+        if sEarn then
+            return formatEarnString(sEarn)
+        end
+    end
+    if typeof(r.Attributes) == "table" then
+        local aEarn = r.Attributes["Money/s"] or r.Attributes.EarnRate or r.Attributes.Earn or r.Attributes.Rate
+        if aEarn then
+            return formatEarnString(aEarn)
+        end
+    end
+
+    -- 3. Workspace.AreaEggSlotsClient slot object inspection (for map eggs)
+    local area = Workspace:FindFirstChild("AreaEggSlotsClient")
+    local uid = tostring(r.Uid or r.Id or r.UUID or "")
+    if area and uid ~= "" and X.findEggSlot then
+        local pos = extPos and extPos(r)
+        local slot = X.findEggSlot(area, uid, r.NestId, r.AreaId, pos)
+        if slot then
+            local okA, attrs = pcall(function() return slot:GetAttributes() end)
+            if okA and typeof(attrs) == "table" then
+                local aVal = attrs["Money/s"] or attrs.EarnRate or attrs.MoneyRate or attrs.Earn or attrs.Rate or attrs.Income
+                if aVal ~= nil then
+                    return formatEarnString(aVal)
+                end
+            end
+            for _, d in ipairs(slot:GetDescendants()) do
+                if d:IsA("ValueBase") and (d.Name == "Money/s" or d.Name == "EarnRate" or d.Name == "Earn") then
+                    local v = d.Value
+                    if v ~= nil then return formatEarnString(v) end
+                elseif d:IsA("TextLabel") and d.Text ~= "" then
+                    local m = d.Text:match("[%+%$]?[%d%.]+%a*/s")
+                    if m then return formatEarnString(m) end
+                end
+            end
+        end
+    end
+
+    -- 4. Check species authoritative config & growth scaling
+    local catName = r.Category or (r.Attributes and r.Attributes.Category) or r.BaseSpecies or r.AssetCategory
+    local spName = r.Species or r.DisplayName or (r.Attributes and r.Attributes.DisplayName)
+    local rawScale = tonumber(r.Scale) or (r.Attributes and tonumber(r.Attributes.Scale)) or 1
+    local rawWeight = tonumber(r.Weight) or tonumber(r.RawWeight) or (r.Attributes and tonumber(r.Attributes.Weight)) or 0
+    local mut = r.Mutation or (r.Attributes and (r.Attributes.BaseMutation or r.Attributes.Mutations)) or (typeof(mutLabel) == "function" and mutLabel(r))
+
+    -- Method A: Direct internal client engine (RatePerSecond from AssetItems via EggRecords upvalues)
+    X.initInternalEngine()
+    if typeof(X.internalRatePerSecond) == "function" then
+        local mutArr = {}
+        if mut and mut ~= "" and mut ~= "Normal" then
+            table.insert(mutArr, mut)
+        end
+        local iData = {
+            Category = catName or spName or "Shark",
+            AssetCategory = catName or spName or "Shark",
+            Scale = rawScale,
+            AssetScale = rawScale,
+            Weight = rawWeight,
+            AssetWeight = rawWeight,
+            Mutations = mutArr,
+            BaseMutation = (mut and mut ~= "" and mut ~= "Normal") and mut or nil,
+        }
+        local okRate, liveRate = pcall(X.internalRatePerSecond, iData)
+        if okRate and typeof(liveRate) == "number" and liveRate > 0 then
+            return formatEarnString(liveRate)
+        end
+    end
+
+    -- Method B: Authoritative Config Base Rate * Growth Multiplier (STEEP_GROWTH_POWER = 1.389) * Mutation Multiplier
+    local baseEarn = X.getSpeciesBaseRate(spName, catName)
+    if not baseEarn then
+        local fullRar = r.Rarity or (typeof(effectiveRarity) == "function" and effectiveRarity(r)) or "Common"
+        local lowName = tostring(spName or catName or ""):lower()
+        if lowName == "shark" then
+            baseEarn = 15000
+        elseif lowName == "mutant shark" then
+            baseEarn = 215000000
+        else
+            local baseTable = {
+                ["Common"]    = 100,
+                ["Uncommon"]  = 500,
+                ["Rare"]      = 2500,
+                ["Epic"]      = 15000,
+                ["Legendary"] = 100000,
+                ["Mythic"]    = 1000000,
+                ["Cosmic"]    = 25000000,
+                ["Secret"]    = 215000000,
+                ["Eternal"]   = 10000000000,
+                ["Divine"]    = 150000000000,
+            }
+            baseEarn = baseTable[fullRar] or 100
+        end
+    end
+
+    local growthMult = 1
+    if rawScale <= 2.0 then
+        growthMult = rawScale
+    elseif rawScale <= 6.0 then
+        growthMult = rawScale ^ 1.389
+    else
+        growthMult = 4.6 * (rawScale ^ 0.72)
+    end
+
+    local mutMult = 1
+    if mut and mut ~= "" and mut ~= "Normal" then
+        local lowM = tostring(mut):lower()
+        if lowM:find("rainbow") then mutMult = 2.0
+        elseif lowM:find("gold") then mutMult = 1.5
+        elseif lowM:find("scramble") then mutMult = 1.5
+        elseif lowM:find("silver") then mutMult = 1.25
+        else mutMult = 1 end
+    end
+
+    local finalEarn = math.round(baseEarn * growthMult * mutMult)
+    return formatEarnString(finalEarn)
+end
+
 local selectedFuseSpecies = nil
 local eligibleFusePets = {}
 local checkedPetUids = {}
@@ -4360,7 +4971,9 @@ local function scanEligibleFusePets()
                             equippedUids[uStr] = true
                             if type(petRec) == "table" then
                                 local sp = petRec.Species or petRec.Name or petRec.PetType
-                                if sp then equippedNames[sp] = (equippedNames[sp] or 0) + 1 end
+                                if sp then
+                                    equippedNames[sp] = (equippedNames[sp] or 0) + 1
+                                end
                             end
                         end
                     end
@@ -4369,25 +4982,56 @@ local function scanEligibleFusePets()
         end
     end
 
-    -- 2. PlayerGui.ActivePets.Frame.ScrollingFrame for live equipped pet slots and earn rates
+    -- 2. PlayerGui live pet slots & sell panel / satchel / backpack for live earn rates and prices
+    local liveGuiEarnRates = {}
+    local liveGuiSellPrices = {}
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    local activePetsGui = pg and pg:FindFirstChild("ActivePets")
-    local activeSf = activePetsGui and activePetsGui:FindFirstChild("ScrollingFrame", true)
-    if activeSf then
-        for _, f in ipairs(activeSf:GetChildren()) do
-            local uid = f.Name:match("^Pet_(%x+)$")
-            if uid then
-                equippedUids[uid] = true
-                for _, d in ipairs(f:GetDescendants()) do
-                    if d:IsA("TextLabel") and d.Text ~= "" then
-                        local earnMatch = d.Text:match("%$[%d%.]+%a*/s")
-                        if earnMatch then
-                            equippedEarnRates[uid] = earnMatch
+    if pg then
+        pcall(function()
+            for _, g in ipairs(pg:GetChildren()) do
+                if g:IsA("ScreenGui") and g ~= screenGui then
+                    local gLow = g.Name:lower()
+                    if gLow:find("activepets") or gLow:find("satchel") or gLow:find("pet") or gLow:find("backpack") or gLow:find("sell") or gLow:find("inv") or gLow:find("haul") then
+                        for _, d in ipairs(g:GetDescendants()) do
+                            if d:IsA("TextLabel") and d.Text ~= "" then
+                                local m = d.Text:match("[%+%$]?[%d%.]+%a*/s")
+                                local isPrice = d.Text:find("💵") or (d.Text:match("^%$[%d%.]+%a*$") and not d.Text:find("/s"))
+                                if m or isPrice then
+                                    local p = d.Parent
+                                    for _ = 1, 4 do
+                                        if not p or p == g then break end
+                                        local u = p.Name:match("^Pet_(%x+)$")
+                                            or (p.Name:len() == 32 and p.Name:match("^%x+$") and p.Name)
+                                        if not u then
+                                            local okAt, pAt = pcall(function() return p:GetAttributes() end)
+                                            if okAt and type(pAt) == "table" then
+                                                u = pAt.UID or pAt.Uid or pAt.Id or pAt.UUID
+                                            end
+                                        end
+                                        if u then
+                                            local uStr = tostring(u)
+                                            if m then
+                                                local formattedRate = formatEarnString(m)
+                                                liveGuiEarnRates[uStr] = formattedRate
+                                                if gLow:find("activepets") then
+                                                    equippedUids[uStr] = true
+                                                    equippedEarnRates[uStr] = formattedRate
+                                                end
+                                            elseif isPrice then
+                                                local cleanP = d.Text:gsub("^[%s💵]+", "")
+                                                liveGuiSellPrices[uStr] = cleanP
+                                            end
+                                            break
+                                        end
+                                        p = p.Parent
+                                    end
+                                end
+                            end
                         end
                     end
                 end
             end
-        end
+        end)
     end
 
     -- 3. Gather all owned pets from Backpack & Character Tools (PRIMARY GROUND TRUTH)
@@ -4404,7 +5048,12 @@ local function scanEligibleFusePets()
                 local isGear = attrs.GearName ~= nil or itemType == "Gear" or attrs.IsBat == true
                 if not isGear then
                     local dName = attrs.DisplayName or tool.Name
-                    local isEgg = string.find(dName:lower(), "egg") ~= nil or attrs.Category == "Egg" or string.find(tool.Name:lower(), "egg") ~= nil
+                    local isEgg = string.find(dName:lower(), "egg") ~= nil
+                        or attrs.Category == "Egg"
+                        or string.find(tool.Name:lower(), "egg") ~= nil
+                        or attrs.ItemType == "Egg"
+                        or attrs.IsEgg == true
+                        or attrs.CarrierUserId ~= nil
                     if not isEgg then
                         local petUid = attrs.UID or attrs.Uid or attrs.Id or tool.Name
                         local uidStr = tostring(petUid)
@@ -4416,7 +5065,14 @@ local function scanEligibleFusePets()
                                 cleanBase = cleanBase:gsub("^" .. mWord .. "%s+", "")
                             end
                             cleanBase = cleanBase:gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
-                            if X.getDisplayEggName then
+                            local rawBaseSpecies = cleanBase
+                            if cleanBase:lower() == "shark" then
+                                cleanBase = "Shark"
+                                rawBaseSpecies = "Shark"
+                            elseif cleanBase:lower() == "mutant shark" then
+                                cleanBase = "Mutant Shark"
+                                rawBaseSpecies = "Mutant Shark"
+                            elseif X.getDisplayEggName then
                                 cleanBase = X.getDisplayEggName(cleanBase)
                             end
 
@@ -4442,15 +5098,46 @@ local function scanEligibleFusePets()
                             end
 
                             local rarity = attrs.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[cleanBase] or PET_RARITY_PRESETS[rawName] or (attrs.Category and PET_RARITY_PRESETS[attrs.Category]))) or "Common"
+                            if cleanBase == "Shark" then
+                                rarity = "Legendary"
+                            elseif cleanBase == "Mutant Shark" then
+                                rarity = "Secret"
+                            end
 
                             local isEquip = equippedUids[uidStr] == true or attrs.Equipped == true
-                            local earn = equippedEarnRates[uidStr] or "--/s"
+                            local earn = equippedEarnRates[uidStr] or liveGuiEarnRates[uidStr]
+                            if not earn or earn == "--/s" or earn == "" or earn == "+$0/s" then
+                                local petRec = {
+                                    Uid = uidStr,
+                                    Species = cleanBase,
+                                    BaseSpecies = rawBaseSpecies,
+                                    Category = attrs.Category or rawBaseSpecies,
+                                    DisplayName = rawName,
+                                    Rarity = rarity,
+                                    Mutation = mut,
+                                    Weight = weightNum,
+                                    Scale = tonumber(attrs.Scale) or 1,
+                                    RawWeight = tonumber(attrs.Weight) or 0,
+                                    Attributes = attrs,
+                                }
+                                earn = X.getEggEarnRate(petRec)
+                            end
+                            earn = formatEarnString(earn)
+
+                            local sellPriceStr = liveGuiSellPrices[uidStr]
+                            if not sellPriceStr or sellPriceStr == "" then
+                                local earnVal = X.parseEarnNumber(earn)
+                                if earnVal and earnVal > 0 then
+                                    sellPriceStr = X.formatPriceString(earnVal * 80)
+                                end
+                            end
 
                             table.insert(rawPets, {
                                 Id = uidStr,
                                 Uid = uidStr,
                                 Species = cleanBase,
                                 BaseSpecies = cleanBase,
+                                RawSpecies = rawBaseSpecies,
                                 DisplayName = rawName,
                                 Mutation = mut,
                                 Rarity = rarity,
@@ -4458,6 +5145,7 @@ local function scanEligibleFusePets()
                                 _weightNum = weightNum,
                                 _weight = weightStr,
                                 _earn = earn,
+                                _price = sellPriceStr,
                                 _source = srcName
                             })
                             sourceBreakdown[srcName] = (sourceBreakdown[srcName] or 0) + 1
@@ -4594,20 +5282,32 @@ local function scanEligibleFusePets()
         totalPets = totalPets + 1
         local uid = tostring(pet.Id or pet.Uid or pet.UUID or pet.PetId or "")
         local cleanBase = pet.BaseSpecies or pet.Species or "Unknown"
-        if X.getDisplayEggName then
+        if cleanBase:lower() == "shark" then
+            cleanBase = "Shark"
+        elseif cleanBase:lower() == "mutant shark" then
+            cleanBase = "Mutant Shark"
+        elseif X.getDisplayEggName then
             cleanBase = X.getDisplayEggName(cleanBase)
         end
         local rarity = pet.Rarity or (typeof(PET_RARITY_PRESETS) == "table" and (PET_RARITY_PRESETS[cleanBase] or (pet.Species and PET_RARITY_PRESETS[pet.Species]))) or "Common"
+        if cleanBase == "Shark" then
+            rarity = "Legendary"
+        elseif cleanBase == "Mutant Shark" then
+            rarity = "Secret"
+        end
 
         local isEquipped = (pet.Equipped == true)
             or (uid ~= "" and equippedUids[uid] == true)
             or (equippedNames[cleanBase] and equippedNames[cleanBase] > 0)
+            or (pet.RawSpecies and equippedNames[pet.RawSpecies] and equippedNames[pet.RawSpecies] > 0)
             or (pet.DisplayName and equippedNames[pet.DisplayName] and equippedNames[pet.DisplayName] > 0)
 
         if isEquipped then
             totalEquipped = totalEquipped + 1
             if equippedNames[cleanBase] and equippedNames[cleanBase] > 0 then
                 equippedNames[cleanBase] = equippedNames[cleanBase] - 1
+            elseif pet.RawSpecies and equippedNames[pet.RawSpecies] and equippedNames[pet.RawSpecies] > 0 then
+                equippedNames[pet.RawSpecies] = equippedNames[pet.RawSpecies] - 1
             elseif pet.DisplayName and equippedNames[pet.DisplayName] and equippedNames[pet.DisplayName] > 0 then
                 equippedNames[pet.DisplayName] = equippedNames[pet.DisplayName] - 1
             end
@@ -4621,13 +5321,17 @@ local function scanEligibleFusePets()
                     uids = {},
                     pets = {},
                     rarity = rarity,
-                    earn = pet._earn or "--/s",
+                    earn = pet._earn or formatEarnString(0),
+                    price = pet._price or "",
                     weight = pet._weight or "-- kg",
                     mutCounts = {}
                 }
             end
-            if pet._earn and pet._earn ~= "--/s" then
+            if pet._earn and pet._earn ~= "--/s" and pet._earn ~= "" and pet._earn ~= "+$0/s" then
                 unequippedGroups[cleanBase].earn = pet._earn
+            end
+            if pet._price and pet._price ~= "" then
+                unequippedGroups[cleanBase].price = pet._price
             end
             if pet._weight and pet._weight ~= "-- kg" then
                 unequippedGroups[cleanBase].weight = pet._weight
@@ -4641,11 +5345,13 @@ local function scanEligibleFusePets()
                 uid = uid,
                 species = cleanBase,
                 baseSpecies = cleanBase,
+                rawSpecies = pet.RawSpecies or pet.BaseSpecies or pet.Species or cleanBase,
                 displayName = pet.DisplayName or cleanBase,
                 mutation = pet.Mutation or "",
                 weightNum = pet._weightNum or 0,
                 weight = pet._weight or "-- kg",
-                earn = pet._earn or "--/s",
+                earn = (pet._earn and pet._earn ~= "--/s" and pet._earn ~= "") and pet._earn or unequippedGroups[cleanBase].earn or "+$0/s",
+                price = (pet._price and pet._price ~= "") and pet._price or unequippedGroups[cleanBase].price or "",
                 source = pet._source or "Backpack"
             })
         end
@@ -4711,6 +5417,7 @@ local function callFuseSpecificPets(species, uidsToFuse)
     local rfLoad     = getNetRemote("RF/Fusery/LoadPet")
     local rfBegin    = getNetRemote("RF/Fusery/BeginFuse")
     local rfFinish   = getNetRemote("RF/Fusery/FinishReveal")
+    local rfEject    = getNetRemote("RF/Fusery/EjectPet")
 
     if rfBriefing then pcall(function() rfBriefing:InvokeServer() end) end
 
@@ -4775,6 +5482,9 @@ local function callFuseSpecificPets(species, uidsToFuse)
         end
     else
         logAuto(string.format("⚠️ Only %d/3 pets loaded into Fusery. Aborting fuse.", loadedCount), Color3.fromRGB(255, 160, 80))
+        if rfEject then
+            pcall(function() rfEject:InvokeServer() end)
+        end
     end
 
     task.wait(0.3)
@@ -4814,7 +5524,35 @@ local function callFuseSelectedPet(species)
             if #uids == 3 then
                 return callFuseSpecificPets(species, uids)
             end
-            -- Fallback if not exactly 3 checked: use the first 3
+
+            -- Auto-pick 3 compatible pets:
+            -- 1. Try to find 3 pets matching exact raw species + mutation
+            local exactBuckets = {}
+            for _, p in ipairs(item.pets or {}) do
+                local k = (p.mutation or "Normal") .. "::" .. (p.rawSpecies or item.baseSpecies or "")
+                exactBuckets[k] = exactBuckets[k] or {}
+                table.insert(exactBuckets[k], p.uid)
+            end
+            for _, bUids in pairs(exactBuckets) do
+                if #bUids >= 3 then
+                    return callFuseSpecificPets(species, { bUids[1], bUids[2], bUids[3] })
+                end
+            end
+
+            -- 2. Try to find 3 pets matching exact mutation
+            local mutBuckets = {}
+            for _, p in ipairs(item.pets or {}) do
+                local k = p.mutation or "Normal"
+                mutBuckets[k] = mutBuckets[k] or {}
+                table.insert(mutBuckets[k], p.uid)
+            end
+            for _, bUids in pairs(mutBuckets) do
+                if #bUids >= 3 then
+                    return callFuseSpecificPets(species, { bUids[1], bUids[2], bUids[3] })
+                end
+            end
+
+            -- 3. Fallback if not exactly 3 checked: use the first 3
             if #item.uids >= 3 then
                 return callFuseSpecificPets(species, { item.uids[1], item.uids[2], item.uids[3] })
             end
@@ -4888,36 +5626,36 @@ local function createAutoCard(titleText, height)
 end
 
 -- CARD 1: INVENTORY OVERVIEW (At the top of Pets Tab)
-local cardInv = createAutoCard("📦 Inventory Overview", 74)
+local cardInv = createAutoCard("📦 Inventory Overview", 58)
 
 invPetsLabel = Instance.new("TextLabel")
-invPetsLabel.Size = UDim2.new(1, -44, 0, 20); invPetsLabel.Position = UDim2.new(0, 10, 0, 26)
+invPetsLabel.Size = UDim2.new(1, -38, 0, 16); invPetsLabel.Position = UDim2.new(0, 8, 0, 20)
 invPetsLabel.BackgroundTransparency = 1
 invPetsLabel.Text = "🐾 Total Pets: 0   (0 Free, 0 Equipped)"
 invPetsLabel.TextColor3 = Color3.fromRGB(220, 235, 255)
-invPetsLabel.TextSize = 11; invPetsLabel.Font = Enum.Font.GothamBold
+invPetsLabel.TextSize = 10; invPetsLabel.Font = Enum.Font.GothamBold
 invPetsLabel.TextXAlignment = Enum.TextXAlignment.Left; invPetsLabel.Parent = cardInv
 
 invEggsLabel = Instance.new("TextLabel")
-invEggsLabel.Size = UDim2.new(1, -44, 0, 20); invEggsLabel.Position = UDim2.new(0, 10, 0, 48)
+invEggsLabel.Size = UDim2.new(1, -38, 0, 16); invEggsLabel.Position = UDim2.new(0, 8, 0, 36)
 invEggsLabel.BackgroundTransparency = 1
 invEggsLabel.Text = "🥚 Total Eggs: 0 in inventory"
 invEggsLabel.TextColor3 = Color3.fromRGB(180, 240, 200)
-invEggsLabel.TextSize = 11; invEggsLabel.Font = Enum.Font.GothamBold
+invEggsLabel.TextSize = 10; invEggsLabel.Font = Enum.Font.GothamBold
 invEggsLabel.TextXAlignment = Enum.TextXAlignment.Left; invEggsLabel.Parent = cardInv
 
 local refreshInvBtn = Instance.new("TextButton")
-refreshInvBtn.Size = UDim2.new(0, 28, 0, 28); refreshInvBtn.Position = UDim2.new(1, -36, 0, 32)
+refreshInvBtn.Size = UDim2.new(0, 24, 0, 24); refreshInvBtn.Position = UDim2.new(1, -30, 0, 22)
 refreshInvBtn.BackgroundColor3 = Color3.fromRGB(42, 52, 75); refreshInvBtn.Text = "🔄"
-refreshInvBtn.TextColor3 = Color3.new(1, 1, 1); refreshInvBtn.TextSize = 12
+refreshInvBtn.TextColor3 = Color3.new(1, 1, 1); refreshInvBtn.TextSize = 11
 refreshInvBtn.Font = Enum.Font.GothamBold; refreshInvBtn.Parent = cardInv
-Instance.new("UICorner", refreshInvBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", refreshInvBtn).CornerRadius = UDim.new(0, 5)
 
 -- CARD 2: FUSERY CANDIDATES (Count >= 3)
-local cardFuse = createAutoCard("🧪 Fusery Candidates (Select 3 to Fuse)", 300)
+local cardFuse = createAutoCard("🧪 Fusery Candidates (Select 3 to Fuse)", 290)
 
 fuseHeaderBadge = Instance.new("TextLabel")
-fuseHeaderBadge.Size = UDim2.new(0, 110, 0, 20); fuseHeaderBadge.Position = UDim2.new(1, -145, 0, 4)
+fuseHeaderBadge.Size = UDim2.new(0, 100, 0, 18); fuseHeaderBadge.Position = UDim2.new(1, -132, 0, 3)
 fuseHeaderBadge.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
 fuseHeaderBadge.Text = "0 eligible"
 fuseHeaderBadge.TextColor3 = Color3.fromRGB(160, 210, 255)
@@ -4926,15 +5664,15 @@ fuseHeaderBadge.Parent = cardFuse
 Instance.new("UICorner", fuseHeaderBadge).CornerRadius = UDim.new(0, 4)
 
 local refreshFuseListBtn = Instance.new("TextButton")
-refreshFuseListBtn.Size = UDim2.new(0, 24, 0, 20); refreshFuseListBtn.Position = UDim2.new(1, -30, 0, 4)
+refreshFuseListBtn.Size = UDim2.new(0, 22, 0, 18); refreshFuseListBtn.Position = UDim2.new(1, -28, 0, 3)
 refreshFuseListBtn.BackgroundColor3 = Color3.fromRGB(42, 52, 75); refreshFuseListBtn.Text = "🔄"
-refreshFuseListBtn.TextColor3 = Color3.new(1, 1, 1); refreshFuseListBtn.TextSize = 11
+refreshFuseListBtn.TextColor3 = Color3.new(1, 1, 1); refreshFuseListBtn.TextSize = 10
 refreshFuseListBtn.Font = Enum.Font.GothamBold; refreshFuseListBtn.Parent = cardFuse
 Instance.new("UICorner", refreshFuseListBtn).CornerRadius = UDim.new(0, 4)
 
 -- Scrolling Container for Candidate Pets
 local fuseScroll = Instance.new("ScrollingFrame")
-fuseScroll.Size = UDim2.new(1, -12, 1, -32); fuseScroll.Position = UDim2.new(0, 6, 0, 26)
+fuseScroll.Size = UDim2.new(1, -10, 1, -28); fuseScroll.Position = UDim2.new(0, 5, 0, 24)
 fuseScroll.BackgroundColor3 = Color3.fromRGB(16, 20, 30); fuseScroll.BorderSizePixel = 0
 fuseScroll.ScrollBarThickness = 4; fuseScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 fuseScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -4952,17 +5690,17 @@ fuseScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
 fuseScrollLayout.Parent = fuseScroll
 
 -- CARD 3: LIVE AUTOMATION LOG
-local cardLog = createAutoCard("📜 Fusery Activity Log", 125)
+local cardLog = createAutoCard("📜 Fusery Activity Log", 82)
 
 local clearLogBtn = Instance.new("TextButton")
-clearLogBtn.Size = UDim2.new(0, 48, 0, 18); clearLogBtn.Position = UDim2.new(1, -54, 0, 4)
+clearLogBtn.Size = UDim2.new(0, 42, 0, 18); clearLogBtn.Position = UDim2.new(1, -48, 0, 3)
 clearLogBtn.BackgroundColor3 = Color3.fromRGB(50, 58, 80); clearLogBtn.Text = "Clear"
-clearLogBtn.TextColor3 = Color3.fromRGB(200, 215, 240); clearLogBtn.TextSize = 10
+clearLogBtn.TextColor3 = Color3.fromRGB(200, 215, 240); clearLogBtn.TextSize = 9
 clearLogBtn.Font = Enum.Font.GothamBold; clearLogBtn.Parent = cardLog
 Instance.new("UICorner", clearLogBtn).CornerRadius = UDim.new(0, 4)
 
 logScroll = Instance.new("ScrollingFrame")
-logScroll.Size = UDim2.new(1, -16, 0, 90); logScroll.Position = UDim2.new(0, 8, 0, 28)
+logScroll.Size = UDim2.new(1, -12, 0, 54); logScroll.Position = UDim2.new(0, 6, 0, 24)
 logScroll.BackgroundColor3 = Color3.fromRGB(16, 18, 26); logScroll.BorderSizePixel = 0
 logScroll.ScrollBarThickness = 4; logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -5109,16 +5847,16 @@ updateFuseSelectorUI = function(forceReload)
 
         -- Group Header
         local groupHeader = Instance.new("Frame")
-        groupHeader.Size = UDim2.new(1, 0, 0, 36)
+        groupHeader.Size = UDim2.new(1, 0, 0, 30)
         groupHeader.BackgroundColor3 = Color3.fromRGB(28, 36, 52)
         groupHeader.BorderSizePixel = 0
         groupHeader.LayoutOrder = 1
         groupHeader.Parent = groupCard
-        Instance.new("UICorner", groupHeader).CornerRadius = UDim.new(0, 8)
+        Instance.new("UICorner", groupHeader).CornerRadius = UDim.new(0, 6)
 
         -- Left Rarity Stripe
         local strip = Instance.new("Frame")
-        strip.Size = UDim2.new(0, 4, 1, -8); strip.Position = UDim2.new(0, 5, 0, 4)
+        strip.Size = UDim2.new(0, 4, 1, -6); strip.Position = UDim2.new(0, 5, 0, 3)
         strip.BackgroundColor3 = rarCol; strip.BorderSizePixel = 0
         strip.Parent = groupHeader
         Instance.new("UICorner", strip).CornerRadius = UDim.new(0, 2)
@@ -5131,33 +5869,33 @@ updateFuseSelectorUI = function(forceReload)
         end
         local mutSuffix = (#mutSummaryList > 0) and (" (" .. table.concat(mutSummaryList, ", ") .. ")") or ""
 
-        -- Species Title + Count Badge
+        -- Species Title + Count Badge (Clean: species, rarity, and copy count - no duplicate price on header)
         local titleLabel = Instance.new("TextLabel")
-        titleLabel.Size = UDim2.new(1, -170, 1, 0); titleLabel.Position = UDim2.new(0, 16, 0, 0)
+        titleLabel.Size = UDim2.new(1, -150, 1, 0); titleLabel.Position = UDim2.new(0, 14, 0, 0)
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = string.format("%s  [%s]  •  %d copies%s", g.baseSpecies, g.rarity, g.count, mutSuffix)
         titleLabel.TextColor3 = Color3.fromRGB(235, 245, 255)
-        titleLabel.TextSize = 11; titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.TextSize = 10.5; titleLabel.Font = Enum.Font.GothamBold
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
         titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
         titleLabel.Parent = groupHeader
 
         -- Auto 3 (Lightest) Button
         local auto3Btn = Instance.new("TextButton")
-        auto3Btn.Size = UDim2.new(0, 58, 0, 24); auto3Btn.Position = UDim2.new(1, -162, 0.5, -12)
+        auto3Btn.Size = UDim2.new(0, 50, 0, 20); auto3Btn.Position = UDim2.new(1, -145, 0.5, -10)
         auto3Btn.BackgroundColor3 = Color3.fromRGB(40, 50, 72)
         auto3Btn.Text = "Auto 3"
         auto3Btn.TextColor3 = Color3.fromRGB(190, 220, 255)
-        auto3Btn.TextSize = 10; auto3Btn.Font = Enum.Font.GothamBold
+        auto3Btn.TextSize = 9.5; auto3Btn.Font = Enum.Font.GothamBold
         auto3Btn.Parent = groupHeader
         Instance.new("UICorner", auto3Btn).CornerRadius = UDim.new(0, 4)
 
         -- Fuse Button
         local fuseGroupBtn = Instance.new("TextButton")
-        fuseGroupBtn.Size = UDim2.new(0, 96, 0, 24); fuseGroupBtn.Position = UDim2.new(1, -100, 0.5, -12)
-        fuseGroupBtn.TextSize = 10; fuseGroupBtn.Font = Enum.Font.GothamBold
+        fuseGroupBtn.Size = UDim2.new(0, 90, 0, 20); fuseGroupBtn.Position = UDim2.new(1, -92, 0.5, -10)
+        fuseGroupBtn.TextSize = 9.5; fuseGroupBtn.Font = Enum.Font.GothamBold
         fuseGroupBtn.Parent = groupHeader
-        Instance.new("UICorner", fuseGroupBtn).CornerRadius = UDim.new(0, 5)
+        Instance.new("UICorner", fuseGroupBtn).CornerRadius = UDim.new(0, 4)
         local fbStroke = Instance.new("UIStroke", fuseGroupBtn)
         fbStroke.Thickness = 1
 
@@ -5201,36 +5939,31 @@ updateFuseSelectorUI = function(forceReload)
         rcPad.PaddingLeft = UDim.new(0, 6); rcPad.PaddingRight = UDim.new(0, 6)
 
         for idx, pet in ipairs(g.pets) do
-            local shortUid = (#pet.uid > 8) and (pet.uid:sub(1, 8) .. "...") or pet.uid
-
             local petRow = Instance.new("Frame")
-            petRow.Size = UDim2.new(1, 0, 0, 28)
+            petRow.Size = UDim2.new(1, 0, 0, 24)
             petRow.BorderSizePixel = 0
             petRow.LayoutOrder = idx
             petRow.Parent = rowsContainer
             Instance.new("UICorner", petRow).CornerRadius = UDim.new(0, 5)
             local rowStroke = Instance.new("UIStroke", petRow)
 
-            -- Pet details label (index, mutation badge, weight, earn/s, short UID)
+            -- Pet details label (index, earn/s, mutation badge, weight - only weight and earn/s, no parenthesis price)
             local rowLabel = Instance.new("TextLabel")
-            rowLabel.Size = UDim2.new(1, -38, 1, 0); rowLabel.Position = UDim2.new(0, 8, 0, 0)
+            rowLabel.Size = UDim2.new(1, -32, 1, 0); rowLabel.Position = UDim2.new(0, 6, 0, 0)
             rowLabel.BackgroundTransparency = 1
             local mutTag = (pet.mutation and pet.mutation ~= "" and pet.mutation ~= "Normal") and ("[" .. pet.mutation .. "] ") or ""
-            local detailText = string.format("#%d  %s⚖️ %s", idx, mutTag, pet.weight)
-            if pet.earn and pet.earn ~= "--/s" and pet.earn ~= "" then
-                detailText = detailText .. "  •  💰 " .. tostring(pet.earn)
-            end
-            detailText = detailText .. "  •  [" .. shortUid .. "]"
+            local earnTag = (pet.earn and pet.earn ~= "--/s" and pet.earn ~= "") and pet.earn or "+$0/s"
+            local detailText = string.format("#%d  %s  %s⚖️ %s", idx, earnTag, mutTag, pet.weight)
             rowLabel.Text = detailText
-            rowLabel.TextSize = 10; rowLabel.Font = Enum.Font.Gotham
+            rowLabel.TextSize = 9.5; rowLabel.Font = Enum.Font.Gotham
             rowLabel.TextXAlignment = Enum.TextXAlignment.Left
             rowLabel.TextTruncate = Enum.TextTruncate.AtEnd
             rowLabel.Parent = petRow
 
             -- Checkbox Button
             local chkBtn = Instance.new("TextButton")
-            chkBtn.Size = UDim2.new(0, 20, 0, 20); chkBtn.Position = UDim2.new(1, -26, 0.5, -10)
-            chkBtn.TextSize = 13; chkBtn.Font = Enum.Font.GothamBold
+            chkBtn.Size = UDim2.new(0, 18, 0, 18); chkBtn.Position = UDim2.new(1, -24, 0.5, -9)
+            chkBtn.TextSize = 11; chkBtn.Font = Enum.Font.GothamBold
             chkBtn.Parent = petRow
             Instance.new("UICorner", chkBtn).CornerRadius = UDim.new(0, 4)
             local chkStroke = Instance.new("UIStroke", chkBtn)
@@ -6619,7 +7352,72 @@ function X.buildUtilityTabUI()
         end
     end))
 
-    X.utilityCleanup = function() end
+    -- ========================================================================
+    -- ROW 2: TRAP EVADE (TEXT | ON/OFF)
+    -- ========================================================================
+    local rowTrap = Instance.new("Frame")
+    rowTrap.Size = UDim2.new(1, 0, 0, 36)
+    rowTrap.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowTrap.BorderSizePixel = 0
+    rowTrap.LayoutOrder = 2
+    rowTrap.Parent = tabUtility
+    Instance.new("UICorner", rowTrap).CornerRadius = UDim.new(0, 6)
+    local strokeTrap = Instance.new("UIStroke", rowTrap)
+    strokeTrap.Color = Color3.fromRGB(45, 55, 75)
+    strokeTrap.Thickness = 1
+
+    local lblTrap = Instance.new("TextLabel")
+    lblTrap.Size = UDim2.new(1, -70, 1, 0)
+    lblTrap.Position = UDim2.new(0, 12, 0, 0)
+    lblTrap.BackgroundTransparency = 1
+    lblTrap.Text = "Trap Evade"
+    lblTrap.TextColor3 = Color3.fromRGB(220, 230, 255)
+    lblTrap.Font = Enum.Font.GothamBold
+    lblTrap.TextSize = 12
+    lblTrap.TextXAlignment = Enum.TextXAlignment.Left
+    lblTrap.Parent = rowTrap
+
+    local toggleTrapBtn = Instance.new("TextButton")
+    toggleTrapBtn.Size = UDim2.new(0, 52, 0, 24)
+    toggleTrapBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    toggleTrapBtn.Font = Enum.Font.GothamBold
+    toggleTrapBtn.TextSize = 11
+    toggleTrapBtn.Parent = rowTrap
+    Instance.new("UICorner", toggleTrapBtn).CornerRadius = UDim.new(0, 5)
+
+    local function updateTrapButtonStates()
+        local en = X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled
+        toggleTrapBtn.Text = en and "ON" or "OFF"
+        toggleTrapBtn.BackgroundColor3 = en and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleTrapBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+    updateTrapButtonStates()
+    X.syncTrapEvadeUI = updateTrapButtonStates
+
+    toggleTrapBtn.MouseButton1Click:Connect(function()
+        X.TRAP_CONFIG.Enabled = not X.TRAP_CONFIG.Enabled
+        if currentSettings then currentSettings.TrapEvade = X.TRAP_CONFIG.Enabled end
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        updateTrapButtonStates()
+        if X.TRAP_CONFIG.Enabled then
+            if typeof(X.applyAllTrapNeutralization) == "function" then pcall(X.applyAllTrapNeutralization) end
+            if typeof(X.applyCanTouchProtection) == "function" then pcall(X.applyCanTouchProtection) end
+        else
+            if typeof(X.restoreAllTraps) == "function" then pcall(X.restoreAllTraps) end
+            local ch = LocalPlayer.Character
+            if ch then
+                for _, part in ipairs(ch:GetDescendants()) do
+                    if part:IsA("BasePart") then pcall(function() part.CanTouch = true end) end
+                end
+            end
+        end
+    end)
+
+    X.utilityCleanup = function()
+        pcall(function()
+            if typeof(X.restoreAllTraps) == "function" then X.restoreAllTraps() end
+        end)
+    end
 end
 
 -- ==================================================
@@ -6800,9 +7598,10 @@ tabPets.Size = UDim2.new(1, 0, 1, 0)
 tabPets.Position = UDim2.new(0, 0, 0, 0)
 tabPets.BackgroundTransparency = 1
 tabPets.BorderSizePixel = 0
-tabPets.ScrollBarThickness = 5
+tabPets.ScrollBarThickness = 0
 tabPets.CanvasSize = UDim2.new(0, 0, 0, 0)
-tabPets.AutomaticCanvasSize = Enum.AutomaticSize.Y
+tabPets.AutomaticCanvasSize = Enum.AutomaticSize.None
+tabPets.ScrollingEnabled = false
 tabPets.ClipsDescendants = true
 tabPets.Visible = false
 tabPets.Parent = contentContainer
@@ -7225,6 +8024,7 @@ end)
     X.buildUtilityTabUI()
 end
 X.buildMainUI()
+if typeof(X.initTrapEvade) == "function" then pcall(X.initTrapEvade) end
 -- ==================================================
 -- EGG CARD  (compact single-row list item)
 -- ==================================================
@@ -7267,17 +8067,17 @@ local function updateOrCreateCard(idx, r)
 
         local LEFT = 13   -- x offset after the strip
         local nm = Instance.new("TextLabel")
-        nm.Size               = UDim2.new(1, -(LEFT + 82), 0, 18)
+        nm.Size               = UDim2.new(1, -(LEFT + 138), 0, 18)
         nm.Position           = UDim2.new(0, LEFT, 0, 2)
         nm.BackgroundTransparency = 1
-        nm.TextSize           = 12
+        nm.TextSize           = 11.5
         nm.Font               = Enum.Font.GothamBold
         nm.TextXAlignment     = Enum.TextXAlignment.Left
         nm.TextTruncate       = Enum.TextTruncate.AtEnd
         nm.Parent             = card
 
         local sub = Instance.new("TextLabel")
-        sub.Size               = UDim2.new(1, -(LEFT + 82), 0, 13)
+        sub.Size               = UDim2.new(1, -(LEFT + 138), 0, 13)
         sub.Position           = UDim2.new(0, LEFT, 0, 19)
         sub.BackgroundTransparency = 1
         sub.TextColor3         = Color3.fromRGB(130, 145, 175)
@@ -7340,7 +8140,7 @@ local function updateOrCreateCard(idx, r)
 
     local isNewOrUnk = X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r)
     local titleSuffix = isFarming and "  [FARMING]" or (isNewOrUnk and "  [NEW/UNKNOWN]" or "")
-    item.nm.Text = ("#%d  %s%s"):format(idx, dispName, titleSuffix)
+    item.nm.Text = string.format("%s%s", dispName, titleSuffix)
     item.nm.TextColor3 = isFarming and Color3.fromRGB(120, 255, 170)
         or (isNewOrUnk and Color3.fromRGB(255, 220, 110)
         or (hl and Color3.fromRGB(255, 195, 195) or Color3.fromRGB(215, 225, 255)))
@@ -7964,6 +8764,9 @@ local function fullCleanup()
     disconnectAll()
     if typeof(X.utilityCleanup) == "function" then
         pcall(X.utilityCleanup)
+    end
+    if typeof(X.restoreAllTraps) == "function" then
+        pcall(X.restoreAllTraps)
     end
     if X.recoveryConnections then
         for _, conn in ipairs(X.recoveryConnections) do
