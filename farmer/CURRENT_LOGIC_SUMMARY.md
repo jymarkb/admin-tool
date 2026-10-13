@@ -583,4 +583,56 @@ Manual Radar Variable State              DEAD (NIL)       ACTIVE           FIXED
   - **Blacklist Integrity**: `updateSlotGhosts` is strictly guarded by `not X.isCarriedByOther(u) and not (X.badUids[u] and now < X.badUids[u])`, ensuring stolen eggs remain blacklisted for their full progressive duration (20s/40s/60s).
   - **Zero-Hitch Network Decoupling**: Removed synchronous `X.requestEggRefresh()` / `X.forceScan()` from `onEggShifted`. The background 1-second scanner handles cache updates smoothly with zero main-thread lag spikes.
 
+---
 
+## 22. High-Speed Pickup Architecture (Autonomous "Get" & Utility "Spam Pickup")
+
+### 1. Autonomous "Get" Pickup Acceleration (`autoGetEgg`)
+- **Problem**: Previously, when the character arrived within 6 studs of an egg, `autoGetEgg` executed a synchronous blocking `X.forceScan(1.5)` (`AskFieldEggSnapshot`), followed by an artificial `task.wait(0.12)`, before firing a single un-boosted `AskFieldEggCarry` invocation. This introduced **300ms to 2000ms+** of dead wait at the nest, allowing rival players to snatch targeted eggs before the bot ever interacted.
+- **Architecture Fixes**:
+  1. **Zero-Yield Arrival Verification**:
+     - Removed blocking `X.forceScan(1.5)` from nest arrival.
+     - Live validation executes immediately in $0\text{ms}$ against live push cache (`eggCache.byUid`, `X.isCarriedByOther`, `X.isEggInBaseRenders`, `r.State == "Claimed"`).
+  2. **Zero Artificial Sleep**:
+     - Removed artificial `task.wait(0.12)` after `microSnap()`. The character micro-teleports beside the egg and fires pickup requests in the exact same frame.
+  3. **Dual-Channel Interaction (ProximityPrompt + RF)**:
+     - Scans the egg's slot (`AreaEggSlotsClient`) or model (`Workspace.Eggs`) for any active `ProximityPrompt` and triggers it immediately via `triggerProximityPrompt(prompt)`.
+     - Simultaneously fires a parallel concurrent burst of 6 `RF/EggWorld/AskFieldEggCarry` invocations (`task.spawn`).
+  4. **Tightened Confirmation & Fast Retry**:
+     - Reduced `confDeadline` from `1.6s` to `0.45s` with high-frequency `task.wait(0.02)` polling ticks.
+     - Confirmed pickups transition to the return trip in **20ms–40ms**.
+     - Unconfirmed attempts retry after only `0.08s` instead of stalling for nearly 2 seconds.
+
+### 2. Utility Suite "Spam Pickup" Acceleration (`buildUtilityTabUI` & `[E] Key`)
+- **Problem**: Previously, pressing `E` either fired only a single burst or required holding down `E` awkwardly while moving. Targets in `Workspace.Eggs` or loose slots without hex UIDs were ignored.
+- **Architecture Fixes**:
+  1. **Auto Pickup Spam on Press E (No Holding Required)**:
+     - Tapping/pressing `E` once initiates `startAutoPickupSpam()`.
+     - Automatically runs a rapid ~28 Hz (`task.wait(0.035)`) loop that continuously acquires the best focused egg, applies reach-assist, triggers proximity prompts, and bursts carry invokes.
+     - Automatically terminates the moment the egg is secured in the character's hands (`isHoldingEgg() or weAreCarrying`), or when a 2.0s safety window expires.
+     - **No Hold Required**: Players never need to awkwardly hold down the `E` key while maneuvering.
+  2. **Wider Multi-Container Discovery Scope**:
+     - `getBestFocusedTarget` scans `eggCache.byUid`, `Workspace.AreaEggSlotsClient`, `Workspace.Eggs`, and `Workspace.WorldEggs`.
+     - For unnamed slot instances, it matches corresponding egg UIDs by slot key and spatial proximity ($< 4.0\text{ studs}$).
+  3. **ProximityPrompt Fallback Binding**:
+     - If the best target is an `EggRecord` or loose part lacking a direct prompt reference, `executePickupSpam` dynamically queries `AreaEggSlotsClient` and `Workspace.Eggs` to fire the prompt alongside the carry RF burst.
+
+### 3. Post-Pickup Movement & Reach Assist Freedom Fix
+- **Problem**: When pressing `E` at a distance and walking towards an egg, `startAutoPickupSpam()` snapped the player beside the egg, successfully picked it up, but then **froze the player in place** and prevented them from walking away with WASD.
+- **Root Causes**:
+  1. **Continuous Reach Assist Snapping**: `applyReachAssist()` was being invoked on every single 28 Hz tick of the spam loop. As the player attempted to walk away from the egg, their distance increased ($> 3.5\text{ studs}$), causing `applyReachAssist()` to zero their velocity (`AssemblyLinearVelocity = Vector3.zero`) and teleport them back to the egg 28 times per second for up to 2.0s.
+  2. **Unrecognized CRA Hold State**: `executePickupSpam()` never populated `carryUid`, so `holdingSource()` skipped checking `ClientRenderedAssets`. Consequently, `isHoldingEgg()` returned `false` even though the player had the egg in hand, causing the spam loop to continue firing.
+  3. **Empty Slot Retargeting**: Because `isHoldingEgg()` was `false`, `getBestFocusedTarget()` continued retargeting the physical nest slot in `AreaEggSlotsClient` after pickup.
+  4. **Unreleased Controls & Physics**: Prompt interaction scripts can disable PlayerControls, and unneutralized egg models in CRA retain physics mass and collision against the floor.
+- **Architecture Fixes**:
+  1. **Single-Snap Reach Assist Guard**:
+     - `applyReachAssist()` returns a boolean status and immediately rejects snapping if `isHoldingEgg()` or `weAreCarrying` is true, or if distance is already within interaction reach ($\le 3.5\text{ studs}$).
+     - `startAutoPickupSpam()` tracks `hasSnapped`: reach assist is allowed to snap at most **once** per E-press. Once snapped, further snaps are disabled for the remainder of the session, allowing unrestricted WASD movement.
+  2. **Universal CRA Egg Hold Detection**:
+     - `holdingSource()` includes a fallback matching any model in `ClientRenderedAssets` prefixed with `LocalPlayer.UserId .. "_"`. If found, it populates `carryUid` and confirms `isHoldingEgg() = true` immediately upon pickup.
+  3. **Early Exit & Target Suppression**:
+     - `getBestFocusedTarget()` immediately returns `nil` when `isHoldingEgg()` or `weAreCarrying` is true.
+     - `startAutoPickupSpam()` immediately breaks the loop the millisecond `isHoldingEgg()` becomes true.
+  4. **Post-Pickup Control & Physics Recovery**:
+     - Immediately upon securing the egg (and when the spam loop terminates), calls `enablePlayerControls()`, calls `neutraliseEggPhysics(char, true)` to remove mass and disable collision on egg parts, and verifies `Humanoid.WalkSpeed >= 16.0`.
+     - Zeroes no horizontal velocity on exit, allowing natural player movement to continue uninterrupted.

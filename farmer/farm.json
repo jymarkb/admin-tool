@@ -1,12 +1,24 @@
 {
-  "MutationFilter": [],
-  "SafeZone": { "Y": 70, "X": 536.7310180664063, "Z": -368.697998046875 },
   "RarityFilter": ["Divine", "Eternal", "Secret"],
-  "Velocity": true,
-  "SpeciesFilter": ["Hellhound", "Holy Peacock", "Spirit Hare", "Spirit Panda"],
-  "CarryVelocityValue": 310,
-  "MaxBumpRetries": 8,
-  "Recovery": true,
+  "MutationFilter": [],
+  "PickupReachAssist": true,
+  "SafeZone": {
+    "Y": 70.7239990234375,
+    "X": 534.0900268554688,
+    "Z": -326.6159973144531
+  },
+  "TrapEvade": true,
+  "PickupMaxDistance": 35,
   "VelocityValue": 350,
-  "AutoReturn": true
+  "PickupBurstCount": 8,
+  "MaxBumpRetries": 8,
+  "PickupShowMiniHud": false,
+  "CarryVelocityValue": 320,
+  "SpeciesFilter": ["Hellhound", "Holy Peacock", "Spirit Hare", "Spirit Panda"],
+  "Recovery": true,
+  "PickupEnabled": true,
+  "Velocity": true,
+  "AutoReturn": true,
+  "AutoTreadmill": false,
+  "AutoDismount": false
 }

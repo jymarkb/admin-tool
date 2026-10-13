@@ -235,7 +235,7 @@ local DEFAULT_SETTINGS = {
     MaxBumpRetries     = 8,
     PickupEnabled      = true,
     PickupReachAssist  = true,
-    PickupMaxDistance  = 35,
+    PickupMaxDistance  = 15,
     PickupBurstCount   = 8,
     PickupShowMiniHud  = false,
     TrapEvade          = true,
@@ -1936,13 +1936,14 @@ end
 
 local function resolveRaw(r)
     if typeof(r) ~= "table" then return nil end
+    local uid = tostring(r.Uid or "")
+    if uid ~= "" and rarityByUid[uid] then return rarityByUid[uid] end
+    local directRar = r.RarityId or r.Rarity or (r.Attributes and r.Attributes.Rarity)
+    if directRar and directRar ~= "" and directRar ~= "Unknown" then return tostring(directRar) end
     local sp = tostring(r.AssetCategory or "")
     local disp = (typeof(X) == "table" and typeof(X.getDisplayEggName) == "function" and X.getDisplayEggName(sp)) or sp
     local pr = getPresetRarity(disp) or getPresetRarity(sp)
     if pr then return pr end
-    local uid = tostring(r.Uid or "")
-    local lv = rarityByUid[uid]
-    if lv then return lv end
     return nil
 end
 local function effectiveRarity(r) return resolveRaw(r) or "Unknown" end
@@ -1982,8 +1983,9 @@ local function applySettings(t)
         for _, n in pairs(t.SpeciesFilter) do
             if typeof(n) == "string" and n ~= "" then selectedSpecies[n] = true end
         end
+    elseif t.SpeciesFilter == nil then
+        selectedSpecies["All"] = true
     end
-    if not next(selectedSpecies) then selectedSpecies["All"] = true end
 
     X.selectedRarities = {}
     if typeof(t.RarityFilter) == "table" then
@@ -2084,10 +2086,26 @@ local function fetchSnapshotRecords()
     local cok, res = pcall(function() return rf:InvokeServer() end)
     if not cok then return nil, tostring(res) end
     if typeof(res) ~= "table" then return nil, "bad return" end
+    if typeof(res.RareSpawns) == "table" then
+        for _, e in pairs(res.RareSpawns) do
+            if typeof(e) == "table" and e.EggUid and e.RarityId then
+                rarityByUid[tostring(e.EggUid)] = tostring(e.RarityId)
+            end
+        end
+    end
     local recs = res.Records
     if typeof(recs) ~= "table" then return nil, "no Records" end
     local all = {}
-    for _, r in pairs(recs) do if typeof(r) == "table" then table.insert(all, r) end end
+    for _, r in pairs(recs) do
+        if typeof(r) == "table" then
+            local u = tostring(r.Uid or r.EggUid or "")
+            local rId = r.RarityId or r.Rarity or (r.Attributes and r.Attributes.Rarity)
+            if u ~= "" and rId and rId ~= "" and rId ~= "Unknown" then
+                rarityByUid[u] = tostring(rId)
+            end
+            table.insert(all, r)
+        end
+    end
     table.sort(all, function(a, b)
         local aa, bb = tostring(a.AreaId or ""), tostring(b.AreaId or "")
         if aa ~= bb then return aa < bb end
@@ -2158,9 +2176,10 @@ local function getBesideOffset(targetPos, currentPos, dist)
 end
 
 local function applyReachAssist(targetPos)
+    if weAreCarrying then return false end
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root or typeof(targetPos) ~= "Vector3" then return end
+    if not root or typeof(targetPos) ~= "Vector3" then return false end
     local dist = X.distXZ(targetPos, root.Position)
     local maxReach = (X.PICKUP_CONFIG and X.PICKUP_CONFIG.MaxReachDistance) or 35
     if dist > 3 and dist <= maxReach then
@@ -2172,11 +2191,17 @@ local function applyReachAssist(targetPos)
             root.AssemblyLinearVelocity = Vector3.zero
             root.CFrame = CFrame.lookAt(bPos, lookTarget)
         end)
+        return true
     end
+    return false
 end
 
 local function triggerProximityPrompt(prompt)
     if not prompt or not prompt.Parent then return end
+    pcall(function()
+        prompt.HoldDuration = 0
+        prompt.RequiresLineOfSight = false
+    end)
     if typeof(fireproximityprompt) == "function" then
         pcall(fireproximityprompt, prompt, 0)
         pcall(fireproximityprompt, prompt)
@@ -2184,7 +2209,7 @@ local function triggerProximityPrompt(prompt)
     pcall(function()
         if typeof(prompt.InputHoldBegin) == "function" then
             prompt:InputHoldBegin()
-            task.delay(0.01, function() pcall(function() prompt:InputHoldEnd() end) end)
+            prompt:InputHoldEnd()
         end
     end)
 end
@@ -2941,13 +2966,13 @@ local function isNewOrUnknownEgg(r)
     if catStr == "" or catStr == "Unknown" or catStr:lower() == "unknown" then
         return true
     end
-    -- 2. Unresolvable rarity
-    local rar = resolveRaw(r)
-    if not rar or rar == "Unknown" then
+    -- 2. Explicit new/unknown metadata flags
+    if r.IsNew == true or r.New == true or r.Unknown == true or r.isUnknown == true then
         return true
     end
-    -- 3. Explicit new/unknown metadata flags
-    if r.IsNew == true or r.New == true or r.Unknown == true or r.isUnknown == true then
+    -- 3. Genuinely unknown only if not in presets AND not in known species AND unresolvable
+    local rar = resolveRaw(r)
+    if (not rar or rar == "Unknown") and not getPresetRarity(catStr) and not speciesSeen[catStr] then
         return true
     end
     return false
@@ -3003,12 +3028,6 @@ local function passesFilters(r)
     local catStr = tostring(r.AssetCategory or "")
     local rar = effectiveRarity(r)
 
-    -- UNIVERSAL OVERRIDE (Requirement #2):
-    -- All new / unknown eggs automatically show even when none on farm dropdown selected!
-    if isNewOrUnknownEgg(r) then
-        return true
-    end
-
     local isSpeciesSelected = false
     if X.isScrambleMissingEgg and X.isScrambleMissingEgg(catStr) then
         isSpeciesSelected = true
@@ -3024,7 +3043,18 @@ local function passesFilters(r)
         isRarityMatch = (X.selectedRarities[rar] == true or X.autoHigher(rar))
     end
 
-    return isSpeciesSelected or isRarityMatch
+    if isSpeciesSelected or isRarityMatch then
+        return true
+    end
+
+    -- Show genuinely new/unknown eggs ONLY if species is "All" or species filter is active.
+    -- If user selected "None" (selectedSpecies is empty) and no rarity matches,
+    -- nothing passes so the farm list is completely cleared!
+    if selectedSpecies["All"] and isNewOrUnknownEgg(r) then
+        return true
+    end
+
+    return false
 end
 
 -- ==================================================
@@ -3460,12 +3490,10 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         phase = "carrying"                          -- stops the tracker (set before any yield)
         if cancelled() then finish(false); return end
 
-        -- v10: Authoritative check right at the nest before pickup attempt
+        -- Fast authoritative check right at the nest before pickup attempt (no blocking network scan!)
         do
-            X.forceScan(1.5)
-            if cancelled() then finish(false); return end
-            local recCur = eggCache.byUid[uid]
-            local inSnapshot = eggCache.byUid and eggCache.byUid[uid] ~= nil
+            local recCur = eggCache.byUid and eggCache.byUid[uid]
+            local inSnapshot = recCur ~= nil
             local isBeingCarriedByOther = X.isCarriedByOther(uid, recCur)
             local isInBase = X.isEggInBaseRenders(uid)
             local isClaimed = recCur and tostring(recCur.State or "") == "Claimed"
@@ -3481,7 +3509,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     X.blacklist(uid, 30)
                 end
                 X.looseUids[uid] = nil
-                if eggCache.byUid[uid] then eggCache.byUid[uid] = nil end
+                if eggCache.byUid and eggCache.byUid[uid] then eggCache.byUid[uid] = nil end
                 X.listDirty = true
                 X.requestEggRefresh()
                 finish(false); return
@@ -3595,29 +3623,51 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                 end
             end
 
-            microSnap(); task.wait(0.12)
+            microSnap()
             statusLabel.Text = (tag .. "Picking up... try %d/%d"):format(attemptNo, maxTry)
             statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+
+            -- Instant ProximityPrompt trigger if present on slot or model
+            local promptToFire = nil
+            if area0 then
+                local recCur = eggCache.byUid and eggCache.byUid[uid]
+                local slotInst = X.findEggSlot(area0, uid, recCur and recCur.NestId, recCur and recCur.AreaId, livePos)
+                if slotInst then
+                    promptToFire = slotInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+                end
+            end
+            if not promptToFire and Workspace:FindFirstChild("Eggs") then
+                local eggInst = Workspace.Eggs:FindFirstChild(uid)
+                if eggInst then
+                    promptToFire = eggInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+                end
+            end
+            if promptToFire then
+                triggerProximityPrompt(promptToFire)
+            end
 
             local rf = getCarryRemote()
             local rfDone, rfOk, rfRes = false, false, nil
             local seq0 = eggCache.seq
-            local listedAtStart = eggCache.byUid[uid] ~= nil     -- v9.1: a scan can only PROVE a pickup if the egg was there
+            local listedAtStart = eggCache.byUid and eggCache.byUid[uid] ~= nil     -- v9.1: a scan can only PROVE a pickup if the egg was there
             if rf then
-                task.spawn(function()
-                    local ok2, res2 = pcall(function() return rf:InvokeServer({ Uid = uid }) end)
-                    rfOk, rfRes, rfDone = ok2, res2, true
-                    lastRfInfo = (ok2 and "reply " or "error ") .. describeVal(res2)
-                    print(("[AutoFarm] carry RF -> %s %s"):format(tostring(ok2), describeVal(res2)))
-                end)
+                local burstCount = (X.PICKUP_CONFIG and X.PICKUP_CONFIG.SpamBurstCount) or 6
+                for b = 1, burstCount do
+                    task.spawn(function()
+                        local ok2, res2 = pcall(function() return rf:InvokeServer({ Uid = uid }) end)
+                        if not rfDone then
+                            rfOk, rfRes, rfDone = ok2, res2, true
+                            lastRfInfo = (ok2 and "reply " or "error ") .. describeVal(res2)
+                            print(("[AutoFarm] carry RF -> %s %s"):format(tostring(ok2), describeVal(res2)))
+                        end
+                    end)
+                end
             else
                 lastRfInfo = "carry remote missing"; rfDone = true
             end
 
-            -- Brief confirmation window after spam (was pure fire-and-dash).
-            -- Client hold visuals / CRA model can lag 0.5–1.5s behind a successful RF, so we must NOT
-            -- treat "no isHoldingEgg yet" as failure when the server already accepted the carry.
-            local confDeadline = os.clock() + 1.6
+            -- Fast confirmation window (0.45s deadline, 0.02s polling ticks)
+            local confDeadline = os.clock() + 0.45
             local confHow = nil
             local function rfAccepted()
                 if not rfDone or not rfOk then return false end
@@ -3648,7 +3698,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     if lateMarkers then markers = lateMarkers end
                     break
                 end
-                task.wait(0.05)
+                task.wait(0.02)
             end
 
             if confHow == "refused" then
@@ -3657,7 +3707,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     X.blacklistStolen(uid)
                     X.deliveredUids[uid] = true
                     X.looseUids[uid] = nil
-                    if eggCache.byUid[uid] then eggCache.byUid[uid] = nil end
+                    if eggCache.byUid and eggCache.byUid[uid] then eggCache.byUid[uid] = nil end
                     X.listDirty = true
                     X.requestEggRefresh()
                     stolen = true
@@ -3672,7 +3722,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                 -- Attempt did not confirm pickup; do NOT start return trip empty-handed!
                 warn(("[AutoFarm] pickup attempt %d unconfirmed (RF done=%s ok=%s res=%s) — retrying at egg"):format(
                     attemptNo, tostring(rfDone), tostring(rfOk), describeVal(rfRes)))
-                task.wait(0.15)
+                task.wait(0.08)
             end
         end
         cleanup()
@@ -8144,6 +8194,7 @@ function X.buildUtilityTabUI()
     local PICKUP_CONFIG = X.PICKUP_CONFIG
 
     local function getBestFocusedTarget()
+        if weAreCarrying then return nil end
         local char = LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not root then return nil end
@@ -8203,11 +8254,22 @@ function X.buildUtilityTabUI()
                         local score = scoreTarget(pos, dist)
                         local uid = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
                         if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
-                        if score > highestScore then
+                        if not uid and eggCache and eggCache.byUid then
+                            for eUid, eRec in pairs(eggCache.byUid) do
+                                local ePos = extPos(eRec)
+                                if ePos and (ePos - pos).Magnitude < 4.0 then
+                                    uid = eUid; break
+                                end
+                                if eRec.FirstAreaSlotKey == ch.Name or eRec.SlotKey == ch.Name then
+                                    uid = eUid; break
+                                end
+                            end
+                        end
+                        if uid and score > highestScore then
                             highestScore = score
                             bestTarget = {
                                 Type = "SlotDirect",
-                                Uid = uid or (bestTarget and bestTarget.Uid),
+                                Uid = uid,
                                 Name = ch.Name,
                                 Position = pos,
                                 Distance = dist,
@@ -8219,16 +8281,86 @@ function X.buildUtilityTabUI()
             end
         end
 
+        -- Loose world egg containers (Workspace.Eggs, Workspace.WorldEggs)
+        for _, fName in ipairs({"Eggs", "WorldEggs"}) do
+            local folder = Workspace:FindFirstChild(fName)
+            if folder then
+                for _, ch in ipairs(folder:GetChildren()) do
+                    local pos = ch:IsA("BasePart") and ch.Position or (ch:IsA("Model") and ch:GetPivot().Position)
+                    if pos then
+                        local dist = (pos - charPos).Magnitude
+                        if dist <= maxDist then
+                            local score = scoreTarget(pos, dist)
+                            local uid = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
+                            if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
+                            if not uid and eggCache and eggCache.byUid then
+                                for eUid, eRec in pairs(eggCache.byUid) do
+                                    local ePos = extPos(eRec)
+                                    if ePos and (ePos - pos).Magnitude < 4.0 then
+                                        uid = eUid; break
+                                    end
+                                end
+                            end
+                            if uid and score > highestScore then
+                                highestScore = score
+                                bestTarget = {
+                                    Type = "WorldEgg",
+                                    Uid = uid,
+                                    Name = ch.Name,
+                                    Position = pos,
+                                    Distance = dist,
+                                    Prompt = ch:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- If target found from EggRecord, associate ProximityPrompt from AreaEggSlotsClient or Eggs
+        if bestTarget and not bestTarget.Prompt and bestTarget.Uid then
+            if slotsFolder then
+                local slotInst = X.findEggSlot(slotsFolder, bestTarget.Uid)
+                if slotInst then
+                    bestTarget.Prompt = slotInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+                end
+            end
+            if not bestTarget.Prompt and Workspace:FindFirstChild("Eggs") then
+                local eggInst = Workspace.Eggs:FindFirstChild(bestTarget.Uid)
+                if eggInst then
+                    bestTarget.Prompt = eggInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+                end
+            end
+        end
+
         return bestTarget
     end
 
-    local function executePickupSpam(target)
+    local function executePickupSpam(target, allowSnap)
         if not target then return end
-        if PICKUP_CONFIG.ReachAssist and target.Position then
+        if target.Uid then
+            carryUid = target.Uid
+        end
+        if allowSnap and PICKUP_CONFIG.ReachAssist and target.Position then
             applyReachAssist(target.Position)
         end
         if target.Prompt then
             triggerProximityPrompt(target.Prompt)
+        else
+            local pr = nil
+            local ar = Workspace:FindFirstChild("AreaEggSlotsClient")
+            if ar and target.Uid then
+                local sl = X.findEggSlot(ar, target.Uid)
+                if sl then pr = sl:FindFirstChildWhichIsA("ProximityPrompt", true) end
+            end
+            if not pr and target.Uid and Workspace:FindFirstChild("Eggs") then
+                local em = Workspace.Eggs:FindFirstChild(target.Uid)
+                if em then pr = em:FindFirstChildWhichIsA("ProximityPrompt", true) end
+            end
+            if pr then
+                triggerProximityPrompt(pr)
+            end
         end
         if target.Uid then
             carryEgg(target.Uid, nil, PICKUP_CONFIG.SpamBurstCount or 8)
@@ -8278,20 +8410,66 @@ function X.buildUtilityTabUI()
 
     toggleBtn.MouseButton1Click:Connect(function()
         PICKUP_CONFIG.Enabled = not PICKUP_CONFIG.Enabled
+        if not PICKUP_CONFIG.Enabled then
+            X.autoPickupToken = (X.autoPickupToken or 0) + 1
+        end
         if currentSettings then currentSettings.PickupEnabled = PICKUP_CONFIG.Enabled end
         if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
         updateButtonStates()
     end)
 
-    -- User Input — TAP E
-    addConnection(UserInputService.InputBegan:Connect(function(input)
+    -- User Input — PRESS E (Auto pickup spam on press, no holding required)
+    X.autoPickupToken = 0
+
+    local function startAutoPickupSpam()
+        if weAreCarrying then return end
+        X.autoPickupToken = (X.autoPickupToken or 0) + 1
+        local myTok = X.autoPickupToken
+        task.spawn(function()
+            local tStart = os.clock()
+            local maxDuration = 1.5 -- auto-spams for up to 1.5 seconds or until egg secured
+            local hasSnapped = false
+            while X.autoPickupToken == myTok and PICKUP_CONFIG.Enabled and (os.clock() - tStart < maxDuration) do
+                local target = getBestFocusedTarget()
+                if target then
+                    if not hasSnapped and PICKUP_CONFIG.ReachAssist and target.Position then
+                        local char = LocalPlayer.Character
+                        local root = char and char:FindFirstChild("HumanoidRootPart")
+                        local dist = root and X.distXZ(target.Position, root.Position) or 999
+                        if dist <= 3.5 then
+                            hasSnapped = true
+                        elseif dist <= (PICKUP_CONFIG.MaxReachDistance or 35) then
+                            if applyReachAssist(target.Position) then
+                                hasSnapped = true
+                            end
+                        end
+                    end
+                    executePickupSpam(target, false)
+                end
+                if isHoldingEgg() or weAreCarrying then
+                    break
+                end
+                task.wait(0.035)
+            end
+            -- Post-pickup recovery: ensure player controls and physics are completely clean
+            enablePlayerControls()
+            local char = LocalPlayer.Character
+            if char then
+                neutraliseEggPhysics(char, true)
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.WalkSpeed < 16 then
+                    hum.WalkSpeed = math.max(savedWalkSpeed or 16, 16)
+                end
+            end
+        end)
+    end
+
+    addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
         if not PICKUP_CONFIG.Enabled then return end
         if UserInputService:GetFocusedTextBox() ~= nil then return end
         if input.KeyCode == Enum.KeyCode.E then
-            local target = getBestFocusedTarget()
-            if target then
-                executePickupSpam(target)
-            end
+            startAutoPickupSpam()
         end
     end))
 

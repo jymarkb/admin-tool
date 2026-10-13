@@ -2,7 +2,7 @@
 STEAL A EGG - TARGETED DISCOVERY SCANNER
 MODE: READ-ONLY
 NO REMOTES INVOKED
-TIMESTAMP: 2026-10-12T15:36:59Z
+TIMESTAMP: 2026-10-13T03:51:02Z
 ==================================================
 
 ===== LOCAL PLAYER =====
@@ -23,7 +23,7 @@ CashPacksReady = true
 EnchantedTreeUnlocked = true
 FriendsInServer = 0
 IsRagdoll = false
-JoinTick = 1791819029.114208
+JoinTick = 1791861232.938693
 MonetizationAvatarMarketplaceValue = 0
 MonetizationLuckyGamepassOwned = false
 MonetizationRobuxSpentTotal = 0
@@ -33,8 +33,9 @@ RagdollEndTime = 0
 RagdollTime = 0
 Ragdolled = false
 ScrambleCountdownReturningPlayer = true
-ShopVersionChanged = true
+ShopVersionChanged = false
 __UG = true
+__UG_FIRST_SESSION = false
 __UG_NEW = false
 
 ===== CHARACTER =====
@@ -45,7 +46,7 @@ Character attributes:
     RagdollTime = 0
     Ragdolled = false
 Humanoid properties:
-    WalkSpeed = 310
+    WalkSpeed = 320
     JumpPower = 50.14500427246094
     JumpHeight = 7.199999809265137
     Health = 100 / 100
@@ -54,12 +55,12 @@ Humanoid properties:
     Sit = false
 
 ===== LEADERSTATS =====
-Money/s = 359505552135 [NumberValue]
-Speed = 333209851322 [NumberValue]
+Money/s = 359617528128 [NumberValue]
+Speed = 335844511322 [NumberValue]
 
 ===== IMPORTANT PLAYER VALUES =====
-Players.mackyhohohoho.leaderstats.Money/s = 359505552135
-Players.mackyhohohoho.leaderstats.Speed = 333209851322
+Players.mackyhohohoho.leaderstats.Money/s = 359617528128
+Players.mackyhohohoho.leaderstats.Speed = 335844511322
 
 ===== CURRENT STATE =====
 AreaId = Forest
@@ -751,103 +752,74 @@ RF/BossMastery/AskUseMutationConsumable [RemoteFunction]
     Decal [Decal]
 
 [FOUND] Workspace.__ClientTreadmillRenders [Folder]
-    TreadmillRender_1 [Tool]
+    TreadmillRender_3 [Tool]
     TreadmillRender_5 [Tool]
     TreadmillRender_6 [Tool]
+    TreadmillRender_7 [Tool]
 
 [FOUND] Workspace.ClientRenderedAssets [Folder]
-    11004045308_0142030019a541818d5bf2cc27c7012a [Model]  -->  (Player UserId: 11004045308 | EggUid: 0142030019a541818d5bf2cc27c7012a)
-    11004045308_0749cc6555de427e9a4b031bb943f3df [Model]  -->  (Player UserId: 11004045308 | EggUid: 0749cc6555de427e9a4b031bb943f3df)
-    11004045308_26a8adc4f9324592a9fec2e65b4a8f98 [Model]  -->  (Player UserId: 11004045308 | EggUid: 26a8adc4f9324592a9fec2e65b4a8f98)
-    11004045308_2d51b207fc7e499d9943c16b9c29084a [Model]  -->  (Player UserId: 11004045308 | EggUid: 2d51b207fc7e499d9943c16b9c29084a)
-    11004045308_62551021f6b049adaff7cb3e54755d9f [Model]  -->  (Player UserId: 11004045308 | EggUid: 62551021f6b049adaff7cb3e54755d9f)
-    11004045308_8e45be3250244ca6ba5b836d21366eb5 [Model]  -->  (Player UserId: 11004045308 | EggUid: 8e45be3250244ca6ba5b836d21366eb5)
-    11004045308_96f8bb19e91d48488754786197931aab [Model]  -->  (Player UserId: 11004045308 | EggUid: 96f8bb19e91d48488754786197931aab)
-    11004045308_a38aaeb215ce4f5ba2c1a256ff49f8cb [Model]  -->  (Player UserId: 11004045308 | EggUid: a38aaeb215ce4f5ba2c1a256ff49f8cb)
-    11004045308_ab59e8fc1b324caa8cf5f04c985bd65f [Model]  -->  (Player UserId: 11004045308 | EggUid: ab59e8fc1b324caa8cf5f04c985bd65f)
-    11004045308_add2e00487eb4fe28652906ea89c41bb [Model]  -->  (Player UserId: 11004045308 | EggUid: add2e00487eb4fe28652906ea89c41bb)
-    11004045308_b3abe7c6b9514effba947720090a78bd [Model]  -->  (Player UserId: 11004045308 | EggUid: b3abe7c6b9514effba947720090a78bd)
-    11004045308_c40077b41eeb46da9473a5798ead9ff3 [Model]  -->  (Player UserId: 11004045308 | EggUid: c40077b41eeb46da9473a5798ead9ff3)
-    11004045308_e01501efeaf040aa942db6fc0685c709 [Model]  -->  (Player UserId: 11004045308 | EggUid: e01501efeaf040aa942db6fc0685c709)
-    11004045308_fa0af3fb00dd4642a2808d92ee5f07ba [Model]  -->  (Player UserId: 11004045308 | EggUid: fa0af3fb00dd4642a2808d92ee5f07ba)
-    11004045308_fcdffd091e324783b83817fbecbd0380 [Model]  -->  (Player UserId: 11004045308 | EggUid: fcdffd091e324783b83817fbecbd0380)
-    11004045308_fdd706d545d84daebf2664b8b32c7cb7 [Model]  -->  (Player UserId: 11004045308 | EggUid: fdd706d545d84daebf2664b8b32c7cb7)
-    175031461_2672d9541b424798a210bb0f8e3902e0 [Model]  -->  (Player UserId: 175031461 | EggUid: 2672d9541b424798a210bb0f8e3902e0)
-    175031461_2f9cec27a7984b2ea90a03a4c238dbd7 [Model]  -->  (Player UserId: 175031461 | EggUid: 2f9cec27a7984b2ea90a03a4c238dbd7)
-    175031461_30c5389aaa4d48e895222634c75bd08c [Model]  -->  (Player UserId: 175031461 | EggUid: 30c5389aaa4d48e895222634c75bd08c)
-    175031461_40bf55ae9e3a427c9902e9a2014e7d36 [Model]  -->  (Player UserId: 175031461 | EggUid: 40bf55ae9e3a427c9902e9a2014e7d36)
-    175031461_46d3d03764c74fc6873a6070815d75e6 [Model]  -->  (Player UserId: 175031461 | EggUid: 46d3d03764c74fc6873a6070815d75e6)
-    175031461_4c5e890ef9134270ad8fa098546e12d6 [Model]  -->  (Player UserId: 175031461 | EggUid: 4c5e890ef9134270ad8fa098546e12d6)
-    175031461_56374e72c3c743ec8806dd5f0546ada2 [Model]  -->  (Player UserId: 175031461 | EggUid: 56374e72c3c743ec8806dd5f0546ada2)
-    175031461_5d7f2a8a46ed44ddbca9215300fb34e0 [Model]  -->  (Player UserId: 175031461 | EggUid: 5d7f2a8a46ed44ddbca9215300fb34e0)
-    175031461_6573fdbed0c94d1e98c17895afd78d64 [Model]  -->  (Player UserId: 175031461 | EggUid: 6573fdbed0c94d1e98c17895afd78d64)
-    175031461_6fa190fd5dff4dc08c686514d9ebd4e5 [Model]  -->  (Player UserId: 175031461 | EggUid: 6fa190fd5dff4dc08c686514d9ebd4e5)
-    175031461_73ab52e12220463a8b59b9f54f74751a [Model]  -->  (Player UserId: 175031461 | EggUid: 73ab52e12220463a8b59b9f54f74751a)
-    175031461_78485259d41c45db800c46f919443be8 [Model]  -->  (Player UserId: 175031461 | EggUid: 78485259d41c45db800c46f919443be8)
-    175031461_7af6d00a57c345bab2257d4018898d30 [Model]  -->  (Player UserId: 175031461 | EggUid: 7af6d00a57c345bab2257d4018898d30)
-    175031461_890e004529f44b709e3780efbf530a0e [Model]  -->  (Player UserId: 175031461 | EggUid: 890e004529f44b709e3780efbf530a0e)
-    175031461_b8c1be09e6a6489784b45e4686531e64 [Model]  -->  (Player UserId: 175031461 | EggUid: b8c1be09e6a6489784b45e4686531e64)
-    175031461_d7ea7a9e2a5b42128ed9048dffea9cb2 [Model]  -->  (Player UserId: 175031461 | EggUid: d7ea7a9e2a5b42128ed9048dffea9cb2)
-    175031461_ea51631163ab44d98367378f74ddb743 [Model]  -->  (Player UserId: 175031461 | EggUid: ea51631163ab44d98367378f74ddb743)
-    175031461_fad286e2651c4523b697751fe91a7432 [Model]  -->  (Player UserId: 175031461 | EggUid: fad286e2651c4523b697751fe91a7432)
-    175031461_fff8403e5ac84258b50a8889d1d61a3e [Model]  -->  (Player UserId: 175031461 | EggUid: fff8403e5ac84258b50a8889d1d61a3e)
-    2775241544_04e7677035e24af39509da35e2e3b02d [Model]  -->  (Player UserId: 2775241544 | EggUid: 04e7677035e24af39509da35e2e3b02d)
-    2775241544_2c57bf1e43654fb29532b01c0cee0bfc [Model]  -->  (Player UserId: 2775241544 | EggUid: 2c57bf1e43654fb29532b01c0cee0bfc)
-    2775241544_2e73c761a6224f5191cb5e9caa32d356 [Model]  -->  (Player UserId: 2775241544 | EggUid: 2e73c761a6224f5191cb5e9caa32d356)
-    2775241544_2f911cc46e5746b99e3c15b7ffd6cdeb [Model]  -->  (Player UserId: 2775241544 | EggUid: 2f911cc46e5746b99e3c15b7ffd6cdeb)
-    2775241544_344cae0a76014477a6f936568701c6c3 [Model]  -->  (Player UserId: 2775241544 | EggUid: 344cae0a76014477a6f936568701c6c3)
-    2775241544_3806a49319da47a5bbe4579fd8cbeda9 [Model]  -->  (Player UserId: 2775241544 | EggUid: 3806a49319da47a5bbe4579fd8cbeda9)
-    2775241544_48b75a9d7411435e8ce435adf1dd2f10 [Model]  -->  (Player UserId: 2775241544 | EggUid: 48b75a9d7411435e8ce435adf1dd2f10)
-    2775241544_5a034de532a547f8aa435af10f10a25a [Model]  -->  (Player UserId: 2775241544 | EggUid: 5a034de532a547f8aa435af10f10a25a)
-    2775241544_7ea6c0475b0d4beca5321e1ae3533de2 [Model]  -->  (Player UserId: 2775241544 | EggUid: 7ea6c0475b0d4beca5321e1ae3533de2)
-    2775241544_805163f7b5c1459bac8d2782b5a370b7 [Model]  -->  (Player UserId: 2775241544 | EggUid: 805163f7b5c1459bac8d2782b5a370b7)
-    2775241544_8772f41517cf44909092b4d050c0b782 [Model]  -->  (Player UserId: 2775241544 | EggUid: 8772f41517cf44909092b4d050c0b782)
-    2775241544_8facc20729fd4148be0a099bd95af452 [Model]  -->  (Player UserId: 2775241544 | EggUid: 8facc20729fd4148be0a099bd95af452)
-    2775241544_9a3ebd67d41d4edcaa7c7e3f4e6ffc8f [Model]  -->  (Player UserId: 2775241544 | EggUid: 9a3ebd67d41d4edcaa7c7e3f4e6ffc8f)
-    2775241544_a671a06fa205411f8f7044e677b411f8 [Model]  -->  (Player UserId: 2775241544 | EggUid: a671a06fa205411f8f7044e677b411f8)
-    2775241544_acf298d71c10419c98c0f625a12403a3 [Model]  -->  (Player UserId: 2775241544 | EggUid: acf298d71c10419c98c0f625a12403a3)
-    2775241544_b1d18acaed5c4345ba7dfd43fbbf9ad2 [Model]  -->  (Player UserId: 2775241544 | EggUid: b1d18acaed5c4345ba7dfd43fbbf9ad2)
-    2775241544_daa433bee76f4d1baed56792ddf5dbf9 [Model]  -->  (Player UserId: 2775241544 | EggUid: daa433bee76f4d1baed56792ddf5dbf9)
-    2775241544_e8bd8e91a8ec4897a8d140185aecb1a0 [Model]  -->  (Player UserId: 2775241544 | EggUid: e8bd8e91a8ec4897a8d140185aecb1a0)
-    2775241544_eb7a6792a892424f9ba522f0f93b91e4 [Model]  -->  (Player UserId: 2775241544 | EggUid: eb7a6792a892424f9ba522f0f93b91e4)
-    8635944356_0d702742580d4acf8d0967593bdd1827 [Model]  -->  (Player UserId: 8635944356 | EggUid: 0d702742580d4acf8d0967593bdd1827)
-    8635944356_1dc7774f0c1e4812ae16e15175e104e4 [Model]  -->  (Player UserId: 8635944356 | EggUid: 1dc7774f0c1e4812ae16e15175e104e4)
-    8635944356_2dca91b333cb4a52b3a3b1eeaee9f49d [Model]  -->  (Player UserId: 8635944356 | EggUid: 2dca91b333cb4a52b3a3b1eeaee9f49d)
-    8635944356_399c4801c4a74f07a53dc94e22e84489 [Model]  -->  (Player UserId: 8635944356 | EggUid: 399c4801c4a74f07a53dc94e22e84489)
-    8635944356_40a9d337b2734a61a9dc6512a1e5cac8 [Model]  -->  (Player UserId: 8635944356 | EggUid: 40a9d337b2734a61a9dc6512a1e5cac8)
-    8635944356_4bc3609889b94da2936d26005b6d9c90 [Model]  -->  (Player UserId: 8635944356 | EggUid: 4bc3609889b94da2936d26005b6d9c90)
-    8635944356_5d3aca86d8ae49d4b00cd08278659748 [Model]  -->  (Player UserId: 8635944356 | EggUid: 5d3aca86d8ae49d4b00cd08278659748)
-    8635944356_702e057f27534cd29ad11fec3b97cd8f [Model]  -->  (Player UserId: 8635944356 | EggUid: 702e057f27534cd29ad11fec3b97cd8f)
-    8635944356_7a48c741902e44bca70b4d4b050f0e81 [Model]  -->  (Player UserId: 8635944356 | EggUid: 7a48c741902e44bca70b4d4b050f0e81)
-    8635944356_83dae63a89804cf6834328a271aaecaf [Model]  -->  (Player UserId: 8635944356 | EggUid: 83dae63a89804cf6834328a271aaecaf)
-    8635944356_945bf0a86ecb46c6b7722870cf4049d4 [Model]  -->  (Player UserId: 8635944356 | EggUid: 945bf0a86ecb46c6b7722870cf4049d4)
-    8635944356_983a97fd383f4cb195ef10c9b450092d [Model]  -->  (Player UserId: 8635944356 | EggUid: 983a97fd383f4cb195ef10c9b450092d)
-    8635944356_aac943a472e44dc89ea91cb559647b65 [Model]  -->  (Player UserId: 8635944356 | EggUid: aac943a472e44dc89ea91cb559647b65)
-    8635944356_badaf3111baf4ee19aea457478571c37 [Model]  -->  (Player UserId: 8635944356 | EggUid: badaf3111baf4ee19aea457478571c37)
-    8635944356_c208298d9ac8430ea1cca195f288d8e7 [Model]  -->  (Player UserId: 8635944356 | EggUid: c208298d9ac8430ea1cca195f288d8e7)
-    8635944356_c2a1e9a4c9f84e29a991b7897e68100c [Model]  -->  (Player UserId: 8635944356 | EggUid: c2a1e9a4c9f84e29a991b7897e68100c)
-    8635944356_cdafbc61a0e44ad2adf9069187285904 [Model]  -->  (Player UserId: 8635944356 | EggUid: cdafbc61a0e44ad2adf9069187285904)
-    8635944356_ddfb04c402a9491386d9fbaaa2553d9e [Model]  -->  (Player UserId: 8635944356 | EggUid: ddfb04c402a9491386d9fbaaa2553d9e)
-    8635944356_f2c90cc109c341e0b2af8921108137ed [Model]  -->  (Player UserId: 8635944356 | EggUid: f2c90cc109c341e0b2af8921108137ed)
-    8752950052_0ab7d513d21649fd967fb54b5a837b7d [Model]  -->  (Player UserId: 8752950052 | EggUid: 0ab7d513d21649fd967fb54b5a837b7d)
-    8752950052_15bf600035734d2a83804856c82e465d [Model]  -->  (Player UserId: 8752950052 | EggUid: 15bf600035734d2a83804856c82e465d)
-    8752950052_241c7bf7c80c49b08ed073a2e5533b36 [Model]  -->  (Player UserId: 8752950052 | EggUid: 241c7bf7c80c49b08ed073a2e5533b36)
-    8752950052_242b3c9474d34835ad078d9fdf97b456 [Model]  -->  (Player UserId: 8752950052 | EggUid: 242b3c9474d34835ad078d9fdf97b456)
-    8752950052_38f908605717411ab539333b11caf0d8 [Model]  -->  (Player UserId: 8752950052 | EggUid: 38f908605717411ab539333b11caf0d8)
-    8752950052_3ab0379c41d34f0b9cd23571f7520346 [Model]  -->  (Player UserId: 8752950052 | EggUid: 3ab0379c41d34f0b9cd23571f7520346)
-    8752950052_3ead5f6895b34ad69859fbf0d857b75a [Model]  -->  (Player UserId: 8752950052 | EggUid: 3ead5f6895b34ad69859fbf0d857b75a)
-    8752950052_45c5f751e20244e28cc0e1207f5c9b49 [Model]  -->  (Player UserId: 8752950052 | EggUid: 45c5f751e20244e28cc0e1207f5c9b49)
-    8752950052_500bef077950443b86aca7950a441cca [Model]  -->  (Player UserId: 8752950052 | EggUid: 500bef077950443b86aca7950a441cca)
-    8752950052_5951956af3e74c62ae6d8e0d7010771a [Model]  -->  (Player UserId: 8752950052 | EggUid: 5951956af3e74c62ae6d8e0d7010771a)
-    8752950052_64fe87b2af4e44ab967469d5870d0ee8 [Model]  -->  (Player UserId: 8752950052 | EggUid: 64fe87b2af4e44ab967469d5870d0ee8)
-    8752950052_6d325bd5fdee48e8aebc1c9ad5c38615 [Model]  -->  (Player UserId: 8752950052 | EggUid: 6d325bd5fdee48e8aebc1c9ad5c38615)
-    8752950052_822ce218289c49e18f1c03e4c6469929 [Model]  -->  (Player UserId: 8752950052 | EggUid: 822ce218289c49e18f1c03e4c6469929)
-    8752950052_92ba101d0bd040f39ce7bf7f6f3acae2 [Model]  -->  (Player UserId: 8752950052 | EggUid: 92ba101d0bd040f39ce7bf7f6f3acae2)
-    8752950052_d082158203c8496586c6e5e7fb536081 [Model]  -->  (Player UserId: 8752950052 | EggUid: d082158203c8496586c6e5e7fb536081)
-    8752950052_d4e2bdf8dca8441297d9ed27f03f7a07 [Model]  -->  (Player UserId: 8752950052 | EggUid: d4e2bdf8dca8441297d9ed27f03f7a07)
-    8752950052_d82d015843fa47089f3f9ffc282703cf [Model]  -->  (Player UserId: 8752950052 | EggUid: d82d015843fa47089f3f9ffc282703cf)
-    8752950052_ef2b6407e4da4517bea88dc5e8a405ab [Model]  -->  (Player UserId: 8752950052 | EggUid: ef2b6407e4da4517bea88dc5e8a405ab)
-    8752950052_f9a181a09c0847779dbbd016d3d81d3f [Model]  -->  (Player UserId: 8752950052 | EggUid: f9a181a09c0847779dbbd016d3d81d3f)
+    10483178004_2a9664735f1e4d4d90bca3c1b93c4483 [Model]  -->  (Player UserId: 10483178004 | EggUid: 2a9664735f1e4d4d90bca3c1b93c4483)
+    10483178004_36b86398c5604fd0abbccfe16750d263 [Model]  -->  (Player UserId: 10483178004 | EggUid: 36b86398c5604fd0abbccfe16750d263)
+    10483178004_37ef66eca99b4f08b99191afc4cd934b [Model]  -->  (Player UserId: 10483178004 | EggUid: 37ef66eca99b4f08b99191afc4cd934b)
+    10483178004_4f435c0380244ab187947f96af1e42c3 [Model]  -->  (Player UserId: 10483178004 | EggUid: 4f435c0380244ab187947f96af1e42c3)
+    10483178004_79a6e341c95745c1b1830d9b35a310d1 [Model]  -->  (Player UserId: 10483178004 | EggUid: 79a6e341c95745c1b1830d9b35a310d1)
+    10483178004_7f560b028739452fb018aae4be18a4e5 [Model]  -->  (Player UserId: 10483178004 | EggUid: 7f560b028739452fb018aae4be18a4e5)
+    10483178004_8eec9da0cf3e4f4e8f79a7ac6c3f0540 [Model]  -->  (Player UserId: 10483178004 | EggUid: 8eec9da0cf3e4f4e8f79a7ac6c3f0540)
+    10483178004_b9d64e588f1d4c6eb0ad792a96160941 [Model]  -->  (Player UserId: 10483178004 | EggUid: b9d64e588f1d4c6eb0ad792a96160941)
+    10483178004_bd97d4da70cf48979830622bab8e127f [Model]  -->  (Player UserId: 10483178004 | EggUid: bd97d4da70cf48979830622bab8e127f)
+    10483178004_c28e37a03b9a4f36a59a8f4c439dcf3d [Model]  -->  (Player UserId: 10483178004 | EggUid: c28e37a03b9a4f36a59a8f4c439dcf3d)
+    10483178004_c5ba67d67f7447ddbfca81bba2e20e4d [Model]  -->  (Player UserId: 10483178004 | EggUid: c5ba67d67f7447ddbfca81bba2e20e4d)
+    10483178004_ce9d9ee1e6814f47aa6fe152e98dc261 [Model]  -->  (Player UserId: 10483178004 | EggUid: ce9d9ee1e6814f47aa6fe152e98dc261)
+    10483178004_dbdd2c68b98a4a518cfe29944663fa46 [Model]  -->  (Player UserId: 10483178004 | EggUid: dbdd2c68b98a4a518cfe29944663fa46)
+    10483178004_ebaf5fe91acb4b9a9f6cda3543300570 [Model]  -->  (Player UserId: 10483178004 | EggUid: ebaf5fe91acb4b9a9f6cda3543300570)
+    10483178004_f1f078cab6c944fc9bb75af9b67e2eb0 [Model]  -->  (Player UserId: 10483178004 | EggUid: f1f078cab6c944fc9bb75af9b67e2eb0)
+    6071884546_035e4e2d06dd499dafc8b5245d09213b [Model]  -->  (Player UserId: 6071884546 | EggUid: 035e4e2d06dd499dafc8b5245d09213b)
+    6071884546_0a1504ba1e28402b986e84340fe88ebc [Model]  -->  (Player UserId: 6071884546 | EggUid: 0a1504ba1e28402b986e84340fe88ebc)
+    6071884546_1701af58088f402faf06513bdaaa8db5 [Model]  -->  (Player UserId: 6071884546 | EggUid: 1701af58088f402faf06513bdaaa8db5)
+    6071884546_227e27ba3a9e429db473a49749cd20a8 [Model]  -->  (Player UserId: 6071884546 | EggUid: 227e27ba3a9e429db473a49749cd20a8)
+    6071884546_24c45364daf2426da1cf9e37fbde77cc [Model]  -->  (Player UserId: 6071884546 | EggUid: 24c45364daf2426da1cf9e37fbde77cc)
+    6071884546_45d9c91a3eaa4ff9808bb934ee504c81 [Model]  -->  (Player UserId: 6071884546 | EggUid: 45d9c91a3eaa4ff9808bb934ee504c81)
+    6071884546_69119a2a7268463d801f3c22b386daec [Model]  -->  (Player UserId: 6071884546 | EggUid: 69119a2a7268463d801f3c22b386daec)
+    6071884546_8059ec3943344323a905e57c3add5903 [Model]  -->  (Player UserId: 6071884546 | EggUid: 8059ec3943344323a905e57c3add5903)
+    6071884546_9a277c35054547ebbde8a976c858c8ae [Model]  -->  (Player UserId: 6071884546 | EggUid: 9a277c35054547ebbde8a976c858c8ae)
+    6071884546_a1434863c60b4a35bd5f1f1d3d194873 [Model]  -->  (Player UserId: 6071884546 | EggUid: a1434863c60b4a35bd5f1f1d3d194873)
+    6071884546_a64f9e229727484a928cca136ce23951 [Model]  -->  (Player UserId: 6071884546 | EggUid: a64f9e229727484a928cca136ce23951)
+    6071884546_b3affaa6dd9c490a8807c708e9ad5d98 [Model]  -->  (Player UserId: 6071884546 | EggUid: b3affaa6dd9c490a8807c708e9ad5d98)
+    6071884546_bc8ae6d9c0d04bda8072a4f6b02fb7d0 [Model]  -->  (Player UserId: 6071884546 | EggUid: bc8ae6d9c0d04bda8072a4f6b02fb7d0)
+    6071884546_ccca6abbc5f341428479912a0df4a64c [Model]  -->  (Player UserId: 6071884546 | EggUid: ccca6abbc5f341428479912a0df4a64c)
+    8341410217_04e6c962cd0047129a2b9aa76902d76d [Model]  -->  (Player UserId: 8341410217 | EggUid: 04e6c962cd0047129a2b9aa76902d76d)
+    8341410217_2e82e03ac7354e1683877d039fb3d5a3 [Model]  -->  (Player UserId: 8341410217 | EggUid: 2e82e03ac7354e1683877d039fb3d5a3)
+    8341410217_49ccefc8adcb450bb9434074f1e5f1e9 [Model]  -->  (Player UserId: 8341410217 | EggUid: 49ccefc8adcb450bb9434074f1e5f1e9)
+    8341410217_4d65d9053b484ba69ba64abb0b8d4eaa [Model]  -->  (Player UserId: 8341410217 | EggUid: 4d65d9053b484ba69ba64abb0b8d4eaa)
+    8341410217_4e5f5a33520146268a48b872e05e01a4 [Model]  -->  (Player UserId: 8341410217 | EggUid: 4e5f5a33520146268a48b872e05e01a4)
+    8341410217_ad5145b96e0b4708af8972eb6d18f43b [Model]  -->  (Player UserId: 8341410217 | EggUid: ad5145b96e0b4708af8972eb6d18f43b)
+    8341410217_afcce7dd272c47888fa4151c3b12f17e [Model]  -->  (Player UserId: 8341410217 | EggUid: afcce7dd272c47888fa4151c3b12f17e)
+    8341410217_c7cdbf8f438b47a6a870cd26546319e8 [Model]  -->  (Player UserId: 8341410217 | EggUid: c7cdbf8f438b47a6a870cd26546319e8)
+    8341410217_d1c16c3668cd4a6d8e43fe2ffcb4f189 [Model]  -->  (Player UserId: 8341410217 | EggUid: d1c16c3668cd4a6d8e43fe2ffcb4f189)
+    8341410217_d2608b739ab94b3487c24db6a8914e37 [Model]  -->  (Player UserId: 8341410217 | EggUid: d2608b739ab94b3487c24db6a8914e37)
+    8341410217_e1de8984048b46359633e93e440958e0 [Model]  -->  (Player UserId: 8341410217 | EggUid: e1de8984048b46359633e93e440958e0)
+    8341410217_e1fcc2050d85467582e12170f114f51d [Model]  -->  (Player UserId: 8341410217 | EggUid: e1fcc2050d85467582e12170f114f51d)
+    8341410217_f439e94a08874fd3b9c28bb4827e0fbf [Model]  -->  (Player UserId: 8341410217 | EggUid: f439e94a08874fd3b9c28bb4827e0fbf)
+    8341410217_f89baddad9fd47d3a014622f2dec7796 [Model]  -->  (Player UserId: 8341410217 | EggUid: f89baddad9fd47d3a014622f2dec7796)
+    8341410217_fa62cc30005c49acb4dae316733e76f5 [Model]  -->  (Player UserId: 8341410217 | EggUid: fa62cc30005c49acb4dae316733e76f5)
+    8341410217_fdd65c44e20947e8ac47bb9adde2a2a1 [Model]  -->  (Player UserId: 8341410217 | EggUid: fdd65c44e20947e8ac47bb9adde2a2a1)
+    8416529132_073fe0331d324e9580e3b9ef05aec6c5 [Model]  -->  (Player UserId: 8416529132 | EggUid: 073fe0331d324e9580e3b9ef05aec6c5)
+    8416529132_0ba07aadbded41ac86208058cb49bbad [Model]  -->  (Player UserId: 8416529132 | EggUid: 0ba07aadbded41ac86208058cb49bbad)
+    8416529132_11c9eb9580514b68a3f572ee447d6fd5 [Model]  -->  (Player UserId: 8416529132 | EggUid: 11c9eb9580514b68a3f572ee447d6fd5)
+    8416529132_14c56b95132d43ca97f6e693343f1d1f [Model]  -->  (Player UserId: 8416529132 | EggUid: 14c56b95132d43ca97f6e693343f1d1f)
+    8416529132_2b9ff5f69e1f48c395a7f548ef9ddcc0 [Model]  -->  (Player UserId: 8416529132 | EggUid: 2b9ff5f69e1f48c395a7f548ef9ddcc0)
+    8416529132_505c50c6af1840eca7a35a0d999893c1 [Model]  -->  (Player UserId: 8416529132 | EggUid: 505c50c6af1840eca7a35a0d999893c1)
+    8416529132_59b20e1c19f045368b7267e93e511729 [Model]  -->  (Player UserId: 8416529132 | EggUid: 59b20e1c19f045368b7267e93e511729)
+    8416529132_707945bd4d5d4272abfd3c64897ba994 [Model]  -->  (Player UserId: 8416529132 | EggUid: 707945bd4d5d4272abfd3c64897ba994)
+    8416529132_894aca0106644f549a87c2bc562eaced [Model]  -->  (Player UserId: 8416529132 | EggUid: 894aca0106644f549a87c2bc562eaced)
+    8416529132_8f6eeacf36164768a9df8170f811cbf6 [Model]  -->  (Player UserId: 8416529132 | EggUid: 8f6eeacf36164768a9df8170f811cbf6)
+    8416529132_9bd9334fccc64e3ca2284e1d82fdba60 [Model]  -->  (Player UserId: 8416529132 | EggUid: 9bd9334fccc64e3ca2284e1d82fdba60)
+    8416529132_9f33bf845eb64fca9918da59bdea4469 [Model]  -->  (Player UserId: 8416529132 | EggUid: 9f33bf845eb64fca9918da59bdea4469)
+    8416529132_b02124bd83914341bc1b2d44f21d7c74 [Model]  -->  (Player UserId: 8416529132 | EggUid: b02124bd83914341bc1b2d44f21d7c74)
+    8416529132_bb127a01315c4b649196217d69943c65 [Model]  -->  (Player UserId: 8416529132 | EggUid: bb127a01315c4b649196217d69943c65)
+    8416529132_bc76b4151acf4cfcaeb9309ff9bbc2b0 [Model]  -->  (Player UserId: 8416529132 | EggUid: bc76b4151acf4cfcaeb9309ff9bbc2b0)
+    8416529132_f4eb5896b299433c9bd84686d44ecea7 [Model]  -->  (Player UserId: 8416529132 | EggUid: f4eb5896b299433c9bd84686d44ecea7)
+    8416529132_f7416d0a207e4ff8b154d349155fce48 [Model]  -->  (Player UserId: 8416529132 | EggUid: f7416d0a207e4ff8b154d349155fce48)
     9521640019_0633d1c02e4547faa689582ab14dc648 [Model]  -->  (Player UserId: 9521640019 | EggUid: 0633d1c02e4547faa689582ab14dc648)
     9521640019_1cb265064a9f4d51bf0dfa5060bbc61c [Model]  -->  (Player UserId: 9521640019 | EggUid: 1cb265064a9f4d51bf0dfa5060bbc61c)
     9521640019_2273d1f5eea94dd39dbc6d83f6c186f3 [Model]  -->  (Player UserId: 9521640019 | EggUid: 2273d1f5eea94dd39dbc6d83f6c186f3)
@@ -855,8 +827,8 @@ RF/BossMastery/AskUseMutationConsumable [RemoteFunction]
     9521640019_30797e07be6948c9b01869ec8f2fd3e9 [Model]  -->  (Player UserId: 9521640019 | EggUid: 30797e07be6948c9b01869ec8f2fd3e9)
     9521640019_388063f89bb046afbacc65cdcd07d050 [Model]  -->  (Player UserId: 9521640019 | EggUid: 388063f89bb046afbacc65cdcd07d050)
     9521640019_59c8100a20ec40c6ab6418815fbb62d2 [Model]  -->  (Player UserId: 9521640019 | EggUid: 59c8100a20ec40c6ab6418815fbb62d2)
-    9521640019_5a235f0d16a6491d8cdb8fb217fbbccc [Model]  -->  (Player UserId: 9521640019 | EggUid: 5a235f0d16a6491d8cdb8fb217fbbccc)
     9521640019_7bdefd7c64184895a63c9f71d168e229 [Model]  -->  (Player UserId: 9521640019 | EggUid: 7bdefd7c64184895a63c9f71d168e229)
+    9521640019_7fd1904ade904eb2b8af4bb888f05169 [Model]  -->  (Player UserId: 9521640019 | EggUid: 7fd1904ade904eb2b8af4bb888f05169)
     9521640019_80477a8ddfb248a285e2058fe31aba75 [Model]  -->  (Player UserId: 9521640019 | EggUid: 80477a8ddfb248a285e2058fe31aba75)
     9521640019_834bae0e594e47de85e46042e7cc28e4 [Model]  -->  (Player UserId: 9521640019 | EggUid: 834bae0e594e47de85e46042e7cc28e4)
     9521640019_891373eddc3741ebbe640ebe0af88696 [Model]  -->  (Player UserId: 9521640019 | EggUid: 891373eddc3741ebbe640ebe0af88696)
@@ -867,6 +839,21 @@ RF/BossMastery/AskUseMutationConsumable [RemoteFunction]
     9521640019_e64a7ed5c1c944a79f30d2760a68314c [Model]  -->  (Player UserId: 9521640019 | EggUid: e64a7ed5c1c944a79f30d2760a68314c)
     9521640019_faa86e017bd743d2b4e2877c8db4d281 [Model]  -->  (Player UserId: 9521640019 | EggUid: faa86e017bd743d2b4e2877c8db4d281)
     9521640019_fffb713383474c668a3ac7cd3c28ea28 [Model]  -->  (Player UserId: 9521640019 | EggUid: fffb713383474c668a3ac7cd3c28ea28)
+    9965295902_01c41ee3d20047d2a3e81978054782a0 [Model]  -->  (Player UserId: 9965295902 | EggUid: 01c41ee3d20047d2a3e81978054782a0)
+    9965295902_05881050dd8c4ce3a07c44df33f08842 [Model]  -->  (Player UserId: 9965295902 | EggUid: 05881050dd8c4ce3a07c44df33f08842)
+    9965295902_1fa8b830ff344737b6cf439c097c2ca1 [Model]  -->  (Player UserId: 9965295902 | EggUid: 1fa8b830ff344737b6cf439c097c2ca1)
+    9965295902_3261aca2e5904600b2caed4c4d4c2986 [Model]  -->  (Player UserId: 9965295902 | EggUid: 3261aca2e5904600b2caed4c4d4c2986)
+    9965295902_33f8328de13d423492c85f5d2a70c833 [Model]  -->  (Player UserId: 9965295902 | EggUid: 33f8328de13d423492c85f5d2a70c833)
+    9965295902_48fbebd41a4648f0abdc388ce6a788a4 [Model]  -->  (Player UserId: 9965295902 | EggUid: 48fbebd41a4648f0abdc388ce6a788a4)
+    9965295902_590d3fdaadb14a0081eed63360d9d1db [Model]  -->  (Player UserId: 9965295902 | EggUid: 590d3fdaadb14a0081eed63360d9d1db)
+    9965295902_5f8250e0d00848998dc4bb8d154948cc [Model]  -->  (Player UserId: 9965295902 | EggUid: 5f8250e0d00848998dc4bb8d154948cc)
+    9965295902_61df97f144474d8b837c0df0b22c7a85 [Model]  -->  (Player UserId: 9965295902 | EggUid: 61df97f144474d8b837c0df0b22c7a85)
+    9965295902_6502d5960b1944d39704e342efd487bc [Model]  -->  (Player UserId: 9965295902 | EggUid: 6502d5960b1944d39704e342efd487bc)
+    9965295902_7a34e872d53b4d328c2221d0cd27a31a [Model]  -->  (Player UserId: 9965295902 | EggUid: 7a34e872d53b4d328c2221d0cd27a31a)
+    9965295902_99cc061569f446a6a2b9a4c7a2dc6085 [Model]  -->  (Player UserId: 9965295902 | EggUid: 99cc061569f446a6a2b9a4c7a2dc6085)
+    9965295902_b2ffbb18c4fc453791594ad65c9ed59d [Model]  -->  (Player UserId: 9965295902 | EggUid: b2ffbb18c4fc453791594ad65c9ed59d)
+    9965295902_c30b192b58fc48e4952c8f9abdbe0140 [Model]  -->  (Player UserId: 9965295902 | EggUid: c30b192b58fc48e4952c8f9abdbe0140)
+    9965295902_f06d16e2c32f476f841415286ad47ba6 [Model]  -->  (Player UserId: 9965295902 | EggUid: f06d16e2c32f476f841415286ad47ba6)
 
 [FOUND] Workspace.World [Folder]
     Areas [Folder]
@@ -887,55 +874,6 @@ RF/BossMastery/AskUseMutationConsumable [RemoteFunction]
 Scanning root: Workspace
 [Folder] Workspace._Guards
 [Folder] Workspace.Eggs
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Root.Models for egg.008
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008.Models for egg.010
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010.Models for egg.009
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.009
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Root.Models for egg.035
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035.Models for egg.037
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037.Models for egg.036
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.036
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Root.Models for egg.053
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053.Models for egg.055
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055.Models for egg.054
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.054
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Body Rig.Root.Models for egg.003
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Root.Models for egg.008
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008.Models for egg.010
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010.Models for egg.009
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.009
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Root.Models for egg.008
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008.Models for egg.010
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010.Models for egg.009
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.009
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Root.Models for egg.053
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053.Models for egg.055
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055.Models for egg.054
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.054
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Root.Models for egg.053
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053.Models for egg.055
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055.Models for egg.054
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.054
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Root.Models for egg.035
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035.Models for egg.037
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037
-[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037.Models for egg.036
-[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.036
 [Model] Workspace.World.Machines.FuseMachine
 [Model] Workspace.World.Machines.FuseMachine.EmitFuse
 [Model] Workspace.World.Machines.FuseMachine.Fuse Machine Model
@@ -947,25 +885,6 @@ Scanning root: Workspace
 [MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.017
 [Attachment] Workspace.World.Machines.RiftMachine.Rift.MainScreen.EggSpawn
 [Folder] Workspace.World.Areas.GuardAreas
-[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests
-[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Cosmic.Guard
-[WeldConstraint] Workspace.World.Areas.GuardAreas.Cosmic.Guard.HeadProxy.EggPointWeld
-[Part] Workspace.World.Areas.GuardAreas.Cosmic.Guard.EggPoint
 [Model] Workspace.World.Areas.GuardAreas.Forest.Nests
 [Model] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel
 [Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
@@ -986,96 +905,25 @@ Scanning root: Workspace
 [Part] Workspace.World.Areas.GuardAreas.Forest.ForestGuardAuthored.EggPoint
 [Model] Workspace.World.Areas.GuardAreas.Forest.Guard
 [Part] Workspace.World.Areas.GuardAreas.Forest.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Desert.Nests
-[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Desert.Guard
-[Part] Workspace.World.Areas.GuardAreas.Desert.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests
-[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Volcano.Guard
-[Part] Workspace.World.Areas.GuardAreas.Volcano.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests
-[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Guard
-[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests
-[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard
-[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests
-[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Light Dark.Guard
-[Part] Workspace.World.Areas.GuardAreas.Light Dark.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Guard
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Guard.EggPoint
+[WeldConstraint] Workspace.World.Areas.GuardAreas.Cosmic.Guard.HeadProxy.EggPointWeld
 [Model] Workspace.World.Areas.GuardAreas.Lake.Nests
 [Model] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel
 [Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
@@ -1094,60 +942,24 @@ Scanning root: Workspace
 [Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
 [Model] Workspace.World.Areas.GuardAreas.Lake.Guard
 [Part] Workspace.World.Areas.GuardAreas.Lake.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests
-[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Jungle.Guard
-[Part] Workspace.World.Areas.GuardAreas.Jungle.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests
-[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Guard
-[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Guard.EggPoint
-[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests
-[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
-[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Guard
-[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Guard
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Guard.EggPoint
 [Model] Workspace.World.Areas.GuardAreas.Snow.Nests
 [Model] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel
 [Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
@@ -1166,6 +978,136 @@ Scanning root: Workspace
 [Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
 [Model] Workspace.World.Areas.GuardAreas.Snow.Guard
 [Part] Workspace.World.Areas.GuardAreas.Snow.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Guard
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Desert.Guard
+[Part] Workspace.World.Areas.GuardAreas.Desert.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Guard
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Guard
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard.EggPoint
+[Highlight] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard.GuardWakeHighlight
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Guard
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Guard
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard.EggPoint
+[WeldConstraint] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard.HeadProxy.EggPointWeld
 [Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests
 [Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel
 [Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggFitBounds
@@ -1182,9 +1124,6 @@ Scanning root: Workspace
 [Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel
 [Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggFitBounds
 [Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggSpotBottom
-[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard
-[WeldConstraint] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard.HeadProxy.EggPointWeld
-[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard.EggPoint
 [Folder] Workspace.World.Areas.EggCarryBounds
 [Part] Workspace.World.Areas.CaptureTheEggSpawn
 [Part] Workspace.World.Areas.AdminAbuseEggSpawn
@@ -1196,271 +1135,434 @@ Scanning root: Workspace
 [Folder] Workspace.World.Build.1.COLLISIONS.COLL GUARD.WALL FRONT (COLL GUARD)
 [Folder] Workspace.World.Build.FuseBiomeZone
 [Folder] Workspace.World.Build.FuseBiomeLanePortals
-[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Body Rig.Root.Models for egg.003
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Root.Models for egg.008
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008.Models for egg.010
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010.Models for egg.009
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.009
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Root.Models for egg.035
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035.Models for egg.037
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037.Models for egg.036
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.036
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Root.Models for egg.053
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053.Models for egg.055
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055.Models for egg.054
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.054
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Root.Models for egg.008
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008.Models for egg.010
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010.Models for egg.009
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.009
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Root.Models for egg.008
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.008.Models for egg.010
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.010.Models for egg.009
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 08.Models for egg.009
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Root.Models for egg.053
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053.Models for egg.055
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055.Models for egg.054
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.054
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Root.Models for egg.035
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.035.Models for egg.037
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.037.Models for egg.036
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 01.Models for egg.036
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Root.Models for egg.053
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.053.Models for egg.055
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055
+[Motor6D] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.055.Models for egg.054
+[MeshPart] Workspace.RaceTrack.Map.Creatures.Kraken Arm 07.Models for egg.054
 [Folder] Workspace.AreaEggSlotsClient
-[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972731_Forest:Slot_004
-[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972731_Forest:Slot_005
-[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972731_Forest:Slot_002
-[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972731_Forest:Slot_001
-[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972731_Forest:Slot_003
-[MeshPart] Workspace.AreaEggSlotsClient.87854b079cc04783b5a6ab4dac7a4647.Meshes/Steal an Egg Batch 2_Plane.001
-[MeshPart] Workspace.AreaEggSlotsClient.87854b079cc04783b5a6ab4dac7a4647.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0051
-[MeshPart] Workspace.AreaEggSlotsClient.87854b079cc04783b5a6ab4dac7a4647.Meshes/Steal an Egg Batch 2_Meshesuntitledcube1
-[MeshPart] Workspace.AreaEggSlotsClient.87854b079cc04783b5a6ab4dac7a4647.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0061
-[MeshPart] Workspace.AreaEggSlotsClient.1d6e75e8c7cb49e8a68d9eceb753b675.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0071
-[MeshPart] Workspace.AreaEggSlotsClient.1d6e75e8c7cb49e8a68d9eceb753b675.Meshes/Steal an Egg Batch 2_Plane.013
-[MeshPart] Workspace.AreaEggSlotsClient.1d6e75e8c7cb49e8a68d9eceb753b675.Meshes/Steal an Egg Batch 2_Cube
-[MeshPart] Workspace.AreaEggSlotsClient.1d6e75e8c7cb49e8a68d9eceb753b675.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0081
-[MeshPart] Workspace.AreaEggSlotsClient.1d6e75e8c7cb49e8a68d9eceb753b675.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0061.001
-[MeshPart] Workspace.AreaEggSlotsClient.d491fac325304accb9842b3b6f10b6d2.Meshes/Steal an Egg Batch 2_Plane.001
-[MeshPart] Workspace.AreaEggSlotsClient.d491fac325304accb9842b3b6f10b6d2.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0051
-[MeshPart] Workspace.AreaEggSlotsClient.d491fac325304accb9842b3b6f10b6d2.Meshes/Steal an Egg Batch 2_Meshesuntitledcube1
-[MeshPart] Workspace.AreaEggSlotsClient.d491fac325304accb9842b3b6f10b6d2.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0061
-[MeshPart] Workspace.AreaEggSlotsClient.99eec9a2e9624afc85a914ec7dc17f01.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
-[MeshPart] Workspace.AreaEggSlotsClient.99eec9a2e9624afc85a914ec7dc17f01.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
-[MeshPart] Workspace.AreaEggSlotsClient.99eec9a2e9624afc85a914ec7dc17f01.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
-[MeshPart] Workspace.AreaEggSlotsClient.99eec9a2e9624afc85a914ec7dc17f01.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
-[MeshPart] Workspace.AreaEggSlotsClient.99eec9a2e9624afc85a914ec7dc17f01.Meshes/Steal an Egg Batch 2_Plane.002
-[MeshPart] Workspace.AreaEggSlotsClient.ccc9ba952f1a42a5b7e34213383c811f.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.008
-[MeshPart] Workspace.AreaEggSlotsClient.ccc9ba952f1a42a5b7e34213383c811f.Meshes/Steal an Egg Batch 2_Meshesuntitledcube00351.004
-[MeshPart] Workspace.AreaEggSlotsClient.ccc9ba952f1a42a5b7e34213383c811f.Meshes/Steal an Egg Batch 2_Meshesuntitledcube00151.004
-[Tool] Workspace.mackyhohohoho.Cosmic Gecko Egg
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972878_Forest:Slot_004
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972878_Forest:Slot_005
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972878_Forest:Slot_002
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972878_Forest:Slot_001
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5972878_Forest:Slot_003
+[MeshPart] Workspace.AreaEggSlotsClient.fa76c7e339114e9d8c4e8f71a828faab.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] Workspace.AreaEggSlotsClient.fa76c7e339114e9d8c4e8f71a828faab.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] Workspace.AreaEggSlotsClient.fa76c7e339114e9d8c4e8f71a828faab.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] Workspace.AreaEggSlotsClient.fa76c7e339114e9d8c4e8f71a828faab.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] Workspace.AreaEggSlotsClient.fa76c7e339114e9d8c4e8f71a828faab.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] Workspace.AreaEggSlotsClient.f144ebc743484db8a3c84120febea00c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] Workspace.AreaEggSlotsClient.f144ebc743484db8a3c84120febea00c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] Workspace.AreaEggSlotsClient.f144ebc743484db8a3c84120febea00c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] Workspace.AreaEggSlotsClient.f144ebc743484db8a3c84120febea00c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] Workspace.AreaEggSlotsClient.f144ebc743484db8a3c84120febea00c.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] Workspace.AreaEggSlotsClient.91e53626992947668a417d768a5c7372.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0071
+[MeshPart] Workspace.AreaEggSlotsClient.91e53626992947668a417d768a5c7372.Meshes/Steal an Egg Batch 2_Plane.013
+[MeshPart] Workspace.AreaEggSlotsClient.91e53626992947668a417d768a5c7372.Meshes/Steal an Egg Batch 2_Cube
+[MeshPart] Workspace.AreaEggSlotsClient.91e53626992947668a417d768a5c7372.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0081
+[MeshPart] Workspace.AreaEggSlotsClient.91e53626992947668a417d768a5c7372.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0061.001
+[MeshPart] Workspace.AreaEggSlotsClient.d5adaef78686445598d139df96e6a5eb.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] Workspace.AreaEggSlotsClient.d5adaef78686445598d139df96e6a5eb.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] Workspace.AreaEggSlotsClient.d5adaef78686445598d139df96e6a5eb.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] Workspace.AreaEggSlotsClient.d5adaef78686445598d139df96e6a5eb.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] Workspace.AreaEggSlotsClient.d5adaef78686445598d139df96e6a5eb.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] Workspace.AreaEggSlotsClient.76332423e37340d19dd4ff963168166e.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041
+[MeshPart] Workspace.AreaEggSlotsClient.76332423e37340d19dd4ff963168166e.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0021
+[MeshPart] Workspace.AreaEggSlotsClient.76332423e37340d19dd4ff963168166e.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011
+[MeshPart] Workspace.AreaEggSlotsClient.76332423e37340d19dd4ff963168166e.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0031
+[MeshPart] Workspace.AreaEggSlotsClient.76332423e37340d19dd4ff963168166e.Meshes/Steal an Egg Batch 2_Plane
 [ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
-[Model] Workspace.__ClientTreadmillRenders.TreadmillRender_1.Guardian
-[Part] Workspace.__ClientTreadmillRenders.TreadmillRender_6.Astral.Meshes/Steal an Egg Treadmill 2_Cube.095 (2)
-[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_6.Astral.Meshes/Steal an Egg Treadmill 2_Cube.099 (2)
-[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_6.Astral.Meshes/Steal an Egg Treadmill 2_Cylinder.009 (2)
-[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_6.Astral.Meshes/Steal an Egg Treadmill 2_Cube.089 (2)
-[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_6.Astral.Meshes/Steal an Egg Treadmill 2_Plane (2)
-[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_6.Astral.Meshes/Steal an Egg Treadmill 2_Cylinder.005 (2)
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[Model] Workspace.__ClientTreadmillRenders.TreadmillRender_6.Guardian
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_7.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.006
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_7.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.057
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_7.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.054
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_7.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.053
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_7.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.056
 [Model] Workspace.__ClientTreadmillRenders.TreadmillRender_5.Guardian
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_3.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.064
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_3.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.063
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_3.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.007
 [Folder] Workspace.PlacedEggRenders
-[MeshPart] Workspace.PlacedEggRenders.9521640019_cafad52c9fdd455f8e1bc3aee9b2984d.Meshes/Steal an Egg Batch 2_Plane.004
-[MeshPart] Workspace.PlacedEggRenders.9521640019_cafad52c9fdd455f8e1bc3aee9b2984d.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.009
-[MeshPart] Workspace.PlacedEggRenders.9521640019_cafad52c9fdd455f8e1bc3aee9b2984d.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.011
-[MeshPart] Workspace.PlacedEggRenders.9521640019_cafad52c9fdd455f8e1bc3aee9b2984d.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.010
-[MeshPart] Workspace.PlacedEggRenders.9521640019_cafad52c9fdd455f8e1bc3aee9b2984d.Meshes/Steal an Egg Batch 2_Cube.009
-[MeshPart] Workspace.PlacedEggRenders.2775241544_d8b2406a622b47d9a47665ccef9e971c.Meshes/Steal an Egg Batch 2_Plane.004
-[MeshPart] Workspace.PlacedEggRenders.2775241544_d8b2406a622b47d9a47665ccef9e971c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.009
-[MeshPart] Workspace.PlacedEggRenders.2775241544_d8b2406a622b47d9a47665ccef9e971c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.011
-[MeshPart] Workspace.PlacedEggRenders.2775241544_d8b2406a622b47d9a47665ccef9e971c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.010
-[MeshPart] Workspace.PlacedEggRenders.2775241544_d8b2406a622b47d9a47665ccef9e971c.Meshes/Steal an Egg Batch 2_Cube.009
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.032
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.013
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.023
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.006
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.039
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.039.Models for egg.026
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.049
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.049.Models for egg.048
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.049.Models for egg.023
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.014
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.007
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.054
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.054.Models for egg.007
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.020
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.009
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.009.Models for egg.025
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.047
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.047.Models for egg.049
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.047.Models for egg.016
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.055
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.055.Models for egg.021
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.055.Models for egg.054
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.008
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.008.Models for egg.010
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.008.Models for egg.013
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.024
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.027
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.050
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.050.Models for egg.015
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.050.Models for egg.052
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.040
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.040.Models for egg.019
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.040.Models for egg.039
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.028
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.036
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.036.Models for egg.029
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.031
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Root.Models for egg.003
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.052
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.052.Models for egg.022
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.052.Models for egg.051
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.012
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.053
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.053.Models for egg.055
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.053.Models for egg.014
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.018
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.021
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.015
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.035
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.035.Models for egg.037
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.035.Models for egg.011
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.011
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.042
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.042.Models for egg.030
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.037
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.037.Models for egg.036
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.037.Models for egg.027
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.016
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.044
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.044.Models for egg.017
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.044.Models for egg.046
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.045
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.045.Models for egg.031
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.010
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.010.Models for egg.020
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.010.Models for egg.009
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.025
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.041
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.041.Models for egg.043
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.041.Models for egg.018
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.030
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.022
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.004
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.033
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.048
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.048.Models for egg.032
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.046
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.046.Models for egg.024
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.046.Models for egg.045
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.026
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.051
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.051.Models for egg.033
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.005
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.017
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.043
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.043.Models for egg.042
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.043.Models for egg.028
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.008
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.005
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.050
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.038
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.004
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.047
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.053
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.041
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.034
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.044
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.001
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.035
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.003.Models for egg.006
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.038
-[Weld] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.038.Models for egg.012
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.038.Models for egg.040
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.034
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.029
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.001
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_e01501efeaf040aa942db6fc0685c709.Model.Models for egg.019
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.032
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.013
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.023
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.006
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.039
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.039.Models for egg.026
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.049
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.049.Models for egg.048
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.049.Models for egg.023
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.014
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.007
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.054
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.054.Models for egg.007
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.020
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.009
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.009.Models for egg.025
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.047
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.047.Models for egg.049
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.047.Models for egg.016
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.055
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.055.Models for egg.021
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.055.Models for egg.054
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.008
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.008.Models for egg.010
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.008.Models for egg.013
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.024
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.027
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.050
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.050.Models for egg.015
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.050.Models for egg.052
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.040
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.040.Models for egg.019
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.040.Models for egg.039
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.028
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.036
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.036.Models for egg.029
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.031
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Root.Models for egg.003
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.052
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.052.Models for egg.022
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.052.Models for egg.051
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.012
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.053
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.053.Models for egg.055
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.053.Models for egg.014
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.018
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.021
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.015
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.035
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.035.Models for egg.037
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.035.Models for egg.011
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.011
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.042
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.042.Models for egg.030
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.037
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.037.Models for egg.036
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.037.Models for egg.027
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.016
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.044
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.044.Models for egg.017
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.044.Models for egg.046
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.045
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.045.Models for egg.031
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.010
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.010.Models for egg.020
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.010.Models for egg.009
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.025
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.041
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.041.Models for egg.043
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.041.Models for egg.018
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.030
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.022
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.004
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.033
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.048
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.048.Models for egg.032
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.046
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.046.Models for egg.024
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.046.Models for egg.045
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.026
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.051
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.051.Models for egg.033
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.005
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.017
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.043
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.043.Models for egg.042
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.043.Models for egg.028
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.008
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.005
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.050
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.038
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.004
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.047
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.053
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.041
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.034
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.044
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.001
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.035
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.003.Models for egg.006
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.038
-[Weld] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.038.Models for egg.012
-[Motor6D] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.038.Models for egg.040
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.034
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.029
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.001
-[MeshPart] Workspace.ClientRenderedAssets.11004045308_add2e00487eb4fe28652906ea89c41bb.Model.Models for egg.019
+[MeshPart] Workspace.PlacedEggRenders.9521640019_c043a0aa9e04484aa7bed2f21f902b9c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.005
+[MeshPart] Workspace.PlacedEggRenders.9521640019_c043a0aa9e04484aa7bed2f21f902b9c.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.007
+[MeshPart] Workspace.PlacedEggRenders.9521640019_c043a0aa9e04484aa7bed2f21f902b9c.Steal an Egg Batch 2
+[MeshPart] Workspace.PlacedEggRenders.9521640019_c043a0aa9e04484aa7bed2f21f902b9c.Meshes/Steal an Egg Batch 2_Plane.003
+[MeshPart] Workspace.PlacedEggRenders.9521640019_c043a0aa9e04484aa7bed2f21f902b9c.Meshes/Steal an Egg Batch 2_Cube.010
+[MeshPart] Workspace.PlacedEggRenders.8341410217_51391d6c06c04db3a472d6795a44e2c7.Meshes/Steal an Egg Batch 2_Plane.004
+[MeshPart] Workspace.PlacedEggRenders.8341410217_51391d6c06c04db3a472d6795a44e2c7.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.009
+[MeshPart] Workspace.PlacedEggRenders.8341410217_51391d6c06c04db3a472d6795a44e2c7.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.011
+[MeshPart] Workspace.PlacedEggRenders.8341410217_51391d6c06c04db3a472d6795a44e2c7.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.010
+[MeshPart] Workspace.PlacedEggRenders.8341410217_51391d6c06c04db3a472d6795a44e2c7.Meshes/Steal an Egg Batch 2_Cube.009
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.039
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.039.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.049
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.049.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.049.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.014
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.054
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.054.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.020
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.009
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.009.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.047.Models for egg.049
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.047.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.055.Models for egg.021
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.055.Models for egg.054
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.008
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.008.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.008.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.024
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.050
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.050.Models for egg.015
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.050.Models for egg.052
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.040
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.040.Models for egg.019
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.040.Models for egg.039
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.036.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.031
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Root.Models for egg.003
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.052
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.052.Models for egg.022
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.052.Models for egg.051
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.012
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.053.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.053.Models for egg.014
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.021
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.015
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.035
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.035.Models for egg.037
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.035.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.042.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.037
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.037.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.037.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.044.Models for egg.017
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.044.Models for egg.046
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.045
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.045.Models for egg.031
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.010.Models for egg.020
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.010.Models for egg.009
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.041
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.041.Models for egg.043
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.041.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.022
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.004
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.048.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.046
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.046.Models for egg.024
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.046.Models for egg.045
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.051
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.051.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.005
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.017
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.043
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.043.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.043.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.008
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.005
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.050
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.004
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.041
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.034
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.001
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.035
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.003.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.038.Models for egg.012
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.038.Models for egg.040
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.034
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.001
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_9a277c35054547ebbde8a976c858c8ae.Model.Models for egg.019
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.039
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.039.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.049
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.049.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.049.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.014
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.054
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.054.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.020
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.009
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.009.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.047.Models for egg.049
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.047.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.055.Models for egg.021
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.055.Models for egg.054
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.008
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.008.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.008.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.024
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.050
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.050.Models for egg.015
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.050.Models for egg.052
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.040
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.040.Models for egg.019
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.040.Models for egg.039
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.036.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.031
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Root.Models for egg.003
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.052
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.052.Models for egg.022
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.052.Models for egg.051
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.012
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.053.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.053.Models for egg.014
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.021
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.015
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.035
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.035.Models for egg.037
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.035.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.042.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.037
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.037.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.037.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.044.Models for egg.017
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.044.Models for egg.046
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.045
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.045.Models for egg.031
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.010.Models for egg.020
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.010.Models for egg.009
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.041
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.041.Models for egg.043
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.041.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.022
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.004
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.048.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.046
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.046.Models for egg.024
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.046.Models for egg.045
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.051
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.051.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.005
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.017
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.043
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.043.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.043.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.008
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.005
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.050
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.004
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.041
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.034
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.001
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.035
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.003.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.038.Models for egg.012
+[Motor6D] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.038.Models for egg.040
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.034
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.001
+[MeshPart] Workspace.ClientRenderedAssets.6071884546_ccca6abbc5f341428479912a0df4a64c.Model.Models for egg.019
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.039
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.039.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.049
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.049.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.049.Models for egg.023
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.014
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.054
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.054.Models for egg.007
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.020
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.009
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.009.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.047.Models for egg.049
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.047.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.055.Models for egg.021
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.055.Models for egg.054
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.008
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.008.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.008.Models for egg.013
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.024
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.050
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.050.Models for egg.015
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.050.Models for egg.052
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.040
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.040.Models for egg.019
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.040.Models for egg.039
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.036.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.031
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Root.Models for egg.003
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.052
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.052.Models for egg.022
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.052.Models for egg.051
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.012
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.053.Models for egg.055
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.053.Models for egg.014
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.021
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.015
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.035
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.035.Models for egg.037
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.035.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.011
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.042.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.037
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.037.Models for egg.036
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.037.Models for egg.027
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.016
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.044.Models for egg.017
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.044.Models for egg.046
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.045
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.045.Models for egg.031
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.010
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.010.Models for egg.020
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.010.Models for egg.009
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.025
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.041
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.041.Models for egg.043
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.041.Models for egg.018
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.030
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.022
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.004
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.048
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.048.Models for egg.032
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.046
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.046.Models for egg.024
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.046.Models for egg.045
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.026
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.051
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.051.Models for egg.033
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.005
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.017
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.043
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.043.Models for egg.042
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.043.Models for egg.028
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.008
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.005
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.050
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.004
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.047
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.053
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.041
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.034
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.044
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.001
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.035
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.003.Models for egg.006
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.038
+[Weld] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.038.Models for egg.012
+[Motor6D] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.038.Models for egg.040
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.034
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.029
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.001
+[MeshPart] Workspace.ClientRenderedAssets.8341410217_f89baddad9fd47d3a014622f2dec7796.Model.Models for egg.019
 [ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
 [ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
 [ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
@@ -1519,9 +1621,10 @@ Scanning root: Workspace
 [ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
 [ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
 [ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
-Egg/Boss matching objects: 634
+Egg/Boss matching objects: 749
 
 Scanning root: ReplicatedStorage
+[ModuleScript] ReplicatedStorage.CmdrClient.Types.GuardAreaType
 [ModuleScript] ReplicatedStorage.CmdrClient.Commands.globalSpawnRareEgg
 [ModuleScript] ReplicatedStorage.CmdrClient.Commands.spawnRareEgg
 [ModuleScript] ReplicatedStorage.CmdrClient.Commands.globalEggSizeBoost
@@ -1540,7 +1643,6 @@ Scanning root: ReplicatedStorage
 [ModuleScript] ReplicatedStorage.CmdrClient.Commands.nextBossEgg
 [ModuleScript] ReplicatedStorage.CmdrClient.Commands.spawnScrambleBoss
 [ModuleScript] ReplicatedStorage.CmdrClient.Commands.spawnHeavyEgg
-[ModuleScript] ReplicatedStorage.CmdrClient.Types.GuardAreaType
 [ModuleScript] ReplicatedStorage.Client.FuseMachineSignals
 [ModuleScript] ReplicatedStorage.Client.ToolGameplayGuard
 [ModuleScript] ReplicatedStorage.Client.AreaEggResetWall
@@ -1624,10 +1726,10 @@ Scanning root: ReplicatedStorage
 [Folder] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets
 [Folder] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs
 [Model] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs.Steal an Egg Boss Mech
-[MeshPart] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs.BenRigWithHandles.ConfusedBen_Cylinder
+[Motor6D] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs.BenRigWithHandles.HumanoidRootPart.ConfusedBen
 [MeshPart] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs.BenRigWithHandles.ConfusedBen
 [Motor6D] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs.BenRigWithHandles.ConfusedBen.ConfusedBen_Cylinder
-[Motor6D] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs.BenRigWithHandles.HumanoidRootPart.ConfusedBen
+[MeshPart] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1Rigs.BenRigWithHandles.ConfusedBen_Cylinder
 [Folder] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1VFX
 [Folder] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1WorkspaceAssets
 [Folder] ReplicatedStorage.CutsceneAssets.ScrambleBossCutsceneAssets.IntroCutscene1.ScrambleBossIntro1WorkspaceAssets.Dr. Scramble Boss Arena
@@ -1657,23 +1759,23 @@ Scanning root: ReplicatedStorage
 [Part] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.EndingCutscene.BeanstalkEndingVFX.EggSlam
 [Part] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.EndingCutscene.BeanstalkEndingVFX.EggBreak
 [Part] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.EndingCutscene.BeanstalkEndingVFX.EggBreak.EggSlam
+[Motor6D] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroRigs.BenRigWithHandles.Head.ConfusedBen_Cylinder
+[Motor6D] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroRigs.BenRigWithHandles.Head.ConfusedBen
 [MeshPart] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroRigs.BenRigWithHandles.ConfusedBen
 [Motor6D] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroRigs.BenRigWithHandles.ConfusedBen.ConfusedBen_Cylinder
 [MeshPart] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroRigs.BenRigWithHandles.ConfusedBen_Cylinder
-[Motor6D] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroRigs.BenRigWithHandles.Head.ConfusedBen_Cylinder
-[Motor6D] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroRigs.BenRigWithHandles.Head.ConfusedBen
 [Part] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.IntroCutscene.BeanstalkIntroVFX.Break.EggSlam
 [Model] ReplicatedStorage.CutsceneAssets.BeanstalkEventCutsceneAssets.PlaceholderEggOld
-[MeshPart] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.ConfusedBen_Cylinder
-[MeshPart] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.ConfusedBen
-[Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.ConfusedBen.ConfusedBen_Cylinder
 [Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.Head.ConfusedBen_Cylinder
 [Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.Head.ConfusedBen
-[Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.OutroCutscene.RaceOutroRigs.BenRigWithHandles.Head.ConfusedBen_Cylinder
-[Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.OutroCutscene.RaceOutroRigs.BenRigWithHandles.Head.ConfusedBen
+[MeshPart] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.ConfusedBen
+[Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.ConfusedBen.ConfusedBen_Cylinder
+[MeshPart] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.IntroCutscene.RaceIntroRigs.BenRigWithHandles.ConfusedBen_Cylinder
 [MeshPart] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.OutroCutscene.RaceOutroRigs.BenRigWithHandles.ConfusedBen_Cylinder
 [MeshPart] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.OutroCutscene.RaceOutroRigs.BenRigWithHandles.ConfusedBen
 [Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.OutroCutscene.RaceOutroRigs.BenRigWithHandles.ConfusedBen.ConfusedBen_Cylinder
+[Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.OutroCutscene.RaceOutroRigs.BenRigWithHandles.Head.ConfusedBen_Cylinder
+[Motor6D] ReplicatedStorage.CutsceneAssets.RaceEventCutsceneAssets.OutroCutscene.RaceOutroRigs.BenRigWithHandles.Head.ConfusedBen
 [RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BeanstalkEvent/AskStealEgg
 [RemoteEvent] ReplicatedStorage.Packages.Networking.RE/StaffConsole/GrantSelfEgg
 [RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskDoffTool
