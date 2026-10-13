@@ -380,10 +380,11 @@ local X = {
     -- Tab 4 Utility Trap Evade Configuration
     TRAP_CONFIG           = {
         Enabled       = DEFAULT_SETTINGS.TrapEvade,
-        DangerRadius  = 16.0,                -- expanded hazard bubble around each trap
-        ClearanceDist = 14.0,                -- wide lateral detour distance (left/right)
-        LookaheadDist = 28.0,                -- forward lookahead distance to detect traps early
+        DangerRadius  = 7.0,                 -- tight hazard bubble around each trap (red visual range)
+        ClearanceDist = 4.8,                 -- micro sidestep clearance (left/right)
+        LookaheadDist = 16.0,                -- forward lookahead distance to detect traps early
         DisableHitbox = true,
+        ShowVisuals   = true,                -- render red danger range rings
     },
     activeTraps           = {},
     -- Movement constants
@@ -1947,8 +1948,10 @@ local function applySettings(t)
     if X.TRAP_CONFIG.Enabled then
         if typeof(X.applyAllTrapNeutralization) == "function" then pcall(X.applyAllTrapNeutralization) end
         if typeof(X.applyCanTouchProtection) == "function" then pcall(X.applyCanTouchProtection) end
+        if typeof(X.updateAllTrapVisuals) == "function" then pcall(X.updateAllTrapVisuals) end
     else
         if typeof(X.restoreAllTraps) == "function" then pcall(X.restoreAllTraps) end
+        if typeof(X.removeAllTrapVisuals) == "function" then pcall(X.removeAllTrapVisuals) end
     end
 
     return true
@@ -2024,7 +2027,7 @@ local function getBesideOffset(targetPos, currentPos, dist)
     local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
     if typeof(X) == "table" and X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and typeof(X.getNearestTrapDist) == "function" then
         local trapDist, trapPos = X.getNearestTrapDist(targetPos)
-        if trapDist <= 16.0 and trapPos then
+        if trapDist <= 8.0 and trapPos then
             local awayFromTrap = Vector3.new(targetPos.X - trapPos.X, 0, targetPos.Z - trapPos.Z)
             if awayFromTrap.Magnitude > 0.1 then
                 dir = awayFromTrap.Unit
@@ -2119,14 +2122,122 @@ function X.getNearestTrapDist(pos)
     return minDist, nearest
 end
 
+function X.attachTrapVisual(child, record)
+    if not child or not record then return end
+    if not (X.TRAP_CONFIG and X.TRAP_CONFIG.ShowVisuals and X.TRAP_CONFIG.Enabled) then return end
+    if typeof(X.removeTrapVisual) == "function" then X.removeTrapVisual(record) end
+
+    local targetPart = nil
+    if child:IsA("BasePart") and child.Name ~= "Hitbox" and child.Position.Y > -100 then
+        targetPart = child
+    elseif child:IsA("Model") then
+        for _, desc in ipairs(child:GetDescendants()) do
+            if desc:IsA("BasePart") and desc.Name ~= "Hitbox" and desc.Position.Y > -100 then
+                targetPart = desc
+                break
+            end
+        end
+        if not targetPart then
+            local bp = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
+            if bp and bp.Position.Y > -100 then
+                targetPart = bp
+            end
+        end
+    end
+    if not targetPart then
+        targetPart = Workspace.Terrain
+    end
+    if not targetPart then return end
+
+    local tPos = record.Position
+    if not tPos then
+        local okP, p = pcall(function() return child:GetPivot().Position end)
+        tPos = okP and p or (targetPart ~= Workspace.Terrain and targetPart.Position or nil)
+        record.Position = tPos
+    end
+    if not tPos then return end
+
+    local cfg = X.TRAP_CONFIG
+    local radius = (cfg and cfg.DangerRadius) or 7.0
+
+    pcall(function()
+        local worldCF = CFrame.new(tPos.X, tPos.Y + 0.12, tPos.Z) * CFrame.Angles(math.rad(90), 0, 0)
+        local localCF = (targetPart ~= Workspace.Terrain) and targetPart.CFrame:ToObjectSpace(worldCF) or worldCF
+
+        -- Outer danger radius indicator: translucent red warning circle
+        local outer = Instance.new("CylinderHandleAdornment")
+        outer.Name = "TrapDangerRange"
+        outer.Adornee = targetPart
+        outer.Radius = radius
+        outer.Height = 0.12
+        outer.Color3 = Color3.fromRGB(255, 35, 35)
+        outer.Transparency = 0.65
+        outer.ZIndex = 1
+        outer.AlwaysOnTop = true
+        outer.CFrame = localCF
+        outer.Parent = targetPart
+
+        -- Inner core marker: bright red center pinpoint
+        local inner = Instance.new("CylinderHandleAdornment")
+        inner.Name = "TrapDangerCore"
+        inner.Adornee = targetPart
+        inner.Radius = 1.8
+        inner.Height = 0.18
+        inner.Color3 = Color3.fromRGB(255, 10, 10)
+        inner.Transparency = 0.35
+        inner.ZIndex = 2
+        inner.AlwaysOnTop = true
+        inner.CFrame = localCF
+        inner.Parent = targetPart
+
+        record.Visuals = { outer, inner }
+    end)
+end
+
+function X.removeTrapVisual(record)
+    if not record then return end
+    if record.Visuals then
+        for _, v in ipairs(record.Visuals) do
+            pcall(function() v:Destroy() end)
+        end
+        record.Visuals = nil
+    end
+end
+
+function X.updateAllTrapVisuals()
+    if not X.activeTraps then return end
+    local shouldShow = X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and X.TRAP_CONFIG.ShowVisuals
+    for inst, record in pairs(X.activeTraps) do
+        if inst.Parent then
+            if shouldShow then
+                if not record.Visuals then
+                    X.attachTrapVisual(inst, record)
+                end
+            else
+                X.removeTrapVisual(record)
+            end
+        else
+            X.removeTrapVisual(record)
+            X.activeTraps[inst] = nil
+        end
+    end
+end
+
+function X.removeAllTrapVisuals()
+    if not X.activeTraps then return end
+    for _, record in pairs(X.activeTraps) do
+        X.removeTrapVisual(record)
+    end
+end
+
 function X.getTrapDetourPoint(rp, dest)
     if not rp or not dest or not X.activeTraps then return nil end
     local cfg = X.TRAP_CONFIG
     if not (cfg and cfg.Enabled) then return nil end
 
-    local dangerRadius  = cfg.DangerRadius or 16.0    -- Expanded area around trap
-    local clearanceDist = cfg.ClearanceDist or 14.0   -- Wide lateral space (left/right)
-    local lookaheadDist = cfg.LookaheadDist or 28.0   -- Early detection along path
+    local dangerRadius  = cfg.DangerRadius or 7.0
+    local clearanceDist = cfg.ClearanceDist or 4.8
+    local lookaheadDist = cfg.LookaheadDist or 16.0
 
     local toDest = Vector3.new(dest.X - rp.X, 0, dest.Z - rp.Z)
     local distDest = toDest.Magnitude
@@ -2137,8 +2248,9 @@ function X.getTrapDetourPoint(rp, dest)
     local rightDir = Vector3.new(forwardDir.Z, 0, -forwardDir.X)
 
     local mostThreatening = nil
-    local minScore = math.huge
+    local minThreatScore = math.huge
     local nearestDist = math.huge
+    local candidateTraps = nil
 
     for inst, data in pairs(X.activeTraps) do
         if inst.Parent then
@@ -2153,61 +2265,99 @@ function X.getTrapDetourPoint(rp, dest)
                 data.Position = tPos
             end
             if tPos then
-                local toTrap = Vector3.new(tPos.X - rp.X, 0, tPos.Z - rp.Z)
-                local distToTrap = toTrap.Magnitude
+                local distToTrap = X.distXZ(tPos, rp)
                 if distToTrap < nearestDist then
                     nearestDist = distToTrap
                 end
 
-                if distToTrap <= lookaheadDist then
-                    local forwardProj = toTrap:Dot(forwardDir)
-                    local lateralDist = math.abs(toTrap:Dot(leftDir))
+                if distToTrap <= (lookaheadDist + 4.0) then
+                    if not candidateTraps then candidateTraps = {} end
+                    candidateTraps[#candidateTraps + 1] = tPos
+                    if distToTrap <= lookaheadDist then
+                        local toTrap = Vector3.new(tPos.X - rp.X, 0, tPos.Z - rp.Z)
+                        local forwardProj = toTrap:Dot(forwardDir)
+                        local lateralDist = math.abs(toTrap:Dot(leftDir))
 
-                    -- Trap blocks path corridor or we are inside its danger bubble:
-                    if (forwardProj >= -3 and forwardProj <= math.min(distDest, lookaheadDist) and lateralDist < dangerRadius)
-                       or (distToTrap <= dangerRadius) then
-                        local score = distToTrap + lateralDist * 0.4
-                        if score < minScore then
-                            minScore = score
-                            mostThreatening = {
-                                Position = tPos,
-                                Distance = distToTrap,
-                                ForwardProj = forwardProj,
-                                SideDot = toTrap:Dot(leftDir),
-                            }
+                        -- Trap threatens path corridor or we are inside hazard radius
+                        if (forwardProj >= -2.0 and forwardProj <= math.min(distDest, lookaheadDist) and lateralDist < dangerRadius)
+                           or (distToTrap <= dangerRadius) then
+                            local threatScore = distToTrap + lateralDist * 0.5
+                            if threatScore < minThreatScore then
+                                minThreatScore = threatScore
+                                mostThreatening = {
+                                    Position = tPos,
+                                    Distance = distToTrap,
+                                    ForwardProj = forwardProj,
+                                    SideDot = toTrap:Dot(leftDir),
+                                }
+                            end
                         end
                     end
                 end
             end
         else
+            X.removeTrapVisual(data)
             X.activeTraps[inst] = nil
         end
     end
 
     if not mostThreatening then return nil, nearestDist end
 
-    -- Decide lateral evasion direction (Left vs Right):
-    -- If trap is to our left (SideDot >= 0), steer to the RIGHT
-    -- If trap is to our right (SideDot < 0), steer to the LEFT
-    local steerDir = (mostThreatening.SideDot >= 0) and rightDir or leftDir
-
-    -- Calculate detour waypoint with wide clearance:
-    local groundY = rp.Y
-    if mostThreatening.Distance <= 12 then
-        -- Close proximity: push away from trap while keeping forward momentum
-        local away = Vector3.new(rp.X - mostThreatening.Position.X, 0, rp.Z - mostThreatening.Position.Z)
-        local awayDir = away.Magnitude > 0.1 and away.Unit or steerDir
-        local blend = (forwardDir * 0.35 + awayDir * 0.9).Unit
-        return Vector3.new(rp.X + blend.X * clearanceDist, groundY, rp.Z + blend.Z * clearanceDist), nearestDist
-    else
-        -- Approaching: arc wide to the side
-        local forwardLead = math.clamp(mostThreatening.ForwardProj * 0.6, 5, 14)
-        return Vector3.new(
-            rp.X + forwardDir.X * forwardLead + steerDir.X * clearanceDist,
-            groundY,
-            rp.Z + forwardDir.Z * forwardLead + steerDir.Z * clearanceDist
-        ), nearestDist
+    -- Micro Left/Right Evasion:
+    -- Forward lead prioritizes strong forward momentum (no wide sweeping arcs)
+    local forwardLead = math.clamp(mostThreatening.ForwardProj * 0.5, 3.0, 6.5)
+    if mostThreatening.ForwardProj < 1.0 then
+        forwardLead = 3.5
     end
+
+    -- Construct candidate micro-waypoints for Left and Right sidestep
+    local groundY = rp.Y
+    local candLeft = Vector3.new(
+        rp.X + forwardDir.X * forwardLead + leftDir.X * clearanceDist,
+        groundY,
+        rp.Z + forwardDir.Z * forwardLead + leftDir.Z * clearanceDist
+    )
+    local candRight = Vector3.new(
+        rp.X + forwardDir.X * forwardLead + rightDir.X * clearanceDist,
+        groundY,
+        rp.Z + forwardDir.Z * forwardLead + rightDir.Z * clearanceDist
+    )
+
+    -- Multi-trap intelligence: evaluate clearance of both candidates against all nearby traps
+    local clearanceLeft = math.huge
+    local clearanceRight = math.huge
+    if candidateTraps then
+        for i = 1, #candidateTraps do
+            local tPos = candidateTraps[i]
+            local dL = X.distXZ(candLeft, tPos)
+            if dL < clearanceLeft then clearanceLeft = dL end
+            local dR = X.distXZ(candRight, tPos)
+            if dR < clearanceRight then clearanceRight = dR end
+        end
+    end
+
+    -- Select candidate with superior clearance; if comparable, steer away from primary threat
+    local chosenPoint = nil
+    if clearanceRight > (clearanceLeft + 0.6) then
+        chosenPoint = candRight
+    elseif clearanceLeft > (clearanceRight + 0.6) then
+        chosenPoint = candLeft
+    else
+        chosenPoint = (mostThreatening.SideDot >= 0) and candRight or candLeft
+    end
+
+    -- Close proximity safeguard: retain strong forward diagonal momentum rather than turning sideways
+    if mostThreatening.Distance <= 4.0 then
+        local steerDir = (chosenPoint == candRight) and rightDir or leftDir
+        local blend = (forwardDir * 0.6 + steerDir * 0.8).Unit
+        chosenPoint = Vector3.new(
+            rp.X + blend.X * clearanceDist,
+            groundY,
+            rp.Z + blend.Z * clearanceDist
+        )
+    end
+
+    return chosenPoint, nearestDist
 end
 
 function X.neutralizeTrap(inst)
@@ -2317,6 +2467,13 @@ function X.registerFieldTrap(child)
 
     if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
         X.neutralizeTrap(child)
+        if X.TRAP_CONFIG.ShowVisuals and typeof(X.attachTrapVisual) == "function" then
+            task.defer(function()
+                if child.Parent and X.activeTraps[child] then
+                    X.attachTrapVisual(child, record)
+                end
+            end)
+        end
     end
 
     child.ChildAdded:Connect(function(sub)
@@ -2327,10 +2484,20 @@ function X.registerFieldTrap(child)
                 X.neutralizeTrap(child)
             end
         end
+        if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and X.TRAP_CONFIG.ShowVisuals and not record.Visuals then
+            task.defer(function()
+                if child.Parent and X.activeTraps[child] then
+                    X.attachTrapVisual(child, record)
+                end
+            end)
+        end
     end)
 
     child.AncestryChanged:Connect(function(_, parent)
         if not parent or not child:IsDescendantOf(Workspace) then
+            if typeof(X.removeTrapVisual) == "function" then
+                X.removeTrapVisual(record)
+            end
             X.activeTraps[child] = nil
         end
     end)
@@ -2346,6 +2513,10 @@ function X.initTrapEvade()
             X.registerFieldTrap(c)
         end))
         addConnection(transient.ChildRemoved:Connect(function(c)
+            local rec = X.activeTraps[c]
+            if rec and typeof(X.removeTrapVisual) == "function" then
+                X.removeTrapVisual(rec)
+            end
             X.activeTraps[c] = nil
         end))
     end
@@ -2359,6 +2530,10 @@ function X.initTrapEvade()
                 X.registerFieldTrap(sub)
             end))
             addConnection(c.ChildRemoved:Connect(function(sub)
+                local rec = X.activeTraps[sub]
+                if rec and typeof(X.removeTrapVisual) == "function" then
+                    X.removeTrapVisual(rec)
+                end
                 X.activeTraps[sub] = nil
             end))
         end
@@ -2368,6 +2543,9 @@ function X.initTrapEvade()
     if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
         X.applyCanTouchProtection()
         X.applyAllTrapNeutralization()
+        if X.TRAP_CONFIG.ShowVisuals and typeof(X.updateAllTrapVisuals) == "function" then
+            pcall(X.updateAllTrapVisuals)
+        end
     end
 
     -- Background supervisor: maintains CanTouch protection & sweeps for newly armed traps
@@ -2377,11 +2555,14 @@ function X.initTrapEvade()
             if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
                 X.applyCanTouchProtection()
                 X.applyAllTrapNeutralization()
+                if X.TRAP_CONFIG.ShowVisuals and typeof(X.updateAllTrapVisuals) == "function" then
+                    pcall(X.updateAllTrapVisuals)
+                end
             end
         end
     end)
 
-    -- Manual walk auto-jump radar: if walking manually within 6.5 studs of a trap, jump over it
+    -- Manual walk auto-jump radar: if walking manually within 4.5 studs of a trap, jump over it
     task.spawn(function()
         while screenGui and screenGui.Parent do
             task.wait(0.12)
@@ -2391,7 +2572,7 @@ function X.initTrapEvade()
                 local h = ch and ch:FindFirstChildOfClass("Humanoid")
                 if r and h and h.MoveDirection.Magnitude > 0.05 then
                     local trapDist, _ = X.getNearestTrapDist(r.Position)
-                    if trapDist <= 6.5 and not h.Jump then
+                    if trapDist <= 4.5 and not h.Jump then
                         h.Jump = true
                     end
                 end
@@ -2483,8 +2664,8 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                 local detourPoint, nearestTrapDist = nil, math.huge
                 if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and typeof(X.getTrapDetourPoint) == "function" then
                     detourPoint, nearestTrapDist = X.getTrapDetourPoint(rp, dest)
-                    -- Emergency safety: if within 6.5 studs of a trap, jump to guarantee clearance
-                    if nearestTrapDist and nearestTrapDist <= 6.5 and h and not h.Jump then
+                    -- Emergency safety: if within 4.5 studs of a trap, jump to guarantee clearance
+                    if nearestTrapDist and nearestTrapDist <= 4.5 and h and not h.Jump then
                         h.Jump = true
                     end
                 end
@@ -2507,9 +2688,9 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
                     end)
                     task.wait(0.08)
                 elseif detourPoint then
-                    -- Wide lateral evasion around trap: steer towards detour waypoint (left/right)
+                    -- Micro left/right evasion: steer toward agile detour waypoint (left/right)
                     local steerVec = Vector3.new(detourPoint.X - rp.X, 0, detourPoint.Z - rp.Z)
-                    if steerVec.Magnitude > 0.5 then
+                    if steerVec.Magnitude > 0.3 then
                         h:Move(steerVec.Unit, false)
                     end
                     task.wait(0.08)
@@ -3083,7 +3264,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         end
     end)
 
-    local isEggNearTrap = (X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and X.getNearestTrapDist(livePos) <= 16.0)
+    local isEggNearTrap = (X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and X.getNearestTrapDist(livePos) <= 8.0)
     walkTo(function() return livePos end, 6, walkTok, function()
         phase = "carrying"                          -- stops the tracker (set before any yield)
         if cancelled() then finish(false); return end
@@ -7383,8 +7564,10 @@ function X.buildUtilityTabUI()
         if X.TRAP_CONFIG.Enabled then
             if typeof(X.applyAllTrapNeutralization) == "function" then pcall(X.applyAllTrapNeutralization) end
             if typeof(X.applyCanTouchProtection) == "function" then pcall(X.applyCanTouchProtection) end
+            if typeof(X.updateAllTrapVisuals) == "function" then pcall(X.updateAllTrapVisuals) end
         else
             if typeof(X.restoreAllTraps) == "function" then pcall(X.restoreAllTraps) end
+            if typeof(X.removeAllTrapVisuals) == "function" then pcall(X.removeAllTrapVisuals) end
             local ch = LocalPlayer.Character
             if ch then
                 for _, part in ipairs(ch:GetDescendants()) do
@@ -7397,6 +7580,7 @@ function X.buildUtilityTabUI()
     X.utilityCleanup = function()
         pcall(function()
             if typeof(X.restoreAllTraps) == "function" then X.restoreAllTraps() end
+            if typeof(X.removeAllTrapVisuals) == "function" then X.removeAllTrapVisuals() end
         end)
     end
 end
