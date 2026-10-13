@@ -633,10 +633,11 @@ local upVelBtn, upRecBtn   -- farm order: Divine -> Eternal -> Secret -> selecte
 function X.markTeleport() X.ignoreJumpUntil = os.clock() + 0.35; X.rbLastPos = nil; X.rbSamples = {} end
 
 -- back to TRAVEL speed (called after every egg, new target, drop, or delivery)
-function X.resetVelocity()
-    if weAreCarrying or (typeof(isHoldingEgg) == "function" and isHoldingEgg()) or (X.isHoldingEgg and X.isHoldingEgg()) then
+function X.resetVelocity(forceTravel)
+    if not forceTravel and weAreCarrying then
         targetVelocity = X.baseCarryVelocity
     else
+        weAreCarrying = false
         targetVelocity = X.baseVelocity
     end
     if velocityEnabled then
@@ -1341,7 +1342,7 @@ function X.updateSlotGhosts(by, recs)
                         X.blacklistStolen(u)
                         X.looseUids[u] = nil
                         X.listDirty = true
-                    elseif mine or not hasSlot then
+                    elseif not X.isCarriedByOther(u) and not (X.badUids[u] and os.clock() < X.badUids[u]) and (mine or not hasSlot) then
                         -- Egg was bumped or dropped loose: it is on the field, farmable!
                         X.looseUids[u] = true
                         X.clearMarks(u)
@@ -1603,6 +1604,29 @@ function X.startReappearMonitor()
                         X.carrierPlayer[u] = tostring(newOwner)
                         X.looseUids[u] = nil
                         X.listDirty = true
+                        if X.currentWalkingEggUid == u then
+                            walkToken = walkToken + 1
+                            local chTmp = LocalPlayer.Character
+                            local hTmp = chTmp and chTmp:FindFirstChildOfClass("Humanoid")
+                            local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
+                            if hTmp and rTmp then
+                                pcall(function()
+                                    hTmp:Move(Vector3.zero)
+                                    hTmp.WalkToPoint = rTmp.Position
+                                    rTmp.AssemblyLinearVelocity = Vector3.new(0, rTmp.AssemblyLinearVelocity.Y, 0)
+                                end)
+                            end
+                            lastFailReason = "[AutoFarm] Egg taken by another player — next..."
+                            X.currentWalkingEggUid = nil
+                            X.blacklistStolen(u)
+                            if eggCache and eggCache.byUid and eggCache.byUid[u] then
+                                eggCache.byUid[u] = nil
+                            end
+                            if dropRetry and dropRetry.uid == u then
+                                dropRetry = nil
+                                X.weDropped[u] = nil
+                            end
+                        end
                     else
                         X.carrierPlayer[u] = nil
                         X.listDirty = true
@@ -1662,9 +1686,28 @@ function X.startShiftedMonitor()
             end
             if X.currentWalkingEggUid == u then
                 walkToken = walkToken + 1
+                local chTmp = LocalPlayer.Character
+                local hTmp = chTmp and chTmp:FindFirstChildOfClass("Humanoid")
+                local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
+                if hTmp and rTmp then
+                    pcall(function()
+                        hTmp:Move(Vector3.zero)
+                        hTmp.WalkToPoint = rTmp.Position
+                        rTmp.AssemblyLinearVelocity = Vector3.new(0, rTmp.AssemblyLinearVelocity.Y, 0)
+                    end)
+                end
                 lastFailReason = "[AutoFarm] Egg claimed in base plot — next..."
+                X.currentWalkingEggUid = nil
                 X.blacklistStolen(u)
-                X.requestEggRefresh()
+                X.looseUids[u] = nil
+                if eggCache and eggCache.byUid and eggCache.byUid[u] then
+                    eggCache.byUid[u] = nil
+                end
+                if dropRetry and dropRetry.uid == u then
+                    dropRetry = nil
+                    X.weDropped[u] = nil
+                end
+                X.listDirty = true
             end
         elseif st == "Carried" then
             local isMe = (carrier and tostring(carrier) == tostring(LocalPlayer.UserId)) or (u == carryUid) or (u == X.ownUid)
@@ -1692,9 +1735,28 @@ function X.startShiftedMonitor()
                 end
                 if X.currentWalkingEggUid == u then
                     walkToken = walkToken + 1
+                    local chTmp = LocalPlayer.Character
+                    local hTmp = chTmp and chTmp:FindFirstChildOfClass("Humanoid")
+                    local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
+                    if hTmp and rTmp then
+                        pcall(function()
+                            hTmp:Move(Vector3.zero)
+                            hTmp.WalkToPoint = rTmp.Position
+                            rTmp.AssemblyLinearVelocity = Vector3.new(0, rTmp.AssemblyLinearVelocity.Y, 0)
+                        end)
+                    end
                     lastFailReason = "[AutoFarm] Egg carried by another player — next..."
+                    X.currentWalkingEggUid = nil
                     X.blacklistStolen(u)
-                    X.requestEggRefresh()
+                    X.looseUids[u] = nil
+                    if eggCache and eggCache.byUid and eggCache.byUid[u] then
+                        eggCache.byUid[u] = nil
+                    end
+                    if dropRetry and dropRetry.uid == u then
+                        dropRetry = nil
+                        X.weDropped[u] = nil
+                    end
+                    X.listDirty = true
                 end
                 if passesFilters(pl) or X.currentWalkingEggUid == u then
                     X.listDirty = true
@@ -1764,6 +1826,30 @@ function X.startCarrierMonitor()
             if tostring(usId) ~= tostring(LocalPlayer.UserId) then
                 X.carrierPlayer[eggId] = tostring(usId)
                 X.listDirty = true
+                if X.currentWalkingEggUid == eggId then
+                    walkToken = walkToken + 1
+                    local chTmp = LocalPlayer.Character
+                    local hTmp = chTmp and chTmp:FindFirstChildOfClass("Humanoid")
+                    local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
+                    if hTmp and rTmp then
+                        pcall(function()
+                            hTmp:Move(Vector3.zero)
+                            hTmp.WalkToPoint = rTmp.Position
+                            rTmp.AssemblyLinearVelocity = Vector3.new(0, rTmp.AssemblyLinearVelocity.Y, 0)
+                        end)
+                    end
+                    lastFailReason = "[AutoFarm] Egg carried by another player — next..."
+                    X.currentWalkingEggUid = nil
+                    X.blacklistStolen(eggId)
+                    X.looseUids[eggId] = nil
+                    if eggCache and eggCache.byUid and eggCache.byUid[eggId] then
+                        eggCache.byUid[eggId] = nil
+                    end
+                    if dropRetry and dropRetry.uid == eggId then
+                        dropRetry = nil
+                        X.weDropped[eggId] = nil
+                    end
+                end
             end
         end
     end
@@ -2789,6 +2875,7 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
             if h and r then
                 h:Move(Vector3.zero)
                 h.WalkToPoint = r.Position
+                r.AssemblyLinearVelocity = Vector3.new(0, r.AssemblyLinearVelocity.Y, 0)
             end
         end)
     end)
@@ -3240,7 +3327,10 @@ end
 -- carries it, confirms from REAL signals only, then returns to the safe zone -- aborting the trip
 -- if the egg gets dropped so we never walk home empty-handed.
 local function autoGetEgg(uid, startPos, myTok, isManual)
-    X.resetVelocity()             -- v9: every new target egg starts at the default velocity
+    weAreCarrying = false
+    carryUid = nil
+    carryMarkers = nil
+    X.resetVelocity(true)         -- v10: every new target egg starts cleanly at the default travel velocity
     X.ownUid = nil                -- v9.1: not ours until we actually start the pickup
     X.currentWalkingEggUid = uid  -- Track targeted egg for instant network push cancellation
     local completed, result = false, false
@@ -3287,8 +3377,28 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
 
             if isCarriedByOther or isClaimed or isGhostEgg or X.goneActive(uid) or X.takenSignal(uid) then
                 walkToken = walkToken + 1
+                local chTmp = LocalPlayer.Character
+                local hTmp = chTmp and chTmp:FindFirstChildOfClass("Humanoid")
+                local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
+                if hTmp and rTmp then
+                    pcall(function()
+                        hTmp:Move(Vector3.zero)
+                        hTmp.WalkToPoint = rTmp.Position
+                        rTmp.AssemblyLinearVelocity = Vector3.new(0, rTmp.AssemblyLinearVelocity.Y, 0)
+                    end)
+                end
                 lastFailReason = tag .. (isCarriedByOther and "Egg carried by someone else — next..." or (isClaimed and "Egg claimed into base plot — next..." or "Egg taken by someone else — next..."))
-                if not isManual then X.blacklistStolen(uid) end
+                if not isManual then
+                    X.blacklistStolen(uid)
+                    X.looseUids[uid] = nil
+                    if eggCache.byUid and eggCache.byUid[uid] then
+                        eggCache.byUid[uid] = nil
+                    end
+                    if dropRetry and dropRetry.uid == uid then
+                        dropRetry = nil
+                        X.weDropped[uid] = nil
+                    end
+                end
                 finish(false); break
             end
 
@@ -3299,8 +3409,22 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     -- Verify found passes filters! If it doesn't pass filters (e.g. state changed to Carried/Claimed), abort!
                     if not isManual and not passesFilters(found) and not (dropRetry and dropRetry.uid == uid) then
                         walkToken = walkToken + 1
+                        local chTmp = LocalPlayer.Character
+                        local hTmp = chTmp and chTmp:FindFirstChildOfClass("Humanoid")
+                        local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
+                        if hTmp and rTmp then
+                            pcall(function()
+                                hTmp:Move(Vector3.zero)
+                                hTmp.WalkToPoint = rTmp.Position
+                                rTmp.AssemblyLinearVelocity = Vector3.new(0, rTmp.AssemblyLinearVelocity.Y, 0)
+                            end)
+                        end
                         lastFailReason = tag .. "Egg no longer valid (stolen/filtered) — next..."
                         X.blacklistStolen(uid)
+                        X.looseUids[uid] = nil
+                        if eggCache and eggCache.byUid and eggCache.byUid[uid] then
+                            eggCache.byUid[uid] = nil
+                        end
                         finish(false); break
                     end
                     missing = 0
@@ -3930,8 +4054,8 @@ local function getEgg(pos, uid, sl)
     end)
 end
 
--- Priority: Divine -> Eternal -> Secret -> farthest
--- STEAL OPPORTUNITY: When near safe zone, if any target egg is loose on ground nearby (<80 studs), steal it!
+-- Priority: Divine -> Eternal -> Secret -> Scramble Requirements -> farthest -> any
+-- STEAL OPPORTUNITY: Within top available tier, if any egg is dropped/loose/midway, steal the CLOSEST one!
 function X.pickNearest(records)
     if typeof(records) ~= "table" then return nil end
     local char = LocalPlayer.Character
@@ -3939,60 +4063,72 @@ function X.pickNearest(records)
     local myPos = root and root.Position
     if not myPos then return nil end
     local hasR = X.hasRarity()
+    local now = os.clock()
 
-    -- 1. STEAL OPPORTUNITY:
-    -- If we are at or near the safe zone, check if any matching egg is loose/on the ground nearby (< 80 studs)
-    -- and NOT carried by another player. Grab it immediately before someone else does!
-    local dToSafe = X.distXZ(myPos, SAFE_ZONE)
-    if dToSafe <= 60 then
-        local bestSteal, bestStealTier, bestStealDist = nil, math.huge, math.huge
-        for _, r in ipairs(records) do
-            if typeof(r) == "table" and passesFilters(r) and not (X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r)) then
-                local u = tostring(r.Uid or "")
-                if not X.isCarriedByOther(u, r) then
-                    local p = extPos(r)
-                    if p then
-                        local dEgg = X.distXZ(p, myPos)
-                        -- Close (< 80 studs) and pickable on the ground (loose / dropped / outside nest)
-                        local isGround = (r.State == "Dropped") or X.looseUids[u] or X.distXZ(p, SAFE_ZONE) <= 80 or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
-                        if dEgg <= 80 and isGround then
-                            local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
-                            if tier < bestStealTier or (tier == bestStealTier and dEgg < bestStealDist) then
-                                bestSteal, bestStealTier, bestStealDist = r, tier, dEgg
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        if bestSteal then
-            return bestSteal, bestStealTier, true
-        end
-    end
+    -- 1. Gather all valid candidates and determine best (lowest) tier
+    local candidates = {}
+    local bestTier = math.huge
 
-    -- 2. Standard Selection:
-    -- Divine -> Eternal -> Secret -> Scramble Requirements -> farthest
-    local best, bestTier, bestDist = nil, math.huge, 0
     for _, r in ipairs(records) do
         if typeof(r) == "table" and passesFilters(r) and not (X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r)) then
             local u = tostring(r.Uid or "")
-            if not X.isCarriedByOther(u, r) then
+            if u ~= "" and not X.isCarriedByOther(u, r) and not (X.badUids[u] and now < X.badUids[u]) then
                 local p = extPos(r)
                 if p then
+                    local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
+                    if tier < bestTier then
+                        bestTier = tier
+                    end
                     local dx = p.X - myPos.X
                     local dy = p.Y - myPos.Y
                     local dz = p.Z - myPos.Z
-                    local d = math.sqrt(dx*dx + dz*dz + dy*dy*0.25)
-                    local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
-                    -- Within the same tier, always pick the FARTHEST egg (farthest gives more)
-                    if tier < bestTier or (tier == bestTier and d > bestDist) then
-                        best, bestTier, bestDist = r, tier, d
-                    end
+                    local dist = math.sqrt(dx*dx + dz*dz + dy*dy*0.25)
+                    local isDropped = (r.State == "Dropped") or (X.looseUids[u] == true)
+                        or (X.weDropped and X.weDropped[u] ~= nil)
+                        or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
+                        or (not r.NestId and not r.AreaId)
+                    table.insert(candidates, {
+                        rec = r,
+                        uid = u,
+                        pos = p,
+                        tier = tier,
+                        dist = dist,
+                        isDropped = isDropped
+                    })
                 end
             end
         end
     end
-    return best, best and bestTier or nil, false
+
+    if #candidates == 0 then return nil end
+
+    -- 2. Within bestTier:
+    -- If dropped/loose/midway egg(s) exist in bestTier, STEAL the CLOSEST one!
+    -- Otherwise, pick the FARTHEST nest egg in that tier!
+    local bestDropped, bestDroppedDist = nil, math.huge
+    local bestNest, bestNestDist = nil, -1
+
+    for _, c in ipairs(candidates) do
+        if c.tier == bestTier then
+            if c.isDropped then
+                if c.dist < bestDroppedDist then
+                    bestDropped, bestDroppedDist = c.rec, c.dist
+                end
+            else
+                if c.dist > bestNestDist then
+                    bestNest, bestNestDist = c.rec, c.dist
+                end
+            end
+        end
+    end
+
+    if bestDropped then
+        return bestDropped, bestTier, true
+    elseif bestNest then
+        return bestNest, bestTier, false
+    end
+
+    return nil
 end
 
 local function autoFarmLoop()
@@ -4246,7 +4382,9 @@ local function autoFarmLoop()
                             ok = false
                             warn("[AutoFarm] autoGetEgg error:", ok)
                         end
-                        X.resetVelocity()          -- v9: egg finished (success or not) -> back to the default velocity
+                        if not weAreCarrying then
+                            X.resetVelocity(true)  -- v10: clean travel speed reset for every egg
+                        end
                         if ok then
                             dropRetry = nil
                             statusLabel.Text = "[AutoFarm] OK " .. sp
@@ -4257,11 +4395,12 @@ local function autoFarmLoop()
                             statusLabel.Text = "[AutoFarm] Holding egg — delivering..."
                             statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
                         else
-                            -- Issue #1 fix: cancel dropRetry if egg was stolen by another player!
-                            if stolen or X.isCarriedByOther(tUid) then
+                            -- Cancel dropRetry if egg was stolen, claimed, or failed
+                            local isStolenOrBad = X.isCarriedByOther(uid) or (X.badUids[uid] and os.clock() < X.badUids[uid]) or X.isEggInBaseRenders(uid) or X.deliveredUids[uid]
+                            if isStolenOrBad or (dropRetry and dropRetry.uid == uid) then
                                 dropRetry = nil
-                                X.weDropped[tUid] = nil
-                                X.looseUids[tUid] = nil
+                                X.weDropped[uid] = nil
+                                X.looseUids[uid] = nil
                             end
                             statusLabel.Text = lastFailReason or "[AutoFarm] failed/skipped — next..."
                             lastFailReason = nil
@@ -4273,7 +4412,7 @@ local function autoFarmLoop()
                         if cch then neutraliseEggPhysics(cch, false) end
 
                         local w = 0
-                        local nextDelay = dropRetry and 0.25 or X.AUTO_NEXT_DELAY
+                        local nextDelay = dropRetry and 0.25 or 0.15
                         while w < nextDelay and autoFarmEnabled and autoFarmToken == myTok do
                             task.wait(0.1); w = w + 0.1
                         end
@@ -4642,11 +4781,14 @@ local function applyVelocity()
         pcall(function() h.WalkSpeed = targetVelocity end)
         -- Do not artificially launch forward upon recovery; let active MoveDirection govern movement naturally
     end
-    local isCarryingNow = weAreCarrying or isHoldingEgg()
-    if isCarryingNow then
+    if weAreCarrying then
         neutraliseEggPhysics(ch)
         if targetVelocity > X.baseCarryVelocity then
             targetVelocity = X.baseCarryVelocity
+        end
+    else
+        if targetVelocity == X.baseCarryVelocity and X.baseVelocity > X.baseCarryVelocity then
+            targetVelocity = X.baseVelocity
         end
     end
     if h.WalkSpeed ~= targetVelocity then pcall(function() h.WalkSpeed = targetVelocity end) end

@@ -548,3 +548,39 @@ Manual Radar Variable State              DEAD (NIL)       ACTIVE           FIXED
    - Main script chunk maintains **190 top-level local variables**, safely below the strict 200 Luau register limit.
    - Verified via `luaparser.ast.parse` and automated test suite (`tester/test_farmer_stats.py`).
 
+---
+
+## 21. Velocity State Machine, Priority Steal Selection & Stutter Elimination (v10.1 Refinement)
+
+### 1. Dual-Velocity State Reset (`baseVelocity` vs `baseCarryVelocity`)
+- **Root Cause**: Previously, `X.resetVelocity()` checked `weAreCarrying or isHoldingEgg()`. When safezone delivery was completed, client visuals / tool replication often lagged for 0.1–0.3s. Calling `X.resetVelocity()` while `isHoldingEgg()` still transiently reported true set `targetVelocity = X.baseCarryVelocity`. Additionally, the Heartbeat controller permanently clamped `targetVelocity` to `baseCarryVelocity` without any mechanism to restore travel speed once `weAreCarrying` cleared.
+- **Architecture Fix**:
+  - `X.resetVelocity(forceTravel)`: Accepts a `forceTravel` boolean flag. When resetting for every new egg, drop, or delivery, it unconditionally sets `weAreCarrying = false` and restores `targetVelocity = X.baseVelocity`.
+  - `autoGetEgg`: Explicitly sets `weAreCarrying = false`, `carryUid = nil`, and invokes `X.resetVelocity(true)` at the start of navigation to guarantee full travel speed (330–350 studs/s).
+  - Heartbeat Controller: Clamps to `baseCarryVelocity` strictly while `weAreCarrying == true`. When `weAreCarrying == false`, if `targetVelocity == X.baseCarryVelocity`, it automatically restores `targetVelocity = X.baseVelocity`.
+
+### 2. Target Egg Priority & Midway Steal Selection (`pickNearest`)
+- **Rule**:
+  $$\text{Divine (Tier 1)} \longrightarrow \text{Eternal (Tier 2)} \longrightarrow \text{Secret (Tier 3)} \longrightarrow \mathbf{\text{Scramble Missing (Tier 4)}} \longrightarrow \text{Farthest Nest Egg (Tier 5+)}$$
+- **Problem**: When multiple rare eggs spawned (e.g. 3 Divine eggs), 1 was delivered to safezone, 1 was carried midway by an opponent and dropped/bumped onto the ground, and 1 was sitting on a distant nest. The existing logic applied `d > bestDist` across all candidates in the tier, targeting the far nest egg (350+ studs) while ignoring the dropped midway egg (100 studs) that was at immediate risk of despawn or theft.
+- **Architecture Fix**:
+  - All valid candidates within the **highest available priority tier** (`bestTier`) are partitioned:
+    - **Midway Dropped / Loose Eggs**: Identified via `r.State == "Dropped"`, `X.looseUids[u] == true`, `X.weDropped[u] ~= nil`, or displacement $> 6$ studs from nest.
+    - **Nest Eggs**: Sitting in original nest slots.
+  - **Steal Closest Rule**: If any dropped/loose egg exists in `bestTier`, the bot prioritizes stealing the **closest dropped egg** (`dist < bestDroppedDist`), tagging it with `isSteal = true` and `[AutoFarm] STEAL -> ...`.
+  - **Farthest Nest Rule**: If no dropped eggs exist in `bestTier`, the bot targets the **farthest nest egg** (`dist > bestNestDist`) as per game reward mechanics.
+
+### 3. Elimination of Stutter Lag on Stolen Targeted Eggs
+- **Root Causes**:
+  1. Undefined variable `tUid` in `autoFarmLoop` caused `dropRetry` and `X.weDropped[uid]` to never be cleared when an egg was stolen, trapping the bot in rapid 0.25s retry loops on the stolen egg.
+  2. `updateSlotGhosts` checked `elseif mine or not hasSlot then` without verifying `not X.isCarriedByOther(u)`. When an opponent carried an egg away from an empty nest, `updateSlotGhosts` continually called `X.clearMarks(u)` which erased the blacklist timer `X.badUids[u]`, causing the bot to repeatedly target, abort, and re-target the same stolen egg every frame.
+  3. `startShiftedMonitor` spawned blocking `X.forceScan(1.5)` (`AskFieldEggSnapshot`) inside `OnClientEvent`, causing network hitches and DOM churn right when an opponent grabbed an egg.
+  4. Cancelling `walkToken` stopped the `walkTo` loop but never halted Humanoid movement or zeroed `AssemblyLinearVelocity`, leaving the character flinging forward uncontrolled at 330 studs/s and triggering rubberband step-downs.
+- **Architecture Fix**:
+  - **Instant Movement Braking**: When a targeted egg is stolen or claimed (`startShiftedMonitor`, `onCarriedAdded`, `autoGetEgg`, or `walkTo` cancellation), the character immediately halts:
+    `Humanoid:Move(Vector3.zero)`, `Humanoid.WalkToPoint = r.Position`, and `HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, Vy, 0)`.
+  - **Clean State Teardown**: Replaced `tUid` with `uid` in `autoFarmLoop`, cleanly clearing `dropRetry = nil`, `X.weDropped[uid] = nil`, `X.looseUids[uid] = nil`, and removing the stolen egg from `eggCache.byUid[uid]`.
+  - **Blacklist Integrity**: `updateSlotGhosts` is strictly guarded by `not X.isCarriedByOther(u) and not (X.badUids[u] and now < X.badUids[u])`, ensuring stolen eggs remain blacklisted for their full progressive duration (20s/40s/60s).
+  - **Zero-Hitch Network Decoupling**: Removed synchronous `X.requestEggRefresh()` / `X.forceScan()` from `onEggShifted`. The background 1-second scanner handles cache updates smoothly with zero main-thread lag spikes.
+
+
