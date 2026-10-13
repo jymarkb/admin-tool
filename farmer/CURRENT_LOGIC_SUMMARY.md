@@ -226,13 +226,22 @@ Ported from [`instant-ragdoll-recovery.lua`](../instant-ragdoll-recovery.lua) to
 2. **Dedicated Container (`tabUtility`)**:
    - Clean container inside `contentContainer` (`334px` width) with `UIListLayout` (padding 8px) and `UIPadding` (10px horizontal, 10px vertical).
    - Fully wired into `switchTab("Utility")` with active state highlighting and mutual exclusivity across tabs.
-3. **Pure Two-Column Toggle Rows (`Text | ON/OFF`)**:
+3. **Pure Two-Column Toggle Rows (`Text | ON/OFF` or `Text | GO`)**:
    - **Row 1:** `Spam Pickup [E]` | `[ON / OFF]`
      - **Left Column:** `TextLabel` showing `"Spam Pickup [E]"` (aligned left, bold, readable).
      - **Right Column:** `TextButton` showing `"ON"` (green `35, 135, 75`) or `"OFF"` (dark `45, 50, 65`).
    - **Row 2:** `Trap Evade` | `[ON / OFF]`
      - **Left Column:** `TextLabel` showing `"Trap Evade"` (aligned left, bold, readable).
      - **Right Column:** `TextButton` showing `"ON"` (green `35, 135, 75`) or `"OFF"` (dark `45, 50, 65`).
+   - **Row 3:** `Auto Treadmill` | `[ON / OFF]`
+     - **Left Column:** `TextLabel` showing `"Auto Treadmill"`.
+     - **Right Column:** `TextButton` showing `"ON"` or `"OFF"` (default OFF; engaged in AutoFarm when configured).
+   - **Row 4:** `Auto Dismount` | `[ON / OFF]`
+     - **Left Column:** `TextLabel` showing `"Auto Dismount"`.
+     - **Right Column:** `TextButton` showing `"ON"` or `"OFF"` (default OFF; auto-jumps & walks to safezone on night reset).
+   - **Row 5:** `Auto Pen` | `[GO / STOP]`
+     - **Left Column:** `TextLabel` showing `"Auto Pen"`.
+     - **Right Column:** `TextButton` showing `"GO"` (green) or `"STOP"` (red) to walk directly to pen center.
    - Zero other text or widgets on the panel (no status labels, headers, or guides).
 4. **Embedded Logic & High-Performance Operations**:
    - All logic from `Pickup.lua` is fully embedded and deduplicated:
@@ -453,4 +462,89 @@ Before committing the recent major updates (Trap Evasion, Fusery UI Refresh, Spe
 4. **Engine & Syntax Verification**:
    - Verified via `luaparser` AST parser with zero syntax or balance errors.
    - Clean disconnection lifecycle via `connections` table on GUI unload.
+
+---
+
+## 18. Auto Treadmill, Night Reset Dismount & Pen Automation (Tab 4 Suite)
+1. **Plot & Treadmill Topology Resolution**:
+   - `X.findMyPlot()`: Locates the local player's plot within `Workspace.Plots` or `Workspace.Bases` through a 3-pass heuristic:
+     1. Attribute check: `Owner`, `OwnerId`, `Player`, `UserId`, `ClaimedBy`.
+     2. Visual inspection: Player name or display name matched in plot sign `TextLabel` objects.
+     3. Spatial proximity fallback: Nearest plot base within 80 studs of `SAFE_ZONE`.
+   - `X.findMyTreadmill()`: Maps `TreadmillRender_<PlotIdx>` in `Workspace.__ClientTreadmillRenders`, isolating the physical running belt part (`cube.015`, `RunningPad`, or belt BasePart) and caching its 3D coordinate.
+2. **Walking Movement Philosophy (No Teleport for Pen / Treadmill)**:
+   - In accordance with design requirements, navigation to the Pen center and Treadmill belt strictly uses regular walking via `X.walkToTarget(dest, arriveDist, cancelCheck)`.
+   - Teleportation is reserved exclusively for safezone / target egg proximity snaps.
+3. **Auto Treadmill Execution & Yield Safety**:
+   - If enabled (`X.autoTreadmillEnabled`), when AutoFarm detects no candidate eggs for $\ge 3.0\text{s}$, it routes directly to the player's treadmill.
+   - Triggers mount via `RF/Treadmill/AskWearStill:InvokeServer()` and activates the treadmill's `ProximityPrompt`.
+   - **Zero-Spin Guard**: Guarded with `task.wait(0.5)` yields when waiting or if unmounted, eliminating tight-loop CPU starvation freezes.
+4. **Night Reset Detection & Auto Dismount Architecture**:
+   - Event-driven monitoring via `X.initNightResetMonitor()`:
+     - `RE/EggWorld/FieldEggCycleCountdown`: Detects countdown expiry ($\le 1\text{s}$).
+     - `RE/EggWorld/FieldEggBatchShifted`: Fires when server cycle shifts batch state.
+     - `Lighting.ClockTime`: Detects daylight-to-night transitions ($6 \le \text{prev} < 18$ to $\text{cur} \ge 18$).
+   - Upon night reset trigger:
+     - Automatically executes treadmill dismount via jump (`hum.Jump = true`, `hum:ChangeState(Jumping)`) and `RF/Treadmill/AskDoff`.
+     - Enforces a 12-second egg respawn grace period (`X.nightResetGraceUntil`), blocking treadmill remounting until new cycle eggs appear.
+5. **Post-Dismount Movement & 60-Stud Safezone Snap**:
+   - Character dismounts and walks towards `SAFE_ZONE`.
+   - As soon as the distance drops to $\le 60\text{ studs}$ (`X.SAFE_SNAP_RADIUS`), `X.walkToTarget` executes `X.snapToSafe()`.
+   - **Momentum Arrest**: Zeroes physical velocity (`root.AssemblyLinearVelocity = Vector3.zero`), cancels active directional walking (`hum:Move(Vector3.zero)`), and halts pending humanoid waypoints (`hum:MoveTo(root.Position)`).
+   - Completely eliminates high-velocity overshooting through the safe zone.
+6. **Auto Pen Navigation (`X.executeAutoPen`)**:
+   - Determines pen center by averaging coordinates across all placed eggs belonging to the player (`Workspace.PlacedEggRenders.<UserId>_*`).
+   - Falls back to plot nest / incubator parts or plot pivot.
+   - Smoothly walks to and stops at the center of the pen without egg manipulation.
+
+---
+
+## 19. Godzilla == Nightflame & Titan Temple Divine Tier Mapping
+1. **Bi-Directional Name & Asset Alignment**:
+   - In the Titan Temple biome, the internal egg asset named `"Godzilla"` corresponds to the player-facing pet `"Nightflame"` with **Divine** rarity.
+   - **Rarity Definition**: `EGG_RARITY["Godzilla"] = "Divine"` and `EGG_RARITY["Nightflame"] = "Divine"`.
+   - **Display Mapping**: `CATEGORY_TO_DISPLAY["Godzilla"] = "Nightflame"`, rendering canonical pet names on egg cards and notifications.
+   - **Species Aliasing**: `X.SPECIES_ALIASES["godzilla"] = "nightflame"`, `X.SPECIES_ALIASES["nightflame"] = "godzilla"`, and `X.SPECIES_ALIASES["kaiju"] = "nightflame"`.
+2. **AutoFarm Harvest Prioritization**:
+   - Inherits Rank 10 (`Divine`) in `X.RARITY_RANK`.
+   - Harvested ahead of Eternal (Rank 9), Secret (Rank 8), and Scramble requirements.
+   - Protected with infinite bump-retry resilience (`MaxBumpRetries`).
+
+---
+
+## 20. Performance & Benchmark Optimization Audit (October 13, 2026 Rebuild)
+A full empirical benchmark suite ([`tester/benchmark_optimizations.py`](../tester/benchmark_optimizations.py)) was executed against the codebase to quantify resource gains:
+
+```
+================================================================================
+  ACTIVE PERFORMANCE & RESOURCE BENCHMARK (BEFORE vs AFTER)
+================================================================================
+Performance / Resource Metric                Before        After       Net Gain
+--------------------------------------------------------------------------------
+Detour Loop Allocations (10k ticks)          20,000            0 -20,000 (-100%)
+Detour Execution Time (10k ticks)           36.66ms      33.46ms    +8.7% faster
+CanTouch String Allocs (1k cycles)           22,000           22 -21,978 (-99.9%)
+CanTouch Redundant Writes (1k cycles)         7,000            0  -7,000 (-100%)
+CanTouch Execution Time (1k cycles)          1.91ms       0.14ms   +92.7% faster
+Treadmill 0s Infinite Loop Risk          VULNERABLE   ELIMINATED       PROTECTED
+Manual Radar Variable State              DEAD (NIL)       ACTIVE           FIXED
+--------------------------------------------------------------------------------
+```
+
+1. **Detour Loop Heap Allocation Elimination**:
+   - In `X.getTrapDetourPoint`, replaced per-tick table creations (`mostThreatening = { ... }`) and dynamic arrays with local scalar registers (`threatPos`, `threatDist`, `threatFwdProj`, `threatSideDot`) and static buffer `X._candTrapsBuffer` recycled via `table.clear()`.
+   - **Gain**: **-100% GC allocations** (20,000 allocations eliminated per 10k ticks) and **+8.7% faster navigation**.
+2. **Limb Caching for CanTouch Protection**:
+   - `X.applyCanTouchProtection` caches limb BaseParts on character spawn (`X._cachedLimbs`).
+   - Subsequent ticks perform zero `GetDescendants()` scans, zero `.lower()` string allocations, and zero property mutations when steady-state.
+   - **Gain**: **-99.9% string allocations** and **+92.7% faster supervisor loop**.
+3. **Single-Pass Hitbox Neutralization**:
+   - Armed traps flagged with `record.Neutralized = true`. Recurring sweeps skip already-neutralized traps, avoiding redundant `FindFirstChild("Hitbox")` and CFrame mutations.
+4. **Manual Radar Dead Variable Correction**:
+   - Fixed `autoFarmToken == 0` (which evaluated to nil) to `not autoFarmEnabled`, gating jump checks strictly behind active player movement (`MoveDirection.Magnitude > 0.05`).
+5. **Orphaned Trap Adornments Cleanup**:
+   - Added explicit `X.removeTrapVisual(data)` calls during sweeps when `inst.Parent == nil`, ensuring visual cylinders on Terrain are cleanly destroyed upon trap despawn.
+6. **Luau Register Constraint**:
+   - Main script chunk maintains **190 top-level local variables**, safely below the strict 200 Luau register limit.
+   - Verified via `luaparser.ast.parse` and automated test suite (`tester/test_farmer_stats.py`).
 

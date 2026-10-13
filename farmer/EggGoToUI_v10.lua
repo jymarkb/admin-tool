@@ -670,6 +670,15 @@ function X.distXZ(a, b)
 end
 
 function X.getNetRemote(name)
+    if not name then return nil end
+    local cache = X._netRemoteCache
+    if not cache then
+        cache = {}
+        X._netRemoteCache = cache
+    end
+    if cache[name] and cache[name].Parent then
+        return cache[name]
+    end
     local ok, rem = pcall(function()
         local net = ReplicatedStorage:FindFirstChild("Packages")
             and ReplicatedStorage.Packages:FindFirstChild("Networking")
@@ -687,7 +696,9 @@ function X.getNetRemote(name)
         local leafName = name:match("([^/]+)$") or name
         return ReplicatedStorage:FindFirstChild(leafName, true)
     end)
-    return ok and rem or nil
+    local result = ok and rem or nil
+    if result then cache[name] = result end
+    return result
 end
 
 function X.formatCommas(num)
@@ -2128,10 +2139,14 @@ function X.getNearestTrapDist(pos)
                 data.Position = tPos
             end
             if tPos then
-                local dist = X.distXZ(tPos, pos)
-                if dist < minDist then
-                    minDist = dist
-                    nearest = tPos
+                local dx = math.abs(tPos.X - pos.X)
+                local dz = math.abs(tPos.Z - pos.Z)
+                if dx < minDist and dz < minDist then
+                    local dist = math.sqrt(dx * dx + dz * dz)
+                    if dist < minDist then
+                        minDist = dist
+                        nearest = tPos
+                    end
                 end
             end
         else
@@ -2221,6 +2236,12 @@ function X.removeTrapVisual(record)
             pcall(function() v:Destroy() end)
         end
         record.Visuals = nil
+    end
+    if record.Connections then
+        for _, conn in ipairs(record.Connections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        record.Connections = nil
     end
 end
 
@@ -2520,7 +2541,7 @@ function X.registerFieldTrap(child)
         end
     end
 
-    child.ChildAdded:Connect(function(sub)
+    local cAdd = child.ChildAdded:Connect(function(sub)
         if sub.Name == "Hitbox" and sub:IsA("BasePart") then
             record.Hitbox = sub
             if not record.OrigHitboxCF then record.OrigHitboxCF = sub.CFrame end
@@ -2537,7 +2558,7 @@ function X.registerFieldTrap(child)
         end
     end)
 
-    child.AncestryChanged:Connect(function(_, parent)
+    local cAnc = child.AncestryChanged:Connect(function(_, parent)
         if not parent or not child:IsDescendantOf(Workspace) then
             if typeof(X.removeTrapVisual) == "function" then
                 X.removeTrapVisual(record)
@@ -2545,6 +2566,8 @@ function X.registerFieldTrap(child)
             X.activeTraps[child] = nil
         end
     end)
+
+    record.Connections = { cAdd, cAnc }
 end
 
 function X.initTrapEvade()
@@ -7495,6 +7518,9 @@ end
 -- TAB 4 HELPERS: AUTO TREADMILL, DISMOUNT & PEN
 -- ==================================================
 function X.findMyPlot()
+    if X.myPlot and X.myPlot.Parent then
+        return X.myPlot, X.myPlotIndex
+    end
     local plotsFolder = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("Bases")
     if not plotsFolder then return nil, nil end
 
@@ -7561,6 +7587,9 @@ function X.findMyPlot()
 end
 
 function X.findMyPen()
+    if X.penPosition then
+        return X.penPosition
+    end
     -- 1. Try finding pen position from existing PlacedEggRenders for this player
     local placedRenders = Workspace:FindFirstChild("PlacedEggRenders")
     if placedRenders then
@@ -7618,6 +7647,9 @@ function X.findMyPen()
 end
 
 function X.findMyTreadmill()
+    if X.treadmillPosition and X.treadmillBelt and X.treadmillBelt.Parent then
+        return X.treadmillModel, X.treadmillBelt, X.treadmillPosition
+    end
     local clientTreadmills = Workspace:FindFirstChild("__ClientTreadmillRenders")
     local plotIdx = X.myPlotIndex
     if not plotIdx then
@@ -7947,10 +7979,13 @@ function X.executeAutoTreadmill(cancelCheck)
     end
 
     if tmModel and typeof(fireproximityprompt) == "function" then
-        for _, prompt in ipairs(tmModel:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                pcall(function() fireproximityprompt(prompt) end)
-            end
+        local prompt = X.treadmillPrompt
+        if not prompt or not prompt.Parent then
+            prompt = tmModel:FindFirstChildWhichIsA("ProximityPrompt", true)
+            X.treadmillPrompt = prompt
+        end
+        if prompt then
+            pcall(function() fireproximityprompt(prompt) end)
         end
     end
 
