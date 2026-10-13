@@ -646,6 +646,145 @@ function X.switchToCarry()
     if upVelBtn then pcall(upVelBtn) end
 end
 
+-- ==================================================
+-- SHARED CORE UTILITIES & HELPERS
+-- ==================================================
+
+function X.distXZ(a, b)
+    if not a or not b then return math.huge end
+    local dx = a.X - b.X
+    local dz = a.Z - b.Z
+    return math.sqrt(dx * dx + dz * dz)
+end
+
+function X.getNetRemote(name)
+    local ok, rem = pcall(function()
+        local net = ReplicatedStorage:FindFirstChild("Packages")
+            and ReplicatedStorage.Packages:FindFirstChild("Networking")
+        if net then
+            local direct = net:FindFirstChild(name)
+            if direct then return direct end
+            local cur = net
+            for part in string.gmatch(name, "[^/]+") do
+                cur = cur and cur:FindFirstChild(part)
+            end
+            if cur then return cur end
+        end
+        local anyDirect = ReplicatedStorage:FindFirstChild(name, true)
+        if anyDirect then return anyDirect end
+        local leafName = name:match("([^/]+)$") or name
+        return ReplicatedStorage:FindFirstChild(leafName, true)
+    end)
+    return ok and rem or nil
+end
+
+function X.formatCommas(num)
+    local n = math.round(tonumber(num) or 0)
+    local s = tostring(math.abs(n))
+    local k
+    while true do
+        s, k = string.gsub(s, "^(-?%d+)(%d%d%d)", "%1,%2")
+        if k == 0 then break end
+    end
+    return (n < 0 and "-" or "") .. s
+end
+
+function X.formatPetWeight(weightVal, scaleVal)
+    if type(weightVal) == "string" then
+        local kgStr = weightVal:match("([%d,]+)%s*[Kk][Gg]")
+        if kgStr then
+            local numOnly = kgStr:gsub(",", "")
+            local n = tonumber(numOnly)
+            if n and n > 0 then
+                return X.formatCommas(n) .. "Kg", n
+            end
+        end
+    end
+    local rawW = tonumber(weightVal) or 0
+    if rawW <= 0 then return "-- kg", 0 end
+    local s = tonumber(scaleVal) or 1
+    -- Authoritative game formula: DisplayWeight = math.round(Weight * Scale^2)
+    local finalW = math.round(rawW * (s * s))
+    return X.formatCommas(finalW) .. "Kg", finalW
+end
+
+function X.formatStatNumber(val)
+    if typeof(val) == "string" then return val end
+    if typeof(val) ~= "number" then return nil end
+    local absVal = math.abs(val)
+    if absVal >= 1e12 then
+        return string.format("%.1fT", val / 1e12):gsub("%.0T", "T")
+    elseif absVal >= 1e9 then
+        return string.format("%.1fB", val / 1e9):gsub("%.0B", "B")
+    elseif absVal >= 1e6 then
+        return string.format("%.1fM", val / 1e6):gsub("%.0M", "M")
+    elseif absVal >= 1e3 then
+        return string.format("%.1fK", val / 1e3):gsub("%.0K", "K")
+    elseif absVal >= 10 then
+        return string.format("%.1f", val):gsub("%.0$", "")
+    else
+        return string.format("%.2f", val):gsub("%.00$", "")
+    end
+end
+
+function X.formatEarnString(val)
+    if typeof(val) == "number" then
+        return "+$" .. (X.formatStatNumber(val) or tostring(val)) .. "/s"
+    end
+    local s = tostring(val or "")
+    if s == "" or s == "--/s" or s == "--" then return "+$0/s" end
+    if not s:find("/s") then s = s .. "/s" end
+    if not s:find("%$") then
+        if s:find("^%+") then
+            s = "+$" .. s:sub(2)
+        else
+            s = "+$" .. s
+        end
+    elseif not s:find("^%+") then
+        s = "+" .. s
+    end
+    return s
+end
+
+function X.copyToClipboard(text)
+    local ok = false
+    if typeof(setclipboard) == "function" then
+        ok = pcall(setclipboard, text)
+    elseif typeof(toclipboard) == "function" then
+        ok = pcall(toclipboard, text)
+    end
+    return ok
+end
+
+function X.cleanSpeciesName(name)
+    if not name or type(name) ~= "string" then return "" end
+    local clean = name:gsub("^%b[]%s*", "")
+    for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold", "rainbow", "golden", "silver", "gold"}) do
+        clean = clean:gsub("^" .. mWord .. "%s+", "")
+    end
+    clean = clean:gsub("%s*[Ee]gg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
+    return clean
+end
+
+function X.isGearTool(tool, attrs)
+    attrs = attrs or (tool and tool:GetAttributes()) or {}
+    return attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true
+end
+
+function X.isEggTool(tool, attrs)
+    if not tool or not tool:IsA("Tool") then return false end
+    attrs = attrs or tool:GetAttributes() or {}
+    if X.isGearTool(tool, attrs) then return false end
+    local dName = tostring(attrs.DisplayName or tool.Name):lower()
+    local cat = tostring(attrs.Category or ""):lower()
+    local tName = tool.Name:lower()
+    return dName:find("egg", 1, true) ~= nil
+        or tName:find("egg", 1, true) ~= nil
+        or cat == "egg"
+        or attrs.ItemType == "Egg"
+        or attrs.IsEgg == true
+end
+
 local connections = {}
 local rarityConn = nil
 local stateChangedConn = nil
@@ -1169,7 +1308,7 @@ function X.updateSlotGhosts(by, recs)
                 if (X.restN[u] or 0) >= 2 and (X.movingAt[u] or away) then
                     -- it moved and now RESTS: delivered (at the zone) or lying loose (dropped somewhere)
                     X.movingAt[u] = nil
-                    local sz = Vector3.new(p.X - SAFE_ZONE.X, 0, p.Z - SAFE_ZONE.Z).Magnitude
+                    local sz = X.distXZ(p, SAFE_ZONE)
                     if sz <= 30 and not mine and not hasSlot then
                         if not X.deliveredUids[u] then print("[EggGoToUI] egg rests at the delivery zone (delivered by someone):", u) end
                         X.deliveredUids[u] = true; X.listDirty = true
@@ -1188,7 +1327,7 @@ function X.updateSlotGhosts(by, recs)
                 end
                 -- stale entry that sits at the delivery zone from the start (delivered before we ever saw it move)
                 if not hasSlot and not mine and not X.deliveredUids[u] then
-                    if Vector3.new(p.X - SAFE_ZONE.X, 0, p.Z - SAFE_ZONE.Z).Magnitude <= 15 then
+                    if X.distXZ(p, SAFE_ZONE) <= 15 then
                         X.deliveredUids[u] = true; X.listDirty = true
                     end
                 end
@@ -1903,7 +2042,7 @@ local function applyReachAssist(targetPos)
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root or typeof(targetPos) ~= "Vector3" then return end
-    local dist = (Vector3.new(targetPos.X, 0, targetPos.Z) - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude
+    local dist = X.distXZ(targetPos, root.Position)
     local maxReach = (X.PICKUP_CONFIG and X.PICKUP_CONFIG.MaxReachDistance) or 35
     if dist > 3 and dist <= maxReach then
         local bPos, lookTarget = getBesideOffset(targetPos, root.Position, 2.8)
@@ -1967,7 +2106,7 @@ function X.getNearestTrapDist(pos)
                 data.Position = tPos
             end
             if tPos then
-                local dist = Vector3.new(tPos.X - pos.X, 0, tPos.Z - pos.Z).Magnitude
+                local dist = X.distXZ(tPos, pos)
                 if dist < minDist then
                     minDist = dist
                     nearest = tPos
@@ -2302,7 +2441,7 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
             -- running) inside the zone can no longer hide "we are already there".
             if not skip then
                 local rp0 = r.Position
-                local xz0 = Vector3.new(dest.X - rp0.X, 0, dest.Z - rp0.Z).Magnitude
+                local xz0 = X.distXZ(dest, rp0)
                 if xz0 <= arriveRadius then
                     pcall(function() h:Move(Vector3.zero); h.WalkToPoint = rp0 end)
                     if onArrived then onArrived() end
@@ -2317,7 +2456,7 @@ local function walkTo(destOrFn, arriveRadius, myTok, onArrived, opts)
 
             if not skip then
                 local rp = r.Position
-                local xz = Vector3.new(dest.X - rp.X, 0, dest.Z - rp.Z).Magnitude
+                local xz = X.distXZ(dest, rp)
                 -- Stall watchdog (return trips): if we made <3 studs of progress in 1.0s
                 -- (movement locked while carrying, stuck on geometry...) hop 35 studs toward dest (checked every 1s).
                 if stuckHop then
@@ -3021,7 +3160,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             local r2  = ch2 and ch2:FindFirstChild("HumanoidRootPart")
             local h2  = ch2 and ch2:FindFirstChildOfClass("Humanoid")
             if not r2 or typeof(livePos) ~= "Vector3" then return false end
-            local dist = (Vector3.new(livePos.X, 0, livePos.Z) - Vector3.new(r2.Position.X, 0, r2.Position.Z)).Magnitude
+            local dist = X.distXZ(livePos, r2.Position)
             if dist > 75 then
                 return false
             end
@@ -3070,7 +3209,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             local chTmp = LocalPlayer.Character
             local rTmp = chTmp and chTmp:FindFirstChild("HumanoidRootPart")
             if rTmp and typeof(livePos) == "Vector3" then
-                local dCur = (Vector3.new(livePos.X, 0, livePos.Z) - Vector3.new(rTmp.Position.X, 0, rTmp.Position.Z)).Magnitude
+                local dCur = X.distXZ(livePos, rTmp.Position)
                 if dCur > 75 then
                     statusLabel.Text = (tag .. "Knocked back (%d studs) — walking closer..."):format(math.floor(dCur))
                     statusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
@@ -3325,7 +3464,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             local dSafe = math.huge
             local rrW = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if rrW and math.abs(rrW.Position.Y - SAFE_ZONE.Y) <= 45 then
-                dSafe = Vector3.new(SAFE_ZONE.X - rrW.Position.X, 0, SAFE_ZONE.Z - rrW.Position.Z).Magnitude
+                dSafe = X.distXZ(SAFE_ZONE, rrW.Position)
             end
             if dSafe <= X.SAFE_DETECT_RADIUS then
                 arrived = true; done = true; break
@@ -3456,7 +3595,7 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
                     else
                         absent = 0
                         local ep = extPos(rec)
-                        if ep and Vector3.new(ep.X - SAFE_ZONE.X, 0, ep.Z - SAFE_ZONE.Z).Magnitude > 30 then
+                        if ep and X.distXZ(ep, SAFE_ZONE) > 30 then
                             seen = seen + 1
                             if seen >= 2 then return "egg still lying in the field after arrival" end
                             task.spawn(X.forceScan)
@@ -3556,7 +3695,7 @@ function X.pickNearest(records)
     -- 1. STEAL OPPORTUNITY:
     -- If we are at or near the safe zone, check if any matching egg is loose/on the ground nearby (< 80 studs)
     -- and NOT carried by another player. Grab it immediately before someone else does!
-    local dToSafe = Vector3.new(myPos.X - SAFE_ZONE.X, 0, myPos.Z - SAFE_ZONE.Z).Magnitude
+    local dToSafe = X.distXZ(myPos, SAFE_ZONE)
     if dToSafe <= 60 then
         local bestSteal, bestStealTier, bestStealDist = nil, math.huge, math.huge
         for _, r in ipairs(records) do
@@ -3565,9 +3704,9 @@ function X.pickNearest(records)
                 if not X.isCarriedByOther(u, r) then
                     local p = extPos(r)
                     if p then
-                        local dEgg = Vector3.new(p.X - myPos.X, 0, p.Z - myPos.Z).Magnitude
+                        local dEgg = X.distXZ(p, myPos)
                         -- Close (< 80 studs) and pickable on the ground (loose / dropped / outside nest)
-                        local isGround = (r.State == "Dropped") or X.looseUids[u] or (p - SAFE_ZONE).Magnitude <= 80 or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
+                        local isGround = (r.State == "Dropped") or X.looseUids[u] or X.distXZ(p, SAFE_ZONE) <= 80 or (X.nestPos[u] and (p - X.nestPos[u]).Magnitude > 6)
                         if dEgg <= 80 and isGround then
                             local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
                             if tier < bestStealTier or (tier == bestStealTier and dEgg < bestStealDist) then
@@ -4446,27 +4585,11 @@ tabPetsPad.PaddingLeft = UDim.new(0, 8)
 tabPetsPad.PaddingRight = UDim.new(0, 8)
 tabPetsPad.Parent = tabPets
 
--- Networking helper
-local function getNetRemote(name)
-    local ok, rem = pcall(function()
-        local net = ReplicatedStorage:FindFirstChild("Packages")
-            and ReplicatedStorage.Packages:FindFirstChild("Networking")
-        if net then
-            local direct = net:FindFirstChild(name)
-            if direct then return direct end
-            local cur = net
-            for part in string.gmatch(name, "[^/]+") do
-                cur = cur and cur:FindFirstChild(part)
-            end
-            if cur then return cur end
-        end
-        local anyDirect = ReplicatedStorage:FindFirstChild(name, true)
-        if anyDirect then return anyDirect end
-        local leafName = name:match("([^/]+)$") or name
-        return ReplicatedStorage:FindFirstChild(leafName, true)
-    end)
-    return ok and rem or nil
-end
+-- Networking & Formatting helpers (reused from X)
+local getNetRemote     = X.getNetRemote
+local formatStatNumber = X.formatStatNumber
+local formatEarnString = X.formatEarnString
+local formatPetWeight  = X.formatPetWeight
 
 -- Fusery Automation State
 local autoFuseEnabled = false
@@ -4480,75 +4603,6 @@ local invUnequippedPets = 0
 local invTotalEggs = 0
 local invPetsLabel = nil
 local invEggsLabel = nil
-
-local function formatStatNumber(val)
-    if typeof(val) == "string" then return val end
-    if typeof(val) ~= "number" then return nil end
-    local absVal = math.abs(val)
-    if absVal >= 1e12 then
-        return string.format("%.1fT", val / 1e12):gsub("%.0T", "T")
-    elseif absVal >= 1e9 then
-        return string.format("%.1fB", val / 1e9):gsub("%.0B", "B")
-    elseif absVal >= 1e6 then
-        return string.format("%.1fM", val / 1e6):gsub("%.0M", "M")
-    elseif absVal >= 1e3 then
-        return string.format("%.1fK", val / 1e3):gsub("%.0K", "K")
-    elseif absVal >= 10 then
-        return string.format("%.1f", val):gsub("%.0$", "")
-    else
-        return string.format("%.2f", val):gsub("%.00$", "")
-    end
-end
-
-local function formatEarnString(val)
-    if typeof(val) == "number" then
-        return "+$" .. (formatStatNumber(val) or tostring(val)) .. "/s"
-    end
-    local s = tostring(val or "")
-    if s == "" or s == "--/s" or s == "--" then return "+$0/s" end
-    if not s:find("/s") then s = s .. "/s" end
-    if not s:find("%$") then
-        if s:find("^%+") then
-            s = "+$" .. s:sub(2)
-        else
-            s = "+$" .. s
-        end
-    elseif not s:find("^%+") then
-        s = "+" .. s
-    end
-    return s
-end
-
-local function formatPetWeight(weightVal, scaleVal)
-    if type(weightVal) == "string" then
-        local kgStr = weightVal:match("([%d,]+)%s*[Kk][Gg]")
-        if kgStr then
-            local numOnly = kgStr:gsub(",", "")
-            local n = tonumber(numOnly)
-            if n and n > 0 then
-                local formatted = tostring(math.round(n))
-                local k
-                while true do
-                    formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
-                    if k == 0 then break end
-                end
-                return formatted .. "Kg", n
-            end
-        end
-    end
-    local rawW = tonumber(weightVal) or 0
-    if rawW <= 0 then return "-- kg", 0 end
-    local s = tonumber(scaleVal) or 1
-    -- Authoritative game formula: DisplayWeight = math.round(Weight * Scale^2)
-    local finalW = math.round(rawW * (s * s))
-    local formatted = tostring(finalW)
-    local k
-    while true do
-        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
-        if k == 0 then break end
-    end
-    return formatted .. "Kg", finalW
-end
 
 local function extractPetStats(petData, inst)
     local earn = nil
@@ -4668,17 +4722,12 @@ local function countInventoryEggs()
     local function checkContainerForEggs(cont)
         if not cont then return end
         for _, t in ipairs(cont:GetChildren()) do
-            if t:IsA("Tool") then
+            if t:IsA("Tool") and X.isEggTool(t) then
                 local attrs = t:GetAttributes() or {}
-                local dName = attrs.DisplayName or t.Name
-                local low = string.lower(dName)
-                local isEgg = string.find(low, "egg") ~= nil or attrs.Category == "Egg" or string.find(string.lower(t.Name), "egg") ~= nil
-                if isEgg then
-                    local u = tostring(attrs.UID or attrs.Uid or attrs.Id or t.Name)
-                    if not seen[u] then
-                        seen[u] = true
-                        count = count + 1
-                    end
+                local u = tostring(attrs.UID or attrs.Uid or attrs.Id or t.Name)
+                if not seen[u] then
+                    seen[u] = true
+                    count = count + 1
                 end
             end
         end
@@ -5044,28 +5093,14 @@ local function scanEligibleFusePets()
         for _, tool in ipairs(container:GetChildren()) do
             if tool:IsA("Tool") then
                 local attrs = tool:GetAttributes() or {}
-                local itemType = attrs.ItemType or ""
-                local isGear = attrs.GearName ~= nil or itemType == "Gear" or attrs.IsBat == true
-                if not isGear then
-                    local dName = attrs.DisplayName or tool.Name
-                    local isEgg = string.find(dName:lower(), "egg") ~= nil
-                        or attrs.Category == "Egg"
-                        or string.find(tool.Name:lower(), "egg") ~= nil
-                        or attrs.ItemType == "Egg"
-                        or attrs.IsEgg == true
-                        or attrs.CarrierUserId ~= nil
-                    if not isEgg then
-                        local petUid = attrs.UID or attrs.Uid or attrs.Id or tool.Name
-                        local uidStr = tostring(petUid)
-                        if not seenUids[uidStr] then
-                            seenUids[uidStr] = true
-                            local rawName = attrs.DisplayName or attrs.Category or tool.Name
-                            local cleanBase = rawName:gsub("^%b[]%s*", "")
-                            for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold", "rainbow", "golden", "silver", "gold"}) do
-                                cleanBase = cleanBase:gsub("^" .. mWord .. "%s+", "")
-                            end
-                            cleanBase = cleanBase:gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
-                            local rawBaseSpecies = cleanBase
+                if not X.isGearTool(tool, attrs) and not X.isEggTool(tool, attrs) and attrs.CarrierUserId == nil then
+                    local petUid = attrs.UID or attrs.Uid or attrs.Id or tool.Name
+                    local uidStr = tostring(petUid)
+                    if not seenUids[uidStr] then
+                        seenUids[uidStr] = true
+                        local rawName = attrs.DisplayName or attrs.Category or tool.Name
+                        local cleanBase = X.cleanSpeciesName(rawName)
+                        local rawBaseSpecies = cleanBase
                             if cleanBase:lower() == "shark" then
                                 cleanBase = "Shark"
                                 rawBaseSpecies = "Shark"
@@ -5154,7 +5189,6 @@ local function scanEligibleFusePets()
                 end
             end
         end
-    end
 
     scanToolContainer(LocalPlayer:FindFirstChild("Backpack"), "Backpack")
     scanToolContainer(LocalPlayer.Character, "Character")
@@ -6133,44 +6167,12 @@ function X.buildScrambleTabUI()
     tabScramblePad.Parent = tabScramble
 
     -- ========================================================================
-    -- 1. UTILITIES & NETWORKING
+    -- 1. UTILITIES & NETWORKING (reused from X)
     -- ========================================================================
 
-    local function getNetRemote(name)
-        local pkg = ReplicatedStorage:FindFirstChild("Packages")
-        local net = pkg and pkg:FindFirstChild("Networking")
-        if net then
-            local r = net:FindFirstChild(name)
-            if r then return r end
-        end
-        return ReplicatedStorage:FindFirstChild(name, true)
-    end
-
-    local function formatCommas(num)
-        local n = math.round(tonumber(num) or 0)
-        local s = tostring(math.abs(n))
-        local k
-        while true do
-            s, k = string.gsub(s, "^(-?%d+)(%d%d%d)", "%1,%2")
-            if k == 0 then break end
-        end
-        return (n < 0 and "-" or "") .. s
-    end
-
-    local function formatPetWeight(weightVal, scaleVal)
-        if type(weightVal) == "string" then
-            local kgStr = weightVal:match("([%d,]+)%s*[Kk][Gg]")
-            if kgStr then
-                local numOnly = kgStr:gsub(",", "")
-                local n = tonumber(numOnly)
-                if n then return formatCommas(n) .. " KG", n end
-            end
-        end
-        local w = tonumber(weightVal) or 0
-        local s = tonumber(scaleVal) or 1
-        local totalKg = math.round(w * (s * s))
-        return formatCommas(totalKg) .. " KG", totalKg
-    end
+    local getNetRemote     = X.getNetRemote
+    local formatCommas     = X.formatCommas
+    local formatPetWeight  = X.formatPetWeight
 
     local function dumpTbl(tbl, maxDepth, indent)
         maxDepth = maxDepth or 2
@@ -6391,12 +6393,7 @@ function X.buildScrambleTabUI()
 
     copyLogBtn.MouseButton1Click:Connect(function()
         local full = table.concat(logEntries, "\n")
-        local ok = false
-        if typeof(setclipboard) == "function" then
-            ok = pcall(setclipboard, full)
-        elseif typeof(toclipboard) == "function" then
-            ok = pcall(toclipboard, full)
-        end
+        local ok = X.copyToClipboard and X.copyToClipboard(full)
         if ok then
             copyLogBtn.Text = "✓ Copied"
             logMsg("📋 Activity log copied to system clipboard!", Color3.fromRGB(140, 255, 180))
@@ -6557,23 +6554,10 @@ function X.buildScrambleTabUI()
         local function checkTool(t, src)
             if not t or not t:IsA("Tool") then return end
             local attrs = t:GetAttributes() or {}
-            if attrs.GearName ~= nil or attrs.ItemType == "Gear" or attrs.IsBat == true then return end
+            if not X.isEggTool(t, attrs) then return end
 
             local dName = tostring(attrs.DisplayName or t.Name)
             local cat = tostring(attrs.Category or "")
-            local lowD = dName:lower()
-            local lowT = t.Name:lower()
-            local lowC = cat:lower()
-
-            -- STRICT EGG VALIDATION: Must contain the word "egg" in name/displayName or Category=="Egg"
-            -- This guarantees that pets (e.g. Snowy Owl, Cosmic Gecko with ItemType="Asset") are NEVER misclassified as eggs!
-            local isEgg = lowD:find("egg") ~= nil
-                or lowT:find("egg") ~= nil
-                or lowC == "egg"
-                or attrs.ItemType == "Egg"
-                or attrs.IsEgg == true
-
-            if not isEgg then return end
 
             local rawUid = attrs.UID or attrs.Uid or attrs.Id or attrs.EggUID
             if not rawUid then
@@ -6585,7 +6569,7 @@ function X.buildScrambleTabUI()
             if uidStr and #uidStr == 32 and not seenUids[uidStr] then
                 seenUids[uidStr] = true
                 local wStr, wNum = formatPetWeight(attrs.Weight, attrs.Scale)
-                local cleanSp = dName:gsub("%s*[Ee]gg%s*$", "")
+                local cleanSp = X.cleanSpeciesName(dName)
                 table.insert(eggs, {
                     uid = uidStr,
                     species = cleanSp,
@@ -6622,10 +6606,7 @@ function X.buildScrambleTabUI()
             if not speciesName or type(speciesName) ~= "string" or speciesName == "" then return end
             local lowCheck = speciesName:lower():gsub("%s+", "")
             if lowCheck == "petname" or lowCheck == "eggname" or lowCheck == "rarity" then return end
-            local clean = speciesName:gsub("^%b[]%s*", "")
-            for _, mWord in ipairs({"Rainbow", "Golden", "Silver", "Gold"}) do
-                clean = clean:gsub("^" .. mWord .. "%s+", "")
-            end
+            local clean = X.cleanSpeciesName(speciesName)
             table.insert(reqs, {
                 slot = tostring(slotKey),
                 species = clean,
@@ -7214,6 +7195,16 @@ function X.buildUtilityTabUI()
         local bestTarget, highestScore = nil, -math.huge
         local maxDist = PICKUP_CONFIG.MaxReachDistance or 35
 
+        local function scoreTarget(pos, dist)
+            local dir = dist > 0.01 and (pos - charPos).Unit or charLook
+            local charDot = charLook:Dot(dir)
+            local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
+            local camDot = camLook:Dot(camDir)
+            local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
+            if dist <= 6 then score = score + 3 end
+            return score
+        end
+
         if eggCache and eggCache.byUid then
             for uid, r in pairs(eggCache.byUid) do
                 local isCarriedByOther = r.CarrierUserId and tostring(r.CarrierUserId) ~= tostring(LocalPlayer.UserId)
@@ -7222,12 +7213,7 @@ function X.buildUtilityTabUI()
                     if pos then
                         local dist = (pos - charPos).Magnitude
                         if dist <= maxDist then
-                            local dir = dist > 0.01 and (pos - charPos).Unit or charLook
-                            local charDot = charLook:Dot(dir)
-                            local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
-                            local camDot = camLook:Dot(camDir)
-                            local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
-                            if dist <= 6 then score = score + 3 end
+                            local score = scoreTarget(pos, dist)
                             if score > highestScore then
                                 highestScore = score
                                 bestTarget = {
@@ -7252,12 +7238,7 @@ function X.buildUtilityTabUI()
                 if pos then
                     local dist = (pos - charPos).Magnitude
                     if dist <= maxDist then
-                        local dir = dist > 0.01 and (pos - charPos).Unit or charLook
-                        local charDot = charLook:Dot(dir)
-                        local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
-                        local camDot = camLook:Dot(camDir)
-                        local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
-                        if dist <= 6 then score = score + 3 end
+                        local score = scoreTarget(pos, dist)
                         local uid = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
                         if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
                         if score > highestScore then
@@ -8584,8 +8565,7 @@ copyBtn.MouseButton1Click:Connect(function()
         statusLabel.Text="Copy failed"; statusLabel.TextColor3=Color3.fromRGB(255,120,120); return
     end
     jsonBox.Text=j
-    local clipOk=false
-    if typeof(setclipboard)=="function" then clipOk=pcall(setclipboard,j) end
+    local clipOk = X.copyToClipboard and X.copyToClipboard(j)
     statusLabel.Text=clipOk and "Copied to clipboard" or "Copied to textbox"
     statusLabel.TextColor3=Color3.fromRGB(120,255,150)
 end)
