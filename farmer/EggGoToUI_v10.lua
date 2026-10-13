@@ -153,7 +153,7 @@ local PET_RARITY_PRESETS = {
     ["Crab"]="Legendary", ["Kaiju Spider"]="Legendary", ["Blade Head"]="Mythic", ["Mantis"]="Cosmic",
     ["Rhino"]="Cosmic",
     ["Gorilla King"]="Eternal", ["King Kong"]="Eternal", -- King Kong egg asset -> Gorilla King (Eternal)
-    ["Nightflame"]="Divine", ["Dove"]="Legendary",
+    ["Nightflame"]="Divine", ["Godzilla"]="Divine", ["Dove"]="Legendary", -- Godzilla egg asset on Titan Temple -> Nightflame (Divine)
     ["Lamb"]="Mythic", ["Moth"]="Cosmic", ["Peacock"]="Cosmic",
     ["Pure Jellyfish"]="Secret", ["Centaur"]="Secret", ["Pegasus"]="Eternal",
     ["ArchAngel"]="Divine", ["Flame Sprite"]="Legendary", ["Toro"]="Mythic",
@@ -196,7 +196,7 @@ local PET_RARITY_PRESETS = {
     ["Dream Axolotl"]="Legendary", ["Warden"]="Secret",
     ["Dragon"]="Eternal", ["Jellyfish"]="Secret",
     ["Nuclear Mantis"]="Divine", ["Nuceodille"]="Eternal", ["Toucax"]="Mythic",
-    ["Godzilla"]="Secret",
+    ["Godzilla"]="Divine",
     ["Frogfly"]="Rare", ["Wheel Hamster"]="Rare", ["Finned Thresher"]="Legendary",
     ["Mire Fox"]="Rare", ["Eye Bat"]="Rare", ["FennecFox"]="Uncommon",
     -- Newly discovered egg assets from game scan (new-full-scan-3.log)
@@ -239,6 +239,8 @@ local DEFAULT_SETTINGS = {
     PickupBurstCount   = 8,
     PickupShowMiniHud  = false,
     TrapEvade          = true,
+    AutoTreadmill      = false,
+    AutoDismount       = false,
 }
 
 local activeMutationFilter = {}
@@ -387,6 +389,13 @@ local X = {
         ShowVisuals   = true,                -- render red danger range rings
     },
     activeTraps           = {},
+    autoTreadmillEnabled  = DEFAULT_SETTINGS.AutoTreadmill or false,
+    autoDismountEnabled   = DEFAULT_SETTINGS.AutoDismount or false,
+    noEggSince            = nil,
+    nightResetTriggered   = false,
+    mountedAtClockTime    = nil,
+    lastNightResetAt      = nil,
+    nightResetGraceUntil  = nil,
     -- Movement constants
     SLOW_ZONE             = 25,
     TELEPORT_ZONE         = 8,
@@ -463,8 +472,9 @@ X.EGG_SPECIES_ALIASES = {
     ["lava dragon"] = "dragon",
     ["jellyfish"] = "pure jellyfish",
     ["pure jellyfish"] = "jellyfish",
-    ["godzilla"] = "kaiju",
-    ["kaiju"] = "godzilla",
+    ["godzilla"] = "nightflame",
+    ["nightflame"] = "godzilla",
+    ["kaiju"] = "nightflame",
     ["king kong"] = "gorilla king",
     ["gorilla king"] = "king kong",
     ["fennecfox"] = "fennec",
@@ -493,6 +503,7 @@ X.CATEGORY_TO_DISPLAY = {
     ["Warden"] = "King Snake",
     ["Jellyfish"] = "Pure Jellyfish",
     ["King Kong"] = "Gorilla King",      -- King Kong egg asset -> Gorilla King pet display
+    ["Godzilla"] = "Nightflame",         -- Godzilla egg asset on Titan Temple -> Nightflame (Divine)
     ["ScorchedDragon"] = "Scorched Dragon", -- no-space variant from game scan
     ["Cave Dragon"] = "Cosmic Dragon",   -- Cave Dragon egg asset -> Cosmic Dragon pet display
 }
@@ -1954,6 +1965,14 @@ local function applySettings(t)
         if typeof(X.removeAllTrapVisuals) == "function" then pcall(X.removeAllTrapVisuals) end
     end
 
+    if t.AutoTreadmill ~= nil then X.autoTreadmillEnabled = t.AutoTreadmill end
+    currentSettings.AutoTreadmill = X.autoTreadmillEnabled == true
+    if typeof(X.syncAutoTreadmillUI) == "function" then pcall(X.syncAutoTreadmillUI) end
+
+    if t.AutoDismount ~= nil then X.autoDismountEnabled = t.AutoDismount end
+    currentSettings.AutoDismount = X.autoDismountEnabled == true
+    if typeof(X.syncAutoDismountUI) == "function" then pcall(X.syncAutoDismountUI) end
+
     return true
 end
 
@@ -2116,6 +2135,7 @@ function X.getNearestTrapDist(pos)
                 end
             end
         else
+            if typeof(X.removeTrapVisual) == "function" then X.removeTrapVisual(data) end
             X.activeTraps[inst] = nil
         end
     end
@@ -2247,10 +2267,19 @@ function X.getTrapDetourPoint(rp, dest)
     local leftDir  = Vector3.new(-forwardDir.Z, 0, forwardDir.X)
     local rightDir = Vector3.new(forwardDir.Z, 0, -forwardDir.X)
 
-    local mostThreatening = nil
+    local threatPos = nil
+    local threatDist, threatFwdProj, threatSideDot = 0, 0, 0
     local minThreatScore = math.huge
     local nearestDist = math.huge
-    local candidateTraps = nil
+
+    local candTraps = X._candTrapsBuffer
+    if not candTraps then
+        candTraps = {}
+        X._candTrapsBuffer = candTraps
+    else
+        table.clear(candTraps)
+    end
+    local candCount = 0
 
     for inst, data in pairs(X.activeTraps) do
         if inst.Parent then
@@ -2271,8 +2300,8 @@ function X.getTrapDetourPoint(rp, dest)
                 end
 
                 if distToTrap <= (lookaheadDist + 4.0) then
-                    if not candidateTraps then candidateTraps = {} end
-                    candidateTraps[#candidateTraps + 1] = tPos
+                    candCount = candCount + 1
+                    candTraps[candCount] = tPos
                     if distToTrap <= lookaheadDist then
                         local toTrap = Vector3.new(tPos.X - rp.X, 0, tPos.Z - rp.Z)
                         local forwardProj = toTrap:Dot(forwardDir)
@@ -2284,29 +2313,27 @@ function X.getTrapDetourPoint(rp, dest)
                             local threatScore = distToTrap + lateralDist * 0.5
                             if threatScore < minThreatScore then
                                 minThreatScore = threatScore
-                                mostThreatening = {
-                                    Position = tPos,
-                                    Distance = distToTrap,
-                                    ForwardProj = forwardProj,
-                                    SideDot = toTrap:Dot(leftDir),
-                                }
+                                threatPos = tPos
+                                threatDist = distToTrap
+                                threatFwdProj = forwardProj
+                                threatSideDot = toTrap:Dot(leftDir)
                             end
                         end
                     end
                 end
             end
         else
-            X.removeTrapVisual(data)
+            if typeof(X.removeTrapVisual) == "function" then X.removeTrapVisual(data) end
             X.activeTraps[inst] = nil
         end
     end
 
-    if not mostThreatening then return nil, nearestDist end
+    if not threatPos then return nil, nearestDist end
 
     -- Micro Left/Right Evasion:
     -- Forward lead prioritizes strong forward momentum (no wide sweeping arcs)
-    local forwardLead = math.clamp(mostThreatening.ForwardProj * 0.5, 3.0, 6.5)
-    if mostThreatening.ForwardProj < 1.0 then
+    local forwardLead = math.clamp(threatFwdProj * 0.5, 3.0, 6.5)
+    if threatFwdProj < 1.0 then
         forwardLead = 3.5
     end
 
@@ -2326,14 +2353,12 @@ function X.getTrapDetourPoint(rp, dest)
     -- Multi-trap intelligence: evaluate clearance of both candidates against all nearby traps
     local clearanceLeft = math.huge
     local clearanceRight = math.huge
-    if candidateTraps then
-        for i = 1, #candidateTraps do
-            local tPos = candidateTraps[i]
-            local dL = X.distXZ(candLeft, tPos)
-            if dL < clearanceLeft then clearanceLeft = dL end
-            local dR = X.distXZ(candRight, tPos)
-            if dR < clearanceRight then clearanceRight = dR end
-        end
+    for i = 1, candCount do
+        local tPos = candTraps[i]
+        local dL = X.distXZ(candLeft, tPos)
+        if dL < clearanceLeft then clearanceLeft = dL end
+        local dR = X.distXZ(candRight, tPos)
+        if dR < clearanceRight then clearanceRight = dR end
     end
 
     -- Select candidate with superior clearance; if comparable, steer away from primary threat
@@ -2343,11 +2368,11 @@ function X.getTrapDetourPoint(rp, dest)
     elseif clearanceLeft > (clearanceRight + 0.6) then
         chosenPoint = candLeft
     else
-        chosenPoint = (mostThreatening.SideDot >= 0) and candRight or candLeft
+        chosenPoint = (threatSideDot >= 0) and candRight or candLeft
     end
 
     -- Close proximity safeguard: retain strong forward diagonal momentum rather than turning sideways
-    if mostThreatening.Distance <= 4.0 then
+    if threatDist <= 4.0 then
         local steerDir = (chosenPoint == candRight) and rightDir or leftDir
         local blend = (forwardDir * 0.6 + steerDir * 0.8).Unit
         chosenPoint = Vector3.new(
@@ -2362,6 +2387,8 @@ end
 
 function X.neutralizeTrap(inst)
     if not inst or not inst.Parent then return end
+    local record = X.activeTraps and X.activeTraps[inst]
+    if record and record.Neutralized then return end
     pcall(function()
         if inst:IsA("BasePart") then
             inst.CanTouch = false
@@ -2375,19 +2402,19 @@ function X.neutralizeTrap(inst)
             hb.CanQuery = false
             local curCF = hb.CFrame
             if curCF.Y > -100 then
-                local record = X.activeTraps[inst]
                 if record and not record.OrigHitboxCF then
                     record.OrigHitboxCF = curCF
                 end
                 hb.CFrame = CFrame.new(curCF.X, -500, curCF.Z)
             end
         end
+        if record then record.Neutralized = true end
     end)
 end
 
 function X.restoreTrap(inst)
     if not inst or not inst.Parent then return end
-    local record = X.activeTraps[inst]
+    local record = X.activeTraps and X.activeTraps[inst]
     pcall(function()
         if inst:IsA("BasePart") then
             inst.CanTouch = true
@@ -2403,6 +2430,7 @@ function X.restoreTrap(inst)
                 hb.CFrame = record.OrigHitboxCF
             end
         end
+        if record then record.Neutralized = false end
     end)
 end
 
@@ -2412,6 +2440,7 @@ function X.applyAllTrapNeutralization()
         if inst.Parent then
             X.neutralizeTrap(inst)
         else
+            if typeof(X.removeTrapVisual) == "function" then X.removeTrapVisual(data) end
             X.activeTraps[inst] = nil
         end
     end
@@ -2430,12 +2459,27 @@ function X.applyCanTouchProtection()
     local char = LocalPlayer.Character
     if not char then return end
     local protect = X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local nm = part.Name:lower()
-            if nm:find("foot") or nm:find("leg") or nm:find("root") or nm:find("torso") then
-                pcall(function() part.CanTouch = not protect end)
+    local targetCanTouch = not protect
+
+    local cached = X._cachedLimbs
+    if not cached or cached.Char ~= char then
+        cached = { Char = char, Parts = {} }
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local nm = part.Name:lower()
+                if nm:find("foot", 1, true) or nm:find("leg", 1, true) or nm:find("root", 1, true) or nm:find("torso", 1, true) then
+                    table.insert(cached.Parts, part)
+                end
             end
+        end
+        X._cachedLimbs = cached
+    end
+
+    local parts = cached.Parts
+    for i = 1, #parts do
+        local part = parts[i]
+        if part and part.Parent and part.CanTouch ~= targetCanTouch then
+            pcall(function() part.CanTouch = targetCanTouch end)
         end
     end
 end
@@ -2566,7 +2610,7 @@ function X.initTrapEvade()
     task.spawn(function()
         while screenGui and screenGui.Parent do
             task.wait(0.12)
-            if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and autoFarmToken == 0 then
+            if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and not autoFarmEnabled then
                 local ch = LocalPlayer.Character
                 local r = ch and ch:FindFirstChild("HumanoidRootPart")
                 local h = ch and ch:FindFirstChildOfClass("Humanoid")
@@ -3962,6 +4006,41 @@ local function autoFarmLoop()
             end
         end
 
+        if not skip and not weAreCarrying and X.isOnTreadmill() then
+            local shouldDismount = false
+            if X.autoDismountEnabled then
+                if X.checkNightReset() then
+                    shouldDismount = true
+                elseif eggCache and eggCache.records and #eggCache.records > 0 then
+                    local okPick, best = pcall(X.pickNearest, eggCache.records)
+                    if okPick and typeof(best) == "table" then
+                        shouldDismount = true
+                    end
+                end
+            end
+
+            if shouldDismount then
+                X.nightResetTriggered = false
+                X.lastNightResetAt = os.clock()
+                X.nightResetGraceUntil = os.clock() + 12.0
+                X.noEggSince = nil
+                statusLabel.Text = "[AutoFarm] Night reset! Dismounting & Walking to Safezone..."
+                statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                X.executeAutoDismount(true, function()
+                    return not autoFarmEnabled or autoFarmToken ~= myTok
+                end)
+                statusLabel.Text = "[AutoFarm] Arrived at Safezone. Waiting 12s for egg spawn..."
+                statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+                task.wait(0.3)
+                skip = true
+            else
+                statusLabel.Text = "[AutoFarm] Training on Treadmill (Waiting for night reset)..."
+                statusLabel.TextColor3 = Color3.fromRGB(80, 220, 120)
+                task.wait(0.5)
+                skip = true
+            end
+        end
+
         -- Only if a pickup of OURS is still undelivered AND the egg is still really in our hands
         if not skip and weAreCarrying then
             if stillCarrying() then
@@ -4066,15 +4145,64 @@ local function autoFarmLoop()
                         end
                     end
                     if not skip then
-                        statusLabel.Text = "[AutoFarm] No matching eggs — waiting..."
-                        statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-                        local w = 0
-                        while w < X.AUTO_EMPTY_WAIT and autoFarmEnabled and autoFarmToken == myTok do
-                            task.wait(0.25); w = w + 0.25
+                        local inNightGrace = X.nightResetGraceUntil and (os.clock() < X.nightResetGraceUntil)
+                        if inNightGrace then
+                            X.noEggSince = nil
+                            local remaining = math.max(0, X.nightResetGraceUntil - os.clock())
+                            statusLabel.Text = string.format("[AutoFarm] Night reset: eggs respawning (%.1fs/12s)...", remaining)
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                            task.wait(0.3)
+                            skip = true
+                        elseif X.autoTreadmillEnabled then
+                            if not X.noEggSince then
+                                X.noEggSince = os.clock()
+                            end
+                            local elapsed = os.clock() - X.noEggSince
+                            if elapsed >= 3.0 then
+                                if not X.isOnTreadmill() then
+                                    statusLabel.Text = "[AutoFarm] No eggs for 3s -> Moving to Treadmill..."
+                                    statusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+                                    local arrived = X.executeAutoTreadmill(function()
+                                        return not autoFarmEnabled or autoFarmToken ~= myTok
+                                    end)
+                                    if arrived then
+                                        X.nightResetTriggered = false
+                                        local lighting = game:GetService("Lighting")
+                                        X.mountedAtClockTime = lighting and lighting.ClockTime
+                                        statusLabel.Text = "[AutoFarm] Training on Treadmill (Waiting for reset)..."
+                                        statusLabel.TextColor3 = Color3.fromRGB(80, 220, 120)
+                                    else
+                                        task.wait(0.5)
+                                    end
+                                else
+                                    task.wait(0.5)
+                                end
+                                skip = true
+                            else
+                                statusLabel.Text = string.format("[AutoFarm] No matching eggs (%.1fs/3.0s)...", elapsed)
+                                statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+                                task.wait(0.25)
+                                skip = true
+                            end
+                        else
+                            X.noEggSince = nil
+                            statusLabel.Text = "[AutoFarm] No matching eggs — waiting..."
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+                            local w = 0
+                            while w < X.AUTO_EMPTY_WAIT and autoFarmEnabled and autoFarmToken == myTok do
+                                task.wait(0.25); w = w + 0.25
+                            end
+                            skip = true
                         end
-                        skip = true
                     end
                 elseif typeof(target) == "table" and not skip then
+                    X.noEggSince = nil
+                    X.nightResetGraceUntil = nil
+                    if X.isOnTreadmill() then
+                        X.executeAutoDismount(true, function()
+                            return not autoFarmEnabled or autoFarmToken ~= myTok
+                        end)
+                    end
                     local pos = extPos(target)
                     local uid = tostring(target.Uid or "")
                     local sp  = tostring(target.AssetCategory or "?")
@@ -4179,6 +4307,13 @@ local function toggleAutoFarm()
                 statusLabel.Text = "[AutoFarm] Stopping..."
                 statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
             end
+            X.noEggSince = nil
+            X.nightResetTriggered = false
+            pcall(function()
+                local ch = LocalPlayer.Character
+                local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+                if hum then hum:Move(Vector3.zero) end
+            end)
         end
     end)
     if not ok then
@@ -7357,6 +7492,475 @@ function X.buildScrambleTabUI()
 end
 
 -- ==================================================
+-- TAB 4 HELPERS: AUTO TREADMILL, DISMOUNT & PEN
+-- ==================================================
+function X.findMyPlot()
+    local plotsFolder = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("Bases")
+    if not plotsFolder then return nil, nil end
+
+    local myIdStr = tostring(LocalPlayer.UserId)
+    local myName  = string.lower(LocalPlayer.Name)
+
+    -- Pass 1: Authoritative Owner attribute check
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        local pAttrs = plot:GetAttributes()
+        local ownerAttr = pAttrs.Owner or pAttrs.OwnerId or pAttrs.Player or pAttrs.UserId or pAttrs.ClaimedBy
+        if ownerAttr then
+            local strOwner = tostring(ownerAttr):lower()
+            if strOwner == myIdStr or strOwner == myName then
+                local idx = tonumber(plot.Name) or tonumber(string.match(plot.Name, "%d+"))
+                X.myPlot = plot
+                X.myPlotIndex = idx
+                return plot, idx
+            end
+        end
+    end
+
+    -- Pass 2: Child Object / Sign text check
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        for _, desc in ipairs(plot:GetDescendants()) do
+            if desc:IsA("TextLabel") or desc:IsA("SurfaceGui") then
+                local txt = desc:IsA("TextLabel") and desc.Text:lower() or ""
+                if string.find(txt, myName, 1, true) or string.find(txt, string.lower(LocalPlayer.DisplayName), 1, true) then
+                    local idx = tonumber(plot.Name) or tonumber(string.match(plot.Name, "%d+"))
+                    X.myPlot = plot
+                    X.myPlotIndex = idx
+                    return plot, idx
+                end
+            end
+        end
+    end
+
+    -- Pass 3: Proximity to SAFE_ZONE
+    local bestPlot, bestDist = nil, math.huge
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        local pPos = nil
+        if plot:IsA("Model") then
+            local ok, piv = pcall(function() return plot:GetPivot().Position end)
+            pPos = ok and piv or (plot.PrimaryPart and plot.PrimaryPart.Position)
+        elseif plot:IsA("BasePart") then
+            pPos = plot.Position
+        end
+        if pPos then
+            local d = X.distXZ(pPos, SAFE_ZONE)
+            if d < bestDist then
+                bestDist = d
+                bestPlot = plot
+            end
+        end
+    end
+
+    if bestPlot and bestDist <= 80 then
+        local idx = tonumber(bestPlot.Name) or tonumber(string.match(bestPlot.Name, "%d+"))
+        X.myPlot = bestPlot
+        X.myPlotIndex = idx
+        return bestPlot, idx
+    end
+
+    return nil, nil
+end
+
+function X.findMyPen()
+    -- 1. Try finding pen position from existing PlacedEggRenders for this player
+    local placedRenders = Workspace:FindFirstChild("PlacedEggRenders")
+    if placedRenders then
+        local myPrefix = tostring(LocalPlayer.UserId) .. "_"
+        local eggPositions = {}
+        for _, egg in ipairs(placedRenders:GetChildren()) do
+            if string.find(egg.Name, myPrefix, 1, true) then
+                local p = nil
+                if egg:IsA("BasePart") then p = egg.Position
+                elseif egg:IsA("Model") then
+                    local ok, piv = pcall(function() return egg:GetPivot().Position end)
+                    p = ok and piv or nil
+                end
+                if p then table.insert(eggPositions, p) end
+            end
+        end
+        if #eggPositions > 0 then
+            local avgX, avgY, avgZ = 0, 0, 0
+            for _, pos in ipairs(eggPositions) do
+                avgX = avgX + pos.X
+                avgY = avgY + pos.Y
+                avgZ = avgZ + pos.Z
+            end
+            local center = Vector3.new(avgX / #eggPositions, avgY / #eggPositions, avgZ / #eggPositions)
+            X.penPosition = center
+            return center
+        end
+    end
+
+    -- 2. Try finding Pen / Nest / Incubator within MyPlot
+    local plot = X.myPlot
+    if not plot then
+        plot, _ = X.findMyPlot()
+    end
+
+    if plot then
+        for _, desc in ipairs(plot:GetDescendants()) do
+            local low = string.lower(desc.Name)
+            if (low:find("pen") or low:find("nest") or low:find("incubator") or low:find("eggspot") or low:find("delivery"))
+               and desc:IsA("BasePart") then
+                X.penPosition = desc.Position
+                return desc.Position
+            end
+        end
+        local ok, piv = pcall(function() return plot:GetPivot().Position end)
+        if ok and piv then
+            X.penPosition = piv
+            return piv
+        end
+    end
+
+    -- 3. Fallback to SAFE_ZONE
+    X.penPosition = SAFE_ZONE
+    return SAFE_ZONE
+end
+
+function X.findMyTreadmill()
+    local clientTreadmills = Workspace:FindFirstChild("__ClientTreadmillRenders")
+    local plotIdx = X.myPlotIndex
+    if not plotIdx then
+        _, plotIdx = X.findMyPlot()
+    end
+
+    local candidate = nil
+    if clientTreadmills and plotIdx then
+        local targetName = "TreadmillRender_" .. tostring(plotIdx)
+        candidate = clientTreadmills:FindFirstChild(targetName)
+    end
+
+    -- Nearest fallback
+    if not candidate and clientTreadmills then
+        local penPos = X.penPosition or SAFE_ZONE
+        local minDist = math.huge
+        for _, tm in ipairs(clientTreadmills:GetChildren()) do
+            local p = nil
+            if tm:IsA("BasePart") then p = tm.Position
+            elseif tm:IsA("Model") or tm:IsA("Tool") then
+                local ok, piv = pcall(function() return tm:GetPivot().Position end)
+                p = ok and piv or (tm:FindFirstChildWhichIsA("BasePart") and tm:FindFirstChildWhichIsA("BasePart").Position)
+            end
+            if p then
+                local d = X.distXZ(p, penPos)
+                if d < minDist then
+                    minDist = d
+                    candidate = tm
+                end
+            end
+        end
+    end
+
+    -- Inside MyPlot fallback
+    if not candidate and X.myPlot then
+        for _, desc in ipairs(X.myPlot:GetDescendants()) do
+            if string.find(string.lower(desc.Name), "treadmill") then
+                candidate = desc
+                break
+            end
+        end
+    end
+
+    if candidate then
+        X.treadmillModel = candidate
+        local belt = nil
+        for _, p in ipairs(candidate:GetDescendants()) do
+            if p:IsA("BasePart") then
+                local ln = string.lower(p.Name)
+                if ln:find("belt") or ln:find("cube.015") or ln:find("running") or ln:find("surface") or ln:find("pad") then
+                    belt = p
+                    break
+                end
+            end
+        end
+        if not belt then
+            belt = candidate:FindFirstChildWhichIsA("BasePart", true)
+        end
+        X.treadmillBelt = belt
+        if belt then
+            X.treadmillPosition = belt.Position
+            return candidate, belt, belt.Position
+        end
+    end
+
+    return nil, nil, nil
+end
+
+function X.walkToTarget(targetPos, arrivalDist, cancelCheck, snapRadius)
+    arrivalDist = arrivalDist or 3.0
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not char or not root or not hum then return false end
+
+    local isSafeZone = (targetPos == SAFE_ZONE) or (typeof(targetPos) == "Vector3" and typeof(SAFE_ZONE) == "Vector3" and X.distXZ(targetPos, SAFE_ZONE) < 1.0)
+    local effectiveSnapRadius = snapRadius or (isSafeZone and (X.SAFE_SNAP_RADIUS or 60) or nil)
+
+    local startTime = os.clock()
+    local timeout   = 60.0
+
+    while (os.clock() - startTime) < timeout do
+        if not LocalPlayer.Character or not root.Parent or hum.Health <= 0 then break end
+        if cancelCheck and cancelCheck() then break end
+
+        local curPos = root.Position
+        local dist = X.distXZ(curPos, targetPos)
+
+        if effectiveSnapRadius and dist <= effectiveSnapRadius then
+            if isSafeZone then
+                X.snapToSafe()
+            else
+                X.markTeleport()
+                pcall(function()
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    local targetY = targetPos.Y
+                    if math.abs(root.Position.Y - targetPos.Y) <= 4 then
+                        targetY = root.Position.Y
+                    end
+                    root.CFrame = CFrame.new(targetPos.X, targetY, targetPos.Z) * (root.CFrame - root.CFrame.Position)
+                end)
+            end
+            pcall(function()
+                root.AssemblyLinearVelocity = Vector3.zero
+                hum:Move(Vector3.zero)
+                hum:MoveTo(root.Position)
+            end)
+            return true
+        end
+
+        if dist <= arrivalDist then
+            pcall(function()
+                root.AssemblyLinearVelocity = Vector3.zero
+                hum:Move(Vector3.zero)
+                hum:MoveTo(root.Position)
+            end)
+            return true
+        end
+
+        if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and typeof(X.getNearestTrapDist) == "function" then
+            local nearTrapDist = X.getNearestTrapDist(curPos)
+            if nearTrapDist and nearTrapDist <= 4.5 and not hum.Jump then
+                hum.Jump = true
+            end
+        end
+
+        local dir = Vector3.new(targetPos.X - curPos.X, 0, targetPos.Z - curPos.Z)
+        if dir.Magnitude > 0.1 then
+            hum:Move(dir.Unit, false)
+            hum:MoveTo(targetPos)
+        end
+
+        task.wait(0.08)
+    end
+
+    pcall(function()
+        if root then root.AssemblyLinearVelocity = Vector3.zero end
+        hum:Move(Vector3.zero)
+        if root then hum:MoveTo(root.Position) end
+    end)
+    local cur = root and root.Position
+    return cur and (X.distXZ(cur, targetPos) <= (effectiveSnapRadius or arrivalDist)) or false
+end
+
+function X.isOnTreadmill()
+    local lpAttr   = LocalPlayer:GetAttribute("IsOnTreadmill")
+    local char     = LocalPlayer.Character
+    local charAttr = char and char:GetAttribute("IsOnTreadmill")
+    if lpAttr == true or charAttr == true then
+        return true
+    end
+    if char and X.treadmillBelt then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local dist = X.distXZ(root.Position, X.treadmillBelt.Position)
+            if dist <= 4.0 and math.abs(root.Position.Y - X.treadmillBelt.Position.Y) <= 3.5 then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and (hum:GetState() == Enum.HumanoidStateType.Running or hum.MoveDirection.Magnitude > 0.05) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+function X.initNightResetMonitor()
+    if X.nightMonitorInitialized then return end
+    X.nightMonitorInitialized = true
+    X.nightResetTriggered = false
+    X.lastClockTime = nil
+
+    local net = ReplicatedStorage:FindFirstChild("Packages")
+        and ReplicatedStorage.Packages:FindFirstChild("Networking")
+
+    -- 1. RE/EggWorld/FieldEggCycleCountdown
+    if net then
+        local evCountdown = net:FindFirstChild("RE/EggWorld/FieldEggCycleCountdown")
+        if evCountdown and evCountdown:IsA("RemoteEvent") then
+            addConnection(evCountdown.OnClientEvent:Connect(function(val)
+                local cd = tonumber(val) or (typeof(val) == "table" and tonumber(val.Countdown or val.Time or val.Seconds))
+                if cd and cd <= 1 then
+                    X.nightResetTriggered = true
+                    X.lastNightResetAt = os.clock()
+                    X.nightResetGraceUntil = os.clock() + 12.0
+                end
+            end))
+        end
+
+        -- 2. RE/EggWorld/FieldEggBatchShifted
+        local evBatch = net:FindFirstChild("RE/EggWorld/FieldEggBatchShifted")
+        if evBatch and evBatch:IsA("RemoteEvent") then
+            addConnection(evBatch.OnClientEvent:Connect(function()
+                if X.isOnTreadmill() then
+                    X.nightResetTriggered = true
+                    X.lastNightResetAt = os.clock()
+                    X.nightResetGraceUntil = os.clock() + 12.0
+                end
+            end))
+        end
+    end
+
+    -- 3. Lighting ClockTime listener
+    local lighting = game:GetService("Lighting")
+    if lighting then
+        X.lastClockTime = lighting.ClockTime
+        addConnection(lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+            local cur = lighting.ClockTime
+            local prev = X.lastClockTime or cur
+            X.lastClockTime = cur
+
+            local wasDay = (prev >= 6 and prev < 18)
+            local isNight = (cur >= 18 or cur < 6)
+            if wasDay and isNight then
+                X.nightResetTriggered = true
+                X.lastNightResetAt = os.clock()
+                X.nightResetGraceUntil = os.clock() + 12.0
+            end
+        end))
+    end
+end
+
+function X.checkNightReset()
+    if X.nightResetTriggered then
+        return true
+    end
+    if X.lastNightResetAt and (os.clock() - X.lastNightResetAt) < 6.0 then
+        return true
+    end
+    local lighting = game:GetService("Lighting")
+    if lighting then
+        local ct = lighting.ClockTime
+        if (ct >= 18 or ct <= 5.5) then
+            if X.mountedAtClockTime and (X.mountedAtClockTime >= 6 and X.mountedAtClockTime < 18) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function X.executeAutoDismount(andWalkToSafeZone, cancelCheck)
+    local char = LocalPlayer.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function()
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            hum.Jump = true
+        end)
+        task.wait(0.05)
+        pcall(function() hum.Jump = true end)
+    end
+
+    local rfDoff = X.getNetRemote("RF/Treadmill/AskDoff")
+    if rfDoff then
+        pcall(function() rfDoff:InvokeServer() end)
+    end
+
+    if andWalkToSafeZone then
+        task.wait(0.15)
+        local arrived = X.walkToTarget(SAFE_ZONE, X.SAFE_ARRIVE_RADIUS, cancelCheck, X.SAFE_SNAP_RADIUS)
+        local ch = LocalPlayer.Character
+        local r = ch and ch:FindFirstChild("HumanoidRootPart")
+        local h = ch and ch:FindFirstChildOfClass("Humanoid")
+        if r then pcall(function() r.AssemblyLinearVelocity = Vector3.zero end) end
+        if h then
+            pcall(function()
+                h:Move(Vector3.zero)
+                if r then h:MoveTo(r.Position) end
+            end)
+        end
+        return arrived
+    end
+
+    return true
+end
+
+function X.executeAutoPen(cancelCheck)
+    local penPos = X.penPosition or X.findMyPen()
+    if not penPos then return false end
+
+    if X.isOnTreadmill() then
+        X.executeAutoDismount(false)
+        task.wait(0.3)
+    end
+
+    local ok = X.walkToTarget(penPos, 3.0, cancelCheck)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum:Move(Vector3.zero) end)
+    end
+    return ok
+end
+
+function X.executeAutoTreadmill(cancelCheck)
+    local tmModel, tmBelt, tmPos = X.treadmillModel, X.treadmillBelt, X.treadmillPosition
+    if not tmPos then
+        tmModel, tmBelt, tmPos = X.findMyTreadmill()
+    end
+    if not tmPos then
+        X.findMyPlot()
+        tmModel, tmBelt, tmPos = X.findMyTreadmill()
+    end
+    if not tmPos then return false end
+
+    local arrived = X.walkToTarget(tmPos, 2.5, cancelCheck)
+    if not arrived then return false end
+
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum:Move(Vector3.zero) end)
+    end
+    task.wait(0.15)
+
+    -- Trigger mount
+    local rfWear = X.getNetRemote("RF/Treadmill/AskWearStill")
+    if rfWear then
+        pcall(function() rfWear:InvokeServer() end)
+        if X.myPlotIndex then
+            pcall(function() rfWear:InvokeServer(X.myPlotIndex) end)
+        end
+        if tmModel then
+            pcall(function() rfWear:InvokeServer(tmModel) end)
+        end
+    end
+
+    if tmModel and typeof(fireproximityprompt) == "function" then
+        for _, prompt in ipairs(tmModel:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                pcall(function() fireproximityprompt(prompt) end)
+            end
+        end
+    end
+
+    local lighting = game:GetService("Lighting")
+    X.mountedAtClockTime = lighting and lighting.ClockTime
+    X.nightResetTriggered = false
+    return true
+end
+
+-- ==================================================
 -- TAB 4 BUILDER: UTILITY SUITE (SPAM PICKUP & REACH ASSIST)
 -- ==================================================
 function X.buildUtilityTabUI()
@@ -7577,8 +8181,179 @@ function X.buildUtilityTabUI()
         end
     end)
 
+    -- ========================================================================
+    -- ROW 3: AUTO TREADMILL (TEXT | ON/OFF)
+    -- ========================================================================
+    local rowTreadmill = Instance.new("Frame")
+    rowTreadmill.Size = UDim2.new(1, 0, 0, 36)
+    rowTreadmill.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowTreadmill.BorderSizePixel = 0
+    rowTreadmill.LayoutOrder = 3
+    rowTreadmill.Parent = tabUtility
+    Instance.new("UICorner", rowTreadmill).CornerRadius = UDim.new(0, 6)
+    local strokeTm = Instance.new("UIStroke", rowTreadmill)
+    strokeTm.Color = Color3.fromRGB(45, 55, 75)
+    strokeTm.Thickness = 1
+
+    local lblTm = Instance.new("TextLabel")
+    lblTm.Size = UDim2.new(1, -70, 1, 0)
+    lblTm.Position = UDim2.new(0, 12, 0, 0)
+    lblTm.BackgroundTransparency = 1
+    lblTm.Text = "Auto Treadmill"
+    lblTm.TextColor3 = Color3.fromRGB(220, 230, 255)
+    lblTm.Font = Enum.Font.GothamBold
+    lblTm.TextSize = 12
+    lblTm.TextXAlignment = Enum.TextXAlignment.Left
+    lblTm.Parent = rowTreadmill
+
+    local toggleTmBtn = Instance.new("TextButton")
+    toggleTmBtn.Size = UDim2.new(0, 52, 0, 24)
+    toggleTmBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    toggleTmBtn.Font = Enum.Font.GothamBold
+    toggleTmBtn.TextSize = 11
+    toggleTmBtn.Parent = rowTreadmill
+    Instance.new("UICorner", toggleTmBtn).CornerRadius = UDim.new(0, 5)
+
+    local function updateTreadmillButtonState()
+        local en = X.autoTreadmillEnabled == true
+        toggleTmBtn.Text = en and "ON" or "OFF"
+        toggleTmBtn.BackgroundColor3 = en and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleTmBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+    updateTreadmillButtonState()
+    X.syncAutoTreadmillUI = updateTreadmillButtonState
+
+    toggleTmBtn.MouseButton1Click:Connect(function()
+        X.autoTreadmillEnabled = not X.autoTreadmillEnabled
+        if currentSettings then currentSettings.AutoTreadmill = X.autoTreadmillEnabled end
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        updateTreadmillButtonState()
+    end)
+
+    -- ========================================================================
+    -- ROW 4: AUTO DISMOUNT (TEXT | ON/OFF)
+    -- ========================================================================
+    local rowDismount = Instance.new("Frame")
+    rowDismount.Size = UDim2.new(1, 0, 0, 36)
+    rowDismount.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowDismount.BorderSizePixel = 0
+    rowDismount.LayoutOrder = 4
+    rowDismount.Parent = tabUtility
+    Instance.new("UICorner", rowDismount).CornerRadius = UDim.new(0, 6)
+    local strokeDm = Instance.new("UIStroke", rowDismount)
+    strokeDm.Color = Color3.fromRGB(45, 55, 75)
+    strokeDm.Thickness = 1
+
+    local lblDm = Instance.new("TextLabel")
+    lblDm.Size = UDim2.new(1, -70, 1, 0)
+    lblDm.Position = UDim2.new(0, 12, 0, 0)
+    lblDm.BackgroundTransparency = 1
+    lblDm.Text = "Auto Dismount"
+    lblDm.TextColor3 = Color3.fromRGB(220, 230, 255)
+    lblDm.Font = Enum.Font.GothamBold
+    lblDm.TextSize = 12
+    lblDm.TextXAlignment = Enum.TextXAlignment.Left
+    lblDm.Parent = rowDismount
+
+    local toggleDmBtn = Instance.new("TextButton")
+    toggleDmBtn.Size = UDim2.new(0, 52, 0, 24)
+    toggleDmBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    toggleDmBtn.Font = Enum.Font.GothamBold
+    toggleDmBtn.TextSize = 11
+    toggleDmBtn.Parent = rowDismount
+    Instance.new("UICorner", toggleDmBtn).CornerRadius = UDim.new(0, 5)
+
+    local function updateDismountButtonState()
+        local en = X.autoDismountEnabled == true
+        toggleDmBtn.Text = en and "ON" or "OFF"
+        toggleDmBtn.BackgroundColor3 = en and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleDmBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+    updateDismountButtonState()
+    X.syncAutoDismountUI = updateDismountButtonState
+
+    toggleDmBtn.MouseButton1Click:Connect(function()
+        X.autoDismountEnabled = not X.autoDismountEnabled
+        if currentSettings then currentSettings.AutoDismount = X.autoDismountEnabled end
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        updateDismountButtonState()
+        if X.autoDismountEnabled and X.isOnTreadmill() then
+            task.spawn(function()
+                X.executeAutoDismount(true)
+            end)
+        end
+    end)
+
+    -- ========================================================================
+    -- ROW 5: AUTO PEN (TEXT | GO)
+    -- ========================================================================
+    local rowPen = Instance.new("Frame")
+    rowPen.Size = UDim2.new(1, 0, 0, 36)
+    rowPen.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowPen.BorderSizePixel = 0
+    rowPen.LayoutOrder = 5
+    rowPen.Parent = tabUtility
+    Instance.new("UICorner", rowPen).CornerRadius = UDim.new(0, 6)
+    local strokePen = Instance.new("UIStroke", rowPen)
+    strokePen.Color = Color3.fromRGB(45, 55, 75)
+    strokePen.Thickness = 1
+
+    local lblPen = Instance.new("TextLabel")
+    lblPen.Size = UDim2.new(1, -70, 1, 0)
+    lblPen.Position = UDim2.new(0, 12, 0, 0)
+    lblPen.BackgroundTransparency = 1
+    lblPen.Text = "Auto Pen"
+    lblPen.TextColor3 = Color3.fromRGB(220, 230, 255)
+    lblPen.Font = Enum.Font.GothamBold
+    lblPen.TextSize = 12
+    lblPen.TextXAlignment = Enum.TextXAlignment.Left
+    lblPen.Parent = rowPen
+
+    local btnPen = Instance.new("TextButton")
+    btnPen.Size = UDim2.new(0, 52, 0, 24)
+    btnPen.Position = UDim2.new(1, -60, 0.5, -12)
+    btnPen.Font = Enum.Font.GothamBold
+    btnPen.TextSize = 11
+    btnPen.Text = "GO"
+    btnPen.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+    btnPen.TextColor3 = Color3.new(1, 1, 1)
+    btnPen.Parent = rowPen
+    Instance.new("UICorner", btnPen).CornerRadius = UDim.new(0, 5)
+
+    btnPen.MouseButton1Click:Connect(function()
+        if X.activeNav == "pen" then
+            X.cancelNav = true
+            X.activeNav = nil
+            btnPen.Text = "GO"
+            btnPen.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+            local ch = LocalPlayer.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if hum then pcall(function() hum:Move(Vector3.zero) end) end
+            return
+        end
+
+        X.cancelNav = false
+        X.activeNav = "pen"
+        btnPen.Text = "STOP"
+        btnPen.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+
+        task.spawn(function()
+            X.executeAutoPen(function() return X.cancelNav or X.activeNav ~= "pen" end)
+            if X.activeNav == "pen" then
+                X.activeNav = nil
+                btnPen.Text = "GO"
+                btnPen.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+            end
+        end)
+    end)
+
     X.utilityCleanup = function()
+        X.cancelNav = true
+        X.activeNav = nil
         pcall(function()
+            local ch = LocalPlayer.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if hum then hum:Move(Vector3.zero) end
             if typeof(X.restoreAllTraps) == "function" then X.restoreAllTraps() end
             if typeof(X.removeAllTrapVisuals) == "function" then X.removeAllTrapVisuals() end
         end)
@@ -8190,6 +8965,7 @@ end)
 end
 X.buildMainUI()
 if typeof(X.initTrapEvade) == "function" then pcall(X.initTrapEvade) end
+if typeof(X.initNightResetMonitor) == "function" then pcall(X.initNightResetMonitor) end
 -- ==================================================
 -- EGG CARD  (compact single-row list item)
 -- ==================================================
