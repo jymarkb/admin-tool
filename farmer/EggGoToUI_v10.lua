@@ -1025,7 +1025,7 @@ end
 local function getRagdollReason(hum)
     if not hum then return nil end
     local re = LocalPlayer:GetAttribute("RagdollEndTime")
-    if typeof(re) == "number" and re > Workspace:GetServerTimeNow() then
+    if typeof(re) == "number" and re > 0 and re > Workspace:GetServerTimeNow() then
         if recoveryEnabled then
             clearRagdollAttributes()
             enablePlayerControls()
@@ -1166,8 +1166,17 @@ function X.isCarriedByOther(uid, r)
     if uStr == "" then return false end
     if uStr == carryUid or uStr == X.ownUid then return false end
 
-    -- 1. Direct record check (authoritative server snapshot fields)
+    -- Dropped or loose eggs are resting on the ground; ensure stale carrier is cleared unless actively carried in CRA
     local rec = r or (eggCache and eggCache.byUid and eggCache.byUid[uStr])
+    if (rec and rec.State == "Dropped") or X.looseUids[uStr] then
+        local craMap = X.getCraCache()
+        if not craMap or not craMap[uStr] then
+            X.carrierPlayer[uStr] = nil
+            return false
+        end
+    end
+
+    -- 1. Direct record check (authoritative server snapshot fields)
     if rec and typeof(rec) == "table" then
         if rec.State == "Carried" then
             local cId = rec.CarrierUserId or X.carrierPlayer[uStr]
@@ -1503,9 +1512,10 @@ function X.updateSlotGhosts(by, recs)
                         X.blacklistStolen(u)
                         X.looseUids[u] = nil
                         X.listDirty = true
-                    elseif not X.isCarriedByOther(u) and not (X.badUids[u] and os.clock() < X.badUids[u]) and (mine or not hasSlot) then
+                    elseif not X.isCarriedByOther(u) and (mine or not hasSlot) then
                         -- Egg was bumped or dropped loose: it is on the field, farmable!
                         X.looseUids[u] = true
+                        X.badUids[u] = nil
                         X.clearMarks(u)
                         X.listDirty = true
                     end
@@ -1651,27 +1661,28 @@ function X.isGhost(r)
         return true, "carried by another player"
     end
 
-    -- 1. Blacklisted takes absolute priority (e.g. pickup failed, nest was empty, player delivery)
+    -- 1. Eggs placed in any player's base plot or delivered
+    if X.isEggInBaseRenders(uid) then return true, "placed in player base plot" end
+    if X.deliveredUids[uid] then return true, "delivered by player" end
+    if X.isCarriedByOther(uid, r) then return true, "carried by another player" end
+
+    -- 2. If the egg is loose on the ground (bumped / dropped), it is NOT a ghost!
+    if X.looseUids[uid] or (r and r.State == "Dropped") then
+        X.badUids[uid] = nil
+        return false
+    end
+
+    -- 3. Blacklisted takes priority for nest eggs (e.g. pickup failed, nest was empty, player delivery)
     local b = X.badUids[uid]
     if b then
         if os.clock() < b then return true, "blacklisted (taken / failed pickup)" end
         X.badUids[uid] = nil
     end
-    -- 2. Eggs placed in any player's base plot
-    if X.isEggInBaseRenders(uid) then return true, "placed in player base plot" end
-    -- 3. Delivered eggs (safe zone or competitor base)
-    if X.deliveredUids[uid] then return true, "delivered by player" end
-    -- 4. Carried by another player
-    if X.isCarriedByOther(uid, r) then return true, "carried by another player" end
-    -- 5. FieldEggGone / FieldEggShifted network events
+    -- 4. FieldEggGone / FieldEggShifted network events
     if X.goneActive(uid) then return true, "Gone/Shifted event" end
-    -- 6. Taken signals (stolen, moving between scans, etc.)
+    -- 5. Taken signals (stolen, moving between scans, etc.)
     local ts = X.takenSignal(uid, true)
     if ts then return true, ts end
-
-    -- If the egg is loose on the ground (bumped / dropped), it is NOT a ghost!
-    -- NOTE: checked AFTER carrier and base plot checks so picked-up loose eggs are not faked
-    if X.looseUids[uid] then return false end
 
     -- 7. Eggs WE dropped or are retrying pickup for are exempt from missing slot ghosting
     local mine = (dropRetry and dropRetry.uid == uid) or (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60)
@@ -1929,6 +1940,8 @@ function X.startShiftedMonitor()
             -- Egg dropped on the ground (loose / pickable again!)
             X.carrierPlayer[u] = nil
             X.looseUids[u] = true
+            X.badUids[u] = nil
+            X.goneUids[u] = nil
             X.clearMarks(u)
             local isMe = (pl.UserId and tostring(pl.UserId) == tostring(LocalPlayer.UserId)) or (u == carryUid)
             if isMe then
@@ -1936,10 +1949,23 @@ function X.startShiftedMonitor()
                 dropRetry = { uid = u, t = os.clock(), n = ((dropRetry and dropRetry.uid == u) and dropRetry.n or 0) + 1 }
             end
             X.listDirty = true
-            if eggCache and eggCache.byUid and eggCache.byUid[u] then
-                eggCache.byUid[u].State = "Dropped"
-                if pl.BoundsCFrame then eggCache.byUid[u].BoundsCFrame = pl.BoundsCFrame end
-                if pl.BottomCFrame then eggCache.byUid[u].BottomCFrame = pl.BottomCFrame end
+            if eggCache and eggCache.byUid then
+                local rec = eggCache.byUid[u]
+                if not rec and eggCache.records then
+                    for _, r in ipairs(eggCache.records) do
+                        if tostring(r.Uid or "") == u then
+                            rec = r
+                            eggCache.byUid[u] = r
+                            break
+                        end
+                    end
+                end
+                if rec then
+                    rec.State = "Dropped"
+                    rec.CarrierUserId = nil
+                    if pl.BoundsCFrame then rec.BoundsCFrame = pl.BoundsCFrame end
+                    if pl.BottomCFrame then rec.BottomCFrame = pl.BottomCFrame end
+                end
             end
         elseif st == "Slot" then
             -- Egg is sitting in its nest slot
@@ -2267,14 +2293,23 @@ local function fetchSnapshotRecords()
     local recs = res.Records
     if typeof(recs) ~= "table" then return nil, "no Records" end
     local all = {}
+    local seenThisScan = {}
     for _, r in pairs(recs) do
         if typeof(r) == "table" then
             local u = tostring(r.Uid or r.EggUid or "")
             local rId = r.RarityId or r.Rarity or (r.Attributes and r.Attributes.Rarity)
             if u ~= "" and rId and rId ~= "" and rId ~= "Unknown" then
                 rarityByUid[u] = tostring(rId)
+                seenThisScan[u] = true
             end
             table.insert(all, r)
+        end
+    end
+    X._scanPruneCount = (X._scanPruneCount or 0) + 1
+    if X._scanPruneCount >= 60 then
+        X._scanPruneCount = 0
+        for k in pairs(rarityByUid) do
+            if not seenThisScan[k] then rarityByUid[k] = nil end
         end
     end
 function X.sortRecordsByAreaNest(a, b)
@@ -3298,6 +3333,9 @@ local function refreshEggCache(timeout)
                     elseif st == "Dropped" then
                         X.carrierPlayer[u] = nil
                         X.looseUids[u] = true
+                        X.badUids[u] = nil
+                        X.goneUids[u] = nil
+                        X.clearMarks(u)
                     elseif st == "Slot" then
                         X.carrierPlayer[u] = nil
                     end
@@ -3314,6 +3352,8 @@ local function refreshEggCache(timeout)
             for u in pairs(X.slotSeen) do if not by[u] then X.slotSeen[u] = nil end end
             for u in pairs(X.badUids)  do if not by[u] then X.badUids[u] = nil; X.failCount[u] = nil end end
             for u in pairs(X.failCount) do if not by[u] then X.failCount[u] = nil end end
+            for u in pairs(X.carrierPlayer) do if not by[u] then X.carrierPlayer[u] = nil end end
+            for u in pairs(X.missCount) do if not by[u] then X.missCount[u] = nil end end
             -- v9.4: an unlisted egg is usually being CARRIED: remember it, and keep its loose/nest memory so it is not
             -- mistaken for an empty nest when it is dropped and listed again. Forget it after 5 minutes.
             local nowc = os.clock()
@@ -4296,7 +4336,9 @@ function X.pickNearest(records)
     for _, r in ipairs(records) do
         if typeof(r) == "table" and passesFilters(r) and not (X.isNewOrUnknownEgg and X.isNewOrUnknownEgg(r)) then
             local u = tostring(r.Uid or "")
-            if u ~= "" and not X.isCarriedByOther(u, r) and not (X.badUids[u] and now < X.badUids[u]) then
+            local isLooseOrDropped = (r.State == "Dropped") or (X.looseUids[u] == true)
+            local isBad = (X.badUids[u] and now < X.badUids[u]) and not isLooseOrDropped
+            if u ~= "" and not X.isCarriedByOther(u, r) and not isBad then
                 local p = extPos(r)
                 if p then
                     local tier = ((hasR or X.prioritizeScrambleInAutoFarm) and X.eggTier(r) or 0) + (X.isUnverified(r) and 100 or 0)
@@ -5086,6 +5128,8 @@ function X.detectRubberband()
         X.rbLastPos = nil; X.rbLastDir = nil; X.rbSamples = {}; X.rbHist = {}; X.rbGate = "off"; X.rbSpd = nil; return
     end
     local now  = os.clock()
+    if now - (X.lastRbCheck or 0) < 0.05 then return end
+    X.lastRbCheck = now
     local pos  = r.Position
     local last = X.rbLastPos
     local lastT = X.rbLastT
@@ -7904,18 +7948,22 @@ function X.buildScrambleTabUI()
 
             local m = math.floor(diff / 60)
             local s = diff % 60
-            timerBadge.Text = string.format("⏳ %02dm %02ds  •  %s", m, s, scrambleBannerName)
+            if tabScramble and tabScramble.Visible then
+                timerBadge.Text = string.format("⏳ %02dm %02ds  •  %s", m, s, scrambleBannerName)
+            end
 
-            -- Periodic evaluation every 15s per performance requirement
+            -- Periodic evaluation every 15s: only poll satchel/PlayerGui if AutoTrade is active or Scramble tab is visible
             if os.clock() - lastLoopScan >= 15 then
                 lastLoopScan = os.clock()
-                task.spawn(function()
-                    scanInventoryEggs(false)
-                    updateUI()
-                    if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
-                        checkAndAutoTrade("15sPoll")
-                    end
-                end)
+                if isAutoTradeEnabled or (tabScramble and tabScramble.Visible) then
+                    task.spawn(function()
+                        scanInventoryEggs(false)
+                        updateUI()
+                        if isAutoTradeEnabled and not isTradingIn and not weAreCarrying then
+                            checkAndAutoTrade("15sPoll")
+                        end
+                    end)
+                end
             end
 
             task.wait(1)
@@ -8859,7 +8907,15 @@ function X.getButterflies()
                 table.insert(list, child)
             end
         end
+        if #list > 0 then
+            return list
+        end
     end
+    local now = os.clock()
+    if X.lastBroadBfScan and (now - X.lastBroadBfScan < 5.0) and X.lastBroadBfList then
+        return X.lastBroadBfList
+    end
+    X.lastBroadBfScan = now
     for _, child in ipairs(Workspace:GetChildren()) do
         if child ~= bFolder and child.Name:lower():find("butterfl") then
             if child:IsA("Model") or child:IsA("BasePart") then
@@ -8877,6 +8933,7 @@ function X.getButterflies()
             end
         end
     end
+    X.lastBroadBfList = list
     return list
 end
 
@@ -9062,25 +9119,26 @@ function X.executeAutoButterfly(cancelCheck)
             statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
         end
 
-        if os.clock() - lastSwing >= 0.3 then
+        if os.clock() - lastSwing >= 0.35 then
             lastSwing = os.clock()
-            if rfSwing then
-                pcall(function() rfSwing:InvokeServer() end)
-                if targetB then
-                    pcall(function() rfSwing:InvokeServer(targetB) end)
-                    local tUid = targetB:GetAttribute("Uid") or targetB:GetAttribute("Id") or targetB.Name
-                    if tUid then
-                        pcall(function() rfSwing:InvokeServer(tUid) end)
+            local curTarget = targetB
+            task.spawn(function()
+                if rfSwing then
+                    if curTarget then
+                        pcall(function() rfSwing:InvokeServer(curTarget) end)
+                    else
+                        pcall(function() rfSwing:InvokeServer() end)
                     end
                 end
-            end
-            local rfSwarm = X.getNetRemote("RF/Butterflies/AskSwarm")
-            if rfSwarm then
-                pcall(function() rfSwarm:InvokeServer() end)
-                if targetB then
-                    pcall(function() rfSwarm:InvokeServer(targetB) end)
+                local rfSwarm = X.getNetRemote("RF/Butterflies/AskSwarm")
+                if rfSwarm then
+                    if curTarget then
+                        pcall(function() rfSwarm:InvokeServer(curTarget) end)
+                    else
+                        pcall(function() rfSwarm:InvokeServer() end)
+                    end
                 end
-            end
+            end)
             if netTool and netTool.Parent == char then
                 pcall(function() netTool:Activate() end)
             end
