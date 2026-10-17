@@ -241,6 +241,7 @@ local DEFAULT_SETTINGS = {
     TrapEvade          = true,
     AutoTreadmill      = false,
     AutoDismount       = false,
+    AutoHatch          = false,
     AutoCatchButterflies = false,
 }
 
@@ -321,6 +322,9 @@ local function validateSettings(t)
     if t.PickupShowMiniHud ~= nil and typeof(t.PickupShowMiniHud) ~= "boolean" then
         return false, "PickupShowMiniHud must be true/false"
     end
+    if t.AutoHatch ~= nil and typeof(t.AutoHatch) ~= "boolean" then
+        return false, "AutoHatch must be true/false"
+    end
     if t.AutoCatchButterflies ~= nil and typeof(t.AutoCatchButterflies) ~= "boolean" then
         return false, "AutoCatchButterflies must be true/false"
     end
@@ -395,7 +399,11 @@ local X = {
     activeTraps           = {},
     autoTreadmillEnabled  = DEFAULT_SETTINGS.AutoTreadmill or false,
     autoDismountEnabled   = DEFAULT_SETTINGS.AutoDismount or false,
+    autoHatchEnabled      = DEFAULT_SETTINGS.AutoHatch or false,
     autoButterflyEnabled  = DEFAULT_SETTINGS.AutoCatchButterflies or false,
+    treadmillEnteredAt    = nil,
+    lastTreadmillHatchAt  = 0,
+    hasHatchedThisTreadmillSession = false,
     butterflyEventActive  = false,
     butterflyCount        = 0,
     butterflyEventExpiresAt = 0,
@@ -1110,6 +1118,29 @@ X.gonePos    = {}    -- v9.4: uid -> where it was when a Gone/Carry event fired
 X.ignoreGone = {}    -- v9.4: uid -> expiry: Gone/Carry events are ignored (we just dropped this egg)
 X.carrierPlayer = {} -- uid -> userId string of another player carrying this egg
 
+function X.getCraCache()
+    local now = os.clock()
+    if not X.craCache or (now - (X.lastCraTime or 0)) > 0.8 then
+        X.lastCraTime = now
+        local map = {}
+        local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+        if cra then
+            for _, m in ipairs(cra:GetChildren()) do
+                local nm = m.Name
+                local usId, eggId = string.match(nm, "^(%d+)_(.+)$")
+                if not eggId and string.find(nm, "_", 1, true) then
+                    usId, eggId = string.match(nm, "^(%d+)_(.*)")
+                end
+                if eggId and usId then
+                    map[eggId] = usId
+                end
+            end
+        end
+        X.craCache = map
+    end
+    return X.craCache
+end
+
 function X.getCarrier(uid)
     local uStr = tostring(uid or "")
     if uStr == "" then return nil end
@@ -1123,20 +1154,9 @@ function X.getCarrier(uid)
         return cStr
     end
 
-    local cra = Workspace:FindFirstChild("ClientRenderedAssets")
-    if cra then
-        for _, m in ipairs(cra:GetChildren()) do
-            local usId, eggId = string.match(m.Name, "^(%d+)_(.+)$")
-            if not eggId and string.find(m.Name, "_", 1, true) then
-                usId, eggId = string.match(m.Name, "^(%d+)_(.*)")
-            end
-            if eggId and eggId == uStr then
-                return usId
-            elseif string.find(m.Name, uStr, 1, true) then
-                local us = string.match(m.Name, "^(%d+)_")
-                return us or "other"
-            end
-        end
+    local craMap = X.getCraCache()
+    if craMap and craMap[uStr] then
+        return craMap[uStr]
     end
     return nil
 end
@@ -1173,18 +1193,153 @@ function X.recPos(r)
     return nil
 end
 
+-- Fast slot index generator for Workspace.AreaEggSlotsClient:
+-- Parses slot instances once in O(M), mapping by UID, compound Area:Slot, and raw coordinates.
+function X.getSlotIndex(area, cachedChildren)
+    if not area then return nil end
+    local now = os.clock()
+    local children = (typeof(cachedChildren) == "table" and not cachedChildren.isIndex) and cachedChildren or nil
+    local count = children and #children or #area:GetChildren()
+    if X.slotIndexCache and (now - (X.lastSlotIndexTime or 0) < 0.8) and X.lastSlotIndexArea == area and X.lastSlotIndexCount == count then
+        return X.slotIndexCache
+    end
+
+    if not children then
+        children = area:GetChildren()
+    end
+
+    local idx = {
+        isIndex = true,
+        byUid = {},
+        byName = {},
+        byAreaNest = {},
+        byNest = {},
+        positions = {},
+        children = children,
+    }
+
+    for _, ch in ipairs(children) do
+        local nm = ch.Name
+        idx.byName[nm] = ch
+        idx.byUid[nm] = ch
+
+        local au = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
+        if au then
+            idx.byUid[tostring(au)] = ch
+        end
+
+        local hexMatch = string.match(nm, "%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x")
+        if hexMatch then
+            idx.byUid[hexMatch] = ch
+        end
+
+        local areaPart, slotNumStr = string.match(nm, "_(%a+)[:_][Ss]lot[_-]?(%d+)")
+        if not areaPart then
+            areaPart, slotNumStr = string.match(nm, "(%a+)[:_][Ss]lot[_-]?(%d+)")
+        end
+        if areaPart and slotNumStr then
+            local aLow = string.lower(areaPart)
+            local sNum = tonumber(slotNumStr)
+            idx.byAreaNest[aLow .. ":" .. string.lower(slotNumStr)] = ch
+            idx.byAreaNest[aLow .. ":slot_" .. string.lower(slotNumStr)] = ch
+            if sNum then
+                idx.byAreaNest[aLow .. ":" .. sNum] = ch
+                idx.byAreaNest[aLow .. ":slot_" .. sNum] = ch
+                local padSlot = string.format("slot_%03d", sNum)
+                idx.byAreaNest[aLow .. ":" .. padSlot] = ch
+                if not idx.byNest[tostring(sNum)] then idx.byNest[tostring(sNum)] = ch end
+                if not idx.byNest[padSlot] then idx.byNest[padSlot] = ch end
+            end
+        end
+
+        local cp = nil
+        if ch:IsA("BasePart") then
+            cp = ch.Position
+        elseif ch:IsA("Model") then
+            local pp = ch.PrimaryPart or ch:FindFirstChildWhichIsA("BasePart")
+            if pp then cp = pp.Position end
+        end
+        if cp then
+            table.insert(idx.positions, { inst = ch, x = cp.X, y = cp.Y, z = cp.Z })
+        end
+    end
+
+    X.lastSlotIndexTime = now
+    X.lastSlotIndexArea = area
+    X.lastSlotIndexCount = count
+    X.slotIndexCache = idx
+    return idx
+end
+
 -- Robust slot resolution in Workspace.AreaEggSlotsClient:
--- Matches direct 32-hex UID, recursive/attribute Uid, Forest/Area pattern ("FirstAreaEgg_..._Forest:Slot_00X"),
--- or 3D world position within 6 studs of the expected nest position.
+-- Uses fast hash indexing with O(1) matching, falling back to children linear checks if needed.
 function X.findEggSlot(area, uid, nestId, areaId, pos, cachedChildren)
     if not area or not uid or uid == "" then return nil end
-    -- 1. Direct child match (standard 32-hex UID used in 95% of areas)
+
+    local slotIdx = nil
+    if typeof(cachedChildren) == "table" and cachedChildren.isIndex then
+        slotIdx = cachedChildren
+    else
+        slotIdx = X.getSlotIndex(area, cachedChildren)
+    end
+
+    if slotIdx then
+        -- 1. Direct UID match
+        local byU = slotIdx.byUid[uid]
+        if byU then return byU end
+
+        -- 2. Direct Name match
+        local byN = slotIdx.byName[uid]
+        if byN then return byN end
+
+        -- 3. AreaId / NestId match
+        local nStr = tostring(nestId or "")
+        local aStr = tostring(areaId or "")
+        if nStr ~= "" or aStr ~= "" then
+            local aLow = string.lower(aStr)
+            local nLow = string.lower(nStr)
+            local num = tonumber(string.match(nStr, "%d+"))
+
+            if aLow ~= "" and nLow ~= "" then
+                local match = slotIdx.byAreaNest[aLow .. ":" .. nLow]
+                if match then return match end
+                if num then
+                    match = slotIdx.byAreaNest[aLow .. ":" .. num] or slotIdx.byAreaNest[aLow .. ":" .. string.format("slot_%03d", num)]
+                    if match then return match end
+                end
+            end
+            if num and slotIdx.byNest[tostring(num)] then
+                local cand = slotIdx.byNest[tostring(num)]
+                if aLow == "" or string.find(string.lower(cand.Name), aLow, 1, true) then
+                    return cand
+                end
+            end
+            if nLow ~= "" and slotIdx.byNest[nLow] then
+                local cand = slotIdx.byNest[nLow]
+                if aLow == "" or string.find(string.lower(cand.Name), aLow, 1, true) then
+                    return cand
+                end
+            end
+        end
+
+        -- 4. World Position match (pure Lua floating point arithmetic within 6 studs)
+        if pos and typeof(pos) == "Vector3" and #slotIdx.positions > 0 then
+            local px, py, pz = pos.X, pos.Y, pos.Z
+            for _, s in ipairs(slotIdx.positions) do
+                local dx, dy, dz = s.x - px, s.y - py, s.z - pz
+                if (dx * dx + dy * dy + dz * dz) <= 36 then
+                    return s.inst
+                end
+            end
+        end
+    end
+
+    -- 5. Fallback safety search across children
     local direct = area:FindFirstChild(uid)
     if direct then return direct end
 
-    local children = cachedChildren or area:GetChildren()
+    local children = (slotIdx and slotIdx.children) or (typeof(cachedChildren) == "table" and not cachedChildren.isIndex and cachedChildren) or area:GetChildren()
 
-    -- 2. Attribute match or name contains UID
     for _, ch in ipairs(children) do
         if ch.Name == uid or string.find(ch.Name, uid, 1, true) then
             return ch
@@ -1195,7 +1350,6 @@ function X.findEggSlot(area, uid, nestId, areaId, pos, cachedChildren)
         end
     end
 
-    -- 3. AreaId / NestId match (e.g. FirstAreaEgg_<UserId>_<id>_Forest:Slot_005)
     local nStr = tostring(nestId or "")
     local aStr = tostring(areaId or "")
     if nStr ~= "" or aStr ~= "" then
@@ -1219,7 +1373,6 @@ function X.findEggSlot(area, uid, nestId, areaId, pos, cachedChildren)
         end
     end
 
-    -- 4. World Position match (within 6 studs of expected nest position)
     if pos and typeof(pos) == "Vector3" then
         for _, ch in ipairs(children) do
             local cp = nil
@@ -1239,26 +1392,24 @@ function X.findEggSlot(area, uid, nestId, areaId, pos, cachedChildren)
 end
 
 -- Cached base plot renders check (Workspace.PlacedEggRenders.<UserId>_<EggUid>)
--- Cached for 0.8s to avoid looping hundreds of instances on every frame/egg check
-local baseRendersCache = nil
-local lastBaseRendersTime = 0
+-- Cached on table X for 0.8s to avoid looping hundreds of instances on every frame/egg check
 function X.isEggInBaseRenders(uid)
     if not uid or uid == "" then return false end
     local now = os.clock()
-    if not baseRendersCache or (now - lastBaseRendersTime) > 0.8 then
-        lastBaseRendersTime = now
-        baseRendersCache = {}
+    if not X.baseRendersCache or (now - (X.lastBaseRendersTime or 0)) > 0.8 then
+        X.lastBaseRendersTime = now
+        X.baseRendersCache = {}
         local per = Workspace:FindFirstChild("PlacedEggRenders")
         if per then
             for _, ch in ipairs(per:GetChildren()) do
                 local nm = ch.Name
-                baseRendersCache[nm] = true
+                X.baseRendersCache[nm] = true
                 local eggUidPart = string.match(nm, "_(.+)$")
-                if eggUidPart then baseRendersCache[eggUidPart] = true end
+                if eggUidPart then X.baseRendersCache[eggUidPart] = true end
             end
         end
     end
-    return baseRendersCache[uid] == true
+    return X.baseRendersCache[uid] == true
 end
 
 -- Per-area cross-check of the snapshot against the client slots (called from every successful scan).
@@ -1267,7 +1418,7 @@ function X.updateSlotGhosts(by, recs)
     if not X.USE_SLOT_CHECK or not area or typeof(recs) ~= "table" then X.missCount = {}; return end
     -- Issue #7 fix: Startup grace period gives streaming/slots 5s to load before ghost filtering
     if os.clock() < (X.startupGraceUntil or 0) then return end
-    local areaChildren = area:GetChildren()
+    local slotIdx = X.getSlotIndex(area)
     local perArea = {}
     for _, r in ipairs(recs) do
         local u = typeof(r) == "table" and tostring(r.Uid or "") or ""
@@ -1277,7 +1428,7 @@ function X.updateSlotGhosts(by, recs)
             if not pa then pa = { n = 0, has = 0, missing = {} }; perArea[a] = pa end
             pa.n = pa.n + 1
             local p = X.recPos(r)
-            local slotObj = X.findEggSlot(area, u, r.NestId, r.AreaId, p, areaChildren)
+            local slotObj = X.findEggSlot(area, u, r.NestId, r.AreaId, p, slotIdx)
             local hasSlot = slotObj ~= nil
             local mine = (X.weDropped[u] and os.clock() - X.weDropped[u] < 60) or (dropRetry and dropRetry.uid == u) or X.looseUids[u]
 
@@ -1370,7 +1521,7 @@ function X.updateSlotGhosts(by, recs)
         end
     end
     local newMiss = {}
-    local totalClientSlots = #area:GetChildren()
+    local totalClientSlots = slotIdx and #slotIdx.children or #area:GetChildren()
     if totalClientSlots > 0 then
         for a, pa in pairs(perArea) do
             if not X.slotDebugged[a] then
@@ -1437,31 +1588,33 @@ end
 function X.slotLost(uid)
     if not X.USE_SLOT_CHECK or (X.weDropped[uid] and os.clock() - X.weDropped[uid] < 60) or (dropRetry and dropRetry.uid == uid) or X.looseUids[uid] then return false end
     local a = Workspace:FindFirstChild("AreaEggSlotsClient")
-    if not a or #a:GetChildren() == 0 then return false end
+    if not a then return false end
     return X.findEggSlot(a, uid) == nil
 end
 
 -- v9.8: strong evidence that another player has / had the egg (returns the reason text)
-function X.takenSignal(uid)
+function X.takenSignal(uid, skipBasic)
     local now = os.clock()
     -- Issue #1 fix: Opponent carrier and base plot checks MUST take priority over weDropped and dropRetry!
-    if X.isCarriedByOther(uid) then
-        if dropRetry and dropRetry.uid == uid then
-            dropRetry = nil; X.weDropped[uid] = nil; X.looseUids[uid] = nil
+    if not skipBasic then
+        if X.isCarriedByOther(uid) then
+            if dropRetry and dropRetry.uid == uid then
+                dropRetry = nil; X.weDropped[uid] = nil; X.looseUids[uid] = nil
+            end
+            return "carried by another player"
         end
-        return "carried by another player"
-    end
-    if X.isEggInBaseRenders(uid) then
-        if dropRetry and dropRetry.uid == uid then
-            dropRetry = nil; X.weDropped[uid] = nil; X.looseUids[uid] = nil
+        if X.isEggInBaseRenders(uid) then
+            if dropRetry and dropRetry.uid == uid then
+                dropRetry = nil; X.weDropped[uid] = nil; X.looseUids[uid] = nil
+            end
+            return "placed in player base plot"
         end
-        return "placed in player base plot"
-    end
-    if X.deliveredUids[uid] then
-        if dropRetry and dropRetry.uid == uid then
-            dropRetry = nil; X.weDropped[uid] = nil; X.looseUids[uid] = nil
+        if X.deliveredUids[uid] then
+            if dropRetry and dropRetry.uid == uid then
+                dropRetry = nil; X.weDropped[uid] = nil; X.looseUids[uid] = nil
+            end
+            return "rests at the delivery zone (delivered)"
         end
-        return "rests at the delivery zone (delivered)"
     end
 
     local wd = X.weDropped[uid]
@@ -1513,7 +1666,7 @@ function X.isGhost(r)
     -- 5. FieldEggGone / FieldEggShifted network events
     if X.goneActive(uid) then return true, "Gone/Shifted event" end
     -- 6. Taken signals (stolen, moving between scans, etc.)
-    local ts = X.takenSignal(uid)
+    local ts = X.takenSignal(uid, true)
     if ts then return true, ts end
 
     -- If the egg is loose on the ground (bumped / dropped), it is NOT a ghost!
@@ -2082,6 +2235,10 @@ local function applySettings(t)
     currentSettings.AutoDismount = X.autoDismountEnabled == true
     if typeof(X.syncAutoDismountUI) == "function" then pcall(X.syncAutoDismountUI) end
 
+    if t.AutoHatch ~= nil then X.autoHatchEnabled = t.AutoHatch end
+    currentSettings.AutoHatch = X.autoHatchEnabled == true
+    if typeof(X.syncAutoHatchUI) == "function" then pcall(X.syncAutoHatchUI) end
+
     if t.AutoCatchButterflies ~= nil then X.autoButterflyEnabled = t.AutoCatchButterflies end
     currentSettings.AutoCatchButterflies = X.autoButterflyEnabled == true
     if typeof(X.syncAutoButterflyUI) == "function" then pcall(X.syncAutoButterflyUI) end
@@ -2120,11 +2277,14 @@ local function fetchSnapshotRecords()
             table.insert(all, r)
         end
     end
-    table.sort(all, function(a, b)
-        local aa, bb = tostring(a.AreaId or ""), tostring(b.AreaId or "")
-        if aa ~= bb then return aa < bb end
-        return tostring(a.NestId or "") < tostring(b.NestId or "")
-    end)
+function X.sortRecordsByAreaNest(a, b)
+    local aa = a.AreaId or ""
+    local bb = b.AreaId or ""
+    if aa ~= bb then return aa < bb end
+    return (a.NestId or "") < (b.NestId or "")
+end
+
+    table.sort(all, X.sortRecordsByAreaNest)
     return all
 end
 
@@ -4251,6 +4411,8 @@ local function autoFarmLoop()
                 X.nightResetTriggered = false
                 X.lastNightResetAt = os.clock()
                 X.noEggSince = nil
+                X.treadmillEnteredAt = nil
+                X.hasHatchedThisTreadmillSession = false
                 if isButterflyDismount then
                     statusLabel.Text = "[AutoFarm] Butterfly event active! Dismounting Treadmill..."
                     statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
@@ -4272,6 +4434,24 @@ local function autoFarmLoop()
                     skip = true
                 end
             else
+                if not X.treadmillEnteredAt then
+                    X.treadmillEnteredAt = os.clock()
+                end
+                local elapsed = os.clock() - X.treadmillEnteredAt
+                if X.autoHatchEnabled and elapsed >= 5.0 and (not X.hasHatchedThisTreadmillSession or (os.clock() - (X.lastTreadmillHatchAt or 0) >= 10.0)) then
+                    X.hasHatchedThisTreadmillSession = true
+                    X.lastTreadmillHatchAt = os.clock()
+                    task.spawn(function()
+                        statusLabel.Text = "[AutoFarm] 5s on Treadmill -> Hatching Pen Eggs..."
+                        statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+                        if typeof(X.executeHatchAllPlaced) == "function" then
+                            local count = X.executeHatchAllPlaced()
+                            if count and count > 0 then
+                                statusLabel.Text = string.format("[AutoFarm] Hatched %d eggs!", count)
+                            end
+                        end
+                    end)
+                end
                 statusLabel.Text = "[AutoFarm] Training on Treadmill (Waiting for night reset)..."
                 statusLabel.TextColor3 = Color3.fromRGB(80, 220, 120)
                 task.wait(0.5)
@@ -7815,64 +7995,321 @@ function X.findMyPlot()
     return nil, nil
 end
 
+function X.getPenBounds()
+    local eggs = {}
+    local placedRenders = Workspace:FindFirstChild("PlacedEggRenders")
+    if placedRenders then
+        local myPrefix = tostring(LocalPlayer.UserId) .. "_"
+        for _, egg in ipairs(placedRenders:GetChildren()) do
+            if string.find(egg.Name, myPrefix, 1, true) then
+                local p = nil
+                if egg:IsA("BasePart") then
+                    p = egg.Position
+                elseif egg:IsA("Model") then
+                    local ok, piv = pcall(function() return egg:GetPivot().Position end)
+                    p = ok and piv or (egg.PrimaryPart and egg.PrimaryPart.Position)
+                end
+                if p then table.insert(eggs, p) end
+            end
+        end
+    end
+
+    local plot = X.myPlot
+    if not plot and X.findMyPlot then
+        plot, _ = X.findMyPlot()
+    end
+
+    local center, size, cf = nil, nil, nil
+    local source = "Unknown"
+
+    -- 1. Pen Part or Model in Plot
+    local penPart = nil
+    if plot then
+        for _, desc in ipairs(plot:GetDescendants()) do
+            local low = string.lower(desc.Name)
+            if (low:find("pen") or low:find("nest") or low:find("incubator") or low:find("eggspot") or low:find("delivery")) then
+                if desc:IsA("BasePart") and desc.Size.X > 2 and desc.Size.Z > 2 then
+                    penPart = desc; break
+                elseif desc:IsA("Model") and #desc:GetChildren() > 0 then
+                    penPart = desc; break
+                end
+            end
+        end
+    end
+
+    if penPart then
+        if penPart:IsA("BasePart") then
+            center = penPart.Position
+            size = Vector3.new(math.max(penPart.Size.X, 10), math.max(penPart.Size.Y, 2.5), math.max(penPart.Size.Z, 10))
+            cf = penPart.CFrame
+            source = "PlotPart: " .. penPart.Name
+        elseif penPart:IsA("Model") then
+            local mCF, mSize = penPart:GetBoundingBox()
+            center = mCF.Position
+            size = Vector3.new(math.max(mSize.X, 10), math.max(mSize.Y, 2.5), math.max(mSize.Z, 10))
+            cf = mCF
+            source = "PlotModel: " .. penPart.Name
+        end
+    end
+
+    -- 2. Placed Eggs Bounds
+    if not center and #eggs > 0 then
+        local minX, maxX = math.huge, -math.huge
+        local minY, maxY = math.huge, -math.huge
+        local minZ, maxZ = math.huge, -math.huge
+        for _, p in ipairs(eggs) do
+            if p.X < minX then minX = p.X end
+            if p.X > maxX then maxX = p.X end
+            if p.Y < minY then minY = p.Y end
+            if p.Y > maxY then maxY = p.Y end
+            if p.Z < minZ then minZ = p.Z end
+            if p.Z > maxZ then maxZ = p.Z end
+        end
+        local spanX = maxX - minX
+        local spanZ = maxZ - minZ
+        local avgX = (minX + maxX) / 2
+        local avgY = (minY + maxY) / 2
+        local avgZ = (minZ + maxZ) / 2
+        center = Vector3.new(avgX, avgY, avgZ)
+        size = Vector3.new(math.max(spanX + 8.0, 14.0), 3.0, math.max(spanZ + 8.0, 14.0))
+        cf = CFrame.new(center)
+        source = string.format("PlacedEggs (%d)", #eggs)
+    end
+
+    -- 3. Plot Pivot Fallback
+    if not center and plot then
+        local ok, piv = pcall(function() return plot:GetPivot() end)
+        if ok and piv then
+            center = piv.Position
+            size = Vector3.new(18.0, 3.0, 18.0)
+            cf = piv
+            source = "Plot Pivot"
+        end
+    end
+
+    -- 4. Safezone Fallback
+    if not center then
+        center = SAFE_ZONE
+        size = Vector3.new(16.0, 3.0, 16.0)
+        cf = CFrame.new(center)
+        source = "SafeZone"
+    end
+
+    X.penPosition = center
+    X.penSize = size
+    X.penCFrame = cf
+
+    local halfW = size.X / 2
+    local halfD = size.Z / 2
+    local h = size.Y
+
+    local sides = {
+        Front = {
+            Name = "Front",
+            Color = Color3.fromRGB(0, 225, 255),    -- Cyan (+Z / South)
+            CF = cf * CFrame.new(0, 0, halfD),
+            Size = Vector3.new(size.X, h, 0.4),
+        },
+        Back = {
+            Name = "Back",
+            Color = Color3.fromRGB(255, 130, 20),   -- Orange (-Z / North)
+            CF = cf * CFrame.new(0, 0, -halfD),
+            Size = Vector3.new(size.X, h, 0.4),
+        },
+        Left = {
+            Name = "Left",
+            Color = Color3.fromRGB(50, 255, 120),   -- Green (-X / West)
+            CF = cf * CFrame.new(-halfW, 0, 0),
+            Size = Vector3.new(0.4, h, size.Z),
+        },
+        Right = {
+            Name = "Right",
+            Color = Color3.fromRGB(255, 230, 40),   -- Yellow (+X / East)
+            CF = cf * CFrame.new(halfW, 0, 0),
+            Size = Vector3.new(0.4, h, size.Z),
+        },
+    }
+
+    local corners = {
+        FrontLeft  = (cf * CFrame.new(-halfW, 0,  halfD)).Position,
+        FrontRight = (cf * CFrame.new( halfW, 0,  halfD)).Position,
+        BackLeft   = (cf * CFrame.new(-halfW, 0, -halfD)).Position,
+        BackRight  = (cf * CFrame.new( halfW, 0, -halfD)).Position,
+    }
+
+    return {
+        Center = center,
+        Size = size,
+        CF = cf,
+        Source = source,
+        Sides = sides,
+        Corners = corners,
+    }
+end
+
 function X.findMyPen()
     if X.penPosition then
         return X.penPosition
     end
-    -- 1. Try finding pen position from existing PlacedEggRenders for this player
-    local placedRenders = Workspace:FindFirstChild("PlacedEggRenders")
-    if placedRenders then
-        local myPrefix = tostring(LocalPlayer.UserId) .. "_"
-        local eggPositions = {}
-        for _, egg in ipairs(placedRenders:GetChildren()) do
-            if string.find(egg.Name, myPrefix, 1, true) then
-                local p = nil
-                if egg:IsA("BasePart") then p = egg.Position
-                elseif egg:IsA("Model") then
-                    local ok, piv = pcall(function() return egg:GetPivot().Position end)
-                    p = ok and piv or nil
-                end
-                if p then table.insert(eggPositions, p) end
-            end
-        end
-        if #eggPositions > 0 then
-            local avgX, avgY, avgZ = 0, 0, 0
-            for _, pos in ipairs(eggPositions) do
-                avgX = avgX + pos.X
-                avgY = avgY + pos.Y
-                avgZ = avgZ + pos.Z
-            end
-            local center = Vector3.new(avgX / #eggPositions, avgY / #eggPositions, avgZ / #eggPositions)
-            X.penPosition = center
-            return center
-        end
+    local bounds = X.getPenBounds()
+    return (bounds and bounds.Center) or SAFE_ZONE
+end
+
+function X.clearPenESP()
+    if X.penESPFolder then
+        pcall(function() X.penESPFolder:Destroy() end)
+        X.penESPFolder = nil
+    end
+    X.penESPLabels = nil
+end
+
+function X.renderPenESP()
+    X.clearPenESP()
+    local bounds = X.getPenBounds()
+    if not bounds then return end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "EggGoToUI_PenESP"
+    folder.Parent = Workspace
+    X.penESPFolder = folder
+    X.penESPLabels = {}
+
+    -- 1. Floor footprint
+    local floorPart = Instance.new("Part")
+    floorPart.Name = "Floor"
+    floorPart.Anchored = true
+    floorPart.CanCollide = false
+    floorPart.CanTouch = false
+    floorPart.Transparency = 1
+    floorPart.CFrame = bounds.CF
+    floorPart.Size = bounds.Size
+    floorPart.Parent = folder
+
+    local floorAdorn = Instance.new("BoxHandleAdornment")
+    floorAdorn.Adornee = floorPart
+    floorAdorn.Size = Vector3.new(bounds.Size.X, 0.15, bounds.Size.Z)
+    floorAdorn.Color3 = Color3.fromRGB(130, 180, 255)
+    floorAdorn.Transparency = 0.75
+    floorAdorn.AlwaysOnTop = true
+    floorAdorn.ZIndex = 1
+    floorAdorn.Parent = floorPart
+
+    -- 2. Center Beacon
+    local centerPart = Instance.new("Part")
+    centerPart.Name = "Center"
+    centerPart.Anchored = true
+    centerPart.CanCollide = false
+    centerPart.Transparency = 1
+    centerPart.CFrame = bounds.CF
+    centerPart.Size = Vector3.new(1, 1, 1)
+    centerPart.Parent = folder
+
+    local centerCyl = Instance.new("CylinderHandleAdornment")
+    centerCyl.Adornee = centerPart
+    centerCyl.Radius = 1.5
+    centerCyl.Height = bounds.Size.Y + 1.0
+    centerCyl.Color3 = Color3.new(1, 1, 1)
+    centerCyl.Transparency = 0.35
+    centerCyl.AlwaysOnTop = true
+    centerCyl.ZIndex = 3
+    centerCyl.CFrame = CFrame.Angles(math.rad(90), 0, 0)
+    centerCyl.Parent = centerPart
+
+    local centerBB = Instance.new("BillboardGui")
+    centerBB.Adornee = centerPart
+    centerBB.Size = UDim2.new(0, 160, 0, 32)
+    centerBB.StudsOffset = Vector3.new(0, bounds.Size.Y + 2.2, 0)
+    centerBB.AlwaysOnTop = true
+    centerBB.Parent = centerPart
+
+    local centerLbl = Instance.new("TextLabel")
+    centerLbl.Size = UDim2.new(1, 0, 1, 0)
+    centerLbl.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+    centerLbl.BackgroundTransparency = 0.3
+    centerLbl.TextColor3 = Color3.fromRGB(240, 245, 255)
+    centerLbl.Font = Enum.Font.GothamBold
+    centerLbl.TextSize = 11
+    centerLbl.Text = string.format("⭐ PEN CENTER\n%.1f x %.1f studs", bounds.Size.X, bounds.Size.Z)
+    centerLbl.Parent = centerBB
+    Instance.new("UICorner", centerLbl).CornerRadius = UDim.new(0, 5)
+
+    -- 3. Four Separate Sides (Front, Back, Left, Right)
+    for sideKey, sideData in pairs(bounds.Sides) do
+        local sidePart = Instance.new("Part")
+        sidePart.Name = "Side_" .. sideKey
+        sidePart.Anchored = true
+        sidePart.CanCollide = false
+        sidePart.Transparency = 1
+        sidePart.CFrame = sideData.CF
+        sidePart.Size = sideData.Size
+        sidePart.Parent = folder
+
+        local wallAdorn = Instance.new("BoxHandleAdornment")
+        wallAdorn.Adornee = sidePart
+        wallAdorn.Size = sideData.Size
+        wallAdorn.Color3 = sideData.Color
+        wallAdorn.Transparency = 0.35
+        wallAdorn.AlwaysOnTop = true
+        wallAdorn.ZIndex = 4
+        wallAdorn.Parent = sidePart
+
+        local sideBB = Instance.new("BillboardGui")
+        sideBB.Adornee = sidePart
+        sideBB.Size = UDim2.new(0, 130, 0, 26)
+        sideBB.StudsOffset = Vector3.new(0, sideData.Size.Y / 2 + 1.5, 0)
+        sideBB.AlwaysOnTop = true
+        sideBB.Parent = sidePart
+
+        local sideLbl = Instance.new("TextLabel")
+        sideLbl.Size = UDim2.new(1, 0, 1, 0)
+        sideLbl.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+        sideLbl.BackgroundTransparency = 0.25
+        sideLbl.TextColor3 = sideData.Color
+        sideLbl.Font = Enum.Font.GothamBold
+        sideLbl.TextSize = 10
+        sideLbl.Text = string.format("[%s SIDE]", string.upper(sideKey))
+        sideLbl.Parent = sideBB
+        Instance.new("UICorner", sideLbl).CornerRadius = UDim.new(0, 4)
+
+        table.insert(X.penESPLabels, { Label = sideLbl, Pos = sideData.CF.Position, Name = sideKey })
     end
 
-    -- 2. Try finding Pen / Nest / Incubator within MyPlot
-    local plot = X.myPlot
-    if not plot then
-        plot, _ = X.findMyPlot()
-    end
+    -- 4. Four Corner Pillars
+    for cornerKey, cornerPos in pairs(bounds.Corners) do
+        local cPart = Instance.new("Part")
+        cPart.Name = "Corner_" .. cornerKey
+        cPart.Anchored = true
+        cPart.CanCollide = false
+        cPart.Transparency = 1
+        cPart.CFrame = CFrame.new(cornerPos)
+        cPart.Size = Vector3.new(0.5, bounds.Size.Y + 1.5, 0.5)
+        cPart.Parent = folder
 
-    if plot then
-        for _, desc in ipairs(plot:GetDescendants()) do
-            local low = string.lower(desc.Name)
-            if (low:find("pen") or low:find("nest") or low:find("incubator") or low:find("eggspot") or low:find("delivery"))
-               and desc:IsA("BasePart") then
-                X.penPosition = desc.Position
-                return desc.Position
-            end
-        end
-        local ok, piv = pcall(function() return plot:GetPivot().Position end)
-        if ok and piv then
-            X.penPosition = piv
-            return piv
-        end
+        local cAdorn = Instance.new("CylinderHandleAdornment")
+        cAdorn.Adornee = cPart
+        cAdorn.Radius = 0.4
+        cAdorn.Height = bounds.Size.Y + 1.5
+        cAdorn.Color3 = Color3.fromRGB(200, 90, 255)
+        cAdorn.Transparency = 0.3
+        cAdorn.AlwaysOnTop = true
+        cAdorn.ZIndex = 5
+        cAdorn.CFrame = CFrame.Angles(math.rad(90), 0, 0)
+        cAdorn.Parent = cPart
     end
+end
 
-    -- 3. Fallback to SAFE_ZONE
-    X.penPosition = SAFE_ZONE
-    return SAFE_ZONE
+function X.togglePenESP(forceState)
+    if forceState ~= nil then
+        X.penESPActive = forceState
+    else
+        X.penESPActive = not X.penESPActive
+    end
+    if X.penESPActive then
+        X.renderPenESP()
+    else
+        X.clearPenESP()
+    end
+    return X.penESPActive
 end
 
 function X.findMyTreadmill()
@@ -8121,6 +8558,10 @@ function X.checkNightReset()
 end
 
 function X.executeAutoDismount(andWalkToSafeZone, cancelCheck)
+    X.treadmillEnteredAt = nil
+    X.hasHatchedThisTreadmillSession = false
+    X.lastTreadmillHatchAt = 0
+
     local char = LocalPlayer.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     if hum then
@@ -8221,7 +8662,124 @@ function X.executeAutoTreadmill(cancelCheck)
     local lighting = game:GetService("Lighting")
     X.mountedAtClockTime = lighting and lighting.ClockTime
     X.nightResetTriggered = false
+    X.treadmillEnteredAt = os.clock()
+    X.hasHatchedThisTreadmillSession = false
     return true
+end
+
+-- ==================================================
+-- AUTO HATCH SUITE (TRIGGERED WHEN 5S ON TREADMILL)
+-- ==================================================
+function X.scanPlacedEggs()
+    local placed = {}
+    local seenUids = {}
+    local myUserId = tostring(LocalPlayer.UserId)
+    local myPrefix = myUserId .. "_"
+
+    -- Source A: Workspace.PlacedEggRenders
+    local placedRenders = Workspace:FindFirstChild("PlacedEggRenders")
+    if placedRenders then
+        for _, eggInst in ipairs(placedRenders:GetChildren()) do
+            if string.find(eggInst.Name, myPrefix, 1, true) then
+                local rawUid = string.gsub(eggInst.Name, "^" .. myPrefix, "")
+                if rawUid and rawUid ~= "" and not seenUids[rawUid] then
+                    seenUids[rawUid] = true
+                    local prompt = nil
+                    for _, d in ipairs(eggInst:GetDescendants()) do
+                        if d:IsA("ProximityPrompt") then prompt = d; break end
+                    end
+                    table.insert(placed, {
+                        Uid = rawUid,
+                        Instance = eggInst,
+                        Prompt = prompt,
+                    })
+                end
+            end
+        end
+    end
+
+    -- Source B: RF/ProfileMirror/FetchProfile
+    local rfProfile = X.getNetRemote("RF/ProfileMirror/FetchProfile")
+    if rfProfile then
+        local ok, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
+        if not ok or type(prof) ~= "table" then
+            ok, prof = pcall(function() return rfProfile:InvokeServer() end)
+        end
+        if ok and type(prof) == "table" and type(prof.EggInventory) == "table" then
+            for eggUid, eggData in pairs(prof.EggInventory) do
+                local uidStr = tostring(eggUid)
+                if type(eggData) == "table" then
+                    local isPlaced = (eggData.Placement ~= nil and eggData.Placement ~= false and eggData.Placement ~= "")
+                    if isPlaced and not seenUids[uidStr] then
+                        seenUids[uidStr] = true
+                        table.insert(placed, {
+                            Uid = uidStr,
+                            RawData = eggData,
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    return placed
+end
+
+function X.executeHatchAllPlaced()
+    local placed = X.scanPlacedEggs()
+    if #placed == 0 then return 0 end
+
+    local rfHatch = X.getNetRemote("RF/EggWorld/AskHatch")
+    if not rfHatch then return 0 end
+
+    local rfFinish = X.getNetRemote("RF/EggWorld/AskFinishHatch")
+    local hatchedCount = 0
+
+    for _, item in ipairs(placed) do
+        local uid = item.Uid
+        if uid and uid ~= "" then
+            local ok = pcall(function() return rfHatch:InvokeServer(uid) end)
+            if ok then
+                hatchedCount = hatchedCount + 1
+                if rfFinish then
+                    task.spawn(function()
+                        task.wait(0.1)
+                        pcall(function() rfFinish:InvokeServer(uid) end)
+                    end)
+                end
+            end
+            if item.Prompt and typeof(fireproximityprompt) == "function" then
+                pcall(function() fireproximityprompt(item.Prompt) end)
+            end
+            task.wait(0.2)
+        end
+    end
+    return hatchedCount
+end
+
+function X.initAutoHatchMonitor()
+    if X.autoHatchMonitorInitialized then return end
+    X.autoHatchMonitorInitialized = true
+
+    task.spawn(function()
+        while true do
+            task.wait(0.5)
+            if X.isOnTreadmill() then
+                if not X.treadmillEnteredAt then
+                    X.treadmillEnteredAt = os.clock()
+                end
+                local elapsed = os.clock() - X.treadmillEnteredAt
+                if X.autoHatchEnabled and elapsed >= 5.0 and (not X.hasHatchedThisTreadmillSession or (os.clock() - (X.lastTreadmillHatchAt or 0) >= 10.0)) then
+                    X.hasHatchedThisTreadmillSession = true
+                    X.lastTreadmillHatchAt = os.clock()
+                    task.spawn(X.executeHatchAllPlaced)
+                end
+            else
+                X.treadmillEnteredAt = nil
+                X.hasHatchedThisTreadmillSession = false
+            end
+        end
+    end)
 end
 
 -- ==================================================
@@ -8239,48 +8797,36 @@ function X.equipButterflyNet()
     local char = LocalPlayer.Character
     if not char then return false, nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
+    local bp = LocalPlayer:FindFirstChild("Backpack")
 
-    -- 1. Check if already equipped on Character
+    -- 1. Fast path: check cached tool instance
+    local cached = X._cachedButterflyNet
+    if cached and cached.Parent then
+        if cached.Parent == char then
+            return true, cached
+        elseif cached.Parent == bp and hum then
+            pcall(function() hum:EquipTool(cached) end)
+            return true, cached
+        end
+    end
+
+    -- 2. Check if already equipped on Character
     for _, item in ipairs(char:GetChildren()) do
         if X.isButterflyNetTool(item) then
+            X._cachedButterflyNet = item
             return true, item
         end
     end
 
-    -- 2. Check in Backpack
-    local bp = LocalPlayer:FindFirstChild("Backpack")
-    local netTool = nil
+    -- 3. Check in Backpack (O(N) search done only once, then cached)
     if bp then
         for _, item in ipairs(bp:GetChildren()) do
             if X.isButterflyNetTool(item) then
-                netTool = item
-                break
+                X._cachedButterflyNet = item
+                if hum then pcall(function() hum:EquipTool(item) end) end
+                return true, item
             end
         end
-    end
-
-    -- 3. If missing from both, attempt to claim it from server
-    if not netTool then
-        local rfClaim = X.getNetRemote("RF/Butterflies/AskClaimNet")
-        if rfClaim then
-            pcall(function() rfClaim:InvokeServer() end)
-            task.wait(0.3)
-            if bp then
-                for _, item in ipairs(bp:GetChildren()) do
-                    if X.isButterflyNetTool(item) then
-                        netTool = item
-                        break
-                    end
-                end
-            end
-        end
-    end
-
-    -- 4. Equip into Character
-    if netTool and hum then
-        pcall(function() hum:EquipTool(netTool) end)
-        task.wait(0.1)
-        return true, netTool
     end
 
     return false, nil
@@ -8304,6 +8850,9 @@ end
 function X.getButterflies()
     local list = {}
     local bFolder = Workspace:FindFirstChild("Butterflies")
+    if not bFolder and Workspace:FindFirstChild("World") then
+        bFolder = Workspace.World:FindFirstChild("Butterflies")
+    end
     if bFolder then
         for _, child in ipairs(bFolder:GetChildren()) do
             if child:IsA("Model") or child:IsA("BasePart") then
@@ -8318,16 +8867,35 @@ function X.getButterflies()
             end
         end
     end
+    local wWorld = Workspace:FindFirstChild("World")
+    if wWorld and wWorld ~= bFolder then
+        for _, child in ipairs(wWorld:GetChildren()) do
+            if child ~= bFolder and child.Name:lower():find("butterfl") then
+                if child:IsA("Model") or child:IsA("BasePart") then
+                    table.insert(list, child)
+                end
+            end
+        end
+    end
     return list
 end
 
 function X.hasButterfliesInWorkspace()
     local bFolder = Workspace:FindFirstChild("Butterflies")
+    if not bFolder and Workspace:FindFirstChild("World") then
+        bFolder = Workspace.World:FindFirstChild("Butterflies")
+    end
     if bFolder and #bFolder:GetChildren() > 0 then
         return true
     end
+    local now = os.clock()
+    if X.lastBroadBfCheck and (now - X.lastBroadBfCheck < 5.0) then
+        return X.lastBroadBfFound == true
+    end
+    X.lastBroadBfCheck = now
     local list = X.getButterflies()
-    return #list > 0
+    X.lastBroadBfFound = (#list > 0)
+    return X.lastBroadBfFound
 end
 
 function X.isButterflyEventActive()
@@ -8343,6 +8911,7 @@ function X.isButterflyEventActive()
     end
     if X.hasButterfliesInWorkspace() then
         X.butterflyEventActive = true
+        X.butterflyEventExpiresAt = os.clock() + 300
         return true
     end
     if os.clock() - (X.lastLiveEventFetch or 0) > 10 then
@@ -8366,6 +8935,7 @@ function X.isButterflyEventActive()
                 end
                 if found then
                     X.butterflyEventActive = true
+                    X.butterflyEventExpiresAt = os.clock() + 300
                     return true
                 end
             end
@@ -8397,12 +8967,19 @@ end
 function X.hasFarmEggAvailable()
     if weAreCarrying or (typeof(isHoldingEgg) == "function" and isHoldingEgg()) then return true end
     if dropRetry and dropRetry.uid then return true end
+    local now = os.clock()
+    if X.lastFarmEggCheck and (now - X.lastFarmEggCheck < 0.4) then
+        return X.lastFarmEggFound == true
+    end
+    X.lastFarmEggCheck = now
     if eggCache and eggCache.records and #eggCache.records > 0 then
         local okPick, best = pcall(X.pickNearest, eggCache.records)
         if okPick and typeof(best) == "table" then
+            X.lastFarmEggFound = true
             return true
         end
     end
+    X.lastFarmEggFound = false
     return false
 end
 
@@ -8555,13 +9132,6 @@ function X.initButterflyMonitor()
         end))
     end
 
-    local evNetClaimed = X.getNetRemote("RE/Butterflies/NetClaimed")
-    if evNetClaimed and evNetClaimed:IsA("RemoteEvent") then
-        addConnection(evNetClaimed.OnClientEvent:Connect(function(...)
-            pcall(X.equipButterflyNet)
-        end))
-    end
-
     local evEscaped = X.getNetRemote("RE/Butterflies/Escaped")
     if evEscaped and evEscaped:IsA("RemoteEvent") then
         addConnection(evEscaped.OnClientEvent:Connect(function(...)
@@ -8602,13 +9172,14 @@ function X.initButterflyMonitor()
         end))
     end
 
-    local bFolder = Workspace:FindFirstChild("Butterflies")
-    if bFolder then
-        addConnection(bFolder.ChildAdded:Connect(function()
+    local function hookFolder(folder)
+        if not folder then return end
+        addConnection(folder.ChildAdded:Connect(function()
             X.butterflyEventActive = true
+            X.butterflyEventExpiresAt = os.clock() + 300
         end))
-        addConnection(bFolder.ChildRemoved:Connect(function()
-            if #bFolder:GetChildren() <= 1 and not X.hasButterfliesInWorkspace() then
+        addConnection(folder.ChildRemoved:Connect(function()
+            if #folder:GetChildren() <= 1 and not X.hasButterfliesInWorkspace() then
                 task.delay(1, function()
                     if not X.hasButterfliesInWorkspace() then
                         X.butterflyEventActive = false
@@ -8617,6 +9188,48 @@ function X.initButterflyMonitor()
             end
         end))
     end
+
+    local bFolder = Workspace:FindFirstChild("Butterflies") or (Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Butterflies"))
+    if bFolder then
+        hookFolder(bFolder)
+    end
+
+    addConnection(Workspace.ChildAdded:Connect(function(child)
+        if child.Name:lower():find("butterfl") then
+            X.butterflyEventActive = true
+            X.butterflyEventExpiresAt = os.clock() + 300
+            hookFolder(child)
+        end
+    end))
+
+    -- Late login / In-progress event check:
+    task.spawn(function()
+        task.wait(0.5)
+        if X.hasButterfliesInWorkspace() then
+            X.butterflyEventActive = true
+            X.butterflyEventExpiresAt = os.clock() + 300
+        else
+            local rfRunning = X.getNetRemote("RF/LiveEvents/FetchRunning")
+            if rfRunning then
+                local ok, running = pcall(function() return rfRunning:InvokeServer() end)
+                if ok and typeof(running) == "table" then
+                    for k, v in pairs(running) do
+                        local str = tostring(k) .. " " .. tostring(v)
+                        if typeof(v) == "table" then
+                            for subK, subV in pairs(v) do
+                                str = str .. " " .. tostring(subK) .. "=" .. tostring(subV)
+                            end
+                        end
+                        if str:lower():find("butterfl") then
+                            X.butterflyEventActive = true
+                            X.butterflyEventExpiresAt = os.clock() + 300
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end)
 end
 
 -- ==================================================
@@ -9086,7 +9699,7 @@ function X.buildUtilityTabUI()
     strokePen.Thickness = 1
 
     local lblPen = Instance.new("TextLabel")
-    lblPen.Size = UDim2.new(1, -70, 1, 0)
+    lblPen.Size = UDim2.new(1, -125, 1, 0)
     lblPen.Position = UDim2.new(0, 12, 0, 0)
     lblPen.BackgroundTransparency = 1
     lblPen.Text = "Auto Pen"
@@ -9096,9 +9709,27 @@ function X.buildUtilityTabUI()
     lblPen.TextXAlignment = Enum.TextXAlignment.Left
     lblPen.Parent = rowPen
 
+    local btnPenESP = Instance.new("TextButton")
+    btnPenESP.Size = UDim2.new(0, 48, 0, 24)
+    btnPenESP.Position = UDim2.new(1, -114, 0.5, -12)
+    btnPenESP.Font = Enum.Font.GothamBold
+    btnPenESP.TextSize = 10
+    btnPenESP.Text = "ESP"
+    btnPenESP.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+    btnPenESP.TextColor3 = Color3.fromRGB(200, 210, 230)
+    btnPenESP.Parent = rowPen
+    Instance.new("UICorner", btnPenESP).CornerRadius = UDim.new(0, 5)
+
+    btnPenESP.MouseButton1Click:Connect(function()
+        local on = X.togglePenESP()
+        btnPenESP.BackgroundColor3 = on and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        btnPenESP.TextColor3 = on and Color3.new(1, 1, 1) or Color3.fromRGB(200, 210, 230)
+        btnPenESP.Text = on and "ESP ON" or "ESP"
+    end)
+
     local btnPen = Instance.new("TextButton")
-    btnPen.Size = UDim2.new(0, 52, 0, 24)
-    btnPen.Position = UDim2.new(1, -60, 0.5, -12)
+    btnPen.Size = UDim2.new(0, 50, 0, 24)
+    btnPen.Position = UDim2.new(1, -58, 0.5, -12)
     btnPen.Font = Enum.Font.GothamBold
     btnPen.TextSize = 11
     btnPen.Text = "GO"
@@ -9135,13 +9766,62 @@ function X.buildUtilityTabUI()
     end)
 
     -- ========================================================================
-    -- ROW 6: AUTO CATCH BUTTERFLIES (TEXT | ON/OFF)
+    -- ROW 6: AUTO HATCH (TEXT | ON/OFF)
+    -- ========================================================================
+    local rowHatch = Instance.new("Frame")
+    rowHatch.Size = UDim2.new(1, 0, 0, 36)
+    rowHatch.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowHatch.BorderSizePixel = 0
+    rowHatch.LayoutOrder = 6
+    rowHatch.Parent = tabUtility
+    Instance.new("UICorner", rowHatch).CornerRadius = UDim.new(0, 6)
+    local strokeHatch = Instance.new("UIStroke", rowHatch)
+    strokeHatch.Color = Color3.fromRGB(45, 55, 75)
+    strokeHatch.Thickness = 1
+
+    local lblHatch = Instance.new("TextLabel")
+    lblHatch.Size = UDim2.new(1, -70, 1, 0)
+    lblHatch.Position = UDim2.new(0, 12, 0, 0)
+    lblHatch.BackgroundTransparency = 1
+    lblHatch.Text = "Auto Hatch (5s Treadmill)"
+    lblHatch.TextColor3 = Color3.fromRGB(220, 230, 255)
+    lblHatch.Font = Enum.Font.GothamBold
+    lblHatch.TextSize = 12
+    lblHatch.TextXAlignment = Enum.TextXAlignment.Left
+    lblHatch.Parent = rowHatch
+
+    local toggleHatchBtn = Instance.new("TextButton")
+    toggleHatchBtn.Size = UDim2.new(0, 52, 0, 24)
+    toggleHatchBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    toggleHatchBtn.Font = Enum.Font.GothamBold
+    toggleHatchBtn.TextSize = 11
+    toggleHatchBtn.Parent = rowHatch
+    Instance.new("UICorner", toggleHatchBtn).CornerRadius = UDim.new(0, 5)
+
+    local function updateHatchButtonState()
+        local en = X.autoHatchEnabled == true
+        toggleHatchBtn.Text = en and "ON" or "OFF"
+        toggleHatchBtn.BackgroundColor3 = en and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleHatchBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+    updateHatchButtonState()
+    X.syncAutoHatchUI = updateHatchButtonState
+
+    toggleHatchBtn.MouseButton1Click:Connect(function()
+        X.autoHatchEnabled = not X.autoHatchEnabled
+        if currentSettings then currentSettings.AutoHatch = X.autoHatchEnabled end
+        if jsonBox then jsonBox.Text = settingsToJSON(currentSettings) or jsonBox.Text end
+        updateHatchButtonState()
+    end)
+
+    -- ========================================================================
+    -- ROW 7: AUTO CATCH BUTTERFLIES (TEXT | ON/OFF)
     -- ========================================================================
     local rowButterfly = Instance.new("Frame")
     rowButterfly.Size = UDim2.new(1, 0, 0, 36)
     rowButterfly.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
     rowButterfly.BorderSizePixel = 0
-    rowButterfly.LayoutOrder = 6
+    rowButterfly.LayoutOrder = 7
     rowButterfly.Parent = tabUtility
     Instance.new("UICorner", rowButterfly).CornerRadius = UDim.new(0, 6)
     local strokeBf = Instance.new("UIStroke", rowButterfly)
@@ -9441,6 +10121,7 @@ switchTab = function(tabName)
             tabBtnUtility.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
             tabBtnUtility.TextColor3 = Color3.fromRGB(160, 185, 220)
         end
+        if refilterAndRender then refilterAndRender() end
     elseif tabName == "Pets" then
         main.Size = UDim2.new(0, 380, 0, 520)
         if X.closeRarity then X.closeRarity() end
@@ -9803,6 +10484,7 @@ X.buildMainUI()
 if typeof(X.initTrapEvade) == "function" then pcall(X.initTrapEvade) end
 if typeof(X.initNightResetMonitor) == "function" then pcall(X.initNightResetMonitor) end
 if typeof(X.initButterflyMonitor) == "function" then pcall(X.initButterflyMonitor) end
+if typeof(X.initAutoHatchMonitor) == "function" then pcall(X.initAutoHatchMonitor) end
 -- ==================================================
 -- EGG CARD  (compact single-row list item)
 -- ==================================================
@@ -10056,6 +10738,11 @@ onEggCacheUpdate = function(recs)
     if typeof(recs) ~= "table" then return end
     if ingestSpecies(recs) and farmDropdownOpen and rebuildFarmDropdownItems then
         rebuildFarmDropdownItems()
+    end
+    -- OFF-SCREEN / INACTIVE GATE: Skip expensive signature calculation and card rendering if UI is closed or not on Eggs tab
+    if not (main and main.Visible and tabEggs and tabEggs.Visible) then
+        X.listDirty = true
+        return
     end
     local parts = { tostring(#recs), tostring(X.currentWalkingEggUid or ""), tostring(carryUid or "") }
     for _, r in ipairs(recs) do
@@ -10542,6 +11229,9 @@ local function fullCleanup()
     disconnectAll()
     if typeof(X.utilityCleanup) == "function" then
         pcall(X.utilityCleanup)
+    end
+    if typeof(X.clearPenESP) == "function" then
+        pcall(X.clearPenESP)
     end
     if typeof(X.restoreAllTraps) == "function" then
         pcall(X.restoreAllTraps)

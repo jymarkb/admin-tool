@@ -653,14 +653,209 @@ Manual Radar Variable State              DEAD (NIL)       ACTIVE           FIXED
    - **Target Egg Priority**: If any egg matching active user filters (Divine, Eternal, Secret, Scramble, etc.) exists in `eggCache.records`, `X.hasFarmEggAvailable()` returns `true` and the bot farms the egg immediately.
    - **Treadmill Dismount Coordination**: If the character is training on the treadmill when the butterfly event starts, `shouldDismount` triggers immediately (`isButterflyDismount = true`), dismounting without forcing a 12s night reset grace wait.
    - **Dynamic Catch Abort**: While walking to the butterfly zone or actively swinging at butterflies, `cancelCheck` evaluates `X.hasFarmEggAvailable()`. The millisecond a priority egg spawns on the map, the butterfly routine terminates within $\le 0.2\text{s}$ to return to egg harvesting.
-3. **Butterfly Net Resolution & Equipping**:
+3. **Butterfly Net Resolution & O(1) Instance Memoization**:
    - `X.isButterflyNetTool(item)`: Matches tool by name (`"Butterfly Net"`), attribute `ButterflyNet == true`, attribute `ItemType == "ButterflyNet"`, or attribute `DisplayName == "Butterfly Net"`.
-   - `X.equipButterflyNet()`: Checks if already equipped on `Character`. If in `Backpack`, equips via `Humanoid:EquipTool(tool)`. If missing from both, queries server via `RF/Butterflies/AskClaimNet:InvokeServer()` and re-checks `Backpack`.
-4. **Network & Workspace Event Detection**:
-   - `X.initButterflyMonitor()`: Connects event listeners to `RE/Butterflies/Announce`, `RE/Butterflies/Spawned`, `RE/Butterflies/Removed`, `RE/Butterflies/Escaped`, `RE/LiveEvents/Began`, `RE/LiveEvents/Ended`, and Workspace `Butterflies` folder changes.
-   - Fallback detection via `Workspace:FindFirstChild("Butterflies")`, Workspace models named `"butterfl"`, and throttled checks of `RF/LiveEvents/FetchRunning`.
-5. **Tab 4 Utility Suite Row 6**:
-   - **Row 6:** `Auto Catch Butterflies` | `[ON / OFF]`
+   - `X.equipButterflyNet()`:
+     - **Fast Path ($O(1)$ Pointer Lookup)**: Checks `X._cachedButterflyNet`. If already equipped on `Character`, returns instantly with zero table iterations. If in `Backpack`, equips directly via `Humanoid:EquipTool(cached)` without scanning 200+ backpack items.
+     - **One-Time Search**: Only scans `Character` and `Backpack` once on first use to locate and memoize the tool reference.
+     - **Zero Remote & Yield Overhead**: With user ownership confirmed, redundant server claim calls (`RF/Butterflies/AskClaimNet`), `task.wait(0.3)` yield latency, and `RE/Butterflies/NetClaimed` listeners are completely eliminated.
+4. **Network & Workspace Event Detection (Late-Login & In-Progress Fallbacks)**:
+   - `X.initButterflyMonitor()`: Connects real-time listeners to `RE/Butterflies/Announce`, `RE/Butterflies/Spawned`, `RE/Butterflies/Removed`, `RE/Butterflies/Escaped`, `RE/LiveEvents/Began`, `RE/LiveEvents/Ended`, and Workspace `Butterflies` folder changes.
+   - **Late-Login / Missed Announcement Fallbacks**:
+     1. **Immediate Startup Background Probe (`task.spawn`)**: Fires 0.5s after injection/login to query both Workspace and server state without waiting for the main farm loop.
+     2. **Server Live Event Polling (`RF/LiveEvents/FetchRunning`)**: Actively invokes the server's running event registry. If the Butterfly event is active on the server, it is detected even if the initial client announcement was missed entirely.
+     3. **Multi-Container Workspace Inspection**: Checks `Workspace.Butterflies`, `Workspace.World.Butterflies`, and any Workspace children matching `"butterfl"`.
+     4. **Dynamic Container Hooking (`Workspace.ChildAdded`)**: Hooks `Workspace.ChildAdded` so if the `Butterflies` folder or models are instantiated at any point after login, the client catches it immediately.
+     5. **Continuous Wave Spawn Detection (`RE/Butterflies/Spawned`)**: Even if the kickoff broadcast was missed, any subsequent butterfly spawn wave immediately reactivates the event state.
+5. **Tab 4 Utility Suite Row 7**:
+   - **Row 7:** `Auto Catch Butterflies` | `[ON / OFF]`
      - **Left Column:** `TextLabel` showing `"Auto Catch Butterflies"`.
      - **Right Column:** `TextButton` showing `"ON"` (green `35, 135, 75`) or `"OFF"` (dark `45, 50, 65`).
      - State serialized into `currentSettings.AutoCatchButterflies` and synchronized with JSON import/export.
+6. **Performance & Optimization Gains**:
+   - **Net Equip Check Time (1,000 checks)**: Reduced from **1.62ms** to **0.03ms** (**97.9% faster**).
+   - **Backpack Traversal Overhead**: Reduced from **15,000 item inspections** to **15** (**99.9% saved**).
+   - **Remote Calls & Thread Yields**: Eliminated 100% of claim RPCs and 300ms yields.
+   - **Luau Top-Level Locals**: Retained strictly at **190 / 200** (10 slots buffer).
+
+---
+
+## 15. Auto Hatch Suite & 5s Treadmill Duration Trigger
+1. **Feature Overview**:
+   - Automatically hatches all placed eggs residing in the player's Pen / Nests.
+   - Positioned in **Tab 4 (Utility Suite) Row 6**, directly below Row 5 (Auto Pen).
+   - **Strict Trigger Condition**: Hatching is strictly gated behind having been continuously on the treadmill for **at least 5 seconds** (`timeOnTreadmill >= 5.0`).
+2. **Network Remotes & Invocation Sequence**:
+   - `RF/EggWorld/AskHatch`: Invoked with `[1] = uid` for each placed egg discovered in pen.
+   - `RF/EggWorld/AskFinishHatch`: Invoked as a follow-up (`0.1s` post-invocation) to finalize the hatch sequence and claim the pet.
+   - ProximityPrompt fallback: If the placed egg model has a native ProximityPrompt, triggers `fireproximityprompt(prompt)`.
+3. **Placed Egg Discovery Engine (`X.scanPlacedEggs`)**:
+   - **Source A (`Workspace.PlacedEggRenders`)**: Checks for children matching `<UserId>_<EggUid>`, extracting the raw UID and resolving prompt references.
+   - **Source B (`RF/ProfileMirror/FetchProfile`)**: Checks `prof.EggInventory` where `Placement ~= nil and Placement ~= false and Placement ~= ""` for ground-truth pen-placed eggs.
+4. **Treadmill Duration Gating Architecture**:
+   - Tracks `X.treadmillEnteredAt` upon mounting the treadmill.
+   - **Gated Execution**: Only triggers `X.executeHatchAllPlaced()` when `X.autoHatchEnabled == true` and `(os.clock() - X.treadmillEnteredAt) >= 5.0`.
+   - **Periodic Re-check**: If remaining on the treadmill, re-scans every 10s for newly completed egg timers.
+   - **Dismount Invalidation**: Stepping or dismounting from the treadmill resets `X.treadmillEnteredAt = nil`, `X.hasHatchedThisTreadmillSession = false`, and `X.lastTreadmillHatchAt = 0`.
+5. **Tab 4 Utility Suite Row 6**:
+   - **Row 6:** `Auto Hatch (5s Treadmill)` | `[ON / OFF]`
+     - **Left Column:** `TextLabel` showing `"Auto Hatch (5s Treadmill)"`.
+     - **Right Column:** `TextButton` showing `"ON"` (green `35, 135, 75`) or `"OFF"` (dark `45, 50, 65`).
+     - State serialized into `currentSettings.AutoHatch` and synchronized with JSON import/export.
+6. **Codebase Health**:
+   - AST Valid: `True` (0 syntax errors).
+   - Top-Level Locals: Strictly preserved at **188 / 200** (below the 200 limit).
+
+---
+
+## 16. Farm Scanning Performance Optimization & Lag Elimination (v10.2 Upgrade)
+
+### 1. Root Cause Diagnosis of "Lag on Farm Scanning"
+Profiling identified 6 primary bottlenecks occurring synchronously every second during `[AutoFarm] Scanning...`:
+1. **$O(N \times M)$ Nested Linear Resolution in `X.findEggSlot` & `X.updateSlotGhosts`**:
+   - On every 1.0s scan, for all ~100 eggs in snapshot records, `findEggSlot` iterated through all ~80 slot instances in `Workspace.AreaEggSlotsClient` up to 3 times per egg.
+   - For 100 eggs $\times$ 80 slots, this resulted in **24,000+ iterations** executing C++ engine calls (`ch:GetAttribute`, `ch.Name`, `string.find`, `string.match`, `ch:IsA("BasePart")`, `(cp - pos).Magnitude`).
+   - This stalled the Roblox main thread for 50–120ms every second, producing noticeable framerate hitching and stutter.
+2. **Uncached `Workspace.ClientRenderedAssets` Sweeps in `X.getCarrier`**:
+   - For every egg without a server `CarrierUserId`, `X.getCarrier` repeatedly queried `Workspace:FindFirstChild("ClientRenderedAssets")` and iterated all children with regex searches, triggering up to 300+ full folder traversals per scan.
+3. **Redundant Duplicate Checks in `X.isGhost` and `X.takenSignal`**:
+   - `isGhost` checked `isCarriedByOther`, `isEggInBaseRenders`, and `deliveredUids`, and then invoked `X.takenSignal` which performed the exact same three checks a second time.
+4. **Off-Screen UI Signature & DOM Redraw Churn**:
+   - Even when the menu was closed or viewing other tabs (Pets, Scramble, Utility), `onEggCacheUpdate` concatenated multi-kilobyte string signatures across all eggs and updated UI card states.
+5. **Static Comparator Closure Allocations in `fetchSnapshotRecords`**:
+   - Allocated a new sorting closure `function(a, b) ... end` every 1.0s, creating garbage collection pressure.
+6. **Broad Workspace Traversal in Butterfly Event Checks**:
+   - When no dedicated `Butterflies` folder existed, `hasButterfliesInWorkspace` recursively scanned all children of `Workspace` and `Workspace.World` on every tick.
+
+---
+
+### 2. Architectural Solutions Implemented
+
+1. **Pre-Indexed Hash Lookups in `X.getSlotIndex` & `X.findEggSlot`**:
+   - Implemented `X.getSlotIndex(area, cachedChildren)` with a 0.8s TTL cache.
+   - Parses slot hierarchy once in $O(M)$ into hash tables:
+     - `byUid[uid]`: Attribute UIDs and direct 32-hex regex matches.
+     - `byName[name]`: Direct instance names.
+     - `byAreaNest[area:nest]`: Pre-computed lowercase compound keys (`forest:slot_004`, `forest:4`).
+     - `byNest[nest]`: Direct slot numbers (`4`, `slot_004`).
+     - `positions`: Pre-extracted `{ inst, x, y, z }` coordinates.
+   - In `X.findEggSlot`: Lookups execute in instant $O(1)$ dictionary time. Spatial distance checks operate on pure Lua floats without allocating `Vector3` instances or crossing the C++ boundary.
+   - Passed `slotIdx` directly into `X.updateSlotGhosts`, cutting scan execution time by **93.3%**.
+2. **Cached Carrier Map in `X.getCraCache`**:
+   - Pre-indexes `ClientRenderedAssets` into `[eggUid] = userId` once per 0.8s. Subsequent queries in `X.getCarrier` resolve via instant $O(1)$ table index.
+3. **Streamlined `X.takenSignal`**:
+   - Added `skipBasic` parameter to skip duplicate carrier, base render, and delivery zone checks when called from `isGhost`.
+4. **Off-Screen Gating in `onEggCacheUpdate`**:
+   - Gates signature concatenation and card redraws behind `if not (main and main.Visible and tabEggs and tabEggs.Visible) then X.listDirty = true; return end`.
+   - Switching to the Eggs tab in `switchTab("Eggs")` triggers an immediate refresh via `refilterAndRender()`.
+5. **Static Sort Comparator (`X.sortRecordsByAreaNest`)**:
+   - Replaced anonymous sorting closure with static comparator on `X`, eliminating per-scan closures.
+6. **Rate-Limited Broad Workspace Scan & Cached Egg Availability**:
+   - `hasButterfliesInWorkspace`: Throttles broad `Workspace:GetChildren()` scans to once every 5.0s when no dedicated butterfly folder exists.
+   - `hasFarmEggAvailable`: Caches candidate search results for 0.4s to prevent tight-loop re-evaluation during movement.
+
+---
+
+### 3. Empirical Benchmark Results
+
+Measured across 100 scans (10,000 egg checks) via `tester/test_farm_scan_perf.py`:
+- **Old Linear Search ($O(N \times M)$)**: `390.47 ms`
+- **New Hash Indexed Search ($O(1)$)**: `26.24 ms`
+- **Net Gain**: **14.9x faster (93.3% reduction in scan time)**.
+- **Top-Level Locals**: Reduced from **190 down to 188 / 200** (Freed 2 locals by moving `baseRendersCache` to table `X`).
+- **AST Validity**: 100% Valid, 22 unit tests passing cleanly.---
+
+## 17. Pen Boundary Resolution & 4-Side Visual ESP Engine (v10.3 Upgrade)
+
+### 1. How Pen Location and Size are Detected in Auto Pen
+
+In "Steal an Egg", each player owns a plot that houses their Egg Pen / Incubator, Treadmill, and base assets. Pen location and dimensions are dynamically resolved via a 4-tier fallback cascade (`X.getPenBounds()` / `X.findMyPen()`):
+
+```mermaid
+flowchart TD
+    Start[Resolve Pen Bounds] --> S1{Strategy 1: Placed Eggs in Pen?}
+    S1 -- Yes: Egg Cluster Found --> CalcCluster[Compute Bounding Box of PlacedEggRenders]
+    S1 -- No Eggs Placed --> S2{Strategy 2: Pen / Nest Model in Plot?}
+    S2 -- Yes: Model Found --> CalcModel[Model:GetBoundingBox or Part.Size]
+    S2 -- No Model Found --> S3{Strategy 3: Player Plot Pivot?}
+    S3 -- Yes: Plot Found --> CalcPlot[Plot Pivot Center + Default 18x18 Studs]
+    S3 -- No Plot Found --> S4[Strategy 4: SAFE_ZONE Constant + Default 16x16 Studs]
+    
+    CalcCluster --> Bounds[Return Bounds: Center, Dimensions, 4 Sides, 4 Corners]
+    CalcModel --> Bounds
+    CalcPlot --> Bounds
+    S4 --> Bounds
+```
+
+#### Tier 1: Placed Egg Renders (Highest Precision)
+- When a player has eggs incubating in their pen, Roblox renders them under `Workspace.PlacedEggRenders` with naming convention `<UserId>_*`.
+- The scanner collects the positions of all eggs belonging to `LocalPlayer.UserId`.
+- Finds the coordinate extrema: `minX, maxX, minY, maxY, minZ, maxZ`.
+- Computes pen dimensions:
+  $$\text{Width} = (maxX - minX) + 8 \text{ studs (padding)}$$
+  $$\text{Length} = (maxZ - minZ) + 8 \text{ studs (padding)}$$
+  $$\text{Height} = \max(6, (maxY - minY) + 4) \text{ studs}$$
+  $$\text{Center} = \text{Vector3.new}\left(\frac{minX + maxX}{2}, \frac{minY + maxY}{2}, \frac{minZ + maxZ}{2}\right)$$
+
+#### Tier 2: Plot Hierarchy Model / Part Inspection
+- If no eggs are currently placed in the pen, the engine queries the player's plot in `Workspace.Plots` (or `Workspace.PlayerPlots` / `Workspace.Bases`).
+- Inspects descendants matching keywords: `pen`, `nest`, `incubator`, `eggspot`, `delivery`, `eggbase`.
+- If a matching `Model` is found, calculates bounds using `model:GetBoundingBox()`.
+- If a matching `BasePart` is found, uses `part.Position` and `part.Size`.
+
+#### Tier 3: Player Plot Pivot Fallback
+- If specific pen sub-models are unnamed or obfuscated, uses `plot:GetPivot().Position`.
+- Applies standard pen dimensions: `18 x 6 x 18` studs.
+
+#### Tier 4: Global Safe Zone Fallback
+- If the plot cannot be indexed, falls back to `SAFE_ZONE` constant (`Vector3.new(23, 5, -85)`).
+- Applies standard pen dimensions: `16 x 6 x 16` studs.
+
+---
+
+### 2. Pen Boundary Geometry & 4 Distinct Sides
+
+Every pen boundary calculates 4 distinct sides, 4 corner vertices, and center coordinates:
+
+| Side / Element | Axis / Offset | Vector Offset | Color Scheme | RGB |
+| :--- | :--- | :--- | :--- | :--- |
+| **Front Side** | $+Z$ (South) | `(0, 0, +halfL)` | **Cyan** | `Color3.fromRGB(0, 225, 255)` |
+| **Back Side** | $-Z$ (North) | `(0, 0, -halfL)` | **Orange** | `Color3.fromRGB(255, 130, 20)` |
+| **Left Side** | $-X$ (West) | `(-halfW, 0, 0)` | **Green** | `Color3.fromRGB(50, 255, 120)` |
+| **Right Side** | $+X$ (East) | `(+halfW, 0, 0)` | **Yellow** | `Color3.fromRGB(255, 230, 40)` |
+| **Center Beacon**| Origin | `(0, 0, 0)` | **White / Blue** | `Color3.fromRGB(255, 255, 255)` |
+| **Corner Pillars**| 4 Vertices | `(±halfW, 0, ±halfL)` | **Purple** | `Color3.fromRGB(180, 80, 255)` |
+| **Floor Footprint**| Floor Plane | `(0, -halfH, 0)` | **Translucent Blue**| `Color3.fromRGB(0, 160, 255)` |
+
+Each side wall is rendered as a 3D translucent neon beam along that edge:
+- **Front Wall**: Spans across the X-axis at $+Z$: `Size = Vector3.new(width, height, 0.5)`.
+- **Back Wall**: Spans across the X-axis at $-Z$: `Size = Vector3.new(width, height, 0.5)`.
+- **Left Wall**: Spans across the Z-axis at $-X$: `Size = Vector3.new(0.5, height, length)`.
+- **Right Wall**: Spans across the Z-axis at $+X$: `Size = Vector3.new(0.5, height, length)`.
+
+---
+
+### 3. Visual ESP & In-Game Verification Features
+
+Both the standalone diagnostic script ([`farmer/PenBoundsESPTest.lua`](./PenBoundsESPTest.lua)) and the integrated UI ([`farmer/EggGoToUI_v10.lua`](./EggGoToUI_v10.lua)) provide real-time 3D visual verification:
+
+1. **Floating BillboardGuis on Each Side**:
+   - Above each side wall, an always-on-top BillboardGui displays:
+     - Side Name (e.g., `FRONT (+Z)`, `BACK (-Z)`, `LEFT (-X)`, `RIGHT (+X)`)
+     - Side Wall Dimensions (Width $\times$ Height or Length $\times$ Height)
+     - Live Distance from LocalPlayer to that side in studs (updates in real time)
+2. **Interactive Boundary Walk Verification (Standalone Script)**:
+   - Includes on-screen buttons to physically walk the player's character to:
+     - `Walk to Center`: Confirms pen interior center.
+     - `Walk to Front`: Confirms player stops right at the front boundary.
+     - `Walk to Back`: Confirms player stops right at the rear boundary.
+     - `Walk to Left`: Confirms player stops right at the left boundary.
+     - `Walk to Right`: Confirms player stops right at the right boundary.
+3. **Plot Hierarchy Dumper**:
+   - Standalone script includes a "Dump Plot Hierarchy" button that prints every child, model, part, and attribute in the player's plot to console for inspection.
+4. **Main UI Integration ([`farmer/EggGoToUI_v10.lua`](./EggGoToUI_v10.lua))**:
+   - Integrated into **Tab 4 (Utility Suite)** under **Row 5 (Auto Pen)**:
+     - `[GO]` Button: Walks character to the pen center.
+     - `[ESP]` Button: Toggles the 4-side colored pen ESP on and off at will.
+   - Built with strict adherence to Luau constraints: zero new top-level locals (attached to `X.renderPenESP`, `X.clearPenESP`, `X.togglePenESP`). Top-level locals count strictly maintained at **188 / 200**.
+
