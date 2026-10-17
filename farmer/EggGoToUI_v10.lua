@@ -1039,14 +1039,23 @@ local function getRagdollReason(hum)
     if s == Enum.HumanoidStateType.Physics then return "Physics" end
     if hum.PlatformStand then return "PlatStand" end
     if s == Enum.HumanoidStateType.FallingDown or s == Enum.HumanoidStateType.Physics or recoveryActive then
-        local ch = hum.Parent
-        if ch then
-            local dm, tm = 0, 0
-            for _, o in ipairs(ch:GetDescendants()) do
-                if o:IsA("Motor6D") then tm = tm + 1; if not o.Enabled then dm = dm + 1 end end
+        local dm, tm = 0, 0
+        if X.jointsTable and #X.jointsTable > 0 then
+            for _, o in ipairs(X.jointsTable) do
+                if o and o.Parent then
+                    tm = tm + 1
+                    if not o.Enabled then dm = dm + 1 end
+                end
             end
-            if tm > 0 and dm >= 2 then return "Motors" end
+        else
+            local ch = hum.Parent
+            if ch then
+                for _, o in ipairs(ch:GetDescendants()) do
+                    if o:IsA("Motor6D") then tm = tm + 1; if not o.Enabled then dm = dm + 1 end end
+                end
+            end
         end
+        if tm > 0 and dm >= 2 then return "Motors" end
     end
     return nil
 end
@@ -2937,7 +2946,7 @@ function X.initTrapEvade()
 
     -- Background supervisor: maintains CanTouch protection & sweeps for newly armed traps
     task.spawn(function()
-        while screenGui and screenGui.Parent do
+        while screenGui and screenGui.Parent and not _G.EggGoToUI_Stop do
             task.wait(1.0)
             if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
                 X.applyCanTouchProtection()
@@ -2951,7 +2960,7 @@ function X.initTrapEvade()
 
     -- Manual walk auto-jump radar: if walking manually within 4.5 studs of a trap, jump over it
     task.spawn(function()
-        while screenGui and screenGui.Parent do
+        while screenGui and screenGui.Parent and not _G.EggGoToUI_Stop do
             task.wait(0.12)
             if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and not autoFarmEnabled then
                 local ch = LocalPlayer.Character
@@ -4278,16 +4287,18 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
             statusLabel.Text = tag .. "Safe zone ✓"
             statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
             -- Immediately refresh inventory & scramble requirements so delivered egg is recognized as owned:
-            task.spawn(function()
-                task.wait(0.3)
-                if typeof(X.scanInventoryEggsForScramble) == "function" then
-                    pcall(X.scanInventoryEggsForScramble)
-                end
-                if typeof(X.updateScrambleUI) == "function" then
-                    pcall(X.updateScrambleUI)
-                end
-                X.listDirty = true
-            end)
+            if X.autoScrambleTrade or X.prioritizeScrambleInAutoFarm or (tabScramble and tabScramble.Visible) then
+                task.spawn(function()
+                    task.wait(0.3)
+                    if typeof(X.scanInventoryEggsForScramble) == "function" then
+                        pcall(X.scanInventoryEggsForScramble)
+                    end
+                    if typeof(X.updateScrambleUI) == "function" then
+                        pcall(X.updateScrambleUI)
+                    end
+                    X.listDirty = true
+                end)
+            end
         end                                     -- (not arrived: the loop's gate finishes the delivery)
         X.requestEggRefresh()                   -- redraw the egg list now instead of waiting for luck
         finish(arrived)
@@ -4433,6 +4444,7 @@ local function autoFarmLoop()
 
         if not skip and not weAreCarrying and X.isOnTreadmill() then
             local shouldDismount = false
+            local isEggDismount = false
             local isButterflyDismount = false
             if X.autoDismountEnabled then
                 if X.checkNightReset() then
@@ -4441,6 +4453,7 @@ local function autoFarmLoop()
                     local okPick, best = pcall(X.pickNearest, eggCache.records)
                     if okPick and typeof(best) == "table" then
                         shouldDismount = true
+                        isEggDismount = true
                     end
                 end
             end
@@ -4450,20 +4463,28 @@ local function autoFarmLoop()
             end
 
             if shouldDismount then
-                X.nightResetTriggered = false
-                X.lastNightResetAt = os.clock()
                 X.noEggSince = nil
                 X.treadmillEnteredAt = nil
                 X.hasHatchedThisTreadmillSession = false
-                if isButterflyDismount then
-                    statusLabel.Text = "[AutoFarm] Butterfly event active! Dismounting Treadmill..."
+                if isEggDismount then
+                    statusLabel.Text = "[AutoFarm] Target egg detected! Dismounting & Resetting placement..."
+                    statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+                    X.executeAutoDismount(true, function()
+                        return not autoFarmEnabled or autoFarmToken ~= myTok
+                    end)
+                    task.wait(0.1)
+                    skip = true
+                elseif isButterflyDismount then
+                    statusLabel.Text = "[AutoFarm] Butterfly event active! Dismounting & Resetting placement..."
                     statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
-                    X.executeAutoDismount(false, function()
+                    X.executeAutoDismount(true, function()
                         return not autoFarmEnabled or autoFarmToken ~= myTok
                     end)
                     task.wait(0.2)
                     skip = true
                 else
+                    X.nightResetTriggered = false
+                    X.lastNightResetAt = os.clock()
                     X.nightResetGraceUntil = os.clock() + 12.0
                     statusLabel.Text = "[AutoFarm] Night reset! Dismounting & Walking to Safezone..."
                     statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
@@ -8600,12 +8621,17 @@ function X.checkNightReset()
             if X.mountedAtClockTime and (X.mountedAtClockTime >= 6 and X.mountedAtClockTime < 18) then
                 return true
             end
+        else
+            if ct >= 6 and ct < 18 and X.isOnTreadmill() then
+                X.mountedAtClockTime = ct
+            end
         end
     end
     return false
 end
 
 function X.executeAutoDismount(andWalkToSafeZone, cancelCheck)
+    if andWalkToSafeZone == nil then andWalkToSafeZone = true end
     X.treadmillEnteredAt = nil
     X.hasHatchedThisTreadmillSession = false
     X.lastTreadmillHatchAt = 0
@@ -8623,7 +8649,9 @@ function X.executeAutoDismount(andWalkToSafeZone, cancelCheck)
 
     local rfDoff = X.getNetRemote("RF/Treadmill/AskDoff")
     if rfDoff then
-        pcall(function() rfDoff:InvokeServer() end)
+        task.spawn(function()
+            pcall(function() rfDoff:InvokeServer() end)
+        end)
     end
 
     if andWalkToSafeZone then
@@ -8650,7 +8678,7 @@ function X.executeAutoPen(cancelCheck)
     if not penPos then return false end
 
     if X.isOnTreadmill() then
-        X.executeAutoDismount(false)
+        X.executeAutoDismount(true)
         task.wait(0.3)
     end
 
@@ -8687,13 +8715,15 @@ function X.executeAutoTreadmill(cancelCheck)
     -- Trigger mount
     local rfWear = X.getNetRemote("RF/Treadmill/AskWearStill")
     if rfWear then
-        pcall(function() rfWear:InvokeServer() end)
-        if X.myPlotIndex then
-            pcall(function() rfWear:InvokeServer(X.myPlotIndex) end)
-        end
-        if tmModel then
-            pcall(function() rfWear:InvokeServer(tmModel) end)
-        end
+        task.spawn(function()
+            pcall(function() rfWear:InvokeServer() end)
+            if X.myPlotIndex then
+                pcall(function() rfWear:InvokeServer(X.myPlotIndex) end)
+            end
+            if tmModel then
+                pcall(function() rfWear:InvokeServer(tmModel) end)
+            end
+        end)
     end
 
     if tmModel and typeof(fireproximityprompt) == "function" then
@@ -8746,24 +8776,26 @@ function X.scanPlacedEggs()
         end
     end
 
-    -- Source B: RF/ProfileMirror/FetchProfile
-    local rfProfile = X.getNetRemote("RF/ProfileMirror/FetchProfile")
-    if rfProfile then
-        local ok, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
-        if not ok or type(prof) ~= "table" then
-            ok, prof = pcall(function() return rfProfile:InvokeServer() end)
-        end
-        if ok and type(prof) == "table" and type(prof.EggInventory) == "table" then
-            for eggUid, eggData in pairs(prof.EggInventory) do
-                local uidStr = tostring(eggUid)
-                if type(eggData) == "table" then
-                    local isPlaced = (eggData.Placement ~= nil and eggData.Placement ~= false and eggData.Placement ~= "")
-                    if isPlaced and not seenUids[uidStr] then
-                        seenUids[uidStr] = true
-                        table.insert(placed, {
-                            Uid = uidStr,
-                            RawData = eggData,
-                        })
+    -- Source B: RF/ProfileMirror/FetchProfile (fallback if no placed eggs found in workspace)
+    if #placed == 0 then
+        local rfProfile = X.getNetRemote("RF/ProfileMirror/FetchProfile")
+        if rfProfile then
+            local ok, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
+            if not ok or type(prof) ~= "table" then
+                ok, prof = pcall(function() return rfProfile:InvokeServer() end)
+            end
+            if ok and type(prof) == "table" and type(prof.EggInventory) == "table" then
+                for eggUid, eggData in pairs(prof.EggInventory) do
+                    local uidStr = tostring(eggUid)
+                    if type(eggData) == "table" then
+                        local isPlaced = (eggData.Placement ~= nil and eggData.Placement ~= false and eggData.Placement ~= "")
+                        if isPlaced and not seenUids[uidStr] then
+                            seenUids[uidStr] = true
+                            table.insert(placed, {
+                                Uid = uidStr,
+                                RawData = eggData,
+                            })
+                        end
                     end
                 end
             end
@@ -8810,7 +8842,7 @@ function X.initAutoHatchMonitor()
     X.autoHatchMonitorInitialized = true
 
     task.spawn(function()
-        while true do
+        while not _G.EggGoToUI_Stop and screenGui and screenGui.Parent do
             task.wait(0.5)
             if X.isOnTreadmill() then
                 if not X.treadmillEnteredAt then
@@ -9047,7 +9079,7 @@ function X.executeAutoButterfly(cancelCheck)
     if not char or not root or not hum then return false end
 
     if X.isOnTreadmill() then
-        X.executeAutoDismount(false)
+        X.executeAutoDismount(true)
         task.wait(0.2)
     end
 
