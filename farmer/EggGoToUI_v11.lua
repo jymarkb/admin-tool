@@ -236,7 +236,7 @@ local BIOME_EGG_CATALOG = {
             { Name = "Bladehide", Rarity = "Mythic", Aliases = { "Blade Head" } },
             { Name = "Mantaris", Rarity = "Cosmic", Aliases = { "Mantis" } },
             { Name = "Rhinotaur", Rarity = "Cosmic", Aliases = { "Rhino" } },
-            { Name = "Mutant Shark", Rarity = "Secret" },
+            { Name = "Mutant Shark", Rarity = "Secret", Aliases = { "Shark" } },
             { Name = "Gorilla King", Rarity = "Eternal", Aliases = { "King Kong" } },
             { Name = "Nightflame", Rarity = "Divine", Aliases = { "Godzilla" } },
         }
@@ -363,6 +363,7 @@ local BIOME_EGG_CATALOG = {
 
 -- Fast lookup indexes
 local SPECIES_INFO = {}
+local SPECIES_INFO_BY_BIOME = {}
 local EGG_ALIASES  = {}
 local EGG_TO_BIOME = {}
 
@@ -378,6 +379,9 @@ end
 
 -- Populate indexes
 for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
+    if not SPECIES_INFO_BY_BIOME[biomeData.Biome] then
+        SPECIES_INFO_BY_BIOME[biomeData.Biome] = {}
+    end
     if biomeData.EggNames then
         for _, eggName in ipairs(biomeData.EggNames) do
             EGG_TO_BIOME[normalizeSpecies(eggName)] = biomeData.Biome
@@ -392,13 +396,16 @@ for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
             Rank        = RARITY_RANK[spec.Rarity] or 0,
             Biome       = biomeData.Biome,
         }
-        SPECIES_INFO[canonicalNorm] = record
+        if not SPECIES_INFO[canonicalNorm] then
+            SPECIES_INFO[canonicalNorm] = record
+        end
+        SPECIES_INFO_BY_BIOME[biomeData.Biome][canonicalNorm] = record
 
         if spec.Aliases then
             for _, alias in ipairs(spec.Aliases) do
                 local aliasNorm = normalizeSpecies(alias)
                 if aliasNorm ~= "" then
-                    SPECIES_INFO[aliasNorm] = record
+                    SPECIES_INFO_BY_BIOME[biomeData.Biome][aliasNorm] = record
                     EGG_ALIASES[aliasNorm] = canonicalNorm
                 end
             end
@@ -407,9 +414,17 @@ for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
 end
 
 -- Species lookup and matching helpers
-local function getSpeciesInfo(name)
+local function getSpeciesInfo(name, biomeFilter)
     local clean = normalizeSpecies(name)
     if clean == "" then return nil end
+    if biomeFilter and SPECIES_INFO_BY_BIOME[biomeFilter] then
+        local bRec = SPECIES_INFO_BY_BIOME[biomeFilter][clean]
+        if bRec then return bRec end
+    end
+    if clean == "shark" and (biomeFilter == "Titan Temple" or biomeFilter == "Temple") then
+        local bTable = SPECIES_INFO_BY_BIOME["Titan Temple"]
+        if bTable and bTable["mutant shark"] then return bTable["mutant shark"] end
+    end
     return SPECIES_INFO[clean]
 end
 
@@ -655,6 +670,16 @@ local requestListUpdate
 local updateActivityStatus
 local activityStatusLabel
 local velLiveLabel
+local startReturnTrip
+local handleEggDropped
+local handleEggDelivered
+local executePickupSpam
+local startAutoPickupSpam
+
+-- Auto-Return & Drop Recovery State
+local autoReturnActive = false
+local autoReturnTargetUid = nil
+local returnTripInProgress = false
 
 -- Fast Pickup Configuration & State
 local PICKUP_CONFIG = {
@@ -1650,14 +1675,27 @@ end
 
 local function resolveEggFields(r, uid, charPos)
     local rawName = r.DisplayName or r.AssetCategory or r.Name or "Egg"
-    local info = getSpeciesInfo(r.DisplayName) or getSpeciesInfo(r.AssetCategory) or getSpeciesInfo(r.Name) or getSpeciesInfo(rawName)
-    local disp = (info and info.DisplayName) or r.DisplayName or r.AssetCategory or rawName
-    local serverRarity = r.RarityId or r.Rarity or (r.Attributes and r.Attributes.Rarity) or rarityByUid[uid]
-    local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown") and serverRarity or ((info and info.Rarity) or "Unknown")
-    local rank = (info and info.Rank) or (RARITY_RANK[rarity] or 1)
     local rawArea = r.AreaId
     if rawArea == "Light Dark" then rawArea = "Light & Dark" end
-    local biome = (info and info.Biome) or rawArea or "Unknown"
+    local serverRarity = r.RarityId or r.Rarity or (r.Attributes and r.Attributes.Rarity) or rarityByUid[uid]
+
+    local searchArea = rawArea
+    if not searchArea or searchArea == "" or searchArea == "Unknown" then
+        if rawName:lower() == "shark" and serverRarity == "Secret" then
+            searchArea = "Titan Temple"
+        end
+    end
+
+    local info = getSpeciesInfo(r.DisplayName, searchArea)
+        or getSpeciesInfo(r.AssetCategory, searchArea)
+        or getSpeciesInfo(r.Name, searchArea)
+        or getSpeciesInfo(rawName, searchArea)
+        or getSpeciesInfo(rawName)
+
+    local disp = (info and info.DisplayName) or r.DisplayName or r.AssetCategory or rawName
+    local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown") and serverRarity or ((info and info.Rarity) or "Unknown")
+    local rank = (info and info.Rank) or (RARITY_RANK[rarity] or 1)
+    local biome = (searchArea and searchArea ~= "" and searchArea ~= "Unknown") and searchArea or ((info and info.Biome) or "Unknown")
     local pos = getEggPosition(r, uid)
     local dist = (pos and charPos) and (pos - charPos).Magnitude or nil
     return rawName, info, disp, serverRarity, rarity, rank, biome, pos, dist
@@ -1745,8 +1783,26 @@ updateActivityStatus = function()
     end
 end
 
+local SAFE_ZONE = Vector3.new(530.332, 70.724, -399.111)
+
+getSafeZonePosition = function()
+    return SAFE_ZONE
+end
+
+local function getBesideOffset(targetPos, currentPos, dist)
+    dist = dist or 2.8
+    local diff = Vector3.new(currentPos.X - targetPos.X, 0, currentPos.Z - targetPos.Z)
+    local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
+    local groundY = currentPos.Y
+    if math.abs(groundY - targetPos.Y) > 6 then groundY = targetPos.Y end
+    local besidePos = Vector3.new(targetPos.X + dir.X * dist, groundY, targetPos.Z + dir.Z * dist)
+    local lookTarget = Vector3.new(targetPos.X, groundY, targetPos.Z)
+    return besidePos, lookTarget
+end
+
 local activeWalkTarget = nil
 local activeWalkArriveDist = 3.5
+local activeWalkSnapDist = 60.0
 local activeWalkUid = nil
 local activeWalkCallback = nil
 local activeWalkToken = 0
@@ -1769,7 +1825,7 @@ local function stopWalking()
     end)
 end
 
-local function walkToTarget(targetPos, arriveDist, onArrived, uid)
+local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
     if typeof(targetPos) == "CFrame" then
         targetPos = targetPos.Position
     elseif typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
@@ -1782,6 +1838,7 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid)
 
     activeWalkTarget = targetPos
     activeWalkArriveDist = arriveDist or 3.5
+    activeWalkSnapDist = snapDist or 60.0
     activeWalkUid = uid
     activeWalkCallback = onArrived
     walkLastPos = nil
@@ -1795,26 +1852,142 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid)
     end)
 end
 
+handleEggDelivered = function(uid)
+    print(string.format("[EggGoTo v11] Egg %s successfully delivered!", tostring(uid)))
+    autoReturnActive = false
+    autoReturnTargetUid = nil
+    returnTripInProgress = false
+    weAreCarrying = false
+    carryUid = nil
+    stopWalking()
+    pcall(function()
+        local char = LocalPlayer and LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hrp then hrp.AssemblyLinearVelocity = Vector3.zero end
+        if hum then hum:UnequipTools() end
+    end)
+    updateActivityStatus()
+end
+
+handleEggDropped = function(u, payload)
+    if not autoReturnActive then return end
+    if activeWalkUid == u then return end
+    returnTripInProgress = false
+    stopWalking()
+
+    local dropPos = nil
+    if payload and typeof(payload) == "table" and payload.BoundsCFrame then
+        local cf = payload.BoundsCFrame
+        if typeof(cf) == "CFrame" then dropPos = cf.Position
+        elseif typeof(cf) == "Vector3" then dropPos = cf
+        elseif typeof(cf) == "table" and cf.X and cf.Y and cf.Z then
+            dropPos = Vector3.new(cf.X, cf.Y, cf.Z)
+        end
+    end
+
+    if not dropPos and eggCacheByUid and eggCacheByUid[u] then
+        dropPos = getEggPosition(eggCacheByUid[u], u)
+    end
+
+    if not dropPos then
+        local char = LocalPlayer and LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then dropPos = hrp.Position end
+    end
+
+    if not dropPos then return end
+
+    print(string.format("[EggGoTo v11] Egg dropped! Turning around to re-pick (%s)...", tostring(u)))
+    if activityStatusLabel then
+        activityStatusLabel.Text = "Status: Egg dropped! Re-picking egg..."
+        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 140, 60)
+    end
+
+    walkToTarget(dropPos, 3.5, function()
+        executePickupSpam({
+            Uid = u,
+            Position = dropPos,
+            Name = "Dropped Egg"
+        })
+        startAutoPickupSpam()
+    end, u, 60.0)
+end
+
+startReturnTrip = function()
+    if returnTripInProgress and activeWalkUid == "SAFE_ZONE" then return end
+    returnTripInProgress = true
+
+    local safePos = getSafeZonePosition()
+    if not safePos then return end
+
+    print(string.format("[EggGoTo v11] Egg secured! Automatically returning to SafeZone (%d, %d, %d)...", math.floor(safePos.X), math.floor(safePos.Y), math.floor(safePos.Z)))
+    if activityStatusLabel then
+        activityStatusLabel.Text = "Status: Returning to SafeZone with Egg..."
+        activityStatusLabel.TextColor3 = Color3.fromRGB(100, 240, 255)
+    end
+
+    walkToTarget(safePos, 6.0, function()
+        print("[EggGoTo v11] Arrived at SafeZone. Delivering egg...")
+        pcall(function()
+            local char = LocalPlayer and LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hrp then hrp.AssemblyLinearVelocity = Vector3.zero end
+            if hum then hum:UnequipTools() end
+        end)
+        autoReturnActive = false
+        autoReturnTargetUid = nil
+        returnTripInProgress = false
+        weAreCarrying = false
+        carryUid = nil
+        if activityStatusLabel then
+            activityStatusLabel.Text = "Status: Arrived at SafeZone with Egg"
+            activityStatusLabel.TextColor3 = Color3.fromRGB(120, 240, 160)
+        end
+    end, "SAFE_ZONE", 60.0)
+end
+
 local function updateVelocityPhysics()
     local char = LocalPlayer and LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not (hum and hrp and hrp.Parent and hum.Health > 0) then return end
 
-    -- 1. Active Auto-Walk towards Egg (triggered by clicking "Get")
+    -- 1. Active Auto-Walk towards Egg or SafeZone
     if activeWalkTarget then
-        if weAreCarrying or isHoldingEgg() then
+        -- Walking to an egg and target egg already secured: stop walking to egg
+        if activeWalkUid ~= "SAFE_ZONE" and (weAreCarrying and carryUid == activeWalkUid) then
             local cb = activeWalkCallback
             stopWalking()
-            if cb then cb() end
+            if cb then task.spawn(cb) end
             return
         end
 
-        if activeWalkUid and eggCacheByUid and eggCacheByUid[activeWalkUid] then
+        -- Walking to SafeZone and egg dropped: immediately abort safezone walk and re-pick!
+        if activeWalkUid == "SAFE_ZONE" and not (weAreCarrying or isHoldingEgg()) then
+            stopWalking()
+            if autoReturnActive and autoReturnTargetUid then
+                handleEggDropped(autoReturnTargetUid)
+            end
+            return
+        end
+
+        if activeWalkUid and activeWalkUid ~= "SAFE_ZONE" and eggCacheByUid and eggCacheByUid[activeWalkUid] then
             local rec = eggCacheByUid[activeWalkUid]
             local myId = tostring(LocalPlayer and LocalPlayer.UserId or "")
             if rec.State == "Claimed" or (rec.CarrierUserId and tostring(rec.CarrierUserId) ~= myId) then
                 stopWalking()
+                if autoReturnActive and autoReturnTargetUid == activeWalkUid then
+                    if rec.State == "Claimed" and (rec.CarrierUserId and tostring(rec.CarrierUserId) == myId) then
+                        handleEggDelivered(activeWalkUid)
+                    else
+                        autoReturnActive = false
+                        autoReturnTargetUid = nil
+                        returnTripInProgress = false
+                        print("[EggGoTo v11] Target egg was taken by another player.")
+                    end
+                end
                 return
             end
         end
@@ -1823,15 +1996,32 @@ local function updateVelocityPhysics()
         local diff = Vector3.new(activeWalkTarget.X - curPos.X, 0, activeWalkTarget.Z - curPos.Z)
         local dist = diff.Magnitude
 
-        if dist <= activeWalkArriveDist then
+        -- 60-Stud Snap Teleport: When within 60 studs (or arrival radius),
+        -- snap cleanly and zero velocity to eliminate overshoot/oscillation!
+        if (activeWalkSnapDist and dist <= activeWalkSnapDist) or dist <= activeWalkArriveDist then
             local cb = activeWalkCallback
+            local walkUid = activeWalkUid
+            local walkTarget = activeWalkTarget
+
+            pcall(function()
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                if walkUid == "SAFE_ZONE" then
+                    local yPos = walkTarget.Y
+                    if math.abs(curPos.Y - walkTarget.Y) <= 4 then yPos = curPos.Y end
+                    hrp.CFrame = CFrame.new(walkTarget.X, yPos, walkTarget.Z) * (hrp.CFrame - hrp.CFrame.Position)
+                else
+                    local bPos, lookTarget = getBesideOffset(walkTarget, curPos, 2.8)
+                    hrp.CFrame = CFrame.lookAt(bPos, lookTarget)
+                end
+                hum:Move(Vector3.zero, false)
+            end)
             stopWalking()
-            if cb then cb() end
+            if cb then task.spawn(cb) end
             return
         end
 
         local dir = diff.Unit
-        local walkSpeed = velocityEnabled and baseGoSpeed or math.max(savedWalkSpeed or 16, 28)
+        local walkSpeed = velocityEnabled and (activeWalkUid == "SAFE_ZONE" and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 28)
 
         -- Smoothly orient character towards target
         pcall(function()
@@ -1987,17 +2177,6 @@ local function triggerProximityPrompt(prompt)
             prompt:InputHoldEnd()
         end
     end)
-end
-
-local function getBesideOffset(targetPos, currentPos, dist)
-    dist = dist or 2.8
-    local diff = Vector3.new(currentPos.X - targetPos.X, 0, currentPos.Z - targetPos.Z)
-    local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
-    local groundY = currentPos.Y
-    if math.abs(groundY - targetPos.Y) > 6 then groundY = targetPos.Y end
-    local besidePos = Vector3.new(targetPos.X + dir.X * dist, groundY, targetPos.Z + dir.Z * dist)
-    local lookTarget = Vector3.new(targetPos.X, groundY, targetPos.Z)
-    return besidePos, lookTarget
 end
 
 local function applyReachAssist(targetPos)
@@ -2160,7 +2339,7 @@ local function getBestFocusedTarget()
     return bestTarget
 end
 
-local function executePickupSpam(target)
+executePickupSpam = function(target)
     if not target then return end
     if target.Uid then
         carryUid = target.Uid
@@ -2194,7 +2373,7 @@ local function executePickupSpam(target)
     end
 end
 
-local function startAutoPickupSpam()
+startAutoPickupSpam = function()
     if weAreCarrying then return end
     autoPickupToken = (autoPickupToken or 0) + 1
     local myTok = autoPickupToken
@@ -2220,6 +2399,13 @@ local function startAutoPickupSpam()
                 executePickupSpam(target)
             end
             if isHoldingEgg() or weAreCarrying then
+                if autoReturnActive and autoReturnTargetUid then
+                    task.delay(0.2, function()
+                        if autoReturnActive and (weAreCarrying or isHoldingEgg()) then
+                            startReturnTrip()
+                        end
+                    end)
+                end
                 break
             end
             task.wait(0.035)
@@ -2237,6 +2423,15 @@ addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
        input.KeyCode == Enum.KeyCode.Space then
         if activeWalkTarget then
             stopWalking()
+        end
+        if autoReturnActive then
+            autoReturnActive = false
+            autoReturnTargetUid = nil
+            returnTripInProgress = false
+            if activityStatusLabel then
+                activityStatusLabel.Text = "Status: Auto-Return Cancelled (Manual Movement)"
+                activityStatusLabel.TextColor3 = Color3.fromRGB(255, 180, 100)
+            end
         end
     end
 
@@ -2331,6 +2526,9 @@ local function getOrCreateCard(idx)
 
         addConnection(tpBtn.MouseButton1Click:Connect(function()
             stopWalking()
+            autoReturnActive = false
+            autoReturnTargetUid = nil
+            returnTripInProgress = false
             local eggData = item.data
             if not eggData then return end
             local targetPos = eggData.Position or getEggPosition(eggData.Record, eggData.Uid)
@@ -2353,10 +2551,15 @@ local function getOrCreateCard(idx)
         addConnection(getBtn.MouseButton1Click:Connect(function()
             local eggData = item.data
             if not eggData then return end
-            if weAreCarrying or isHoldingEgg() then
-                print("[EggGoTo v11] Already carrying an egg! Deliver or drop it first.")
-                return
-            end
+
+            -- Automatically unequip any tool so character can freely run to target
+            pcall(function()
+                local char = LocalPlayer and LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then hum:UnequipTools() end
+            end)
+            weAreCarrying = false
+            carryUid = nil
             local targetPos = eggData.Position or getEggPosition(eggData.Record, eggData.Uid)
             if not targetPos then
                 warn("[EggGoTo v11] Target position could not be resolved for", eggData.DisplayName, eggData.Uid)
@@ -2368,6 +2571,11 @@ local function getOrCreateCard(idx)
             end
             if typeof(targetPos) ~= "Vector3" then return end
 
+            -- Arm Auto-Return Engine for this egg retrieval
+            autoReturnActive = true
+            autoReturnTargetUid = eggData.Uid
+            returnTripInProgress = false
+
             walkToTarget(targetPos, 3.5, function()
                 executePickupSpam({
                     Uid = eggData.Uid,
@@ -2375,7 +2583,7 @@ local function getOrCreateCard(idx)
                     Name = eggData.DisplayName
                 })
                 startAutoPickupSpam()
-            end, eggData.Uid)
+            end, eggData.Uid, 60.0)
         end))
 
         cardPool[idx] = item
@@ -2716,10 +2924,35 @@ local function startPushMonitor()
                 weAreCarrying = true
                 carryUid = u
                 updateActivityStatus()
+                if autoReturnActive and autoReturnTargetUid == u then
+                    startReturnTrip()
+                end
             elseif (state == "Claimed" or state == "Dropped") and carryUid == u then
                 weAreCarrying = false
                 carryUid = nil
                 updateActivityStatus()
+                if autoReturnActive and autoReturnTargetUid == u then
+                    if state == "Dropped" then
+                        handleEggDropped(u, payload)
+                    elseif state == "Claimed" then
+                        handleEggDelivered(u)
+                    end
+                end
+            elseif state == "Carried" and payload.CarrierUserId and tostring(payload.CarrierUserId) ~= myUidStr then
+                if autoReturnActive and autoReturnTargetUid == u then
+                    stopWalking()
+                    autoReturnActive = false
+                    autoReturnTargetUid = nil
+                    returnTripInProgress = false
+                    if activityStatusLabel then
+                        activityStatusLabel.Text = "Status: Target egg taken by another player"
+                        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+                    end
+                end
+            elseif state == "Dropped" and autoReturnActive and autoReturnTargetUid == u then
+                handleEggDropped(u, payload)
+            elseif state == "Claimed" and autoReturnActive and autoReturnTargetUid == u then
+                handleEggDelivered(u)
             end
 
             if state == "Claimed" then
@@ -2769,6 +3002,16 @@ local function startPushMonitor()
                     carryUid = nil
                     updateActivityStatus()
                 end
+                if autoReturnActive and autoReturnTargetUid == u then
+                    if returnTripInProgress then
+                        handleEggDelivered(u)
+                    else
+                        stopWalking()
+                        autoReturnActive = false
+                        autoReturnTargetUid = nil
+                        returnTripInProgress = false
+                    end
+                end
                 eggCacheByUid[u] = nil
                 requestListUpdate()
             end
@@ -2781,6 +3024,18 @@ task.spawn(function()
     while not _G.EggGoToUI_Stop do
         task.wait(0.3)
         pcall(updateActivityStatus)
+
+        -- Auto-Return State Poller fallback (ensures drop recovery even if remote event dropped)
+        if autoReturnActive and autoReturnTargetUid then
+            local holdingTarget = (weAreCarrying and carryUid == autoReturnTargetUid)
+            local holdingAny = isHoldingEgg() or weAreCarrying
+            if returnTripInProgress and not holdingAny then
+                handleEggDropped(autoReturnTargetUid)
+            elseif not returnTripInProgress and holdingTarget then
+                startReturnTrip()
+            end
+        end
+
         if listDirty then
             listDirty = false
             pcall(renderFarmableEggs)
