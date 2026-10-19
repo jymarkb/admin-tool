@@ -1,0 +1,1309 @@
+[2026-10-13 17:14:12] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               8892
+Code Lines:                7582
+Comment Lines:             539
+File Size (bytes):         398097
+Top-level Locals:          186 / 200 (limit)
+Duplicate Function Names:  {"getNetRemote": 2, "formatPetWeight": 2}
+getNetRemote Definitions:  2
+formatPetWeight Defs:      2
+formatCommas Defs:         1
+Vector3 XZ Allocations:    9
+Char/RootPart Lookups:     2
+Exported X Functions:      58
+
+[+] Saved baseline stats to /home/arcobaleno/admin-tool/tester/baseline_stats.json
+[2026-10-13 17:23:30] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 False (Error: syntax errors: line 57:16: rule prefixexp failed predicate: { self.IsFunctionCall() }?)
+Total Lines:               8873
+Code Lines:                7557
+Comment Lines:             540
+File Size (bytes):         395584
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      68
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        False (FAIL)
+    Error: syntax errors: line 57:16: rule prefixexp failed predicate: { self.IsFunctionCall() }?
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       8873        -19    OPTIMIZED
+Non-comment Code Lines                 7582       7557        -25    OPTIMIZED
+File Bytes                           398097     395584      -2513    OPTIMIZED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         68        +10    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: REGRESSION DETECTED
+
+[2026-10-13 17:25:21] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               8872
+Code Lines:                7556
+Comment Lines:             540
+File Size (bytes):         395576
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      68
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       8872        -20    OPTIMIZED
+Non-comment Code Lines                 7582       7556        -26    OPTIMIZED
+File Bytes                           398097     395576      -2521    OPTIMIZED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         68        +10    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 17:50:54] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               8873
+Code Lines:                7557
+Comment Lines:             540
+File Size (bytes):         395664
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      68
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       8873        -19    OPTIMIZED
+Non-comment Code Lines                 7582       7557        -25    OPTIMIZED
+File Bytes                           398097     395664      -2433    OPTIMIZED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         68        +10    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 17:57:10] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               9056
+Code Lines:                7723
+Comment Lines:             542
+File Size (bytes):         402430
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      72
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       9056       +164     EXPANDED
+Non-comment Code Lines                 7582       7723       +141     EXPANDED
+File Bytes                           398097     402430      +4333     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         72        +14    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 20:01:37] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               9832
+Code Lines:                8403
+Comment Lines:             566
+File Size (bytes):         433163
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       9832       +940     EXPANDED
+Non-comment Code Lines                 7582       8403       +821     EXPANDED
+File Bytes                           398097     433163     +35066     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 20:03:36] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               9832
+Code Lines:                8403
+Comment Lines:             566
+File Size (bytes):         433163
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       9832       +940     EXPANDED
+Non-comment Code Lines                 7582       8403       +821     EXPANDED
+File Bytes                           398097     433163     +35066     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 20:06:11] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               9832
+Code Lines:                8403
+Comment Lines:             566
+File Size (bytes):         433163
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       9832       +940     EXPANDED
+Non-comment Code Lines                 7582       8403       +821     EXPANDED
+File Bytes                           398097     433163     +35066     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 20:12:17] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               9867
+Code Lines:                8437
+Comment Lines:             566
+File Size (bytes):         434350
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       9867       +975     EXPANDED
+Non-comment Code Lines                 7582       8437       +855     EXPANDED
+File Bytes                           398097     434350     +36253     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 20:41:11] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               9867
+Code Lines:                8437
+Comment Lines:             566
+File Size (bytes):         434350
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892       9867       +975     EXPANDED
+Non-comment Code Lines                 7582       8437       +855     EXPANDED
+File Bytes                           398097     434350     +36253     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 20:46:19] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10009
+Code Lines:                8577
+Comment Lines:             563
+File Size (bytes):         440894
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10009      +1117     EXPANDED
+Non-comment Code Lines                 7582       8577       +995     EXPANDED
+File Bytes                           398097     440894     +42797     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 20:48:07] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10009
+Code Lines:                8577
+Comment Lines:             563
+File Size (bytes):         440894
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10009      +1117     EXPANDED
+Non-comment Code Lines                 7582       8577       +995     EXPANDED
+File Bytes                           398097     440894     +42797     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 21:55:04] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10009
+Code Lines:                8577
+Comment Lines:             563
+File Size (bytes):         440894
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10009      +1117     EXPANDED
+Non-comment Code Lines                 7582       8577       +995     EXPANDED
+File Bytes                           398097     440894     +42797     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 21:58:51] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10137
+Code Lines:                8698
+Comment Lines:             564
+File Size (bytes):         446901
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10137      +1245     EXPANDED
+Non-comment Code Lines                 7582       8698      +1116     EXPANDED
+File Bytes                           398097     446901     +48804     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 21:59:56] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10137
+Code Lines:                8698
+Comment Lines:             564
+File Size (bytes):         446901
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10137      +1245     EXPANDED
+Non-comment Code Lines                 7582       8698      +1116     EXPANDED
+File Bytes                           398097     446901     +48804     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 22:16:57] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10130
+Code Lines:                8692
+Comment Lines:             564
+File Size (bytes):         446754
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10130      +1238     EXPANDED
+Non-comment Code Lines                 7582       8692      +1110     EXPANDED
+File Bytes                           398097     446754     +48657     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 22:51:24] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10157
+Code Lines:                8717
+Comment Lines:             565
+File Size (bytes):         447830
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10157      +1265     EXPANDED
+Non-comment Code Lines                 7582       8717      +1135     EXPANDED
+File Bytes                           398097     447830     +49733     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 22:52:22] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10157
+Code Lines:                8717
+Comment Lines:             565
+File Size (bytes):         447830
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10157      +1265     EXPANDED
+Non-comment Code Lines                 7582       8717      +1135     EXPANDED
+File Bytes                           398097     447830     +49733     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 23:41:16] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10196
+Code Lines:                8754
+Comment Lines:             567
+File Size (bytes):         449626
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10196      +1304     EXPANDED
+Non-comment Code Lines                 7582       8754      +1172     EXPANDED
+File Bytes                           398097     449626     +51529     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 23:42:40] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10196
+Code Lines:                8754
+Comment Lines:             567
+File Size (bytes):         449626
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10196      +1304     EXPANDED
+Non-comment Code Lines                 7582       8754      +1172     EXPANDED
+File Bytes                           398097     449626     +51529     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-13 23:51:17] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10187
+Code Lines:                8746
+Comment Lines:             566
+File Size (bytes):         449270
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10187      +1295     EXPANDED
+Non-comment Code Lines                 7582       8746      +1164     EXPANDED
+File Bytes                           398097     449270     +51173     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 00:28:25] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10187
+Code Lines:                8746
+Comment Lines:             566
+File Size (bytes):         449270
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      82
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10187      +1295     EXPANDED
+Non-comment Code Lines                 7582       8746      +1164     EXPANDED
+File Bytes                           398097     449270     +51173     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         82        +24    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 00:37:47] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10635
+Code Lines:                9143
+Comment Lines:             576
+File Size (bytes):         466700
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      92
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10635      +1743     EXPANDED
+Non-comment Code Lines                 7582       9143      +1561     EXPANDED
+File Bytes                           398097     466700     +68603     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         92        +34    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 00:45:32] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10654
+Code Lines:                9161
+Comment Lines:             576
+File Size (bytes):         467505
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      92
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10654      +1762     EXPANDED
+Non-comment Code Lines                 7582       9161      +1579     EXPANDED
+File Bytes                           398097     467505     +69408     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         92        +34    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 00:50:09] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10670
+Code Lines:                9172
+Comment Lines:             578
+File Size (bytes):         468085
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      92
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10670      +1778     EXPANDED
+Non-comment Code Lines                 7582       9172      +1590     EXPANDED
+File Bytes                           398097     468085     +69988     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         92        +34    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 01:04:52] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10651
+Code Lines:                9156
+Comment Lines:             577
+File Size (bytes):         467609
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      92
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10651      +1759     EXPANDED
+Non-comment Code Lines                 7582       9156      +1574     EXPANDED
+File Bytes                           398097     467609     +69512     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         92        +34    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 01:06:17] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10651
+Code Lines:                9156
+Comment Lines:             577
+File Size (bytes):         467609
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      92
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10651      +1759     EXPANDED
+Non-comment Code Lines                 7582       9156      +1574     EXPANDED
+File Bytes                           398097     467609     +69512     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         92        +34    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 01:36:18] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10712
+Code Lines:                9213
+Comment Lines:             578
+File Size (bytes):         470139
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      92
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10712      +1820     EXPANDED
+Non-comment Code Lines                 7582       9213      +1631     EXPANDED
+File Bytes                           398097     470139     +72042     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         92        +34    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 08:34:28] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10712
+Code Lines:                9213
+Comment Lines:             578
+File Size (bytes):         470139
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      92
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10712      +1820     EXPANDED
+Non-comment Code Lines                 7582       9213      +1631     EXPANDED
+File Bytes                           398097     470139     +72042     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         92        +34    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 08:42:15] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10915
+Code Lines:                9391
+Comment Lines:             586
+File Size (bytes):         478689
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      95
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10915      +2023     EXPANDED
+Non-comment Code Lines                 7582       9391      +1809     EXPANDED
+File Bytes                           398097     478689     +80592     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         95        +37    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 08:43:10] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10915
+Code Lines:                9391
+Comment Lines:             586
+File Size (bytes):         478689
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      95
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10915      +2023     EXPANDED
+Non-comment Code Lines                 7582       9391      +1809     EXPANDED
+File Bytes                           398097     478689     +80592     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         95        +37    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 08:49:50] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               10915
+Code Lines:                9391
+Comment Lines:             586
+File Size (bytes):         478689
+Top-level Locals:          190 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      95
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=190 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      10915      +2023     EXPANDED
+Non-comment Code Lines                 7582       9391      +1809     EXPANDED
+File Bytes                           398097     478689     +80592     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         95        +37    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 08:59:46] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               11082
+Code Lines:                9537
+Comment Lines:             589
+File Size (bytes):         484622
+Top-level Locals:          188 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      98
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=188 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      11082      +2190     EXPANDED
+Non-comment Code Lines                 7582       9537      +1955     EXPANDED
+File Bytes                           398097     484622     +86525     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58         98        +40    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+
+[2026-10-14 09:19:00] Running Code Analysis on /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+
+================================================================================
+  CURRENT CODE STATISTICS
+================================================================================
+File:                      /home/arcobaleno/admin-tool/farmer/EggGoToUI_v10.lua
+AST Valid:                 True (Error: None)
+Total Lines:               11360
+Code Lines:                9781
+Comment Lines:             594
+File Size (bytes):         494093
+Top-level Locals:          188 / 200 (limit)
+Duplicate Function Names:  {}
+getNetRemote Definitions:  1
+formatPetWeight Defs:      1
+formatCommas Defs:         1
+Vector3 XZ Allocations:    0
+Char/RootPart Lookups:     2
+Exported X Functions:      102
+
+================================================================================
+  AUDIT COMPARISON REPORT: BASELINE vs CURRENT UPDATE
+================================================================================
+[*] AST Syntax Validity:        True (PASS)
+[*] Top-level Locals (Luau Limit): Baseline=186 | Current=188 (PASS (<= 200))
+
+Metric                             Baseline    Current      Delta       Status
+--------------------------------------------------------------------------------
+Total Lines                            8892      11360      +2468     EXPANDED
+Non-comment Code Lines                 7582       9781      +2199     EXPANDED
+File Bytes                           398097     494093     +95996     EXPANDED
+NetRemote Definitions                     2          1         -1    OPTIMIZED
+FormatPetWeight Definitions               2          1         -1    OPTIMIZED
+XZ Vector3 Allocations                    9          0         -9    OPTIMIZED
+Char/RootPart Lookups                     2          2          0        EQUAL
+Exported Functions on X                  58        102        +44    OPTIMIZED
+--------------------------------------------------------------------------------
+Overall Optimization Verdict: ALL CHECKS PASSED (OPTIMIZED OR EQUAL)
+

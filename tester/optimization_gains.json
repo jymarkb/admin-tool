@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-10-14 09:19:12",
+  "benchmarks": {
+    "detour_math_and_allocations": {
+      "iterations": 10000,
+      "time_before_ms": 38.68,
+      "time_after_ms": 33.6,
+      "speedup_percent": 13.1,
+      "allocations_before": 20000,
+      "allocations_after": 0,
+      "allocations_saved": 20000,
+      "allocation_reduction_percent": 100.0
+    },
+    "cantouch_supervisor": {
+      "cycles": 1000,
+      "time_before_ms": 2.36,
+      "time_after_ms": 0.14,
+      "speedup_percent": 94.1,
+      "string_allocs_before": 22000,
+      "string_allocs_after": 22,
+      "string_allocs_saved": 21978,
+      "redundant_property_writes_before": 7000,
+      "redundant_property_writes_after": 0
+    }
+  },
+  "verifications": {
+    "godzilla_mapped_to_divine": true,
+    "godzilla_aliased_to_nightflame": true,
+    "cached_limbs_implemented": true,
+    "reused_vector_buffer_implemented": true,
+    "neutralized_flag_implemented": true,
+    "treadmill_zero_spin_guard_implemented": true,
+    "manual_radar_bug_fixed": true
+  }
+}
