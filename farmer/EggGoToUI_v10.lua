@@ -94,7 +94,7 @@ local function getSafeUiParent()
 end
 local PlayerGui = getSafeUiParent()
 
-local SAFE_ZONE = Vector3.new(534.090, 70.724, -326.616)
+local SAFE_ZONE = Vector3.new(530.332, 70.724, -399.111)
 
 local MUTATION_COLORS = {
     ["Golden"]  = Color3.fromRGB(220, 180, 30),
@@ -229,8 +229,8 @@ local DEFAULT_SETTINGS = {
     RarityFilter       = {"Divine", "Eternal", "Secret"},
     AutoReturn         = true,
     Velocity           = false,
-    VelocityValue      = 350,
-    CarryVelocityValue = 320,
+    VelocityValue      = 360,
+    CarryVelocityValue = 300,
     Recovery           = true,
     MaxBumpRetries     = 8,
     PickupEnabled      = true,
@@ -931,10 +931,10 @@ local function holdingSource()
             end
         end
     end
-    -- Authoritative server snapshot check (only if not already marked delivered or claimed)
-    if carryUid and not X.deliveredUids[carryUid] and eggCache and eggCache.byUid and eggCache.byUid[carryUid] then
+    -- Authoritative server snapshot check
+    if carryUid and eggCache and eggCache.byUid and eggCache.byUid[carryUid] then
         local rec = eggCache.byUid[carryUid]
-        if typeof(rec) == "table" and rec.State ~= "Claimed" and rec.State ~= "Dropped" then
+        if typeof(rec) == "table" then
             local cId = rec.CarrierUserId
             if cId and tostring(cId) == tostring(LocalPlayer.UserId) then
                 return "snapshot_carrier:" .. tostring(carryUid)
@@ -1039,23 +1039,14 @@ local function getRagdollReason(hum)
     if s == Enum.HumanoidStateType.Physics then return "Physics" end
     if hum.PlatformStand then return "PlatStand" end
     if s == Enum.HumanoidStateType.FallingDown or s == Enum.HumanoidStateType.Physics or recoveryActive then
-        local dm, tm = 0, 0
-        if X.jointsTable and #X.jointsTable > 0 then
-            for _, o in ipairs(X.jointsTable) do
-                if o and o.Parent then
-                    tm = tm + 1
-                    if not o.Enabled then dm = dm + 1 end
-                end
+        local ch = hum.Parent
+        if ch then
+            local dm, tm = 0, 0
+            for _, o in ipairs(ch:GetDescendants()) do
+                if o:IsA("Motor6D") then tm = tm + 1; if not o.Enabled then dm = dm + 1 end end
             end
-        else
-            local ch = hum.Parent
-            if ch then
-                for _, o in ipairs(ch:GetDescendants()) do
-                    if o:IsA("Motor6D") then tm = tm + 1; if not o.Enabled then dm = dm + 1 end end
-                end
-            end
+            if tm > 0 and dm >= 2 then return "Motors" end
         end
-        if tm > 0 and dm >= 2 then return "Motors" end
     end
     return nil
 end
@@ -2946,7 +2937,7 @@ function X.initTrapEvade()
 
     -- Background supervisor: maintains CanTouch protection & sweeps for newly armed traps
     task.spawn(function()
-        while screenGui and screenGui.Parent and not _G.EggGoToUI_Stop do
+        while screenGui and screenGui.Parent do
             task.wait(1.0)
             if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled then
                 X.applyCanTouchProtection()
@@ -2960,7 +2951,7 @@ function X.initTrapEvade()
 
     -- Manual walk auto-jump radar: if walking manually within 4.5 studs of a trap, jump over it
     task.spawn(function()
-        while screenGui and screenGui.Parent and not _G.EggGoToUI_Stop do
+        while screenGui and screenGui.Parent do
             task.wait(0.12)
             if X.TRAP_CONFIG and X.TRAP_CONFIG.Enabled and not autoFarmEnabled then
                 local ch = LocalPlayer.Character
@@ -3509,62 +3500,23 @@ local function waitMarkersGone(timeout, myTok)
     return not markersActive(carryMarkers)
 end
 
--- Wait for the carried object to be consumed by the safe zone.
--- Actively verifies via real signals:
---   1) not isHoldingEgg() (character Tool/Model/CRA removed by server)
---   2) RE/EggWorld/FieldEggRedeemVerdict / FieldEggGone network confirmation
---   3) not markersActive(carryMarkers)
+-- v8: after arriving, wait for the carried object to be consumed, re-snapping onto the zone every 2s in case the
+-- server rubber-banded us just outside it (one way "delivery did not register").
 function X.deliverWait(myTok)
     X.snapToSafe()
-    local redeemed = false
-    local redeemConn = nil
-    pcall(function()
-        local net = ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Networking")
-        local evRedeem = net and (net:FindFirstChild("RE/EggWorld/FieldEggRedeemVerdict") or net:FindFirstChild("RE/EggWorld/FieldEggGone"))
-        if evRedeem and evRedeem:IsA("RemoteEvent") then
-            redeemConn = evRedeem.OnClientEvent:Connect(function(pl)
-                if not carryUid then
-                    redeemed = true
-                elseif typeof(pl) == "table" and tostring(pl.Uid or pl.EggUid or "") == tostring(carryUid) then
-                    redeemed = true
-                else
-                    redeemed = true
-                end
-            end)
-        end
-    end)
-
+    if not carryMarkers then task.wait(0.3); return true end
     local t, lastSnap, streak = 0, 0, 0
-    local maxWait = X.HOLD_RELEASE_TIMEOUT or 8
-    while t < maxWait and (autoFarmToken == myTok or walkToken == myTok) do
-        local stillHeld = isHoldingEgg() or (carryMarkers and markersActive(carryMarkers))
-        if redeemed or not stillHeld then
+    while t < X.HOLD_RELEASE_TIMEOUT and (autoFarmToken == myTok or walkToken == myTok) do
+        if not markersActive(carryMarkers) then
             streak = streak + 1
-            if streak >= 2 then
-                if redeemConn then pcall(function() redeemConn:Disconnect() end) end
-                return true
-            end
+            if streak >= 3 then return true end
         else
             streak = 0
-            if t - lastSnap >= 1.0 then
-                lastSnap = t
-                X.snapToSafe()
-                local ch = LocalPlayer.Character
-                local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    pcall(function()
-                        hum:Move(Vector3.new(0.1, 0, 0.1))
-                    end)
-                end
-            end
+            if t - lastSnap >= 2 then lastSnap = t; X.snapToSafe() end
         end
-        task.wait(0.15)
-        t = t + 0.15
+        task.wait(0.1); t = t + 0.1
     end
-
-    if redeemConn then pcall(function() redeemConn:Disconnect() end) end
-    local finalStillHeld = isHoldingEgg() or (carryMarkers and markersActive(carryMarkers))
-    return redeemed or not finalStillHeld
+    return not markersActive(carryMarkers)
 end
 
 -- Are we STILL carrying an egg we picked up?  (used before any delivery walk)
@@ -4317,41 +4269,28 @@ local function autoGetEgg(uid, startPos, myTok, isManual)
         end
         if not arrived then walkToken = walkToken + 1 end
         if arrived then
-            local consumed = X.deliverWait(myTok)                -- snap onto the zone + wait until the carried object is consumed
-            if consumed or not isHoldingEgg() then
-                X.deliveredUids[uid] = true
-                if eggCache and eggCache.byUid then eggCache.byUid[uid] = nil end
-                weAreCarrying = false
-                carryUid = nil
-                carryMarkers = nil
-                dropRetry = nil
-                X.resetVelocity()                   -- v9.6: delivered -> back to the default velocity right away
-                statusLabel.Text = tag .. "Safe zone ✓"
-                statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
-                -- Immediately refresh inventory & scramble requirements so delivered egg is recognized as owned:
-                if X.autoScrambleTrade or X.prioritizeScrambleInAutoFarm or (tabScramble and tabScramble.Visible) then
-                    task.spawn(function()
-                        task.wait(0.3)
-                        if typeof(X.scanInventoryEggsForScramble) == "function" then
-                            pcall(X.scanInventoryEggsForScramble)
-                        end
-                        if typeof(X.updateScrambleUI) == "function" then
-                            pcall(X.updateScrambleUI)
-                        end
-                        X.listDirty = true
-                    end)
+            X.deliverWait(myTok)                -- snap onto the zone + wait until the carried object is consumed
+            weAreCarrying = false
+            carryUid = nil
+            carryMarkers = nil
+            dropRetry = nil
+            X.resetVelocity()                   -- v9.6: delivered -> back to the default velocity right away
+            statusLabel.Text = tag .. "Safe zone ✓"
+            statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+            -- Immediately refresh inventory & scramble requirements so delivered egg is recognized as owned:
+            task.spawn(function()
+                task.wait(0.3)
+                if typeof(X.scanInventoryEggsForScramble) == "function" then
+                    pcall(X.scanInventoryEggsForScramble)
                 end
-                finish(true)
-            else
-                weAreCarrying = true
-                statusLabel.Text = tag .. "Safe zone: waiting for egg deposit..."
-                statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-                finish(false)
-            end
-        else
-            finish(false)
-        end
+                if typeof(X.updateScrambleUI) == "function" then
+                    pcall(X.updateScrambleUI)
+                end
+                X.listDirty = true
+            end)
+        end                                     -- (not arrived: the loop's gate finishes the delivery)
         X.requestEggRefresh()                   -- redraw the egg list now instead of waiting for luck
+        finish(arrived)
     end, { snapRadius = X.SNAP_RADIUS, snapBeside = true, stuckHop = true })
 
     while not completed and (isManual or autoFarmToken == myTok) and (walkToken == walkTok or (rtok and walkToken == rtok)) do task.wait(0.15) end
@@ -4494,7 +4433,6 @@ local function autoFarmLoop()
 
         if not skip and not weAreCarrying and X.isOnTreadmill() then
             local shouldDismount = false
-            local isEggDismount = false
             local isButterflyDismount = false
             if X.autoDismountEnabled then
                 if X.checkNightReset() then
@@ -4503,7 +4441,6 @@ local function autoFarmLoop()
                     local okPick, best = pcall(X.pickNearest, eggCache.records)
                     if okPick and typeof(best) == "table" then
                         shouldDismount = true
-                        isEggDismount = true
                     end
                 end
             end
@@ -4513,28 +4450,20 @@ local function autoFarmLoop()
             end
 
             if shouldDismount then
+                X.nightResetTriggered = false
+                X.lastNightResetAt = os.clock()
                 X.noEggSince = nil
                 X.treadmillEnteredAt = nil
                 X.hasHatchedThisTreadmillSession = false
-                if isEggDismount then
-                    statusLabel.Text = "[AutoFarm] Target egg detected! Dismounting & Resetting placement..."
-                    statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
-                    X.executeAutoDismount(true, function()
-                        return not autoFarmEnabled or autoFarmToken ~= myTok
-                    end)
-                    task.wait(0.1)
-                    skip = true
-                elseif isButterflyDismount then
-                    statusLabel.Text = "[AutoFarm] Butterfly event active! Dismounting & Resetting placement..."
+                if isButterflyDismount then
+                    statusLabel.Text = "[AutoFarm] Butterfly event active! Dismounting Treadmill..."
                     statusLabel.TextColor3 = Color3.fromRGB(255, 180, 220)
-                    X.executeAutoDismount(true, function()
+                    X.executeAutoDismount(false, function()
                         return not autoFarmEnabled or autoFarmToken ~= myTok
                     end)
                     task.wait(0.2)
                     skip = true
                 else
-                    X.nightResetTriggered = false
-                    X.lastNightResetAt = os.clock()
                     X.nightResetGraceUntil = os.clock() + 12.0
                     statusLabel.Text = "[AutoFarm] Night reset! Dismounting & Walking to Safezone..."
                     statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
@@ -4573,43 +4502,24 @@ local function autoFarmLoop()
         end
 
         -- Only if a pickup of OURS is still undelivered AND the egg is still really in our hands
-        if not skip and (weAreCarrying or isHoldingEgg()) then
-            if stillCarrying() or isHoldingEgg() then
-                weAreCarrying = true
+        if not skip and weAreCarrying then
+            if stillCarrying() then
                 statusLabel.Text = "[AutoFarm] Delivering carried egg..."
                 statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
                 X.switchToCarry()
                 if autoReturnEnabled then walkSync(SAFE_ZONE, X.SAFE_ARRIVE_RADIUS, myTok, { stuckHop = true, snapRadius = X.SAFE_SNAP_RADIUS }) end
-                local consumed = X.deliverWait(myTok)
-                if consumed or not isHoldingEgg() then
-                    if carryUid then
-                        X.deliveredUids[carryUid] = true
-                        if eggCache and eggCache.byUid then eggCache.byUid[carryUid] = nil end
-                    end
-                    weAreCarrying = false
-                    carryUid = nil
-                    carryMarkers = nil
-                    dropRetry = nil
-                    X.resetVelocity()
-                    statusLabel.Text = "[AutoFarm] Egg delivered ✓"
-                    statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
-                else
-                    weAreCarrying = true
-                    statusLabel.Text = "[AutoFarm] Waiting for Safe Zone egg deposit..."
-                    statusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-                end
+                if carryMarkers or isHoldingEgg() then X.deliverWait(myTok) end
                 X.requestEggRefresh()
-            else
-                weAreCarrying = false
-                carryUid = nil
-                carryMarkers = nil
-                dropRetry = nil
-                X.resetVelocity()
             end
+            weAreCarrying = false          -- one attempt, then move on (never return empty-handed)
+            carryUid = nil
+            carryMarkers = nil
+            dropRetry = nil
+            X.resetVelocity()
             skip = true
 
             -- Auto-trade check immediately upon egg delivery to safe zone (rate-limited to 2s)
-            if not weAreCarrying and X.autoScrambleTrade and X.tryAutoScrambleTrade and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 2) then
+            if X.autoScrambleTrade and X.tryAutoScrambleTrade and (os.clock() - (X.lastAutoFarmTradeCheck or 0) >= 2) then
                 X.lastAutoFarmTradeCheck = os.clock()
                 local okT, traded = pcall(X.tryAutoScrambleTrade)
                 if okT and traded then task.wait(1.5) end
@@ -4754,74 +4664,66 @@ local function autoFarmLoop()
                         end
                     end
                 elseif typeof(target) == "table" and not skip then
-                    -- Safety guard: if player is still holding an egg, NEVER proceed to a new egg target!
-                    if isHoldingEgg() then
-                        weAreCarrying = true
-                        statusLabel.Text = "[AutoFarm] Holding egg — delivering to safe zone..."
-                        statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+                    X.noEggSince = nil
+                    X.nightResetGraceUntil = nil
+                    if X.isOnTreadmill() then
+                        X.executeAutoDismount(true, function()
+                            return not autoFarmEnabled or autoFarmToken ~= myTok
+                        end)
+                    end
+                    local pos = extPos(target)
+                    local uid = tostring(target.Uid or "")
+                    local sp  = tostring(target.AssetCategory or "?")
+                    if not pos or uid == "" then
+                        task.wait(0.5)
                         skip = true
                     else
-                        X.noEggSince = nil
-                        X.nightResetGraceUntil = nil
-                        if X.isOnTreadmill() then
-                            X.executeAutoDismount(true, function()
-                                return not autoFarmEnabled or autoFarmToken ~= myTok
-                            end)
-                        end
-                        local pos = extPos(target)
-                        local uid = tostring(target.Uid or "")
-                        local sp  = tostring(target.AssetCategory or "?")
-                        if not pos or uid == "" then
-                            task.wait(0.5)
-                            skip = true
+                        if isSteal then
+                            statusLabel.Text = "[AutoFarm] STEAL -> " .. sp .. " (" .. effectiveRarity(target) .. ")"
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
                         else
-                            if isSteal then
-                                statusLabel.Text = "[AutoFarm] STEAL -> " .. sp .. " (" .. effectiveRarity(target) .. ")"
-                                statusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-                            else
-                                statusLabel.Text = "[AutoFarm] -> " .. sp .. " (" .. effectiveRarity(target) .. ")"
-                                statusLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
-                            end
+                            statusLabel.Text = "[AutoFarm] -> " .. sp .. " (" .. effectiveRarity(target) .. ")"
+                            statusLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
+                        end
 
-                            local okCall, ok = pcall(autoGetEgg, uid, pos, myTok)
-                            if not okCall then
-                                ok = false
-                                warn("[AutoFarm] autoGetEgg error:", ok)
-                            end
-                            if not weAreCarrying then
-                                X.resetVelocity(true)  -- v10: clean travel speed reset for every egg
-                            end
-                            if ok and not isHoldingEgg() then
+                        local okCall, ok = pcall(autoGetEgg, uid, pos, myTok)
+                        if not okCall then
+                            ok = false
+                            warn("[AutoFarm] autoGetEgg error:", ok)
+                        end
+                        if not weAreCarrying then
+                            X.resetVelocity(true)  -- v10: clean travel speed reset for every egg
+                        end
+                        if ok then
+                            dropRetry = nil
+                            statusLabel.Text = "[AutoFarm] OK " .. sp
+                            statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+                        elseif isHoldingEgg() then
+                            weAreCarrying = true
+                            dropRetry = nil
+                            statusLabel.Text = "[AutoFarm] Holding egg — delivering..."
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+                        else
+                            -- Cancel dropRetry if egg was stolen, claimed, or failed
+                            local isStolenOrBad = X.isCarriedByOther(uid) or (X.badUids[uid] and os.clock() < X.badUids[uid]) or X.isEggInBaseRenders(uid) or X.deliveredUids[uid]
+                            if isStolenOrBad or (dropRetry and dropRetry.uid == uid) then
                                 dropRetry = nil
-                                statusLabel.Text = "[AutoFarm] OK " .. sp
-                                statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
-                            elseif isHoldingEgg() then
-                                weAreCarrying = true
-                                dropRetry = nil
-                                statusLabel.Text = "[AutoFarm] Holding egg — delivering..."
-                                statusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
-                            else
-                                -- Cancel dropRetry if egg was stolen, claimed, or failed
-                                local isStolenOrBad = X.isCarriedByOther(uid) or (X.badUids[uid] and os.clock() < X.badUids[uid]) or X.isEggInBaseRenders(uid) or X.deliveredUids[uid]
-                                if isStolenOrBad or (dropRetry and dropRetry.uid == uid) then
-                                    dropRetry = nil
-                                    X.weDropped[uid] = nil
-                                    X.looseUids[uid] = nil
-                                end
-                                statusLabel.Text = lastFailReason or "[AutoFarm] failed/skipped — next..."
-                                lastFailReason = nil
-                                statusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
+                                X.weDropped[uid] = nil
+                                X.looseUids[uid] = nil
                             end
+                            statusLabel.Text = lastFailReason or "[AutoFarm] failed/skipped — next..."
+                            lastFailReason = nil
+                            statusLabel.TextColor3 = Color3.fromRGB(255, 180, 80)
+                        end
 
-                            -- Neutralise egg physics throttled
-                            local cch = LocalPlayer.Character
-                            if cch then neutraliseEggPhysics(cch, false) end
+                        -- Neutralise egg physics throttled
+                        local cch = LocalPlayer.Character
+                        if cch then neutraliseEggPhysics(cch, false) end
 
-                            local w = 0
-                            local nextDelay = dropRetry and 0.25 or 0.15
-                            while w < nextDelay and autoFarmEnabled and autoFarmToken == myTok do
-                                task.wait(0.1); w = w + 0.1
-                            end
+                        local w = 0
+                        local nextDelay = dropRetry and 0.25 or 0.15
+                        while w < nextDelay and autoFarmEnabled and autoFarmToken == myTok do
+                            task.wait(0.1); w = w + 0.1
                         end
                     end
                 end
@@ -8698,17 +8600,12 @@ function X.checkNightReset()
             if X.mountedAtClockTime and (X.mountedAtClockTime >= 6 and X.mountedAtClockTime < 18) then
                 return true
             end
-        else
-            if ct >= 6 and ct < 18 and X.isOnTreadmill() then
-                X.mountedAtClockTime = ct
-            end
         end
     end
     return false
 end
 
 function X.executeAutoDismount(andWalkToSafeZone, cancelCheck)
-    if andWalkToSafeZone == nil then andWalkToSafeZone = true end
     X.treadmillEnteredAt = nil
     X.hasHatchedThisTreadmillSession = false
     X.lastTreadmillHatchAt = 0
@@ -8726,9 +8623,7 @@ function X.executeAutoDismount(andWalkToSafeZone, cancelCheck)
 
     local rfDoff = X.getNetRemote("RF/Treadmill/AskDoff")
     if rfDoff then
-        task.spawn(function()
-            pcall(function() rfDoff:InvokeServer() end)
-        end)
+        pcall(function() rfDoff:InvokeServer() end)
     end
 
     if andWalkToSafeZone then
@@ -8755,7 +8650,7 @@ function X.executeAutoPen(cancelCheck)
     if not penPos then return false end
 
     if X.isOnTreadmill() then
-        X.executeAutoDismount(true)
+        X.executeAutoDismount(false)
         task.wait(0.3)
     end
 
@@ -8792,15 +8687,13 @@ function X.executeAutoTreadmill(cancelCheck)
     -- Trigger mount
     local rfWear = X.getNetRemote("RF/Treadmill/AskWearStill")
     if rfWear then
-        task.spawn(function()
-            pcall(function() rfWear:InvokeServer() end)
-            if X.myPlotIndex then
-                pcall(function() rfWear:InvokeServer(X.myPlotIndex) end)
-            end
-            if tmModel then
-                pcall(function() rfWear:InvokeServer(tmModel) end)
-            end
-        end)
+        pcall(function() rfWear:InvokeServer() end)
+        if X.myPlotIndex then
+            pcall(function() rfWear:InvokeServer(X.myPlotIndex) end)
+        end
+        if tmModel then
+            pcall(function() rfWear:InvokeServer(tmModel) end)
+        end
     end
 
     if tmModel and typeof(fireproximityprompt) == "function" then
@@ -8853,26 +8746,24 @@ function X.scanPlacedEggs()
         end
     end
 
-    -- Source B: RF/ProfileMirror/FetchProfile (fallback if no placed eggs found in workspace)
-    if #placed == 0 then
-        local rfProfile = X.getNetRemote("RF/ProfileMirror/FetchProfile")
-        if rfProfile then
-            local ok, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
-            if not ok or type(prof) ~= "table" then
-                ok, prof = pcall(function() return rfProfile:InvokeServer() end)
-            end
-            if ok and type(prof) == "table" and type(prof.EggInventory) == "table" then
-                for eggUid, eggData in pairs(prof.EggInventory) do
-                    local uidStr = tostring(eggUid)
-                    if type(eggData) == "table" then
-                        local isPlaced = (eggData.Placement ~= nil and eggData.Placement ~= false and eggData.Placement ~= "")
-                        if isPlaced and not seenUids[uidStr] then
-                            seenUids[uidStr] = true
-                            table.insert(placed, {
-                                Uid = uidStr,
-                                RawData = eggData,
-                            })
-                        end
+    -- Source B: RF/ProfileMirror/FetchProfile
+    local rfProfile = X.getNetRemote("RF/ProfileMirror/FetchProfile")
+    if rfProfile then
+        local ok, prof = pcall(function() return rfProfile:InvokeServer(LocalPlayer) end)
+        if not ok or type(prof) ~= "table" then
+            ok, prof = pcall(function() return rfProfile:InvokeServer() end)
+        end
+        if ok and type(prof) == "table" and type(prof.EggInventory) == "table" then
+            for eggUid, eggData in pairs(prof.EggInventory) do
+                local uidStr = tostring(eggUid)
+                if type(eggData) == "table" then
+                    local isPlaced = (eggData.Placement ~= nil and eggData.Placement ~= false and eggData.Placement ~= "")
+                    if isPlaced and not seenUids[uidStr] then
+                        seenUids[uidStr] = true
+                        table.insert(placed, {
+                            Uid = uidStr,
+                            RawData = eggData,
+                        })
                     end
                 end
             end
@@ -8919,7 +8810,7 @@ function X.initAutoHatchMonitor()
     X.autoHatchMonitorInitialized = true
 
     task.spawn(function()
-        while not _G.EggGoToUI_Stop and screenGui and screenGui.Parent do
+        while true do
             task.wait(0.5)
             if X.isOnTreadmill() then
                 if not X.treadmillEnteredAt then
@@ -9156,7 +9047,7 @@ function X.executeAutoButterfly(cancelCheck)
     if not char or not root or not hum then return false end
 
     if X.isOnTreadmill() then
-        X.executeAutoDismount(true)
+        X.executeAutoDismount(false)
         task.wait(0.2)
     end
 
