@@ -690,6 +690,12 @@ local PICKUP_CONFIG = {
 }
 local autoPickupToken = 0
 
+-- Instant Recovery Configuration
+local RECOVERY_CONFIG = {
+    Enabled   = true,
+    AntiFling = true,
+}
+
 -- Velocity & Speed State (Default: Disabled)
 local velocityEnabled = false
 local weAreCarrying = false
@@ -1606,6 +1612,48 @@ addConnection(togglePickupBtn.MouseButton1Click:Connect(function()
     end
 end))
 
+local rowRecovery = Instance.new("Frame")
+rowRecovery.Name = "RowRecovery"
+rowRecovery.Size = UDim2.new(1, -16, 0, 36)
+rowRecovery.Position = UDim2.new(0, 8, 0, 52)
+rowRecovery.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+rowRecovery.BorderSizePixel = 0
+rowRecovery.Parent = tabUtility
+Instance.new("UICorner", rowRecovery).CornerRadius = UDim.new(0, 6)
+local strokeRecovery = Instance.new("UIStroke", rowRecovery)
+strokeRecovery.Color = Color3.fromRGB(45, 55, 75)
+strokeRecovery.Thickness = 1
+
+local lblRecoveryTitle = Instance.new("TextLabel")
+lblRecoveryTitle.Size = UDim2.new(1, -80, 1, 0)
+lblRecoveryTitle.Position = UDim2.new(0, 12, 0, 0)
+lblRecoveryTitle.BackgroundTransparency = 1
+lblRecoveryTitle.Text = "Instant Recovery"
+lblRecoveryTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+lblRecoveryTitle.Font = Enum.Font.GothamBold
+lblRecoveryTitle.TextSize = 12
+lblRecoveryTitle.TextXAlignment = Enum.TextXAlignment.Left
+lblRecoveryTitle.Parent = rowRecovery
+
+local toggleRecoveryBtn = Instance.new("TextButton")
+toggleRecoveryBtn.Name = "ToggleRecoveryBtn"
+toggleRecoveryBtn.Size = UDim2.new(0, 56, 0, 24)
+toggleRecoveryBtn.Position = UDim2.new(1, -66, 0.5, -12)
+toggleRecoveryBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+toggleRecoveryBtn.Text = "ON"
+toggleRecoveryBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleRecoveryBtn.Font = Enum.Font.GothamBold
+toggleRecoveryBtn.TextSize = 11
+toggleRecoveryBtn.Parent = rowRecovery
+Instance.new("UICorner", toggleRecoveryBtn).CornerRadius = UDim.new(0, 5)
+
+addConnection(toggleRecoveryBtn.MouseButton1Click:Connect(function()
+    RECOVERY_CONFIG.Enabled = not RECOVERY_CONFIG.Enabled
+    toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
+    toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+    toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+end))
+
 -- ============================================================================
 -- 2. LIVE SERVER EGG DETECTION & FARMABLE LIST (Pooled & Throttled: Zero-Freeze)
 -- ============================================================================
@@ -2134,7 +2182,277 @@ addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
     weAreCarrying = false
     carryUid = nil
     updateActivityStatus()
+    pcall(function()
+        bindRecoveryCharacter(newChar)
+    end)
 end))
+
+-- ============================================================================
+-- ZERO-WAIT INSTANT RAGDOLL RECOVERY ENGINE (Anti-Stun & Anti-Fling)
+-- ============================================================================
+
+local recoveryJoints = {}
+local recoveryConnections = {}
+
+local function enablePlayerControls()
+    pcall(function()
+        local ps = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerScripts")
+        local pm = ps and ps:FindFirstChild("PlayerModule")
+        if pm then
+            local controls = require(pm):GetControls()
+            if controls and controls.Enable then
+                controls:Enable()
+            end
+        end
+    end)
+end
+
+local function clearRagdollAttributes()
+    pcall(function()
+        if LocalPlayer then
+            LocalPlayer:SetAttribute("RagdollEndTime", 0)
+            LocalPlayer:SetAttribute("RagdollTime", 0)
+            LocalPlayer:SetAttribute("IsRagdoll", false)
+            LocalPlayer:SetAttribute("Ragdolled", false)
+        end
+        local char = LocalPlayer and LocalPlayer.Character
+        if char then
+            char:SetAttribute("RagdollEndTime", 0)
+            char:SetAttribute("RagdollTime", 0)
+            char:SetAttribute("IsRagdoll", false)
+            char:SetAttribute("Ragdolled", false)
+        end
+    end)
+end
+
+executeInstantRecovery = function(reason)
+    if not (RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled) then return end
+    local char = LocalPlayer and LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not (hum and hrp and hum.Health > 0) then return end
+
+    clearRagdollAttributes()
+
+    if #recoveryJoints > 0 then
+        for _, motor in ipairs(recoveryJoints) do
+            if motor and motor.Parent and not motor.Enabled then
+                motor.Enabled = true
+            end
+        end
+    else
+        for _, desc in ipairs(char:GetDescendants()) do
+            if desc:IsA("Motor6D") and not desc.Enabled then
+                pcall(function() desc.Enabled = true end)
+            end
+        end
+    end
+
+    hum.PlatformStand = false
+    hum.Sit = false
+    hum.AutoRotate = true
+
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        hum:ChangeState(Enum.HumanoidStateType.Running)
+    end)
+
+    local curTargetSpeed = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 16)
+    if hum.WalkSpeed < 16.0 then
+        hum.WalkSpeed = curTargetSpeed
+    end
+
+    enablePlayerControls()
+
+    -- Anti-Fling Braking & Fast Grounding:
+    -- Cancels horizontal fling so character stays right at the bump location beside the egg,
+    -- and pulls downward fast if launched into the air.
+    if RECOVERY_CONFIG.AntiFling and hrp then
+        local curVel = hrp.AssemblyLinearVelocity
+        local fastY = curVel.Y
+        if fastY > 0 then
+            fastY = -45
+        elseif fastY > -30 then
+            fastY = -45
+        end
+        hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
+local metamethodsInstalled = false
+local function installRecoveryMetamethods()
+    if metamethodsInstalled then return end
+    if typeof(hookmetamethod) ~= "function" then return end
+    local checkcaller = checkcaller or function() return false end
+    pcall(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if method == "GetAttribute" then
+                if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and not checkcaller() then
+                    local attrName = ...
+                    if attrName == "RagdollEndTime" or attrName == "RagdollTime" then
+                        return 0
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+
+        local oldNewIndex
+        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+            if not checkcaller() and RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
+                if key == "PlatformStand" and value == true then
+                    local char = LocalPlayer and LocalPlayer.Character
+                    if char and self.Parent == char then
+                        return oldNewIndex(self, key, false)
+                    end
+                elseif key == "Enabled" and value == false then
+                    local char = LocalPlayer and LocalPlayer.Character
+                    if char then
+                        local ok, isMotor = pcall(function() return self:IsA("Motor6D") end)
+                        if ok and isMotor and self:IsDescendantOf(char) then
+                            return oldNewIndex(self, key, true)
+                        end
+                    end
+                end
+            end
+            return oldNewIndex(self, key, value)
+        end)
+        metamethodsInstalled = true
+    end)
+end
+pcall(installRecoveryMetamethods)
+
+bindRecoveryCharacter = function(char)
+    for _, conn in ipairs(recoveryConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(recoveryConnections)
+    table.clear(recoveryJoints)
+
+    if not char then return end
+    local hum = char:WaitForChild("Humanoid", 5)
+    local hrp = char:WaitForChild("HumanoidRootPart", 5)
+    if not (hum and hrp) then return end
+
+    local function registerMotor(obj)
+        if obj:IsA("Motor6D") then
+            table.insert(recoveryJoints, obj)
+            local conn = obj:GetPropertyChangedSignal("Enabled"):Connect(function()
+                if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and not obj.Enabled then
+                    obj.Enabled = true
+                    executeInstantRecovery("JointLock")
+                end
+            end)
+            table.insert(recoveryConnections, conn)
+        end
+    end
+
+    for _, desc in ipairs(char:GetDescendants()) do
+        registerMotor(desc)
+    end
+
+    local descConn = char.DescendantAdded:Connect(function(desc)
+        registerMotor(desc)
+    end)
+    table.insert(recoveryConnections, descConn)
+
+    local stateConn = hum.StateChanged:Connect(function(_, newState)
+        if not (RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled) then return end
+        if newState == Enum.HumanoidStateType.Ragdoll
+            or newState == Enum.HumanoidStateType.FallingDown
+            or newState == Enum.HumanoidStateType.Physics then
+            executeInstantRecovery(newState.Name)
+        end
+    end)
+    table.insert(recoveryConnections, stateConn)
+
+    local platConn = hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
+        if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and hum.PlatformStand then
+            hum.PlatformStand = false
+            executeInstantRecovery("PlatformStand")
+        end
+    end)
+    table.insert(recoveryConnections, platConn)
+
+    local sitConn = hum:GetPropertyChangedSignal("Sit"):Connect(function()
+        if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and hum.Sit then
+            hum.Sit = false
+            executeInstantRecovery("Sit")
+        end
+    end)
+    table.insert(recoveryConnections, sitConn)
+
+    if LocalPlayer then
+        local attrConn1 = LocalPlayer:GetAttributeChangedSignal("RagdollEndTime"):Connect(function()
+            if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
+                local rEnd = LocalPlayer:GetAttribute("RagdollEndTime")
+                if typeof(rEnd) == "number" and rEnd > 0 then
+                    executeInstantRecovery("RagdollTimer")
+                end
+            end
+        end)
+        table.insert(recoveryConnections, attrConn1)
+    end
+
+    local attrConn2 = char:GetAttributeChangedSignal("RagdollEndTime"):Connect(function()
+        if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
+            local rEnd = char:GetAttribute("RagdollEndTime")
+            if typeof(rEnd) == "number" and rEnd > 0 then
+                executeInstantRecovery("CharRagdollTimer")
+            end
+        end
+    end)
+    table.insert(recoveryConnections, attrConn2)
+end
+
+addConnection(RunService.Heartbeat:Connect(function()
+    if not (RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled) then return end
+    local char = LocalPlayer and LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not (hum and hrp and hum.Health > 0) then return end
+
+    if LocalPlayer and (LocalPlayer:GetAttribute("RagdollEndTime") or 0) > 0 then
+        clearRagdollAttributes()
+        enablePlayerControls()
+    end
+
+    local disabled = 0
+    for _, m in ipairs(recoveryJoints) do
+        if m and m.Parent and not m.Enabled then
+            disabled = disabled + 1
+            m.Enabled = true
+        end
+    end
+    if disabled > 0 then
+        executeInstantRecovery("MotorsFixed")
+    end
+
+    local s = hum:GetState()
+    if s == Enum.HumanoidStateType.Ragdoll
+        or s == Enum.HumanoidStateType.FallingDown
+        or s == Enum.HumanoidStateType.Physics
+        or hum.PlatformStand
+        or hum.Sit then
+        executeInstantRecovery(tostring(s.Name))
+    end
+end))
+
+if LocalPlayer and LocalPlayer.Character then
+    task.spawn(function()
+        bindRecoveryCharacter(LocalPlayer.Character)
+    end)
+end
 
 -- ============================================================================
 -- FAST PICKUP & PROXIMITY PROMPT ENGINE (Clean Port from v10)
@@ -3136,6 +3454,12 @@ local function fullCleanup()
         end
     end)
     disconnectAll()
+    if recoveryConnections then
+        for _, conn in ipairs(recoveryConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        table.clear(recoveryConnections)
+    end
 
     if screenGui and screenGui.Parent then
         pcall(function() screenGui:Destroy() end)
