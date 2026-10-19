@@ -26,7 +26,7 @@ local EGG_DROP_SPAM_INTERVAL = 0.03
 
 local POSITION_SETTLE_TIME = 0.30
 
-local GUARD_HIT_TIMING = 1.6
+local GUARD_HIT_TIMING = 0.7
 local TARGET_GUARD_AREA = "Titan Temple"
 
 local SAMPLE_GUARD_CFRAME = CFrame.new(

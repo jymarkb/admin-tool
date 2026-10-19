@@ -63,6 +63,10 @@ local lastRecoveryTime = 0
 -- Set this false if you want pure original behavior.
 local recoveryAssistEnabled = true
 
+-- WalkSpeed intercept hook (blocks egg-weight script writes)
+local walkSpeedHookActive = false
+local oldNewIndex          = nil
+
 local zeroFriction =
     PhysicalProperties.new(
         0.7,
@@ -549,6 +553,38 @@ local function recoveryPulse(hum)
 end
 
 --==================================================
+-- WALKSPEED HOOK
+-- Intercepts ALL WalkSpeed writes on any Humanoid via
+-- __newindex. When active, the egg-weight obfuscated
+-- script can never lower WalkSpeed below targetVelocity,
+-- which prevents the WalkSpeed/velocity gap that causes
+-- server-side rubberband on large-egg pickups.
+--==================================================
+
+local function installWalkSpeedHook()
+    if walkSpeedHookActive then return end
+    if not hookmetamethod then
+        print("[WalkSpeed Hook] hookmetamethod not available — hook skipped")
+        return
+    end
+
+    oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+        -- Only intercept WalkSpeed on Humanoid instances while active
+        if key == "WalkSpeed" and velocityEnabled then
+            local ok, isHum = pcall(function() return self:IsA("Humanoid") end)
+            if ok and isHum then
+                -- Substitute our target — egg script write is silently replaced
+                return oldNewIndex(self, key, targetVelocity)
+            end
+        end
+        return oldNewIndex(self, key, value)
+    end)
+
+    walkSpeedHookActive = true
+    print("[WalkSpeed Hook] Active — egg-weight writes intercepted")
+end
+
+--==================================================
 -- MAIN VELOCITY ENGINE
 --==================================================
 
@@ -607,28 +643,26 @@ local function applyVelocity()
     end
 
     --================================================
-    -- NORMAL EGG PHYSICS
+    -- NORMAL EGG PHYSICS (neutralise mass/collision)
     --================================================
 
     if isHoldingEgg() then
-
-        neutraliseEggPhysics(
-            char
-        )
+        neutraliseEggPhysics(char)
     end
 
     --================================================
     -- WALK SPEED
+    -- The __newindex hook (if active) already blocks the
+    -- egg-weight script from lowering WalkSpeed, so this
+    -- write is always safe and never causes a mismatch.
+    -- When the hook is absent we still write every frame
+    -- as a best-effort — small penalties tolerate it, and
+    -- large ones may still rubberband (hook required).
     --================================================
 
-    if hum.WalkSpeed ~=
-        targetVelocity then
-
+    if hum.WalkSpeed ~= targetVelocity then
         pcall(function()
-
-            hum.WalkSpeed =
-                targetVelocity
-
+            hum.WalkSpeed = targetVelocity
         end)
     end
 
@@ -636,22 +670,15 @@ local function applyVelocity()
     -- DIRECT VELOCITY
     --================================================
 
-    if hum.MoveDirection.Magnitude >
-        0.05 then
+    if hum.MoveDirection.Magnitude > 0.05 then
 
-        local dir =
-            hum.MoveDirection.Unit
+        local dir = hum.MoveDirection.Unit
 
         root.AssemblyLinearVelocity =
             Vector3.new(
-
-                dir.X *
-                    targetVelocity,
-
+                dir.X * targetVelocity,
                 root.AssemblyLinearVelocity.Y,
-
-                dir.Z *
-                    targetVelocity
+                dir.Z * targetVelocity
             )
     end
 end
@@ -1379,6 +1406,11 @@ addConnection(
                     savedWalkSpeed =
                         hum.WalkSpeed
                 end
+
+                -- Install the WalkSpeed intercept hook once.
+                -- This silently blocks egg-weight script writes
+                -- so WalkSpeed never drops below targetVelocity.
+                installWalkSpeedHook()
 
                 setFrictionless(true)
 

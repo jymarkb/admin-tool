@@ -1,0 +1,161 @@
+==================================================
+STEAL AN EGG - BACKPACK & FUSE SELECTION PROBE
+TIMESTAMP: 2026-10-13T16:42:38Z
+==================================================
+
+===== 1. LocalPlayer.Backpack Children =====
+Backpack has 222 items:
+  [1] [Tool] Rhinobear | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="88801d", DisplayName="Rhinobear", Weight=20957.149448716846, UID="77581e567a1342e28547493914a9bc85", Scale=1.0478574724358423, Category="Rhinobear", GuardTransparencyExcluded=true, ColorSeed=227321605, Favorite=false, Mutations=""
+  [2] [Tool] Rainbow Starry Fox | Attrs: ColorIndex=1, ItemType="Asset", BaseMutation="Rainbow", Weight=3117.617823241693, DisplayName="Starry Fox", UID="834bae0e594e47de85e46042e7cc28e4", Scale=2.0784118821611286, Mutations="Rainbow", Category="Cosmic Fox", GuardTransparencyExcluded=true, ColorSeed=1716416060, Favorite=false, EyeColor="652627"
+  [3] [Tool] Mutant Shark | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="1c1481", DisplayName="Mutant Shark", Weight=54554.24687163649, UID="c9af04fa44c149a0975f2b6880fe697d", Scale=0.9092374478606081, Category="Shark", GuardTransparencyExcluded=true, ColorSeed=1644270281, Favorite=false, Mutations=""
+  [4] [Tool] Shark | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="73245b", DisplayName="Shark", Weight=405.6923566062011, UID="1c89e03d4cd44d74b08236d5112384a0", Scale=0.9015385702360024, Category="Finned Thresher", GuardTransparencyExcluded=true, ColorSeed=708272713, Favorite=false, Mutations=""
+  [5] [Tool] Royal Sphinx | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="75d1b0", DisplayName="Royal Sphinx", Weight=4085.0042134333294, UID="235f1154c4634da88a5a87ddf71df7ab", Scale=1.0212510533583323, Category="Irihorus", GuardTransparencyExcluded=true, ColorSeed=1325204035, Favorite=false, Mutations=""
+  [6] [Tool] Rhinotaur | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="3b827a", DisplayName="Rhinotaur", Weight=69552.05776846712, UID="c9559d6738a64e4a910b12631044f021", Scale=1.987201650527632, Category="Rhino", GuardTransparencyExcluded=true, ColorSeed=1826738011, Favorite=false, Mutations=""
+  [7] [Tool] Trap [X3] | Attrs: GearName="Trap", OldId="rbxassetid://98146157051289", ItemType="Gear", Uses=3
+  [8] [Tool] Titan Axe [X1] | Attrs: IsBat=true, ItemType="Gear", Uses=1, CooldownActive=false, GearName="Titan Axe", CooldownEndTime=0, CooldownDuration=0
+  [9] [Tool] The Scrambler [X1] | Attrs: ItemType="Gear", Uses=1, CooldownActive=false, GearName="The Scrambler", CooldownEndTime=0, CooldownDuration=0
+  [10] [Tool] Butterfly Net | Attrs: ItemType="ButterflyNet", ButterflyNet=true, DisplayName="Butterfly Net"
+  [11] [Tool] Enchanted Essence [X5] | Attrs: Uses=5, MutationTemplate="Enchanted", ItemType="MutationConsumable", MutationId="Enchanted"
+  [12] [Tool] Scrambled Mutation [X10] | Attrs: Uses=10, MutationTemplate="Scrambled", ItemType="MutationConsumable", MutationId="Scrambled"
+  [13] [Tool] Nitro [X11] | Attrs: Uses=11, MutationTemplate="Nitro", ItemType="MutationConsumable", MutationId="Nitro"
+  [14] [Tool] Axolotl | Attrs: ColorIndex=2, ItemType="Asset", EyeColor="696ec3", DisplayName="Axolotl", Weight=168.7971431725196, UID="9f24e777e16b4f4aa6b2730af5545d8f", Scale=6.028469399018557, Category="Dream Axolotl", GuardTransparencyExcluded=true, ColorSeed=972361544, Favorite=false, Mutations=""
+  [15] [Tool] Spiderpig | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="7c79be", DisplayName="Spiderpig", Weight=168.73617968809126, UID="81a5beb7e6b143c6b07c3a28b9883715", Scale=0.9374232204893959, Category="Spiderpig", GuardTransparencyExcluded=true, ColorSeed=608058175, Favorite=false, Mutations=""
+  [16] [Tool] Spirit Panda | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="994f90", DisplayName="Spirit Panda", Weight=2918.847413498325, UID="66ecc44c23b54de6a8de97a710930164", Scale=1.4594237067491624, Category="Spirit Panda", GuardTransparencyExcluded=true, ColorSeed=1233915345, Favorite=false, Mutations=""
+  [17] [Tool] Triceratops | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="39227d", DisplayName="Triceratops", Weight=5275.860853671449, UID="f630ca2b013e484a97ae786ee4a2390f", Scale=1.5073888153346997, Category="Triceratops", GuardTransparencyExcluded=true, ColorSeed=1215330253, Favorite=false, Mutations=""
+  [18] [Tool] Nuclear Mantis | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="4531a5", DisplayName="Nuclear Mantis", Weight=1880.265553642772, UID="d77cad4f114349e49fa53a071a247a64", Scale=0.940132776821386, Category="Nuclear Mantis", GuardTransparencyExcluded=true, ColorSeed=796671229, Favorite=false, Mutations=""
+  [19] [Tool] Toro | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="42909a", DisplayName="Toro", Weight=816331.7619726498, UID="03a1f057244d4ed29582cb403e44f099", Scale=11.337941138509025, Category="Toro", GuardTransparencyExcluded=true, ColorSeed=587554677, Favorite=false, Mutations=""
+  [20] [Tool] Silver Sabertooth Tiger | Attrs: ColorIndex=0, ItemType="Asset", BaseMutation="Silver", Weight=691.2435151668864, DisplayName="Sabertooth Tiger", UID="46d26437279e450fb0a91f308eb2c8a6", Scale=1.9749814719053895, Mutations="Silver", Category="Sabertooth Tiger", GuardTransparencyExcluded=true, ColorSeed=782569936, Favorite=false, EyeColor="83b3d9"
+  [21] [Tool] Golden Light Dove | Attrs: ColorIndex=2, ItemType="Asset", BaseMutation="Golden", Weight=38387.152708848786, DisplayName="Light Dove", UID="c80fde5bbef24e7eab3c4fc62891cc24", Scale=0.8530478379744174, Mutations="Golden", Category="Dove", GuardTransparencyExcluded=true, ColorSeed=1825745939, Favorite=false, EyeColor="6ec87e"
+  [22] [Tool] Triceratops | Attrs: ColorIndex=5, ItemType="Asset", EyeColor="3b315c", DisplayName="Triceratops", Weight=3568.9788084454453, UID="7deb1227c5f9483bb454cae15bd73be0", Scale=1.019708230984413, Category="Triceratops", GuardTransparencyExcluded=true, ColorSeed=1431506490, Favorite=false, Mutations=""
+  [23] [Tool] Oni Tiger | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="2a1775", DisplayName="Oni Tiger", Weight=441.7345035474881, UID="b3966651ae404152aeb656dc936a7cf5", Scale=1.4724483451582937, Category="Oni Tiger", GuardTransparencyExcluded=true, ColorSeed=352069140, Favorite=false, Mutations=""
+  [24] [Tool] Centapede | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="5b4d9d", DisplayName="Centapede", Weight=9.274313254693759, UID="c56710c1ac174d79addebc8d440095a2", Scale=1.5457188757822933, Category="Centapede", GuardTransparencyExcluded=true, ColorSeed=714328255, Favorite=false, Mutations=""
+  [25] [Tool] Beluga Whale | Attrs: ColorIndex=0, ItemType="Asset", EyeColor="201a6f", DisplayName="Beluga Whale", Weight=4454.154633411458, UID="6ceefff2c3cd4fe09e641aa7d87950a1", Scale=0.8908309266822917, Category="Alabaster Whale", GuardTransparencyExcluded=true, ColorSeed=114027110, Favorite=false, Mutations=""
+  [26] [Tool] Stacked Turtle | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="5b4111", DisplayName="Stacked Turtle", Weight=307.9434010222327, UID="c112c2963bf44fc88c4decb0ef8fcbc5", Scale=1.0264780034074423, Category="Stacked Turtle", GuardTransparencyExcluded=true, ColorSeed=549994341, Favorite=false, Mutations=""
+  [27] [Tool] Snowy Owl | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="7a432c", DisplayName="Snowy Owl", Weight=61.34465765364097, UID="c70b765d4189431d8ff30ae24d3f4907", Scale=3.0672328826820485, Category="Snowy Owl", GuardTransparencyExcluded=true, ColorSeed=1468500081, Favorite=false, Mutations=""
+  [28] [Tool] Shattered Ram | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="69c762", DisplayName="Shattered Ram", Weight=12170.031373448517, UID="f362d836c9d0449285d7ea1333fec2d9", Scale=0.9361562594960398, Category="Shattered Ram", GuardTransparencyExcluded=true, ColorSeed=1297508510, Favorite=false, Mutations=""
+  [29] [Tool] Sharkodile | Attrs: ColorIndex=1, ItemType="Asset", EyeColor="6c7122", DisplayName="Sharkodile", Weight=31372.58842360467, UID="2dc1c84162fc49aeb9e03f1f4ebcbe95", Scale=1.045752947453489, Category="Sharkodile", GuardTransparencyExcluded=true, ColorSeed=322936252, Favorite=false, Mutations=""
+  [30] [Tool] Lava Iguana | Attrs: ColorIndex=0, ItemType="Asset", EyeColor="791b3b", DisplayName="Lava Iguana", Weight=1149.8132503735485, UID="d5b8de5939744a7089471aae7d46981e", Scale=2.8745331259338713, Category="Lava Iguana", GuardTransparencyExcluded=true, ColorSeed=425569080, Favorite=false, Mutations=""
+  ... (192 more items in Backpack)
+
+===== 2. PlayerGui.BackpackGui Slots =====
+Found Inventory Frame: Players.mackyhohohoho.PlayerGui.BackpackGui.Backpack.Main.Inventory
+Inventory direct children count: 22
+  - [UICorner] UICorner
+  - [TextLabel] CategoryLabel
+  - [TextButton] VRInventorySelector
+  - [ScrollingFrame] ScrollingFrame
+  - [Frame] Search
+  - [Frame] Frame
+  - [ImageButton] Close
+  - [Frame] Loading
+  - [ImageButton] FavoriteMode
+  - [UIStroke] Stroke
+  - [UIStroke] Stroke
+  - [CanvasGroup] BackgroundStroke
+  - [CanvasGroup] ImageLabel
+  - [CanvasGroup] CanvasGroup
+  - [Frame] Title
+  - [Frame] CategoryFrame
+  - [TextLabel] CategoryTemplate
+  - [ImageButton] AutoSell
+  - [UIStroke] FavoriteMode
+  - [TextButton] VRInventorySelector
+  - [Frame] GamepadHintsFrame
+  - [TextButton] Capacity
+
+  Container: ScrollingFrame (251 slots):
+    - [TextButton] Template | Attrs: Draggable=true, HasPoopOverlay=true, IsInventorySlot=true | Texts: ToolName: "14 kg", Weight: "Dog Poop"
+    - [TextButton] 11 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=231 | Texts: ToolName: "Enchanted Forest Egg (85,711Kg)"
+    - [TextButton] 12 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=232 | Texts: ToolName: "Snow Egg (1,710Kg)"
+    - [TextButton] 13 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=233 | Texts: ToolName: "Angels & Demons Egg (1,852,765Kg)"
+    - [TextButton] 14 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=234 | Texts: ToolName: "Egg (24Kg)"
+    - [TextButton] 15 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=235 | Texts: ToolName: "Angels & Demons Egg (9,369Kg)"
+    - [TextButton] 16 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=236 | Texts: ToolName: "Enchanted Forest Egg (6,522Kg)"
+    - [TextButton] 17 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=237 | Texts: ToolName: "Unstable Egg (26Kg)"
+    - [TextButton] 18 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=238 | Texts: ToolName: "Prehistoric Egg (7,060Kg)"
+    - [TextButton] 19 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=239 | Texts: ToolName: "Cherry Blossom Egg (200Kg)"
+    - [TextButton] 20 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=240 | Texts: ToolName: "Enchanted Forest Egg (2,144Kg)"
+    - [TextButton] 21 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=241 | Texts: ToolName: "Unstable Egg (1,954,614Kg)"
+    - [TextButton] 22 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=242 | Texts: ToolName: "Enchanted Forest Egg (1,277Kg)"
+    - [TextButton] 23 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=243 | Texts: ToolName: "Titan Temple Egg (1,423Kg)"
+    - [TextButton] 24 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=244 | Texts: ToolName: "Angels & Demons Egg (6,853Kg)"
+    - [TextButton] 25 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=245 | Texts: ToolName: "Cosmic Egg (7,597Kg)"
+    - [TextButton] 26 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=246 | Texts: ToolName: "Angels & Demons Egg (9,732Kg)"
+    - [TextButton] 27 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=247 | Texts: ToolName: "Enchanted Forest Egg (1,982Kg)"
+    - [TextButton] 28 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=248 | Texts: ToolName: "Angels & Demons Egg (9,650Kg)"
+    - [TextButton] 29 | Attrs: Draggable=true, HasEggOverlay=true, IsInventorySlot=true, PressBound=249 | Texts: ToolName: "Prehistoric Egg (23Kg)"
+    ... (231 more slots in ScrollingFrame)
+
+  Container: Search (2 slots):
+    - [TextBox] TextBox
+    - [TextButton] X
+
+  Container: Frame (0 slots):
+
+  Container: Loading (1 slots):
+    - [TextLabel] TextLabel
+
+  Container: Title (2 slots):
+    - [TextLabel] TextLabel
+    - [TextLabel] DropShadow
+
+  Container: CategoryFrame (4 slots):
+    - [Frame] CategoryTemplate | Texts: CategoryName: "Test", Quantity: "4000/4,5000"
+    - [Frame] CategoryTemplate | Texts: CategoryName: "Pets", Quantity: "4000/4,5000"
+    - [Frame] CategoryTemplate | Texts: CategoryName: "Eggs", Quantity: "4000/4,5000"
+    - [Frame] CategoryTemplate | Texts: CategoryName: "Gear", Quantity: "4000/4,5000"
+
+  Container: GamepadHintsFrame (3 slots):
+    - [Frame] HintFrame | Texts: HintText: "Remove From Hotbar"
+    - [Frame] HintFrame | Texts: HintText: "Select/Swap"
+    - [Frame] HintFrame | Texts: HintText: "Close Backpack"
+
+===== 3. PlayerGui.PetFuse Slots =====
+Found PetFuse: Players.mackyhohohoho.PlayerGui.PetFuse (Enabled: false)
+Found FusePetInventory: Players.mackyhohohoho.PlayerGui.PetFuse.FusePetInventory
+FusePetInventory descendants count: 42
+  - [Frame] Frame
+  - [ImageButton] IncludeEquipped | Attrs: ReferenceUI="StarterGui.SellPrompt.Frame.SortByHolder.SelectAll", Checked=false, PressBound=42 | Texts: Caption: "Include equipped pets"
+  - [ImageButton] Box
+  - [ImageButton] Close | Attrs: PressBound=47 | Texts: TextLabel: "X"
+
+===== 4. ReplicatedStorage FuseMachine Controllers =====
+Found FuseMachineBackpackSelection: ReplicatedStorage.Controllers.GUI.FuseMachineController.FuseMachineBackpackSelection
+require(FuseMachineBackpackSelection) succeeded! Type: table
+{
+  Destroy = function: 0x165cdb2a4bf2d09b
+  IsOpen = function: 0x88b0bb39b9a25c5d
+  Close = function: 0x380808363a7c89d6
+  Open = function: 0x8713db1d5fd2c24e
+  __class = "FuseMachineBackpackSelection"
+  RefreshGridLayout = function: 0xce67dbe93a74622d
+  _createRow = function: 0x9b989cc637bb22f9
+  __index = {
+    Destroy = function: 0x165cdb2a4bf2d09b
+    IsOpen = function: 0x88b0bb39b9a25c5d
+    Close = function: 0x380808363a7c89d6
+    Open = function: 0x8713db1d5fd2c24e
+    __class = "FuseMachineBackpackSelection"
+    RefreshGridLayout = function: 0xce67dbe93a74622d
+    _createRow = function: 0x9b989cc637bb22f9
+    __index = table: 0x4fb863ccdcd80ee6
+    new = function: 0xb220b19b66b8234c
+  }
+  new = function: 0xb220b19b66b8234c
+}
+
+Found FuseMachineController: ReplicatedStorage.Controllers.Game.FuseMachineController
+require(FuseMachineController) succeeded! Keys:
+  Start (function)
+
+===== 5. ProfileMirror FetchProfile Arguments Test =====
+  InvokeServer(no_args): ok=true, return=nil
+  InvokeServer(userId): ok=true, return=nil
+  InvokeServer(player): ok=true, return=Table (96 entries)
+  InvokeServer(str_userId): ok=true, return=nil
+  InvokeServer(satchel_str): ok=true, return=nil
+  InvokeServer(pets_str): ok=true, return=nil
+
+==================================================
+BACKPACK PROBE COMPLETE
+==================================================
