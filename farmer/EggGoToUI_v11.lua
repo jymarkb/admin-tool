@@ -16,6 +16,7 @@ if _G.EggGoToUI_Cleanup then
 end
 _G.EggGoToUI_Stop = false
 
+local Workspace         = game:GetService("Workspace")
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
 local RunService        = game:GetService("RunService")
@@ -603,6 +604,19 @@ tabBtnEggs.Font = Enum.Font.GothamBold
 tabBtnEggs.Parent = sidebar
 Instance.new("UICorner", tabBtnEggs).CornerRadius = UDim.new(0, 6)
 
+-- Sidebar Button 2: Utility & Fast Pickup
+local tabBtnUtility = Instance.new("TextButton")
+tabBtnUtility.Name = "TabBtnUtility"
+tabBtnUtility.Size = UDim2.new(0, 34, 0, 34)
+tabBtnUtility.Position = UDim2.new(0.5, -17, 0, 52)
+tabBtnUtility.BackgroundColor3 = Color3.fromRGB(35, 42, 60)
+tabBtnUtility.Text = "⚡"
+tabBtnUtility.TextColor3 = Color3.fromRGB(150, 170, 200)
+tabBtnUtility.TextSize = 18
+tabBtnUtility.Font = Enum.Font.GothamBold
+tabBtnUtility.Parent = sidebar
+Instance.new("UICorner", tabBtnUtility).CornerRadius = UDim.new(0, 6)
+
 -- Content Area Container
 local contentContainer = Instance.new("Frame")
 contentContainer.Name = "ContentContainer"
@@ -624,9 +638,45 @@ tabEggs.ClipsDescendants = false
 tabEggs.Visible = true
 tabEggs.Parent = contentContainer
 
+-- Panel 2: Utility Panel
+local tabUtility = Instance.new("Frame")
+tabUtility.Name = "TabUtility"
+tabUtility.Size = UDim2.new(1, 0, 1, 0)
+tabUtility.Position = UDim2.new(0, 0, 0, 0)
+tabUtility.BackgroundTransparency = 1
+tabUtility.BorderSizePixel = 0
+tabUtility.ClipsDescendants = false
+tabUtility.Visible = false
+tabUtility.Parent = contentContainer
+
 -- Forward declarations
 local renderFarmableEggs
 local requestListUpdate
+local updateActivityStatus
+local activityStatusLabel
+local velLiveLabel
+
+-- Fast Pickup Configuration & State
+local PICKUP_CONFIG = {
+    Enabled          = true,
+    ReachAssist      = true,
+    MaxReachDistance = 35,
+    SpamBurstCount   = 8,
+}
+local autoPickupToken = 0
+
+-- Velocity & Speed State (Default: Disabled)
+local velocityEnabled = false
+local weAreCarrying = false
+local carryUid = nil
+local baseGoSpeed = 330
+local baseCarrySpeed = 280
+local savedWalkSpeed = 16.0
+pcall(function()
+    local ch = LocalPlayer and LocalPlayer.Character
+    local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+    if hum and hum.WalkSpeed > 0 then savedWalkSpeed = hum.WalkSpeed end
+end)
 
 -- Filter Selection State
 local RARITY_ORDER = {
@@ -686,11 +736,131 @@ local function isEggAllowed(disp, raw, info)
     return false
 end
 
--- World Egg Catalog List View
+-- 1. Activity / Carrying Status Readout (Above Velocity Engine)
+activityStatusLabel = Instance.new("TextLabel")
+activityStatusLabel.Name = "ActivityStatusLabel"
+activityStatusLabel.Size = UDim2.new(1, -16, 0, 16)
+activityStatusLabel.Position = UDim2.new(0, 8, 0, 4)
+activityStatusLabel.BackgroundTransparency = 1
+activityStatusLabel.Text = "Status: Not Carrying | Free Movement (330 studs/s)"
+activityStatusLabel.TextColor3 = Color3.fromRGB(150, 185, 230)
+activityStatusLabel.TextSize = 11
+activityStatusLabel.Font = Enum.Font.GothamBold
+activityStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+activityStatusLabel.Parent = tabEggs
+
+-- 2. Velocity Engine Control Bar (Default: Disabled)
+local velocityFrame = Instance.new("Frame")
+velocityFrame.Name = "VelocityFrame"
+velocityFrame.Size = UDim2.new(1, -16, 0, 26)
+velocityFrame.Position = UDim2.new(0, 8, 0, 22)
+velocityFrame.BackgroundTransparency = 1
+velocityFrame.BorderSizePixel = 0
+velocityFrame.Parent = tabEggs
+
+local velToggleBtn = Instance.new("TextButton")
+velToggleBtn.Name = "VelToggleBtn"
+velToggleBtn.Size = UDim2.new(0, 104, 1, 0)
+velToggleBtn.Position = UDim2.new(0, 0, 0, 0)
+velToggleBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
+velToggleBtn.Text = "[OFF] Velocity"
+velToggleBtn.TextColor3 = Color3.fromRGB(210, 220, 240)
+velToggleBtn.TextSize = 11
+velToggleBtn.Font = Enum.Font.GothamBold
+velToggleBtn.Parent = velocityFrame
+Instance.new("UICorner", velToggleBtn).CornerRadius = UDim.new(0, 4)
+
+local goFrame = Instance.new("Frame")
+goFrame.Name = "GoSpeedFrame"
+goFrame.Size = UDim2.new(0, 70, 1, 0)
+goFrame.Position = UDim2.new(0, 108, 0, 0)
+goFrame.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+goFrame.BorderSizePixel = 0
+goFrame.Parent = velocityFrame
+Instance.new("UICorner", goFrame).CornerRadius = UDim.new(0, 4)
+local goStroke = Instance.new("UIStroke", goFrame)
+goStroke.Color = Color3.fromRGB(50, 68, 98); goStroke.Thickness = 1
+
+local goLabel = Instance.new("TextLabel")
+goLabel.Size = UDim2.new(0, 20, 1, 0)
+goLabel.Position = UDim2.new(0, 4, 0, 0)
+goLabel.BackgroundTransparency = 1
+goLabel.Text = "Go:"
+goLabel.TextColor3 = Color3.fromRGB(160, 185, 220)
+goLabel.TextSize = 10.5
+goLabel.Font = Enum.Font.GothamBold
+goLabel.TextXAlignment = Enum.TextXAlignment.Left
+goLabel.Parent = goFrame
+
+local goBox = Instance.new("TextBox")
+goBox.Name = "GoSpeedBox"
+goBox.Size = UDim2.new(1, -26, 1, 0)
+goBox.Position = UDim2.new(0, 24, 0, 0)
+goBox.BackgroundTransparency = 1
+goBox.Text = tostring(baseGoSpeed)
+goBox.PlaceholderText = "330"
+goBox.TextColor3 = Color3.new(1, 1, 1)
+goBox.TextSize = 11
+goBox.Font = Enum.Font.GothamBold
+goBox.ClearTextOnFocus = false
+goBox.TextXAlignment = Enum.TextXAlignment.Center
+goBox.Parent = goFrame
+
+local carryFrame = Instance.new("Frame")
+carryFrame.Name = "CarrySpeedFrame"
+carryFrame.Size = UDim2.new(0, 80, 1, 0)
+carryFrame.Position = UDim2.new(0, 182, 0, 0)
+carryFrame.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+carryFrame.BorderSizePixel = 0
+carryFrame.Parent = velocityFrame
+Instance.new("UICorner", carryFrame).CornerRadius = UDim.new(0, 4)
+local carryStroke = Instance.new("UIStroke", carryFrame)
+carryStroke.Color = Color3.fromRGB(50, 68, 98); carryStroke.Thickness = 1
+
+local carryLabel = Instance.new("TextLabel")
+carryLabel.Size = UDim2.new(0, 32, 1, 0)
+carryLabel.Position = UDim2.new(0, 4, 0, 0)
+carryLabel.BackgroundTransparency = 1
+carryLabel.Text = "Carry:"
+carryLabel.TextColor3 = Color3.fromRGB(160, 185, 220)
+carryLabel.TextSize = 10.5
+carryLabel.Font = Enum.Font.GothamBold
+carryLabel.TextXAlignment = Enum.TextXAlignment.Left
+carryLabel.Parent = carryFrame
+
+local carryBox = Instance.new("TextBox")
+carryBox.Name = "CarrySpeedBox"
+carryBox.Size = UDim2.new(1, -38, 1, 0)
+carryBox.Position = UDim2.new(0, 36, 0, 0)
+carryBox.BackgroundTransparency = 1
+carryBox.Text = tostring(baseCarrySpeed)
+carryBox.PlaceholderText = "280"
+carryBox.TextColor3 = Color3.new(1, 1, 1)
+carryBox.TextSize = 11
+carryBox.Font = Enum.Font.GothamBold
+carryBox.ClearTextOnFocus = false
+carryBox.TextXAlignment = Enum.TextXAlignment.Center
+carryBox.Parent = carryFrame
+
+velLiveLabel = Instance.new("TextLabel")
+velLiveLabel.Name = "VelLiveLabel"
+velLiveLabel.Size = UDim2.new(1, -266, 1, 0)
+velLiveLabel.Position = UDim2.new(0, 266, 0, 0)
+velLiveLabel.BackgroundColor3 = Color3.fromRGB(24, 29, 40)
+velLiveLabel.BorderSizePixel = 0
+velLiveLabel.Text = "Vel: OFF"
+velLiveLabel.TextColor3 = Color3.fromRGB(130, 140, 160)
+velLiveLabel.TextSize = 10
+velLiveLabel.Font = Enum.Font.GothamBold
+velLiveLabel.TextXAlignment = Enum.TextXAlignment.Center
+velLiveLabel.Parent = velocityFrame
+Instance.new("UICorner", velLiveLabel).CornerRadius = UDim.new(0, 4)
+
+-- 3. World Egg Catalog List View
 local listHeader = Instance.new("Frame")
 listHeader.Name = "ListHeader"
-listHeader.Size = UDim2.new(1, -16, 0, 28)
-listHeader.Position = UDim2.new(0, 8, 0, 6)
+listHeader.Size = UDim2.new(1, -16, 0, 26)
+listHeader.Position = UDim2.new(0, 8, 0, 52)
 listHeader.BackgroundColor3 = Color3.fromRGB(26, 32, 46)
 listHeader.BorderSizePixel = 0
 listHeader.Parent = tabEggs
@@ -720,11 +890,11 @@ copyJsonBtn.Font = Enum.Font.GothamBold
 copyJsonBtn.Parent = listHeader
 Instance.new("UICorner", copyJsonBtn).CornerRadius = UDim.new(0, 4)
 
--- Dropdown Filter Bar
+-- 4. Dropdown Filter Bar
 local filterFrame = Instance.new("Frame")
 filterFrame.Name = "FilterFrame"
-filterFrame.Size = UDim2.new(1, -16, 0, 56)
-filterFrame.Position = UDim2.new(0, 8, 0, 38)
+filterFrame.Size = UDim2.new(1, -16, 0, 58)
+filterFrame.Position = UDim2.new(0, 8, 0, 82)
 filterFrame.BackgroundTransparency = 1
 filterFrame.BorderSizePixel = 0
 filterFrame.ClipsDescendants = false
@@ -1337,8 +1507,8 @@ end))
 -- Scrolling Egg List
 local eggListScroll = Instance.new("ScrollingFrame")
 eggListScroll.Name = "EggListScroll"
-eggListScroll.Size = UDim2.new(1, -16, 1, -104)
-eggListScroll.Position = UDim2.new(0, 8, 0, 98)
+eggListScroll.Size = UDim2.new(1, -16, 1, -150)
+eggListScroll.Position = UDim2.new(0, 8, 0, 144)
 eggListScroll.BackgroundTransparency = 1
 eggListScroll.BorderSizePixel = 0
 eggListScroll.ScrollBarThickness = 4
@@ -1361,6 +1531,57 @@ listPadding.PaddingRight = UDim.new(0, 6)
 listPadding.Parent = eggListScroll
 
 -- ============================================================================
+-- ============================================================================
+-- TAB 2: UTILITY PANEL UI (Only Fast Pickup [E])
+-- ============================================================================
+
+local rowPickup = Instance.new("Frame")
+rowPickup.Name = "RowPickup"
+rowPickup.Size = UDim2.new(1, -16, 0, 36)
+rowPickup.Position = UDim2.new(0, 8, 0, 10)
+rowPickup.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+rowPickup.BorderSizePixel = 0
+rowPickup.Parent = tabUtility
+Instance.new("UICorner", rowPickup).CornerRadius = UDim.new(0, 6)
+local strokePickup = Instance.new("UIStroke", rowPickup)
+strokePickup.Color = Color3.fromRGB(45, 55, 75)
+strokePickup.Thickness = 1
+
+local lblPickupTitle = Instance.new("TextLabel")
+lblPickupTitle.Size = UDim2.new(1, -80, 1, 0)
+lblPickupTitle.Position = UDim2.new(0, 12, 0, 0)
+lblPickupTitle.BackgroundTransparency = 1
+lblPickupTitle.Text = "Fast Pickup [E]"
+lblPickupTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+lblPickupTitle.Font = Enum.Font.GothamBold
+lblPickupTitle.TextSize = 12
+lblPickupTitle.TextXAlignment = Enum.TextXAlignment.Left
+lblPickupTitle.Parent = rowPickup
+
+local togglePickupBtn = Instance.new("TextButton")
+togglePickupBtn.Name = "TogglePickupBtn"
+togglePickupBtn.Size = UDim2.new(0, 56, 0, 24)
+togglePickupBtn.Position = UDim2.new(1, -66, 0.5, -12)
+togglePickupBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+togglePickupBtn.Text = "ON"
+togglePickupBtn.TextColor3 = Color3.new(1, 1, 1)
+togglePickupBtn.Font = Enum.Font.GothamBold
+togglePickupBtn.TextSize = 11
+togglePickupBtn.Parent = rowPickup
+Instance.new("UICorner", togglePickupBtn).CornerRadius = UDim.new(0, 5)
+
+addConnection(togglePickupBtn.MouseButton1Click:Connect(function()
+    PICKUP_CONFIG.Enabled = not PICKUP_CONFIG.Enabled
+    PICKUP_CONFIG.ReachAssist = PICKUP_CONFIG.Enabled
+    togglePickupBtn.Text = PICKUP_CONFIG.Enabled and "ON" or "OFF"
+    togglePickupBtn.BackgroundColor3 = PICKUP_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+    togglePickupBtn.TextColor3 = PICKUP_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    if not PICKUP_CONFIG.Enabled then
+        autoPickupToken = (autoPickupToken or 0) + 1
+    end
+end))
+
+-- ============================================================================
 -- 2. LIVE SERVER EGG DETECTION & FARMABLE LIST (Pooled & Throttled: Zero-Freeze)
 -- ============================================================================
 
@@ -1380,10 +1601,34 @@ local function getNetRemote(name)
     return ok and res or nil
 end
 
-local function getEggPosition(r)
-    if typeof(r) ~= "table" then return nil end
-    if typeof(r.BoundsCFrame) == "CFrame" then return r.BoundsCFrame.Position end
-    if typeof(r.BottomCFrame) == "CFrame" then return r.BottomCFrame.Position end
+local function getEggPosition(r, uid)
+    if typeof(r) == "table" then
+        local cf = r.BoundsCFrame or r.BottomCFrame or r.Position
+        if typeof(cf) == "CFrame" then return cf.Position end
+        if typeof(cf) == "Vector3" then return cf end
+        if typeof(cf) == "table" and cf.X and cf.Y and cf.Z then
+            return Vector3.new(cf.X, cf.Y, cf.Z)
+        end
+    end
+    local u = uid or (typeof(r) == "table" and (r.Uid or r.EggUid))
+    if u and u ~= "" then
+        local slots = Workspace:FindFirstChild("AreaEggSlotsClient")
+        if slots then
+            local sl = slots:FindFirstChild(u)
+            if sl then
+                if sl:IsA("BasePart") then return sl.Position end
+                if sl:IsA("Model") then return sl:GetPivot().Position end
+            end
+        end
+        local eggs = Workspace:FindFirstChild("Eggs")
+        if eggs then
+            local em = eggs:FindFirstChild(u)
+            if em then
+                if em:IsA("BasePart") then return em.Position end
+                if em:IsA("Model") then return em:GetPivot().Position end
+            end
+        end
+    end
     return nil
 end
 
@@ -1413,10 +1658,593 @@ local function resolveEggFields(r, uid, charPos)
     local rawArea = r.AreaId
     if rawArea == "Light Dark" then rawArea = "Light & Dark" end
     local biome = (info and info.Biome) or rawArea or "Unknown"
-    local pos = getEggPosition(r)
+    local pos = getEggPosition(r, uid)
     local dist = (pos and charPos) and (pos - charPos).Magnitude or nil
     return rawName, info, disp, serverRarity, rarity, rank, biome, pos, dist
 end
+
+-- ============================================================================
+-- VELOCITY & CARRY ENGINE (Instant 0ms Physics & Dual-Speed State Machine)
+-- ============================================================================
+
+local function isHoldingEgg()
+    local char = LocalPlayer and LocalPlayer.Character
+    if char then
+        -- 1. Equipped egg Tool in hand (NOT Model: player pets and accessories are Models)
+        for _, c in ipairs(char:GetChildren()) do
+            if c:IsA("Tool") and c.Name:lower():find("egg", 1, true) then
+                return true, c.Name
+            end
+            local okAttr, isEgg = pcall(function() return c:GetAttribute("IsEgg") end)
+            if okAttr and isEgg == true then
+                return true, c.Name
+            end
+        end
+    end
+
+    -- 2. ClientRenderedAssets & Server Snapshot: ONLY match if a specific carryUid is active!
+    -- (NEVER match arbitrary CRA models without carryUid, as nest eggs in player's base also live in CRA!)
+    if carryUid then
+        local myUidStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
+        local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+        if cra and myUidStr ~= "" then
+            local expectedName = myUidStr .. "_" .. tostring(carryUid)
+            local m = cra:FindFirstChild(expectedName)
+            if m and (m:IsA("BasePart") or m:FindFirstChildWhichIsA("BasePart", true)) then
+                return true, tostring(carryUid)
+            end
+        end
+
+        if eggCacheByUid and eggCacheByUid[carryUid] then
+            local rec = eggCacheByUid[carryUid]
+            if typeof(rec) == "table" and rec.CarrierUserId and tostring(rec.CarrierUserId) == myUidStr and rec.State == "Carried" then
+                local name = rec.DisplayName or rec.AssetCategory or rec.Name or tostring(carryUid)
+                return true, name
+            end
+        end
+    end
+
+    return false, nil
+end
+
+local function getCarryingStatus()
+    if weAreCarrying then
+        local rec = carryUid and eggCacheByUid[carryUid]
+        local name = rec and (rec.DisplayName or rec.AssetCategory or rec.Name) or carryUid or "Egg"
+        return true, name
+    end
+    return isHoldingEgg()
+end
+
+updateActivityStatus = function()
+    local isCarrying, eggName = getCarryingStatus()
+    local activeSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
+
+    if activityStatusLabel then
+        if isCarrying then
+            local dispName = eggName or "Egg"
+            activityStatusLabel.Text = string.format("Status: Carrying %s (%d studs/s)", dispName, activeSpeed)
+            activityStatusLabel.TextColor3 = Color3.fromRGB(255, 205, 90)
+        else
+            activityStatusLabel.Text = string.format("Status: Not Carrying | Free Movement (%d studs/s)", activeSpeed)
+            activityStatusLabel.TextColor3 = Color3.fromRGB(150, 185, 230)
+        end
+    end
+
+    if velLiveLabel then
+        if velocityEnabled then
+            local char = LocalPlayer and LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local isMoving = hum and hum.MoveDirection.Magnitude > 0.05
+            velLiveLabel.Text = string.format("Vel: %d", isMoving and activeSpeed or 0)
+            velLiveLabel.TextColor3 = isMoving and Color3.fromRGB(100, 240, 255) or Color3.fromRGB(150, 200, 240)
+        else
+            velLiveLabel.Text = "Vel: OFF"
+            velLiveLabel.TextColor3 = Color3.fromRGB(130, 140, 160)
+        end
+    end
+end
+
+local activeWalkTarget = nil
+local activeWalkArriveDist = 3.5
+local activeWalkUid = nil
+local activeWalkCallback = nil
+local activeWalkToken = 0
+local walkLastPos = nil
+local walkStuckFrames = 0
+
+local function stopWalking()
+    activeWalkToken = (activeWalkToken or 0) + 1
+    activeWalkTarget = nil
+    activeWalkCallback = nil
+    activeWalkUid = nil
+    walkLastPos = nil
+    walkStuckFrames = 0
+    pcall(function()
+        local char = LocalPlayer and LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hum then hum:Move(Vector3.zero, false) end
+        if hrp then hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0) end
+    end)
+end
+
+local function walkToTarget(targetPos, arriveDist, onArrived, uid)
+    if typeof(targetPos) == "CFrame" then
+        targetPos = targetPos.Position
+    elseif typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
+        targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
+    end
+    if typeof(targetPos) ~= "Vector3" then return end
+
+    activeWalkToken = (activeWalkToken or 0) + 1
+    local myTok = activeWalkToken
+
+    activeWalkTarget = targetPos
+    activeWalkArriveDist = arriveDist or 3.5
+    activeWalkUid = uid
+    activeWalkCallback = onArrived
+    walkLastPos = nil
+    walkStuckFrames = 0
+
+    -- Safety timeout (if player gets stuck or path takes > 45s)
+    task.delay(45.0, function()
+        if activeWalkToken == myTok and activeWalkTarget == targetPos then
+            stopWalking()
+        end
+    end)
+end
+
+local function updateVelocityPhysics()
+    local char = LocalPlayer and LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not (hum and hrp and hrp.Parent and hum.Health > 0) then return end
+
+    -- 1. Active Auto-Walk towards Egg (triggered by clicking "Get")
+    if activeWalkTarget then
+        if weAreCarrying or isHoldingEgg() then
+            local cb = activeWalkCallback
+            stopWalking()
+            if cb then cb() end
+            return
+        end
+
+        if activeWalkUid and eggCacheByUid and eggCacheByUid[activeWalkUid] then
+            local rec = eggCacheByUid[activeWalkUid]
+            local myId = tostring(LocalPlayer and LocalPlayer.UserId or "")
+            if rec.State == "Claimed" or (rec.CarrierUserId and tostring(rec.CarrierUserId) ~= myId) then
+                stopWalking()
+                return
+            end
+        end
+
+        local curPos = hrp.Position
+        local diff = Vector3.new(activeWalkTarget.X - curPos.X, 0, activeWalkTarget.Z - curPos.Z)
+        local dist = diff.Magnitude
+
+        if dist <= activeWalkArriveDist then
+            local cb = activeWalkCallback
+            stopWalking()
+            if cb then cb() end
+            return
+        end
+
+        local dir = diff.Unit
+        local walkSpeed = velocityEnabled and baseGoSpeed or math.max(savedWalkSpeed or 16, 28)
+
+        -- Smoothly orient character towards target
+        pcall(function()
+            hrp.CFrame = CFrame.lookAt(curPos, Vector3.new(activeWalkTarget.X, curPos.Y, activeWalkTarget.Z))
+        end)
+
+        -- Anti-stuck: hop over small bumps if blocked for ~0.33s
+        if walkLastPos and (Vector3.new(curPos.X - walkLastPos.X, 0, curPos.Z - walkLastPos.Z)).Magnitude < 0.25 then
+            walkStuckFrames = walkStuckFrames + 1
+            if walkStuckFrames >= 20 then
+                walkStuckFrames = 0
+                pcall(function() hum.Jump = true end)
+            end
+        else
+            walkStuckFrames = 0
+        end
+        walkLastPos = curPos
+
+        hum:Move(dir, false)
+        pcall(function() hum:MoveTo(activeWalkTarget) end)
+
+        hrp.AssemblyLinearVelocity = Vector3.new(
+            dir.X * walkSpeed,
+            hrp.AssemblyLinearVelocity.Y,
+            dir.Z * walkSpeed
+        )
+        return
+    end
+
+    -- 2. Regular Velocity Physics for manual player movement (WASD)
+    if not velocityEnabled then return end
+
+    local isCarrying = getCarryingStatus()
+    local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
+
+    if hum.MoveDirection.Magnitude > 0.05 then
+        local dir = hum.MoveDirection.Unit
+        hrp.AssemblyLinearVelocity = Vector3.new(
+            dir.X * targetSpeed,
+            hrp.AssemblyLinearVelocity.Y,
+            dir.Z * targetSpeed
+        )
+    end
+
+    if hum.WalkSpeed ~= targetSpeed then
+        pcall(function() hum.WalkSpeed = targetSpeed end)
+    end
+end
+
+local function disableVelocity()
+    velocityEnabled = false
+    velToggleBtn.Text = "[OFF] Velocity"
+    velToggleBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
+    velToggleBtn.TextColor3 = Color3.fromRGB(210, 220, 240)
+
+    local char = LocalPlayer and LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum.WalkSpeed = savedWalkSpeed end)
+    end
+    updateActivityStatus()
+end
+
+local function enableVelocity()
+    local char = LocalPlayer and LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.WalkSpeed > 0 then
+        savedWalkSpeed = hum.WalkSpeed
+    end
+    velocityEnabled = true
+    velToggleBtn.Text = "[ON] Velocity"
+    velToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+    velToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    updateActivityStatus()
+end
+
+addConnection(velToggleBtn.MouseButton1Click:Connect(function()
+    if velocityEnabled then
+        disableVelocity()
+    else
+        enableVelocity()
+    end
+end))
+
+addConnection(goBox.FocusLost:Connect(function()
+    local val = tonumber(goBox.Text)
+    if val and val > 0 then
+        baseGoSpeed = math.clamp(math.floor(val), 16, 500)
+    end
+    goBox.Text = tostring(baseGoSpeed)
+    updateActivityStatus()
+end))
+
+addConnection(carryBox.FocusLost:Connect(function()
+    local val = tonumber(carryBox.Text)
+    if val and val > 0 then
+        baseCarrySpeed = math.clamp(math.floor(val), 16, 500)
+    end
+    carryBox.Text = tostring(baseCarrySpeed)
+    updateActivityStatus()
+end))
+
+addConnection(RunService.Heartbeat:Connect(updateVelocityPhysics))
+
+addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
+    local hum = newChar:WaitForChild("Humanoid", 5)
+    if hum and not velocityEnabled then
+        savedWalkSpeed = hum.WalkSpeed
+    end
+    weAreCarrying = false
+    carryUid = nil
+    updateActivityStatus()
+end))
+
+-- ============================================================================
+-- FAST PICKUP & PROXIMITY PROMPT ENGINE (Clean Port from v10)
+-- ============================================================================
+
+local function getCarryRemote()
+    local ok, r = pcall(function()
+        return ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
+    end)
+    return ok and r or nil
+end
+
+local function carryEgg(uid, burstCount)
+    if not uid or uid == "" then return false end
+    burstCount = burstCount or (PICKUP_CONFIG and PICKUP_CONFIG.SpamBurstCount) or 8
+    local rf = getCarryRemote()
+    if not rf then return false end
+    local payload = { Uid = uid }
+    for i = 1, burstCount do
+        task.spawn(function()
+            pcall(function() return rf:InvokeServer(payload) end)
+        end)
+    end
+    return true
+end
+
+local function triggerProximityPrompt(prompt)
+    if not prompt or not prompt.Parent then return end
+    pcall(function()
+        prompt.HoldDuration = 0
+        prompt.RequiresLineOfSight = false
+    end)
+    if typeof(fireproximityprompt) == "function" then
+        pcall(fireproximityprompt, prompt, 0)
+        pcall(fireproximityprompt, prompt)
+    end
+    pcall(function()
+        if typeof(prompt.InputHoldBegin) == "function" then
+            prompt:InputHoldBegin()
+            prompt:InputHoldEnd()
+        end
+    end)
+end
+
+local function getBesideOffset(targetPos, currentPos, dist)
+    dist = dist or 2.8
+    local diff = Vector3.new(currentPos.X - targetPos.X, 0, currentPos.Z - targetPos.Z)
+    local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
+    local groundY = currentPos.Y
+    if math.abs(groundY - targetPos.Y) > 6 then groundY = targetPos.Y end
+    local besidePos = Vector3.new(targetPos.X + dir.X * dist, groundY, targetPos.Z + dir.Z * dist)
+    local lookTarget = Vector3.new(targetPos.X, groundY, targetPos.Z)
+    return besidePos, lookTarget
+end
+
+local function applyReachAssist(targetPos)
+    if weAreCarrying then return false end
+    local char = LocalPlayer and LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root or typeof(targetPos) ~= "Vector3" then return false end
+    local dist = (Vector3.new(targetPos.X, 0, targetPos.Z) - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude
+    local maxReach = (PICKUP_CONFIG and PICKUP_CONFIG.MaxReachDistance) or 35
+    if dist > 3 and dist <= maxReach then
+        local bPos, lookTarget = getBesideOffset(targetPos, root.Position, 2.8)
+        pcall(function()
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.CFrame = CFrame.lookAt(bPos, lookTarget)
+        end)
+        return true
+    end
+    return false
+end
+
+local function getBestFocusedTarget()
+    if weAreCarrying then return nil end
+    local char = LocalPlayer and LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local charPos  = root.Position
+    local charLook = root.CFrame.LookVector
+    local cam = Workspace.CurrentCamera
+    local camPos  = cam and cam.CFrame.Position or charPos
+    local camLook = cam and cam.CFrame.LookVector or charLook
+
+    local bestTarget, highestScore = nil, -math.huge
+    local maxDist = (PICKUP_CONFIG and PICKUP_CONFIG.ReachAssist and PICKUP_CONFIG.MaxReachDistance) or 16
+
+    local function scoreTarget(pos, dist)
+        local dir = dist > 0.01 and (pos - charPos).Unit or charLook
+        local charDot = charLook:Dot(dir)
+        local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
+        local camDot = camLook:Dot(camDir)
+        local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
+        if dist <= 6 then score = score + 3 end
+        return score
+    end
+
+    -- 1. Scan from eggCacheByUid
+    if eggCacheByUid then
+        for uid, r in pairs(eggCacheByUid) do
+            local isCarriedByOther = r.CarrierUserId and tostring(r.CarrierUserId) ~= tostring(LocalPlayer and LocalPlayer.UserId)
+            if r.State ~= "Claimed" and not isCarriedByOther then
+                local pos = getEggPosition(r)
+                if pos then
+                    local dist = (pos - charPos).Magnitude
+                    if dist <= maxDist then
+                        local score = scoreTarget(pos, dist)
+                        if score > highestScore then
+                            highestScore = score
+                            local disp = r.DisplayName or r.AssetCategory or r.Name or "Egg"
+                            bestTarget = {
+                                Type = "EggRecord",
+                                Uid = uid,
+                                Name = disp,
+                                Position = pos,
+                                Distance = dist,
+                                Prompt = nil
+                            }
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 2. Scan AreaEggSlotsClient directly
+    local slotsFolder = Workspace:FindFirstChild("AreaEggSlotsClient")
+    if slotsFolder then
+        for _, ch in ipairs(slotsFolder:GetChildren()) do
+            local pos = ch:IsA("BasePart") and ch.Position or (ch:IsA("Model") and ch:GetPivot().Position)
+            if pos then
+                local dist = (pos - charPos).Magnitude
+                if dist <= maxDist then
+                    local score = scoreTarget(pos, dist)
+                    local uid = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
+                    if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
+                    if not uid and eggCacheByUid then
+                        for eUid, eRec in pairs(eggCacheByUid) do
+                            local ePos = getEggPosition(eRec)
+                            if ePos and (ePos - pos).Magnitude < 4.0 then
+                                uid = eUid
+                                break
+                            end
+                        end
+                    end
+                    if uid and score > highestScore then
+                        highestScore = score
+                        bestTarget = {
+                            Type = "SlotDirect",
+                            Uid = uid,
+                            Name = ch.Name,
+                            Position = pos,
+                            Distance = dist,
+                            Prompt = ch:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Scan Workspace.Eggs
+    local eggsFolder = Workspace:FindFirstChild("Eggs")
+    if eggsFolder then
+        for _, ch in ipairs(eggsFolder:GetChildren()) do
+            local pos = ch:IsA("BasePart") and ch.Position or (ch:IsA("Model") and ch:GetPivot().Position)
+            if pos then
+                local dist = (pos - charPos).Magnitude
+                if dist <= maxDist then
+                    local score = scoreTarget(pos, dist)
+                    local uid = ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
+                    if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
+                    if uid and score > highestScore then
+                        highestScore = score
+                        bestTarget = {
+                            Type = "WorldEgg",
+                            Uid = uid,
+                            Name = ch.Name,
+                            Position = pos,
+                            Distance = dist,
+                            Prompt = ch:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    -- Associate ProximityPrompt if not already found
+    if bestTarget and not bestTarget.Prompt and bestTarget.Uid then
+        if slotsFolder then
+            local slotInst = slotsFolder:FindFirstChild(bestTarget.Uid)
+            if not slotInst then
+                for _, ch in ipairs(slotsFolder:GetChildren()) do
+                    if ch:GetAttribute("Uid") == bestTarget.Uid or ch:GetAttribute("EggUid") == bestTarget.Uid then
+                        slotInst = ch; break
+                    end
+                end
+            end
+            if slotInst then
+                bestTarget.Prompt = slotInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+            end
+        end
+        if not bestTarget.Prompt and eggsFolder then
+            local eggInst = eggsFolder:FindFirstChild(bestTarget.Uid)
+            if eggInst then
+                bestTarget.Prompt = eggInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+            end
+        end
+    end
+
+    return bestTarget
+end
+
+local function executePickupSpam(target)
+    if not target then return end
+    if target.Uid then
+        carryUid = target.Uid
+    end
+    if target.Prompt then
+        triggerProximityPrompt(target.Prompt)
+    else
+        local pr = nil
+        local ar = Workspace:FindFirstChild("AreaEggSlotsClient")
+        if ar and target.Uid then
+            local sl = ar:FindFirstChild(target.Uid)
+            if not sl then
+                for _, ch in ipairs(ar:GetChildren()) do
+                    if ch:GetAttribute("Uid") == target.Uid or ch:GetAttribute("EggUid") == target.Uid then
+                        sl = ch; break
+                    end
+                end
+            end
+            if sl then pr = sl:FindFirstChildWhichIsA("ProximityPrompt", true) end
+        end
+        if not pr and target.Uid and Workspace:FindFirstChild("Eggs") then
+            local em = Workspace.Eggs:FindFirstChild(target.Uid)
+            if em then pr = em:FindFirstChildWhichIsA("ProximityPrompt", true) end
+        end
+        if pr then
+            triggerProximityPrompt(pr)
+        end
+    end
+    if target.Uid then
+        carryEgg(target.Uid, (PICKUP_CONFIG and PICKUP_CONFIG.SpamBurstCount) or 8)
+    end
+end
+
+local function startAutoPickupSpam()
+    if weAreCarrying then return end
+    autoPickupToken = (autoPickupToken or 0) + 1
+    local myTok = autoPickupToken
+    task.spawn(function()
+        local tStart = os.clock()
+        local maxDuration = 1.5
+        local hasSnapped = false
+        while autoPickupToken == myTok and PICKUP_CONFIG and PICKUP_CONFIG.Enabled and (os.clock() - tStart < maxDuration) do
+            local target = getBestFocusedTarget()
+            if target then
+                if not hasSnapped and PICKUP_CONFIG.ReachAssist and target.Position then
+                    local char = LocalPlayer and LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    local dist = root and (target.Position - root.Position).Magnitude or 999
+                    if dist <= 3.5 then
+                        hasSnapped = true
+                    elseif dist <= (PICKUP_CONFIG.MaxReachDistance or 35) then
+                        if applyReachAssist(target.Position) then
+                            hasSnapped = true
+                        end
+                    end
+                end
+                executePickupSpam(target)
+            end
+            if isHoldingEgg() or weAreCarrying then
+                break
+            end
+            task.wait(0.035)
+        end
+    end)
+end
+
+-- Key Listener: Press [E] for Instant Zero-Hold Pickup Spam & WASD auto-walk cancel
+addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if UserInputService:GetFocusedTextBox() ~= nil then return end
+
+    if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.A or
+       input.KeyCode == Enum.KeyCode.S or input.KeyCode == Enum.KeyCode.D or
+       input.KeyCode == Enum.KeyCode.Space then
+        if activeWalkTarget then
+            stopWalking()
+        end
+    end
+
+    if not (PICKUP_CONFIG and PICKUP_CONFIG.Enabled) then return end
+    if input.KeyCode == Enum.KeyCode.E then
+        startAutoPickupSpam()
+    end
+end))
 
 local function requestListUpdate()
     listDirty = true
@@ -1502,21 +2330,52 @@ local function getOrCreateCard(idx)
         }
 
         addConnection(tpBtn.MouseButton1Click:Connect(function()
-            if item.data and item.data.Position then
-                pcall(function()
-                    local ch = LocalPlayer and LocalPlayer.Character
-                    local root = ch and ch:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        root.CFrame = CFrame.new(item.data.Position + Vector3.new(0, 3, 0))
-                    end
-                end)
+            stopWalking()
+            local eggData = item.data
+            if not eggData then return end
+            local targetPos = eggData.Position or getEggPosition(eggData.Record, eggData.Uid)
+            if not targetPos then return end
+            if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
+            if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
+                targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
             end
+            if typeof(targetPos) ~= "Vector3" then return end
+            pcall(function()
+                local ch = LocalPlayer and LocalPlayer.Character
+                local root = ch and ch:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+                end
+            end)
         end))
 
         addConnection(getBtn.MouseButton1Click:Connect(function()
-            if item.data then
-                print(string.format("[EggGoTo v11] Get clicked for: %s (Uid: %s)", tostring(item.data.DisplayName), tostring(item.data.Uid)))
+            local eggData = item.data
+            if not eggData then return end
+            if weAreCarrying or isHoldingEgg() then
+                print("[EggGoTo v11] Already carrying an egg! Deliver or drop it first.")
+                return
             end
+            local targetPos = eggData.Position or getEggPosition(eggData.Record, eggData.Uid)
+            if not targetPos then
+                warn("[EggGoTo v11] Target position could not be resolved for", eggData.DisplayName, eggData.Uid)
+                return
+            end
+            if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
+            if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
+                targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
+            end
+            if typeof(targetPos) ~= "Vector3" then return end
+
+            walkToTarget(targetPos, 3.5, function()
+                executePickupSpam({
+                    Uid = eggData.Uid,
+                    Position = targetPos,
+                    Name = eggData.DisplayName
+                })
+                startAutoPickupSpam()
+            end, eggData.Uid)
         end))
 
         cardPool[idx] = item
@@ -1852,6 +2711,17 @@ local function startPushMonitor()
             if u == "" then return end
 
             local state = payload.State
+            local myUidStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
+            if payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr and state == "Carried" then
+                weAreCarrying = true
+                carryUid = u
+                updateActivityStatus()
+            elseif (state == "Claimed" or state == "Dropped") and carryUid == u then
+                weAreCarrying = false
+                carryUid = nil
+                updateActivityStatus()
+            end
+
             if state == "Claimed" then
                 eggCacheByUid[u] = nil
             elseif eggCacheByUid[u] then
@@ -1894,6 +2764,11 @@ local function startPushMonitor()
         addConnection(evGone.OnClientEvent:Connect(function(payload)
             local u = typeof(payload) == "table" and tostring(payload.Uid or "") or tostring(payload or "")
             if u ~= "" then
+                if carryUid == u then
+                    weAreCarrying = false
+                    carryUid = nil
+                    updateActivityStatus()
+                end
                 eggCacheByUid[u] = nil
                 requestListUpdate()
             end
@@ -1905,6 +2780,7 @@ end
 task.spawn(function()
     while not _G.EggGoToUI_Stop do
         task.wait(0.3)
+        pcall(updateActivityStatus)
         if listDirty then
             listDirty = false
             pcall(renderFarmableEggs)
@@ -1932,13 +2808,28 @@ end)
 local function switchTab(tabName)
     if tabName == "Eggs" then
         tabEggs.Visible = true
+        tabUtility.Visible = false
         tabBtnEggs.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
         tabBtnEggs.TextColor3 = Color3.new(1, 1, 1)
+        tabBtnUtility.BackgroundColor3 = Color3.fromRGB(35, 42, 60)
+        tabBtnUtility.TextColor3 = Color3.fromRGB(150, 170, 200)
+        requestListUpdate()
+    elseif tabName == "Utility" then
+        tabEggs.Visible = false
+        tabUtility.Visible = true
+        tabBtnEggs.BackgroundColor3 = Color3.fromRGB(35, 42, 60)
+        tabBtnEggs.TextColor3 = Color3.fromRGB(150, 170, 200)
+        tabBtnUtility.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
+        tabBtnUtility.TextColor3 = Color3.new(1, 1, 1)
     end
 end
 
 addConnection(tabBtnEggs.MouseButton1Click:Connect(function()
     switchTab("Eggs")
+end))
+
+addConnection(tabBtnUtility.MouseButton1Click:Connect(function()
+    switchTab("Utility")
 end))
 
 -- Menu visibility toggle
@@ -1979,6 +2870,16 @@ end
 local function fullCleanup()
     if openDropdown then closeCurrentDropdown() end
     _G.EggGoToUI_Stop = true
+    velocityEnabled = false
+    activeWalkToken = (activeWalkToken or 0) + 1
+    pcall(function()
+        local ch = LocalPlayer and LocalPlayer.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:Move(Vector3.zero, false)
+            if savedWalkSpeed then hum.WalkSpeed = savedWalkSpeed end
+        end
+    end)
     disconnectAll()
 
     if screenGui and screenGui.Parent then
