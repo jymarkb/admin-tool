@@ -803,6 +803,8 @@ local startAutoPickupSpam
 local autoReturnActive = false
 local autoReturnTargetUid = nil
 local returnTripInProgress = false
+local halloweenModeEnabled = true
+local hwToggleBtn = nil
 
 -- Fast Pickup Configuration & State
 local PICKUP_CONFIG = {
@@ -2060,6 +2062,9 @@ end
 -- ============================================================================
 
 local function isHalloweenWorld()
+    if halloweenModeEnabled ~= nil then
+        return halloweenModeEnabled
+    end
     local inHw = false
     pcall(function()
         if LocalPlayer and LocalPlayer:GetAttribute("InHalloweenDimension") == true then
@@ -2069,7 +2074,7 @@ local function isHalloweenWorld()
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if root and root.Position.X < -3000 then
                 inHw = true
-            elseif Workspace:FindFirstChild("HalloweenDimension") ~= nil and not Workspace:FindFirstChild("AreaEggSlotsClient") then
+            elseif Workspace:FindFirstChild("HalloweenDimension") ~= nil then
                 inHw = true
             end
         end
@@ -2137,8 +2142,9 @@ local function isHoldingEgg()
             end
             if egg and egg.Parent then
                 local canPick = egg:GetAttribute("HalloweenEggCanPickUp")
-                -- Critical: An egg with HalloweenEggCanPickUp == true is ON THE GROUND, not held!
-                if canPick ~= true then
+                -- Critical: ONLY when canPick == false has the server confirmed carrying!
+                -- If canPick is true or nil, the egg is sitting on the ground or holder!
+                if canPick == false then
                     local hrp = char:FindFirstChild("HumanoidRootPart")
                     local p = egg:GetPivot().Position
                     if hrp and (Vector3.new(p.X - hrp.Position.X, 0, p.Z - hrp.Position.Z)).Magnitude <= 6.5 then
@@ -2936,24 +2942,37 @@ local function carryEgg(uid, burstCount)
     local rf = getCarryRemote()
 
     local inHw = isHalloweenWorld()
-    local isHwEgg = inHw
-    if not isHwEgg then
+    if not inHw then
         local hw = Workspace:FindFirstChild("HalloweenDimension")
         local we = hw and hw:FindFirstChild("WorldEggs")
         if we then
             if we:FindFirstChild(uid) then
-                isHwEgg = true
+                inHw = true
             else
                 for _, ch in ipairs(we:GetChildren()) do
                     if ch:GetAttribute("HalloweenEggUid") == uid or ch.Name == uid then
-                        isHwEgg = true; break
+                        inHw = true; break
                     end
+                end
+            end
+        end
+        if not inHw and Workspace:FindFirstChild("HalloweenEggHolders") then
+            for _, ch in ipairs(Workspace.HalloweenEggHolders:GetChildren()) do
+                if ch:GetAttribute("HalloweenEggUid") == uid or ch.Name == uid then
+                    inHw = true; break
+                end
+            end
+        end
+        if not inHw and Workspace:FindFirstChild("Halloween Eggs PT2") then
+            for _, ch in ipairs(Workspace["Halloween Eggs PT2"]:GetChildren()) do
+                if ch:GetAttribute("HalloweenEggUid") == uid or ch.Name == uid then
+                    inHw = true; break
                 end
             end
         end
     end
 
-    if isHwEgg and hwRf then
+    if inHw and hwRf then
         task.spawn(function()
             local ok, res = pcall(function() return hwRf:InvokeServer(uid) end)
             if ok and res ~= false then
@@ -2993,7 +3012,6 @@ end
 
 local function isCarryPrompt(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return false end
-    if prompt.Enabled == false then return false end
     local name = prompt.Name:lower()
     local action = prompt.ActionText:lower()
     local obj = (prompt.ObjectText or ""):lower()
@@ -3045,13 +3063,6 @@ end
 local function getSmartCarryPrompt(preferHalloween)
     local sp = Workspace:FindFirstChild("SmartPromptPart")
     if not sp then return nil end
-    pcall(function()
-        local char = LocalPlayer and LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp and sp:IsA("BasePart") then
-            sp.CFrame = hrp.CFrame
-        end
-    end)
     return getValidCarryPrompt(sp, preferHalloween)
 end
 
@@ -3116,8 +3127,63 @@ local function getBestFocusedTarget()
         return score
     end
 
-    -- 1. Scan from eggCacheByUid
-    if eggCacheByUid then
+    local inHw = isHalloweenWorld()
+
+    local function scanHwEggSources()
+        local hwSources = {}
+        local hw = Workspace:FindFirstChild("HalloweenDimension")
+        if hw and hw:FindFirstChild("WorldEggs") then table.insert(hwSources, hw.WorldEggs) end
+        local hwHolders = Workspace:FindFirstChild("HalloweenEggHolders")
+        if hwHolders then table.insert(hwSources, hwHolders) end
+        local hwPt2 = Workspace:FindFirstChild("Halloween Eggs PT2")
+        if hwPt2 then table.insert(hwSources, hwPt2) end
+
+        for _, folder in ipairs(hwSources) do
+            for _, ch in ipairs(folder:GetChildren()) do
+                local canPick = ch:GetAttribute("HalloweenEggCanPickUp")
+                if canPick ~= false then
+                    local pos = ch:IsA("BasePart") and ch.Position
+                        or (ch:IsA("Model") and (ch.PrimaryPart and ch.PrimaryPart.Position or ch:GetPivot().Position))
+                    if not pos then
+                        local hb = ch:FindFirstChild("Hitbox", true)
+                        if hb and hb:IsA("BasePart") then pos = hb.Position end
+                    end
+                    if pos then
+                        local dist = (pos - charPos).Magnitude
+                        if dist <= maxDist then
+                            local score = scoreTarget(pos, dist)
+                            local uid = ch:GetAttribute("HalloweenEggUid") or ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
+                            if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
+                            if not uid and ch:FindFirstChild("Egg") then
+                                local inner = ch.Egg
+                                uid = inner:GetAttribute("HalloweenEggUid") or inner:GetAttribute("Uid") or inner:GetAttribute("EggUid")
+                            end
+                            uid = uid or ch.Name
+                            if uid and score > highestScore then
+                                highestScore = score
+                                bestTarget = {
+                                    Type = "HalloweenEgg",
+                                    Uid = uid,
+                                    Name = ch:GetAttribute("PreparedSourceName") or ch.Name,
+                                    Position = pos,
+                                    Distance = dist,
+                                    Prompt = getValidCarryPrompt(ch, true) or getSmartCarryPrompt(true)
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- If in Halloween mode/world, prioritize Halloween eggs first
+    if inHw then
+        scanHwEggSources()
+    end
+
+    -- 1. Scan from eggCacheByUid (if not in Halloween or no target yet)
+    if not bestTarget and eggCacheByUid then
         for uid, r in pairs(eggCacheByUid) do
             local isCarriedByOther = r.CarrierUserId and tostring(r.CarrierUserId) ~= tostring(LocalPlayer and LocalPlayer.UserId)
             if r.State ~= "Claimed" and not isCarriedByOther then
@@ -3146,7 +3212,7 @@ local function getBestFocusedTarget()
 
     -- 2. Scan AreaEggSlotsClient directly
     local slotsFolder = Workspace:FindFirstChild("AreaEggSlotsClient")
-    if slotsFolder then
+    if not bestTarget and slotsFolder then
         for _, ch in ipairs(slotsFolder:GetChildren()) do
             local pos = ch:IsA("BasePart") and ch.Position or (ch:IsA("Model") and ch:GetPivot().Position)
             if pos then
@@ -3182,7 +3248,7 @@ local function getBestFocusedTarget()
 
     -- 3. Scan Workspace.Eggs
     local eggsFolder = Workspace:FindFirstChild("Eggs")
-    if eggsFolder then
+    if not bestTarget and eggsFolder then
         for _, ch in ipairs(eggsFolder:GetChildren()) do
             local pos = ch:IsA("BasePart") and ch.Position or (ch:IsA("Model") and ch:GetPivot().Position)
             if pos then
@@ -3207,51 +3273,9 @@ local function getBestFocusedTarget()
         end
     end
 
-    -- 4. Scan Halloween Egg sources (HalloweenDimension.WorldEggs, HalloweenEggHolders, Halloween Eggs PT2)
-    local hwSources = {}
-    local hw = Workspace:FindFirstChild("HalloweenDimension")
-    if hw and hw:FindFirstChild("WorldEggs") then table.insert(hwSources, hw.WorldEggs) end
-    local hwHolders = Workspace:FindFirstChild("HalloweenEggHolders")
-    if hwHolders then table.insert(hwSources, hwHolders) end
-    local hwPt2 = Workspace:FindFirstChild("Halloween Eggs PT2")
-    if hwPt2 then table.insert(hwSources, hwPt2) end
-
-    for _, folder in ipairs(hwSources) do
-        for _, ch in ipairs(folder:GetChildren()) do
-            local canPick = ch:GetAttribute("HalloweenEggCanPickUp")
-            if canPick ~= false then
-                local pos = ch:IsA("BasePart") and ch.Position
-                    or (ch:IsA("Model") and (ch.PrimaryPart and ch.PrimaryPart.Position or ch:GetPivot().Position))
-                if not pos then
-                    local hb = ch:FindFirstChild("Hitbox", true)
-                    if hb and hb:IsA("BasePart") then pos = hb.Position end
-                end
-                if pos then
-                    local dist = (pos - charPos).Magnitude
-                    if dist <= maxDist then
-                        local score = scoreTarget(pos, dist)
-                        local uid = ch:GetAttribute("HalloweenEggUid") or ch:GetAttribute("Uid") or ch:GetAttribute("EggUid")
-                        if not uid and #ch.Name == 32 and ch.Name:match("^%x+$") then uid = ch.Name end
-                        if not uid and ch:FindFirstChild("Egg") then
-                            local inner = ch.Egg
-                            uid = inner:GetAttribute("HalloweenEggUid") or inner:GetAttribute("Uid") or inner:GetAttribute("EggUid")
-                        end
-                        uid = uid or ch.Name
-                        if uid and score > highestScore then
-                            highestScore = score
-                            bestTarget = {
-                                Type = "HalloweenEgg",
-                                Uid = uid,
-                                Name = ch:GetAttribute("PreparedSourceName") or ch.Name,
-                                Position = pos,
-                                Distance = dist,
-                                Prompt = getValidCarryPrompt(ch, true) or getSmartCarryPrompt(true)
-                            }
-                        end
-                    end
-                end
-            end
-        end
+    -- 4. Scan Halloween Egg sources (fallback if not already scanned)
+    if not bestTarget and not inHw then
+        scanHwEggSources()
     end
 
     -- Associate ProximityPrompt if not already found
@@ -3276,6 +3300,7 @@ local function getBestFocusedTarget()
                 bestTarget.Prompt = getValidCarryPrompt(eggInst, isHwTarget)
             end
         end
+        local hw = Workspace:FindFirstChild("HalloweenDimension")
         if not bestTarget.Prompt and hw and hw:FindFirstChild("WorldEggs") then
             local hwEgg = hw.WorldEggs:FindFirstChild(bestTarget.Uid)
             if not hwEgg then
@@ -3289,9 +3314,11 @@ local function getBestFocusedTarget()
                 bestTarget.Prompt = getValidCarryPrompt(hwEgg, true)
             end
         end
+        local hwHolders = Workspace:FindFirstChild("HalloweenEggHolders")
         if not bestTarget.Prompt and hwHolders then
             bestTarget.Prompt = getValidCarryPrompt(hwHolders, true)
         end
+        local hwPt2 = Workspace:FindFirstChild("Halloween Eggs PT2")
         if not bestTarget.Prompt and hwPt2 then
             bestTarget.Prompt = getValidCarryPrompt(hwPt2, true)
         end
@@ -3305,9 +3332,6 @@ end
 
 executePickupSpam = function(target)
     if not target then return end
-    if target.Uid then
-        carryUid = target.Uid
-    end
 
     local isHw = isHalloweenWorld() or (target.Type == "HalloweenEgg")
     if not isHw and target.Uid then
@@ -3321,6 +3345,20 @@ executePickupSpam = function(target)
                     if ch:GetAttribute("HalloweenEggUid") == target.Uid or ch.Name == target.Uid then
                         isHw = true; break
                     end
+                end
+            end
+        end
+        if not isHw and Workspace:FindFirstChild("HalloweenEggHolders") then
+            for _, ch in ipairs(Workspace.HalloweenEggHolders:GetChildren()) do
+                if ch:GetAttribute("HalloweenEggUid") == target.Uid or ch.Name == target.Uid then
+                    isHw = true; break
+                end
+            end
+        end
+        if not isHw and Workspace:FindFirstChild("Halloween Eggs PT2") then
+            for _, ch in ipairs(Workspace["Halloween Eggs PT2"]:GetChildren()) do
+                if ch:GetAttribute("HalloweenEggUid") == target.Uid or ch.Name == target.Uid then
+                    isHw = true; break
                 end
             end
         end
@@ -3726,7 +3764,7 @@ do
 
     local hwStatusLabel = Instance.new("TextLabel")
     hwStatusLabel.Name = "StatusLabel"
-    hwStatusLabel.Size = UDim2.new(1, -76, 1, 0)
+    hwStatusLabel.Size = UDim2.new(1, -156, 1, 0)
     hwStatusLabel.Position = UDim2.new(0, 8, 0, 0)
     hwStatusLabel.BackgroundTransparency = 1
     hwStatusLabel.Text = "Status: Detecting..."
@@ -3736,6 +3774,26 @@ do
     hwStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
     hwStatusLabel.TextTruncate = Enum.TextTruncate.AtEnd
     hwStatusLabel.Parent = hwStatusBar
+
+    hwToggleBtn = Instance.new("TextButton")
+    hwToggleBtn.Name = "HwAutoPickBtn"
+    hwToggleBtn.Size = UDim2.new(0, 78, 0, 18)
+    hwToggleBtn.Position = UDim2.new(1, -150, 0.5, -9)
+    hwToggleBtn.BackgroundColor3 = halloweenModeEnabled and Color3.fromRGB(40, 145, 60) or Color3.fromRGB(75, 75, 95)
+    hwToggleBtn.Text = halloweenModeEnabled and "HW Auto: ON" or "HW Auto: OFF"
+    hwToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    hwToggleBtn.TextSize = 10
+    hwToggleBtn.Font = Enum.Font.GothamBold
+    hwToggleBtn.Parent = hwStatusBar
+    Instance.new("UICorner", hwToggleBtn).CornerRadius = UDim.new(0, 4)
+
+    addConnection(hwToggleBtn.MouseButton1Click:Connect(function()
+        halloweenModeEnabled = not halloweenModeEnabled
+        hwToggleBtn.Text = halloweenModeEnabled and "HW Auto: ON" or "HW Auto: OFF"
+        hwToggleBtn.BackgroundColor3 = halloweenModeEnabled and Color3.fromRGB(40, 145, 60) or Color3.fromRGB(75, 75, 95)
+        updateActivityStatus()
+        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+    end))
 
     local hwPortalBtn = Instance.new("TextButton")
     hwPortalBtn.Name = "PortalBtn"
@@ -4147,10 +4205,16 @@ do
         end)
 
         pcall(function()
+            local hwSources = {}
             local hw = Workspace:FindFirstChild("HalloweenDimension")
-            local eggsFolder = hw and hw:FindFirstChild("WorldEggs")
-            if eggsFolder then
-                for _, egg in ipairs(eggsFolder:GetChildren()) do
+            if hw and hw:FindFirstChild("WorldEggs") then table.insert(hwSources, { Folder = hw.WorldEggs, DefaultZone = "WorldEggs" }) end
+            local hwHolders = Workspace:FindFirstChild("HalloweenEggHolders")
+            if hwHolders then table.insert(hwSources, { Folder = hwHolders, DefaultZone = "Holders" }) end
+            local hwPt2 = Workspace:FindFirstChild("Halloween Eggs PT2")
+            if hwPt2 then table.insert(hwSources, { Folder = hwPt2, DefaultZone = "PT2" }) end
+
+            for _, src in ipairs(hwSources) do
+                for _, egg in ipairs(src.Folder:GetChildren()) do
                     local p = getHwEggPos(egg)
                     if p then
                         local d = charPos and (p - charPos).Magnitude or 99999
@@ -4159,7 +4223,7 @@ do
                         local zoneName = zone and string.format("Zone %s", tostring(zone))
                             or egg:GetAttribute("AreaId")
                             or egg:GetAttribute("Biome")
-                            or "Halloween"
+                            or src.DefaultZone
                         local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
                         local rarName = (info and info.Rarity) or egg:GetAttribute("Rarity") or "Rare"
                         local subLabel = string.format("%s • %s", zoneName, rarName)
@@ -4171,15 +4235,27 @@ do
                             Distance  = d,
                             SubLabel  = subLabel,
                             Color     = getHwEggColor(egg, eggName),
+                            Zone      = tonumber(zone) or (src.DefaultZone == "Holders" and 90 or 99),
+                            Rank      = (info and info.Rank) or (RARITY_RANK[rarName] or 1),
+                            Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
                         })
                     end
                 end
             end
         end)
 
-        -- Sort closest first
+        -- Do NOT sort by character proximity! Sort stably by Zone, then Highest Rarity Rank, then Name:
         table.sort(eggList, function(a, b)
-            return a.Distance < b.Distance
+            if a.Zone ~= b.Zone then
+                return a.Zone < b.Zone
+            end
+            if a.Rank ~= b.Rank then
+                return a.Rank > b.Rank
+            end
+            if a.Name ~= b.Name then
+                return a.Name < b.Name
+            end
+            return tostring(a.Uid) < tostring(b.Uid)
         end)
 
         local count = #eggList

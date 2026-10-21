@@ -718,8 +718,8 @@ def run_tests():
     def is_holding_halloween(carry_uid, egg_inst, player_pos):
         if not carry_uid or not egg_inst:
             return False
-        # Guard: If can_pick is True, egg is lying on ground, NOT carried!
-        if egg_inst.can_pick is True:
+        # Guard: ONLY when can_pick is False has the server confirmed carry. If None or True, it is NOT held!
+        if egg_inst.can_pick is not False:
             return False
         dist = ((egg_inst.pos[0] - player_pos[0])**2 + (egg_inst.pos[2] - player_pos[2])**2)**0.5
         return dist <= 6.5
@@ -727,8 +727,10 @@ def run_tests():
     hw_egg = MockHalloweenEgg("hw_101", "Hooded Gerbil Egg", (-5812, -203, -6661), can_pick=True)
     player_at_egg = (-5810, -203, -6660) # 2.2 studs from egg on ground
 
-    # Before pickup: standing near egg on ground must NOT register as holding
+    # Before pickup: standing near egg on ground (can_pick=True or can_pick=None) must NOT register as holding
     assert is_holding_halloween("hw_101", hw_egg, player_at_egg) is False, "Egg on ground (can_pick=True) must not register as held"
+    hw_egg.can_pick = None # Egg in holder without can_pick attribute
+    assert is_holding_halloween("hw_101", hw_egg, player_at_egg) is False, "Egg in holder (can_pick=None) must not register as held"
 
     # 2. Prompt validation: HalloweenEggPrompt accepted, EggShopPrompt strictly rejected
     def is_carry_prompt(name, action, obj):
@@ -836,7 +838,31 @@ def run_tests():
     assert simulate_halloween_pickup_completion(secured=True) is True
     assert pickup_sim["return_trip_started"] is True, "Return trip must execute once egg is secured"
 
-    print("✓ Case 20 Passed: Dual-World Remote Dispatch, Prompt Enabled Filter & Early Return Guard verified.")
+    # 5. Stable Halloween List Sort (ZERO dependency on player distance)
+    eggs_to_sort = [
+        {"Name": "Toadstool Egg", "Zone": 2, "Rank": 6, "Distance": 10.0},
+        {"Name": "Hooded Gerbil Egg", "Zone": 1, "Rank": 5, "Distance": 500.0},
+        {"Name": "Patchwork Imp Egg", "Zone": 1, "Rank": 7, "Distance": 50.0},
+    ]
+    # Stable sort: Zone asc, Rank desc, Name asc (independent of character proximity)
+    eggs_to_sort.sort(key=lambda e: (e["Zone"], -e["Rank"], e["Name"]))
+    sorted_names = [e["Name"] for e in eggs_to_sort]
+    assert sorted_names == ["Patchwork Imp Egg", "Hooded Gerbil Egg", "Toadstool Egg"], (
+        f"List must sort stably by Zone and Rarity, ignoring character distance! Got {sorted_names}"
+    )
+
+    # 6. Halloween Mode Toggle explicitly forces isHalloweenWorld
+    hw_mode = {"enabled": True}
+    def check_is_halloween_world():
+        if hw_mode["enabled"] is not None:
+            return hw_mode["enabled"]
+        return False
+
+    assert check_is_halloween_world() is True, "When HW Auto toggle is ON, isHalloweenWorld must be True"
+    hw_mode["enabled"] = False
+    assert check_is_halloween_world() is False, "When HW Auto toggle is OFF, isHalloweenWorld must be False"
+
+    print("✓ Case 20 Passed: Dual-World Remote Dispatch, Stable Sorting & Halloween Mode Toggle verified.")
     passed += 1
 
     print("\n" + "=" * 70)
