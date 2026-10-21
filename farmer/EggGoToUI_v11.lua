@@ -788,6 +788,7 @@ tabHalloween.Parent = contentContainer
 -- Forward declarations
 local renderFarmableEggs
 local renderHalloweenEggs
+local getHwEggName
 local requestListUpdate
 local updateActivityStatus
 local activityStatusLabel
@@ -803,8 +804,10 @@ local startAutoPickupSpam
 local autoReturnActive = false
 local autoReturnTargetUid = nil
 local returnTripInProgress = false
-local halloweenModeEnabled = true
+local halloweenModeEnabled = false
 local hwToggleBtn = nil
+local selectedHwRarities = { ["All"] = true }
+local hwShowNewUncataloged = true
 
 -- Fast Pickup Configuration & State
 local PICKUP_CONFIG = {
@@ -1131,6 +1134,18 @@ do
         toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
         toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
         toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+        local char = LocalPlayer and LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            pcall(function()
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, not RECOVERY_CONFIG.Enabled)
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, not RECOVERY_CONFIG.Enabled)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, not RECOVERY_CONFIG.Enabled)
+            end)
+        end
+        if RECOVERY_CONFIG.Enabled and executeInstantRecovery then
+            executeInstantRecovery("ToggleON")
+        end
     end))
 end
 
@@ -2062,8 +2077,8 @@ end
 -- ============================================================================
 
 local function isHalloweenWorld()
-    if halloweenModeEnabled ~= nil then
-        return halloweenModeEnabled
+    if halloweenModeEnabled then
+        return true
     end
     local inHw = false
     pcall(function()
@@ -2072,9 +2087,7 @@ local function isHalloweenWorld()
         else
             local char = LocalPlayer and LocalPlayer.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
-            if root and root.Position.X < -3000 then
-                inHw = true
-            elseif Workspace:FindFirstChild("HalloweenDimension") ~= nil then
+            if root and root.Position.X < -3000 and not Workspace:FindFirstChild("AreaEggSlotsClient") then
                 inHw = true
             end
         end
@@ -2121,20 +2134,6 @@ local function isHoldingEgg()
             local egg = we and we:FindFirstChild(carryUid)
             if not egg and we then
                 for _, ch in ipairs(we:GetChildren()) do
-                    if ch:GetAttribute("HalloweenEggUid") == carryUid or ch.Name == carryUid then
-                        egg = ch; break
-                    end
-                end
-            end
-            if not egg and Workspace:FindFirstChild("HalloweenEggHolders") then
-                for _, ch in ipairs(Workspace.HalloweenEggHolders:GetChildren()) do
-                    if ch:GetAttribute("HalloweenEggUid") == carryUid or ch.Name == carryUid then
-                        egg = ch; break
-                    end
-                end
-            end
-            if not egg and Workspace:FindFirstChild("Halloween Eggs PT2") then
-                for _, ch in ipairs(Workspace["Halloween Eggs PT2"]:GetChildren()) do
                     if ch:GetAttribute("HalloweenEggUid") == carryUid or ch.Name == carryUid then
                         egg = ch; break
                     end
@@ -2753,6 +2752,7 @@ local function clearRagdollAttributes()
             LocalPlayer:SetAttribute("RagdollTime", 0)
             LocalPlayer:SetAttribute("IsRagdoll", false)
             LocalPlayer:SetAttribute("Ragdolled", false)
+            LocalPlayer:SetAttribute("Ragdoll", false)
         end
         local char = LocalPlayer and LocalPlayer.Character
         if char then
@@ -2760,75 +2760,80 @@ local function clearRagdollAttributes()
             char:SetAttribute("RagdollTime", 0)
             char:SetAttribute("IsRagdoll", false)
             char:SetAttribute("Ragdolled", false)
+            char:SetAttribute("Ragdoll", false)
         end
     end)
 end
 
 local isRecovering = false
-local lastRecoveryTime = 0
 
 executeInstantRecovery = function(reason)
     if not (RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled) then return end
-    local now = os.clock()
-    if isRecovering or (now - lastRecoveryTime < 0.05) then return end
+    if isRecovering then return end
     isRecovering = true
-    lastRecoveryTime = now
-
-    local char = LocalPlayer and LocalPlayer.Character
-    if not char then
-        isRecovering = false
-        return
-    end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not (hum and hrp and hum.Health > 0) then
-        isRecovering = false
-        return
-    end
-
-    clearRagdollAttributes()
-
-    if #recoveryJoints > 0 then
-        for _, motor in ipairs(recoveryJoints) do
-            if motor and motor.Parent and not motor.Enabled then
-                motor.Enabled = true
-            end
-        end
-    end
-
-    hum.PlatformStand = false
-    hum.Sit = false
-    hum.AutoRotate = true
 
     pcall(function()
-        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
-        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
-        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-        hum:ChangeState(Enum.HumanoidStateType.Running)
-    end)
+        local char = LocalPlayer and LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not (hum and hrp and hum.Health > 0) then return end
 
-    local curTargetSpeed = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 16)
-    if hum.WalkSpeed < 16.0 then
-        hum.WalkSpeed = curTargetSpeed
-    end
+        clearRagdollAttributes()
 
-    enablePlayerControls()
-
-    -- Anti-Fling Braking & Fast Grounding:
-    -- Cancels horizontal fling so character stays right at the bump location beside the egg,
-    -- and pulls downward fast if launched into the air.
-    if RECOVERY_CONFIG.AntiFling and hrp then
-        local curVel = hrp.AssemblyLinearVelocity
-        local fastY = curVel.Y
-        if fastY > -30 then
-            fastY = -45
+        if #recoveryJoints > 0 then
+            for _, motor in ipairs(recoveryJoints) do
+                if motor and motor.Parent and not motor.Enabled then
+                    motor.Enabled = true
+                end
+            end
         end
-        hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end
+        for _, m in ipairs(char:GetDescendants()) do
+            if m:IsA("Motor6D") and not m.Enabled then
+                pcall(function() m.Enabled = true end)
+            end
+        end
+
+        hum.PlatformStand = false
+        hum.Sit = false
+        hum.AutoRotate = true
+
+        pcall(function()
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+
+        local curTargetSpeed = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 16)
+        if hum.WalkSpeed < 16.0 then
+            hum.WalkSpeed = curTargetSpeed
+        end
+
+        enablePlayerControls()
+
+        -- Anti-Fling Braking & Fast Grounding:
+        -- Cancels horizontal fling so character stays right at the bump location beside the egg,
+        -- and pulls downward fast if launched into the air.
+        if RECOVERY_CONFIG.AntiFling and hrp then
+            local curVel = hrp.AssemblyLinearVelocity
+            local isAir = (hum.FloorMaterial == Enum.Material.Air)
+            local vy = curVel.Y
+            if isAir and vy > -30 then
+                vy = -45
+            end
+            local hSpeed = math.sqrt(curVel.X * curVel.X + curVel.Z * curVel.Z)
+            if hSpeed > 100 or hum.MoveDirection.Magnitude <= 0.05 then
+                hrp.AssemblyLinearVelocity = Vector3.new(0, vy, 0)
+                hrp.AssemblyAngularVelocity = Vector3.zero
+            else
+                hrp.AssemblyLinearVelocity = Vector3.new(curVel.X, vy, curVel.Z)
+            end
+        end
+    end)
 
     isRecovering = false
 end
@@ -2844,6 +2849,18 @@ bindRecoveryCharacter = function(char)
     local hum = char:WaitForChild("Humanoid", 5)
     local hrp = char:WaitForChild("HumanoidRootPart", 5)
     if not (hum and hrp) then return end
+
+    if hum.WalkSpeed >= 16.0 and not velocityEnabled then
+        savedWalkSpeed = hum.WalkSpeed
+    end
+
+    if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
+        pcall(function()
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+        end)
+    end
 
     local function registerMotor(obj)
         if obj:IsA("Motor6D") then
@@ -2893,27 +2910,67 @@ bindRecoveryCharacter = function(char)
     end)
     table.insert(recoveryConnections, sitConn)
 
-    if LocalPlayer then
-        local attrConn1 = LocalPlayer:GetAttributeChangedSignal("RagdollEndTime"):Connect(function()
+    local speedConn = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and hum.WalkSpeed < 16.0 then
+            local curTargetSpeed = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 16)
+            hum.WalkSpeed = curTargetSpeed
+            enablePlayerControls()
+        end
+    end)
+    table.insert(recoveryConnections, speedConn)
+
+    local function hookAttr(inst, attrName)
+        if not inst then return end
+        local c = inst:GetAttributeChangedSignal(attrName):Connect(function()
             if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
-                local rEnd = LocalPlayer:GetAttribute("RagdollEndTime")
-                if typeof(rEnd) == "number" and rEnd > 0 then
-                    executeInstantRecovery("RagdollTimer")
+                local v = inst:GetAttribute(attrName)
+                if (typeof(v) == "number" and v > 0) or v == true then
+                    executeInstantRecovery(attrName)
                 end
             end
         end)
-        table.insert(recoveryConnections, attrConn1)
+        table.insert(recoveryConnections, c)
     end
 
-    local attrConn2 = char:GetAttributeChangedSignal("RagdollEndTime"):Connect(function()
-        if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
-            local rEnd = char:GetAttribute("RagdollEndTime")
-            if typeof(rEnd) == "number" and rEnd > 0 then
-                executeInstantRecovery("CharRagdollTimer")
+    hookAttr(LocalPlayer, "RagdollEndTime")
+    hookAttr(LocalPlayer, "IsRagdoll")
+    hookAttr(LocalPlayer, "Ragdolled")
+    hookAttr(LocalPlayer, "RagdollTime")
+    hookAttr(char, "RagdollEndTime")
+    hookAttr(char, "IsRagdoll")
+    hookAttr(char, "Ragdolled")
+    hookAttr(char, "RagdollTime")
+
+    -- Heartbeat Enforcement Safety Net (0ms per-frame guarantee)
+    local hbRecovery = RunService.Heartbeat:Connect(function()
+        if not (RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled) then return end
+        if not (hum and hum.Parent and hum.Health > 0) then return end
+
+        local s = hum:GetState()
+        local isRagState = (s == Enum.HumanoidStateType.Ragdoll
+            or s == Enum.HumanoidStateType.FallingDown
+            or s == Enum.HumanoidStateType.Physics
+            or hum.PlatformStand
+            or hum.Sit)
+
+        local rEnd = LocalPlayer and LocalPlayer:GetAttribute("RagdollEndTime")
+        local isRagAttr = (typeof(rEnd) == "number" and rEnd > 0)
+            or (LocalPlayer and (LocalPlayer:GetAttribute("IsRagdoll") == true or LocalPlayer:GetAttribute("Ragdolled") == true))
+            or (char and (char:GetAttribute("IsRagdoll") == true or char:GetAttribute("Ragdolled") == true or (typeof(char:GetAttribute("RagdollEndTime")) == "number" and char:GetAttribute("RagdollEndTime") > 0)))
+
+        local disabledMotor = false
+        for _, motor in ipairs(recoveryJoints) do
+            if motor and motor.Parent and not motor.Enabled then
+                disabledMotor = true
+                break
             end
         end
+
+        if isRagState or isRagAttr or disabledMotor or hum.WalkSpeed < 16.0 then
+            executeInstantRecovery("HeartbeatEnforce")
+        end
     end)
-    table.insert(recoveryConnections, attrConn2)
+    table.insert(recoveryConnections, hbRecovery)
 end
 
 if LocalPlayer and LocalPlayer.Character then
@@ -2942,7 +2999,7 @@ local function carryEgg(uid, burstCount)
     local rf = getCarryRemote()
 
     local inHw = isHalloweenWorld()
-    if not inHw then
+    if not inHw and not (eggCacheByUid and eggCacheByUid[uid]) then
         local hw = Workspace:FindFirstChild("HalloweenDimension")
         local we = hw and hw:FindFirstChild("WorldEggs")
         if we then
@@ -2953,20 +3010,6 @@ local function carryEgg(uid, burstCount)
                     if ch:GetAttribute("HalloweenEggUid") == uid or ch.Name == uid then
                         inHw = true; break
                     end
-                end
-            end
-        end
-        if not inHw and Workspace:FindFirstChild("HalloweenEggHolders") then
-            for _, ch in ipairs(Workspace.HalloweenEggHolders:GetChildren()) do
-                if ch:GetAttribute("HalloweenEggUid") == uid or ch.Name == uid then
-                    inHw = true; break
-                end
-            end
-        end
-        if not inHw and Workspace:FindFirstChild("Halloween Eggs PT2") then
-            for _, ch in ipairs(Workspace["Halloween Eggs PT2"]:GetChildren()) do
-                if ch:GetAttribute("HalloweenEggUid") == uid or ch.Name == uid then
-                    inHw = true; break
                 end
             end
         end
@@ -3133,13 +3176,15 @@ local function getBestFocusedTarget()
         local hwSources = {}
         local hw = Workspace:FindFirstChild("HalloweenDimension")
         if hw and hw:FindFirstChild("WorldEggs") then table.insert(hwSources, hw.WorldEggs) end
-        local hwHolders = Workspace:FindFirstChild("HalloweenEggHolders")
-        if hwHolders then table.insert(hwSources, hwHolders) end
-        local hwPt2 = Workspace:FindFirstChild("Halloween Eggs PT2")
-        if hwPt2 then table.insert(hwSources, hwPt2) end
 
         for _, folder in ipairs(hwSources) do
             for _, ch in ipairs(folder:GetChildren()) do
+                if ch.Name:lower():find("holder") then
+                    continue
+                end
+                if ch.Name:lower() == "egg" and (not getHwEggName or not SPECIES_INFO[getHwEggName(ch):lower()]) then
+                    continue
+                end
                 local canPick = ch:GetAttribute("HalloweenEggCanPickUp")
                 if canPick ~= false then
                     local pos = ch:IsA("BasePart") and ch.Position
@@ -3314,14 +3359,6 @@ local function getBestFocusedTarget()
                 bestTarget.Prompt = getValidCarryPrompt(hwEgg, true)
             end
         end
-        local hwHolders = Workspace:FindFirstChild("HalloweenEggHolders")
-        if not bestTarget.Prompt and hwHolders then
-            bestTarget.Prompt = getValidCarryPrompt(hwHolders, true)
-        end
-        local hwPt2 = Workspace:FindFirstChild("Halloween Eggs PT2")
-        if not bestTarget.Prompt and hwPt2 then
-            bestTarget.Prompt = getValidCarryPrompt(hwPt2, true)
-        end
         if not bestTarget.Prompt then
             bestTarget.Prompt = getSmartCarryPrompt(isHwTarget)
         end
@@ -3334,7 +3371,7 @@ executePickupSpam = function(target)
     if not target then return end
 
     local isHw = isHalloweenWorld() or (target.Type == "HalloweenEgg")
-    if not isHw and target.Uid then
+    if not isHw and target.Uid and not (target.Type == "EggRecord" or (eggCacheByUid and eggCacheByUid[target.Uid])) then
         local hw = Workspace:FindFirstChild("HalloweenDimension")
         local we = hw and hw:FindFirstChild("WorldEggs")
         if we then
@@ -3345,20 +3382,6 @@ executePickupSpam = function(target)
                     if ch:GetAttribute("HalloweenEggUid") == target.Uid or ch.Name == target.Uid then
                         isHw = true; break
                     end
-                end
-            end
-        end
-        if not isHw and Workspace:FindFirstChild("HalloweenEggHolders") then
-            for _, ch in ipairs(Workspace.HalloweenEggHolders:GetChildren()) do
-                if ch:GetAttribute("HalloweenEggUid") == target.Uid or ch.Name == target.Uid then
-                    isHw = true; break
-                end
-            end
-        end
-        if not isHw and Workspace:FindFirstChild("Halloween Eggs PT2") then
-            for _, ch in ipairs(Workspace["Halloween Eggs PT2"]:GetChildren()) do
-                if ch:GetAttribute("HalloweenEggUid") == target.Uid or ch.Name == target.Uid then
-                    isHw = true; break
                 end
             end
         end
@@ -3390,12 +3413,6 @@ executePickupSpam = function(target)
                 end
             end)())
             if he then pr = getValidCarryPrompt(he, true) end
-        end
-        if not pr and Workspace:FindFirstChild("HalloweenEggHolders") then
-            pr = getValidCarryPrompt(Workspace.HalloweenEggHolders, true)
-        end
-        if not pr and Workspace:FindFirstChild("Halloween Eggs PT2") then
-            pr = getValidCarryPrompt(Workspace["Halloween Eggs PT2"], true)
         end
         if not pr then
             pr = getSmartCarryPrompt(isHw)
@@ -3830,11 +3847,204 @@ do
         end)
     end))
 
+    -- Row 2: Halloween Rarity Filter Bar & New/Uncataloged Toggle
+    local hwFilterFrame = Instance.new("Frame")
+    hwFilterFrame.Name = "HwFilterFrame"
+    hwFilterFrame.Size = UDim2.new(1, -16, 0, 24)
+    hwFilterFrame.Position = UDim2.new(0, 8, 0, 34)
+    hwFilterFrame.BackgroundTransparency = 1
+    hwFilterFrame.BorderSizePixel = 0
+    hwFilterFrame.ZIndex = 30
+    hwFilterFrame.Parent = tabHalloween
+
+    local hwRarityBtn = Instance.new("TextButton")
+    hwRarityBtn.Name = "HwRarityFilterBtn"
+    hwRarityBtn.Size = UDim2.new(0.66, -3, 1, 0)
+    hwRarityBtn.Position = UDim2.new(0, 0, 0, 0)
+    hwRarityBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
+    hwRarityBtn.Text = "Rarity: All ▼"
+    hwRarityBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
+    hwRarityBtn.TextSize = 10.5
+    hwRarityBtn.Font = Enum.Font.GothamBold
+    hwRarityBtn.ZIndex = 31
+    hwRarityBtn.Parent = hwFilterFrame
+    Instance.new("UICorner", hwRarityBtn).CornerRadius = UDim.new(0, 5)
+
+    local hwNewToggleBtn = Instance.new("TextButton")
+    hwNewToggleBtn.Name = "HwNewToggleBtn"
+    hwNewToggleBtn.Size = UDim2.new(0.34, 0, 1, 0)
+    hwNewToggleBtn.Position = UDim2.new(0.66, 3, 0, 0)
+    hwNewToggleBtn.BackgroundColor3 = hwShowNewUncataloged and Color3.fromRGB(40, 145, 60) or Color3.fromRGB(75, 75, 95)
+    hwNewToggleBtn.Text = hwShowNewUncataloged and "New/Uncat: ON" or "New/Uncat: OFF"
+    hwNewToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    hwNewToggleBtn.TextSize = 9.5
+    hwNewToggleBtn.Font = Enum.Font.GothamBold
+    hwNewToggleBtn.ZIndex = 31
+    hwNewToggleBtn.Parent = hwFilterFrame
+    Instance.new("UICorner", hwNewToggleBtn).CornerRadius = UDim.new(0, 5)
+
+    addConnection(hwNewToggleBtn.MouseButton1Click:Connect(function()
+        hwShowNewUncataloged = not hwShowNewUncataloged
+        hwNewToggleBtn.Text = hwShowNewUncataloged and "New/Uncat: ON" or "New/Uncat: OFF"
+        hwNewToggleBtn.BackgroundColor3 = hwShowNewUncataloged and Color3.fromRGB(40, 145, 60) or Color3.fromRGB(75, 75, 95)
+        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+    end))
+
+    -- Halloween Rarity Dropdown List
+    local hwRarityDropList = Instance.new("Frame")
+    hwRarityDropList.Name = "HwRarityDropList"
+    hwRarityDropList.Size = UDim2.new(0.66, -3, 0, 256)
+    hwRarityDropList.Position = UDim2.new(0, 0, 0, 26)
+    hwRarityDropList.BackgroundColor3 = Color3.fromRGB(24, 20, 34)
+    hwRarityDropList.BorderSizePixel = 0
+    hwRarityDropList.ZIndex = 50
+    hwRarityDropList.ClipsDescendants = true
+    hwRarityDropList.Visible = false
+    hwRarityDropList.Parent = hwFilterFrame
+    Instance.new("UICorner", hwRarityDropList).CornerRadius = UDim.new(0, 6)
+    local hwRStroke = Instance.new("UIStroke", hwRarityDropList)
+    hwRStroke.Color = Color3.fromRGB(90, 55, 120)
+    hwRStroke.Thickness = 1
+
+    local hwRarityQuickRow = Instance.new("Frame")
+    hwRarityQuickRow.Size = UDim2.new(1, -6, 0, 22)
+    hwRarityQuickRow.Position = UDim2.new(0, 3, 0, 3)
+    hwRarityQuickRow.BackgroundTransparency = 1
+    hwRarityQuickRow.ZIndex = 51
+    hwRarityQuickRow.Parent = hwRarityDropList
+
+    local hwRarityAllBtn = Instance.new("TextButton")
+    hwRarityAllBtn.Size = UDim2.new(0.5, -2, 1, 0)
+    hwRarityAllBtn.Position = UDim2.new(0, 0, 0, 0)
+    hwRarityAllBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 150)
+    hwRarityAllBtn.Text = "All"
+    hwRarityAllBtn.TextColor3 = Color3.new(1, 1, 1)
+    hwRarityAllBtn.TextSize = 11; hwRarityAllBtn.Font = Enum.Font.GothamBold
+    hwRarityAllBtn.ZIndex = 52; hwRarityAllBtn.Parent = hwRarityQuickRow
+    Instance.new("UICorner", hwRarityAllBtn).CornerRadius = UDim.new(0, 4)
+
+    local hwRarityNoneBtn = Instance.new("TextButton")
+    hwRarityNoneBtn.Size = UDim2.new(0.5, -2, 1, 0)
+    hwRarityNoneBtn.Position = UDim2.new(0.5, 2, 0, 0)
+    hwRarityNoneBtn.BackgroundColor3 = Color3.fromRGB(110, 45, 45)
+    hwRarityNoneBtn.Text = "None"
+    hwRarityNoneBtn.TextColor3 = Color3.new(1, 1, 1)
+    hwRarityNoneBtn.TextSize = 11; hwRarityNoneBtn.Font = Enum.Font.GothamBold
+    hwRarityNoneBtn.ZIndex = 52; hwRarityNoneBtn.Parent = hwRarityQuickRow
+    Instance.new("UICorner", hwRarityNoneBtn).CornerRadius = UDim.new(0, 4)
+
+    local hwRarityItemsContainer = Instance.new("Frame")
+    hwRarityItemsContainer.Size = UDim2.new(1, -6, 1, -29)
+    hwRarityItemsContainer.Position = UDim2.new(0, 3, 0, 27)
+    hwRarityItemsContainer.BackgroundTransparency = 1
+    hwRarityItemsContainer.ZIndex = 51
+    hwRarityItemsContainer.Parent = hwRarityDropList
+
+    local hwRLayout = Instance.new("UIListLayout")
+    hwRLayout.Padding = UDim.new(0, 2); hwRLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    hwRLayout.Parent = hwRarityItemsContainer
+
+    local hwRarityBtns = {}
+    local refreshHwRarityButtons
+    local updateHwRarityBtnText
+
+    updateHwRarityBtnText = function(isOpen)
+        local arrow = isOpen and "▲" or "▼"
+        if selectedHwRarities["All"] then
+            hwRarityBtn.Text = "Rarity: All " .. arrow
+            return
+        end
+        local list = {}
+        for _, r in ipairs(RARITY_ORDER) do
+            if selectedHwRarities[r] then table.insert(list, r) end
+        end
+        if #list == 0 then
+            hwRarityBtn.Text = "Rarity: None " .. arrow
+        elseif #list == 1 then
+            hwRarityBtn.Text = "Rarity: " .. list[1] .. " " .. arrow
+        else
+            hwRarityBtn.Text = string.format("Rarity: %s +%d %s", list[1], #list - 1, arrow)
+        end
+    end
+
+    refreshHwRarityButtons = function()
+        for _, r in ipairs(RARITY_ORDER) do
+            local on = selectedHwRarities["All"] == true or selectedHwRarities[r] == true
+            local b = hwRarityBtns[r]
+            if b then
+                b.BackgroundColor3 = on and Color3.fromRGB(48, 80, 125) or Color3.fromRGB(32, 28, 44)
+                b.Text = (on and "[X] " or "[ ] ") .. r
+            end
+        end
+    end
+
+    for i, r in ipairs(RARITY_ORDER) do
+        local b = Instance.new("TextButton")
+        b.Name = "HwRarity_" .. r
+        b.Size = UDim2.new(1, 0, 0, 20)
+        b.LayoutOrder = i
+        b.BackgroundColor3 = Color3.fromRGB(32, 28, 44)
+        b.Text = "[X] " .. r
+        b.TextColor3 = RARITY_COLORS[r] or Color3.fromRGB(220, 230, 255)
+        b.TextSize = 11; b.Font = Enum.Font.GothamBold
+        b.TextXAlignment = Enum.TextXAlignment.Left
+        b.ZIndex = 52; b.Parent = hwRarityItemsContainer
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+        local pad = Instance.new("UIPadding"); pad.PaddingLeft = UDim.new(0, 6); pad.Parent = b
+        hwRarityBtns[r] = b
+
+        b.MouseButton1Click:Connect(function()
+            if selectedHwRarities["All"] then
+                selectedHwRarities = {}
+            end
+            if selectedHwRarities[r] then
+                selectedHwRarities[r] = nil
+            else
+                selectedHwRarities[r] = true
+            end
+            local totalChecked = 0
+            for _, checkR in ipairs(RARITY_ORDER) do
+                if selectedHwRarities[checkR] then totalChecked = totalChecked + 1 end
+            end
+            if totalChecked == #RARITY_ORDER then
+                selectedHwRarities = { ["All"] = true }
+            end
+            updateHwRarityBtnText(true)
+            refreshHwRarityButtons()
+            if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+        end)
+    end
+
+    hwRarityAllBtn.MouseButton1Click:Connect(function()
+        selectedHwRarities = { ["All"] = true }
+        updateHwRarityBtnText(true)
+        refreshHwRarityButtons()
+        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+    end)
+
+    hwRarityNoneBtn.MouseButton1Click:Connect(function()
+        selectedHwRarities = {}
+        updateHwRarityBtnText(true)
+        refreshHwRarityButtons()
+        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+    end)
+
+    local hwRarityDd = {
+        btn = hwRarityBtn,
+        list = hwRarityDropList,
+        onOpen = function() refreshHwRarityButtons() end,
+        updateBtnText = updateHwRarityBtnText,
+    }
+
+    addConnection(hwRarityBtn.MouseButton1Click:Connect(function()
+        toggleDropdown(hwRarityDd)
+    end))
+
     -- Scrollable Halloween Egg List
     local hwEggListScroll = Instance.new("ScrollingFrame")
     hwEggListScroll.Name = "HalloweenEggListScroll"
-    hwEggListScroll.Size = UDim2.new(1, -16, 1, -42)
-    hwEggListScroll.Position = UDim2.new(0, 8, 0, 36)
+    hwEggListScroll.Size = UDim2.new(1, -16, 1, -70)
+    hwEggListScroll.Position = UDim2.new(0, 8, 0, 64)
     hwEggListScroll.BackgroundTransparency = 1
     hwEggListScroll.BorderSizePixel = 0
     hwEggListScroll.ScrollBarThickness = 4
@@ -3883,7 +4093,7 @@ do
             return info.DisplayName
         end
         local lower = s:lower()
-        if lower == "halloween egg" or lower == "halloween" or lower == "hooded gerbil" then
+        if lower == "halloween egg" or lower == "halloween" or lower == "hooded gerbil" or lower == "halloweenegg" then
             return "Hooded Gerbil Egg"
         end
         if lower == "rotshroom" or lower == "rotshroom egg" or lower == "toadstool" then
@@ -3898,7 +4108,7 @@ do
         return s
     end
 
-    local function getHwEggName(eggInst)
+    getHwEggName = function(eggInst)
         if not eggInst then return "Hooded Gerbil Egg" end
 
         -- 1. Check direct attributes: PreparedSourceName is the primary live attribute
@@ -3909,8 +4119,9 @@ do
             or eggInst:GetAttribute("Species")
             or eggInst:GetAttribute("Name")
 
-        if srcName and tostring(srcName) ~= "" and tostring(srcName) ~= "HalloweenEgg" then
-            return resolveCanonicalHwName(srcName)
+        if srcName and tostring(srcName) ~= "" and tostring(srcName):lower() ~= "egg" then
+            local resolved = resolveCanonicalHwName(srcName)
+            if resolved then return resolved end
         end
 
         local hitbox = eggInst:FindFirstChild("Hitbox")
@@ -3920,41 +4131,84 @@ do
                 or hitbox:GetAttribute("EggName")
                 or hitbox:GetAttribute("EggType")
                 or hitbox:GetAttribute("Species")
-            if hbAttr and tostring(hbAttr) ~= "" and tostring(hbAttr) ~= "HalloweenEgg" then
-                return resolveCanonicalHwName(hbAttr)
+            if hbAttr and tostring(hbAttr) ~= "" and tostring(hbAttr):lower() ~= "egg" then
+                local resolved = resolveCanonicalHwName(hbAttr)
+                if resolved then return resolved end
             end
         end
 
         -- 2. Check child string values
         for _, ch in ipairs(eggInst:GetChildren()) do
-            if ch:IsA("StringValue") and ch.Value ~= "" and ch.Value ~= "HalloweenEgg" then
-                return resolveCanonicalHwName(ch.Value)
+            if ch:IsA("StringValue") and ch.Value ~= "" and ch.Value:lower() ~= "egg" then
+                local resolved = resolveCanonicalHwName(ch.Value)
+                if resolved then return resolved end
             end
         end
 
         -- 3. Check child model names
         for _, ch in ipairs(eggInst:GetChildren()) do
-            if ch:IsA("Model") and ch.Name ~= "HalloweenEgg" and ch.Name ~= "Model" and ch.Name ~= "Hitbox" then
-                return resolveCanonicalHwName(ch.Name)
+            if ch:IsA("Model") and ch.Name ~= "Model" and ch.Name ~= "Hitbox" and ch.Name:lower() ~= "egg" then
+                local resolved = resolveCanonicalHwName(ch.Name)
+                if resolved then return resolved end
             end
         end
 
-        -- 4. Template match against ReplicatedStorage.Assets.Models.Eggs
+        -- 4. Check ProximityPrompt text on model for explicit species keywords
+        local prMatch = nil
+        pcall(function()
+            for _, d in ipairs(eggInst:GetDescendants()) do
+                if d:IsA("ProximityPrompt") then
+                    local txt = (d.ObjectText or "") .. " " .. (d.ActionText or "")
+                    for cleanName, rec in pairs(SPECIES_INFO) do
+                        if cleanName ~= "egg" and cleanName ~= "halloween" and cleanName ~= "halloweenegg" then
+                            if rec.DisplayName and txt:lower():find(cleanName, 1, true) then
+                                prMatch = rec.DisplayName
+                                break
+                            end
+                        end
+                    end
+                    if prMatch then break end
+                end
+            end
+        end)
+        if prMatch then
+            return resolveCanonicalHwName(prMatch)
+        end
+
+        -- 5. If model is standard HalloweenEgg or Halloween Egg, it represents the Hooded Gerbil Egg
+        if eggInst.Name == "HalloweenEgg" or eggInst.Name == "Halloween Egg" then
+            return "Hooded Gerbil Egg"
+        end
+
+        -- 6. Speculative template match against ReplicatedStorage.Assets.Models.Eggs ONLY for unnamed/generic models
         local okMatch, matchedName = pcall(function()
             local eggAssets = ReplicatedStorage:FindFirstChild("Assets")
                 and ReplicatedStorage.Assets:FindFirstChild("Models")
                 and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
             if not eggAssets then return nil end
             local liveChildren = {}
+            local genericPartNames = {
+                hitbox = true, part = true, meshpart = true, model = true,
+                basepart = true, weld = true, weldconstraint = true,
+                pointlight = true, attachment = true, eggradius = true,
+                egggrip = true, eggglow = true, eggrootweld = true
+            }
             for _, c in ipairs(eggInst:GetChildren()) do
-                liveChildren[c.Name] = true
+                local cLower = c.Name:lower()
+                if not genericPartNames[cLower] and not cLower:find("^cube%.") then
+                    liveChildren[cLower] = true
+                end
             end
+            local nonGenericCount = 0
+            for _ in pairs(liveChildren) do nonGenericCount = nonGenericCount + 1 end
+            if nonGenericCount == 0 then return nil end
+
             local bestName, bestCount = nil, 0
             for _, tModel in ipairs(eggAssets:GetChildren()) do
-                if tModel:IsA("Model") and (tModel.Name:lower():find("halloween") or tModel.Name:lower():find("gerbil") or tModel.Name:lower():find("toadstool") or tModel.Name:lower():find("patchwork")) then
+                if tModel:IsA("Model") then
                     local matchCount = 0
                     for _, tc in ipairs(tModel:GetChildren()) do
-                        if liveChildren[tc.Name] then matchCount = matchCount + 1 end
+                        if liveChildren[tc.Name:lower()] then matchCount = matchCount + 1 end
                     end
                     if matchCount > bestCount then
                         bestCount = matchCount
@@ -3966,10 +4220,6 @@ do
         end)
         if okMatch and matchedName then
             return resolveCanonicalHwName(matchedName)
-        end
-
-        if eggInst.Name == "HalloweenEgg" or eggInst.Name == "Halloween Egg" then
-            return "Hooded Gerbil Egg"
         end
 
         return resolveCanonicalHwName(eggInst.Name) or eggInst.Name
@@ -4208,24 +4458,51 @@ do
             local hwSources = {}
             local hw = Workspace:FindFirstChild("HalloweenDimension")
             if hw and hw:FindFirstChild("WorldEggs") then table.insert(hwSources, { Folder = hw.WorldEggs, DefaultZone = "WorldEggs" }) end
-            local hwHolders = Workspace:FindFirstChild("HalloweenEggHolders")
-            if hwHolders then table.insert(hwSources, { Folder = hwHolders, DefaultZone = "Holders" }) end
-            local hwPt2 = Workspace:FindFirstChild("Halloween Eggs PT2")
-            if hwPt2 then table.insert(hwSources, { Folder = hwPt2, DefaultZone = "PT2" }) end
 
             for _, src in ipairs(hwSources) do
                 for _, egg in ipairs(src.Folder:GetChildren()) do
+                    if egg.Name:lower():find("holder") then
+                        continue
+                    end
+                    local canPick = egg:GetAttribute("HalloweenEggCanPickUp")
+                    if canPick == false then
+                        continue
+                    end
                     local p = getHwEggPos(egg)
                     if p then
-                        local d = charPos and (p - charPos).Magnitude or 99999
                         local eggName = getHwEggName(egg)
+                        if eggName:lower():find("holder") then
+                            continue
+                        end
+                        local d = charPos and (p - charPos).Magnitude or 99999
+                        local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
+                        -- Exclude models named 'Egg' from PT2 or anywhere if they are holders/placeholders (no cataloged species)
+                        if (egg.Name:lower() == "egg" or eggName:lower() == "egg") and not info then
+                            continue
+                        end
+
                         local zone = egg:GetAttribute("Zone")
                         local zoneName = zone and string.format("Zone %s", tostring(zone))
                             or egg:GetAttribute("AreaId")
                             or egg:GetAttribute("Biome")
                             or src.DefaultZone
-                        local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
                         local rarName = (info and info.Rarity) or egg:GetAttribute("Rarity") or "Rare"
+
+                        -- Rarity Filtering & New/Uncataloged update eggs
+                        local isCataloged = (info ~= nil)
+                        local matchesRarity = false
+                        if selectedHwRarities["All"] or selectedHwRarities[rarName] then
+                            matchesRarity = true
+                        end
+                        -- New update egg or not on current list will still be shown if hwShowNewUncataloged is ON
+                        if not matchesRarity and not isCataloged and hwShowNewUncataloged then
+                            matchesRarity = true
+                        end
+
+                        if not matchesRarity then
+                            continue
+                        end
+
                         local subLabel = string.format("%s • %s", zoneName, rarName)
 
                         table.insert(eggList, {
@@ -4235,7 +4512,7 @@ do
                             Distance  = d,
                             SubLabel  = subLabel,
                             Color     = getHwEggColor(egg, eggName),
-                            Zone      = tonumber(zone) or (src.DefaultZone == "Holders" and 90 or 99),
+                            Zone      = tonumber(zone) or 99,
                             Rank      = (info and info.Rank) or (RARITY_RANK[rarName] or 1),
                             Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
                         })
@@ -4268,8 +4545,9 @@ do
 
         if count == 0 then
             hwEmptyNotice.Visible = true
+            local hasFilter = not selectedHwRarities["All"]
             hwEmptyNotice.Text = inHw
-                and "🎃 All Halloween eggs currently collected or respawning.\nWait for new spawn on pads."
+                and (hasFilter and "🎃 No Halloween eggs match current rarity filter.\nSelect [All] or adjust rarity filter." or "🎃 All Halloween eggs currently collected or respawning.\nWait for new spawn on pads.")
                 or "🎃 Outside Halloween Dimension.\nClick [Portal] or enter dimension portal to view live eggs."
             for _, item in ipairs(hwCardPool) do
                 item.card.Visible = false
@@ -4653,7 +4931,7 @@ local function startPushMonitor()
     end
 end
 
--- Hook Halloween Drop remote if executor supports metamethod hooking
+-- Hook Halloween Drop remote and Zero-Wait Recovery metamethods if executor supports hooking
 pcall(function()
     if typeof(hookmetamethod) == "function" then
         local oldNamecall
@@ -4684,8 +4962,49 @@ pcall(function()
                         updateActivityStatus()
                     end
                 end
+            elseif method == "GetAttribute" and typeof(self) == "Instance" then
+                local isCaller = (typeof(checkcaller) == "function") and checkcaller() or false
+                if not isCaller and RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
+                    local attrName = ...
+                    if attrName == "RagdollEndTime" or attrName == "RagdollTime" then
+                        return 0
+                    elseif attrName == "IsRagdoll" or attrName == "Ragdolled" or attrName == "Ragdoll" then
+                        return false
+                    end
+                end
             end
             return oldNamecall(self, ...)
+        end)
+
+        local oldNewIndex
+        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+            local isCaller = (typeof(checkcaller) == "function") and checkcaller() or false
+            if not isCaller and RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
+                if key == "PlatformStand" and value == true then
+                    local char = LocalPlayer and LocalPlayer.Character
+                    if char and self.Parent == char then
+                        return oldNewIndex(self, key, false)
+                    end
+                elseif key == "Enabled" and value == false then
+                    local char = LocalPlayer and LocalPlayer.Character
+                    if char then
+                        local ok, isMotor = pcall(function() return self:IsA("Motor6D") end)
+                        if ok and isMotor and self:IsDescendantOf(char) then
+                            return oldNewIndex(self, key, true)
+                        end
+                    end
+                elseif key == "WalkSpeed" and value == 0 then
+                    local char = LocalPlayer and LocalPlayer.Character
+                    if char and self.Parent == char then
+                        local ok, isHum = pcall(function() return self:IsA("Humanoid") end)
+                        if ok and isHum then
+                            local spd = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 16)
+                            return oldNewIndex(self, key, spd)
+                        end
+                    end
+                end
+            end
+            return oldNewIndex(self, key, value)
         end)
     end
 end)
@@ -4818,6 +5137,7 @@ end)
 
 -- Tab switching handler (ready for modular tab additions)
 local function switchTab(tabName)
+    closeCurrentDropdown()
     tabEggs.Visible = (tabName == "Eggs")
     tabUtility.Visible = (tabName == "Utility")
     tabHalloween.Visible = (tabName == "Halloween")
