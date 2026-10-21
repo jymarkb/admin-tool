@@ -382,19 +382,18 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 	-- Only handle remote calls we want to observe.
 	if method ~= "FireServer" and method ~= "InvokeServer" then
 		return oldNamecall(self, ...)
-
 	end
 
-	-- Preserve the exact arguments.
+	-- Pack args once; avoids vararg double-consumption issues in some executors.
 	local packedArgs = table.pack(...)
 
 	-- ==========================================
 	-- ORIGINAL GAME CALL HAPPENS FIRST
 	-- ==========================================
 
-	-- Capture the original return values without changing them.
+	-- Use the packed table to forward args, not ... again.
 	local packedResults = table.pack(
-		oldNamecall(self, ...)
+		oldNamecall(self, table.unpack(packedArgs, 1, packedArgs.n))
 	)
 
 	-- ==========================================
