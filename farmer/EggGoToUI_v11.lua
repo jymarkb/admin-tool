@@ -2114,6 +2114,74 @@ do
     copyJsonBtn.Font = Enum.Font.GothamBold
     copyJsonBtn.Parent = rowCopyJson
     Instance.new("UICorner", copyJsonBtn).CornerRadius = UDim.new(0, 5)
+
+    -- Row 3: NoClip Toggle
+    local rowNoclip = Instance.new("Frame")
+    rowNoclip.Name = "RowNoclip"
+    rowNoclip.Size = UDim2.new(1, -16, 0, 36)
+    rowNoclip.Position = UDim2.new(0, 8, 0, 94)
+    rowNoclip.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowNoclip.BorderSizePixel = 0
+    rowNoclip.Parent = tabUtility
+    Instance.new("UICorner", rowNoclip).CornerRadius = UDim.new(0, 6)
+    local strokeNoclip = Instance.new("UIStroke", rowNoclip)
+    strokeNoclip.Color = Color3.fromRGB(45, 55, 75)
+    strokeNoclip.Thickness = 1
+
+    local lblNoclipTitle = Instance.new("TextLabel")
+    lblNoclipTitle.Size = UDim2.new(1, -80, 1, 0)
+    lblNoclipTitle.Position = UDim2.new(0, 12, 0, 0)
+    lblNoclipTitle.BackgroundTransparency = 1
+    lblNoclipTitle.Text = "NoClip"
+    lblNoclipTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblNoclipTitle.Font = Enum.Font.GothamBold
+    lblNoclipTitle.TextSize = 12
+    lblNoclipTitle.TextXAlignment = Enum.TextXAlignment.Left
+    lblNoclipTitle.Parent = rowNoclip
+
+    local toggleNoclipBtn = Instance.new("TextButton")
+    toggleNoclipBtn.Name = "ToggleNoclipBtn"
+    toggleNoclipBtn.Size = UDim2.new(0, 56, 0, 24)
+    toggleNoclipBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    toggleNoclipBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+    toggleNoclipBtn.Text = "OFF"
+    toggleNoclipBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+    toggleNoclipBtn.Font = Enum.Font.GothamBold
+    toggleNoclipBtn.TextSize = 11
+    toggleNoclipBtn.Parent = rowNoclip
+    Instance.new("UICorner", toggleNoclipBtn).CornerRadius = UDim.new(0, 5)
+
+    local noclipActive = false
+
+    local function setNoclip(enabled)
+        noclipActive = enabled
+        toggleNoclipBtn.Text = noclipActive and "ON" or "OFF"
+        toggleNoclipBtn.BackgroundColor3 = noclipActive and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleNoclipBtn.TextColor3 = noclipActive and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+        if not noclipActive then
+            pcall(function()
+                local ch = LocalPlayer and LocalPlayer.Character
+                if ch and ch:FindFirstChild("HumanoidRootPart") then
+                    ch.HumanoidRootPart.CanCollide = true
+                end
+            end)
+        end
+    end
+
+    addConnection(toggleNoclipBtn.MouseButton1Click:Connect(function()
+        setNoclip(not noclipActive)
+    end))
+
+    addConnection(RunService.Stepped:Connect(function()
+        if not noclipActive then return end
+        local ch = LocalPlayer and LocalPlayer.Character
+        if not ch then return end
+        for _, part in ipairs(ch:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end))
 end
 
 -- ============================================================================
