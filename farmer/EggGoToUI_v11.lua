@@ -280,6 +280,34 @@ local BIOME_EGG_CATALOG = {
         }
     },
     {
+        Biome = "Halloween",
+        EggNames = { "Halloween Egg", "Halloween Dimension Egg", "Candy Corn Egg" },
+        Species = {
+            { Name = "Halloween Egg", Rarity = "Rare", Aliases = { "Halloween" } },
+            { Name = "Candy Corn Egg", Rarity = "Rare", Aliases = { "Candy Corn" } },
+            { Name = "Witch Crow Egg", Rarity = "Rare", Aliases = { "Witch Crow" } },
+            { Name = "Crowshade Egg", Rarity = "Rare", Aliases = { "Crowshade" } },
+            { Name = "Hooded Gerbil Egg", Rarity = "Rare", Aliases = { "Hooded Gerbil" } },
+            { Name = "Mummy Egg", Rarity = "Epic", Aliases = { "Mummy" } },
+            { Name = "Candlefang Egg", Rarity = "Epic", Aliases = { "Candlefang" } },
+            { Name = "Patchwork Imp Egg", Rarity = "Epic", Aliases = { "Patchwork Imp" } },
+            { Name = "Ghost Fish Egg", Rarity = "Epic", Aliases = { "Ghost Fish" } },
+            { Name = "Witch Pumpkin Egg", Rarity = "Legendary", Aliases = { "Witch Pumpkin" } },
+            { Name = "Haunted Scorpio Egg", Rarity = "Legendary", Aliases = { "Haunted Scorpio" } },
+            { Name = "Graveyard Brute Egg", Rarity = "Legendary", Aliases = { "Graveyard Brute" } },
+            { Name = "Werewolf Egg", Rarity = "Legendary", Aliases = { "Werewolf" } },
+            { Name = "Hexed Pumpkin Egg", Rarity = "Mythic", Aliases = { "Hexed Pumpkin" } },
+            { Name = "BloodBloom Egg", Rarity = "Mythic", Aliases = { "BloodBloom" } },
+            { Name = "Zombified Halloween Egg", Rarity = "Mythic", Aliases = { "Zombified Halloween" } },
+            { Name = "Halloween Dimension Egg", Rarity = "Cosmic", Aliases = { "Halloween Dimension" } },
+            { Name = "Halloween Boss Egg", Rarity = "Cosmic", Aliases = { "Halloween Boss" } },
+            { Name = "Voidseer Pumpkin Egg", Rarity = "Cosmic", Aliases = { "Voidseer Pumpkin" } },
+            { Name = "Spirit Knight Egg", Rarity = "Secret", Aliases = { "Spirit Knight" } },
+            { Name = "Ghost Reaper Egg", Rarity = "Secret", Aliases = { "Ghost Reaper" } },
+            { Name = "Halloween Royal Mimic Egg", Rarity = "Secret", Aliases = { "Halloween Royal Mimic", "Royal Mimic" } },
+        }
+    },
+    {
         Biome = "Ungrouped",
         EggNames = { "Event Egg", "Special Egg" },
         Species = {
@@ -357,6 +385,55 @@ local BIOME_EGG_CATALOG = {
             { Name = "Depths Riptide Octopus", Rarity = "Divine" },
             { Name = "Frogfly", Rarity = "Rare" },
             { Name = "Wheel Hamster", Rarity = "Rare" },
+            -- Machine / Fusion / Laboratory Event
+            { Name = "Biohazard Egg", Rarity = "Secret", Aliases = { "Biohazard" } },
+            { Name = "Experiment Egg", Rarity = "Secret" },
+            { Name = "LimitedExperimentEgg", Rarity = "Secret", Aliases = { "Limited Experiment Egg" } },
+            { Name = "LimitedTimeExperimentPet", Rarity = "Secret" },
+            { Name = "Pink Dragon Experiment", Rarity = "Eternal" },
+            { Name = "Extinction Egg", Rarity = "Eternal", Aliases = { "Extinction" } },
+            { Name = "Boss Egg", Rarity = "Cosmic" },
+            { Name = "Crystal Egg", Rarity = "Rare" },
+            { Name = "Depths Egg", Rarity = "Rare" },
+            { Name = "Depths Reroll Egg", Rarity = "Mythic" },
+            { Name = "Shattered Rift Egg", Rarity = "Cosmic" },
+            { Name = "Riftborn Egg", Rarity = "Mythic" },
+            { Name = "Riftbeasts Egg", Rarity = "Legendary" },
+            { Name = "Shelltide Voyager Egg", Rarity = "Cosmic", Aliases = { "Shelltide Voyager" } },
+            { Name = "Skeletal Egg", Rarity = "Rare", Aliases = { "Skeletal" } },
+            { Name = "Unstable", Rarity = "Secret" },
+            -- Scramble / Mecha / Meme Event Additions
+            { Name = "Mecha Egg", Rarity = "Legendary" },
+            { Name = "Mecha Scrambler", Rarity = "Cosmic" },
+            { Name = "67", Rarity = "Rare" },
+            { Name = "67 OP", Rarity = "Epic" },
+            { Name = "Amethyst Runebear", Rarity = "Legendary" },
+            { Name = "Amethyst Runebear OP", Rarity = "Mythic" },
+            { Name = "Toxic Hedgehog OP", Rarity = "Legendary" },
+            -- Mount / Race Rally Event
+            { Name = "Race Bird", Rarity = "Uncommon" },
+            { Name = "Race Cheetah", Rarity = "Rare" },
+            { Name = "Race Lizard", Rarity = "Uncommon" },
+            { Name = "Race Seahorse", Rarity = "Rare" },
+            { Name = "Ostrich", Rarity = "Rare" },
+            { Name = "Ostrich OP", Rarity = "Epic" },
+            -- World / Special / Boss Additions
+            { Name = "Mushroom Egg", Rarity = "Rare", Aliases = { "Mushroom" } },
+            { Name = "Toadstool Egg", Rarity = "Epic", Aliases = { "Toadstool" } },
+            { Name = "Banjo Firefly", Rarity = "Rare" },
+            { Name = "Whiskers Egg", Rarity = "Rare", Aliases = { "Whiskers" } },
+            { Name = "Engine Snail", Rarity = "Epic" },
+            { Name = "Monster Egg", Rarity = "Mythic" },
+            { Name = "Monstrous Egg", Rarity = "Secret" },
+            { Name = "Abomination Kong Egg", Rarity = "Secret", Aliases = { "Abomination Kong" } },
+            { Name = "Ring Guard", Rarity = "Secret" },
+            { Name = "Irihorus", Rarity = "Cosmic" },
+            { Name = "Jester Egg", Rarity = "Rare", Aliases = { "Jester" } },
+            { Name = "Jesterpop Egg", Rarity = "Epic", Aliases = { "Jesterpop" } },
+            { Name = "Starry Wolf", Rarity = "Secret" },
+            { Name = "World Spirit", Rarity = "Divine" },
+            { Name = "Drill Monster", Rarity = "Cosmic" },
+            { Name = "Demon Imp", Rarity = "Cosmic" },
         }
     }
 }
@@ -475,35 +552,37 @@ menuToggleBtn.ZIndex = 200
 menuToggleBtn.Parent = screenGui
 
 Instance.new("UICorner", menuToggleBtn).CornerRadius = UDim.new(0, 8)
-local toggleStroke = Instance.new("UIStroke", menuToggleBtn)
-toggleStroke.Color = Color3.fromRGB(70, 110, 180)
-toggleStroke.Thickness = 1.5
+do
+    local toggleStroke = Instance.new("UIStroke", menuToggleBtn)
+    toggleStroke.Color = Color3.fromRGB(70, 110, 180)
+    toggleStroke.Thickness = 1.5
 
--- Drag handling for floating toggle button
-local tDragging, tDragStart, tStartPos = false, nil, nil
-addConnection(menuToggleBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        tDragging = true
-        tDragStart = input.Position
-        tStartPos = menuToggleBtn.Position
-    end
-end))
+    -- Drag handling for floating toggle button
+    local tDragging, tDragStart, tStartPos = false, nil, nil
+    addConnection(menuToggleBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            tDragging = true
+            tDragStart = input.Position
+            tStartPos = menuToggleBtn.Position
+        end
+    end))
 
-addConnection(menuToggleBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        tDragging = false
-    end
-end))
+    addConnection(menuToggleBtn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            tDragging = false
+        end
+    end))
 
-addConnection(UserInputService.InputChanged:Connect(function(input)
-    if tDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - tDragStart
-        menuToggleBtn.Position = UDim2.new(
-            tStartPos.X.Scale, tStartPos.X.Offset + delta.X,
-            tStartPos.Y.Scale, tStartPos.Y.Offset + delta.Y
-        )
-    end
-end))
+    addConnection(UserInputService.InputChanged:Connect(function(input)
+        if tDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - tDragStart
+            menuToggleBtn.Position = UDim2.new(
+                tStartPos.X.Scale, tStartPos.X.Offset + delta.X,
+                tStartPos.Y.Scale, tStartPos.Y.Offset + delta.Y
+            )
+        end
+    end))
+end
 
 -- Main Window Frame
 local main = Instance.new("Frame")
@@ -514,79 +593,82 @@ main.BackgroundColor3 = Color3.fromRGB(22, 24, 30)
 main.BorderSizePixel = 0
 main.Parent = screenGui
 
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
-local mainStroke = Instance.new("UIStroke", main)
-mainStroke.Color = Color3.fromRGB(70, 110, 180)
-mainStroke.Thickness = 1.5
-
--- Title Bar
-local titleBar = Instance.new("Frame")
-titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0, 36)
-titleBar.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = main
-
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
-
--- Bottom filler for TitleBar corners
-local titleCornerFix = Instance.new("Frame")
-titleCornerFix.Name = "CornerFix"
-titleCornerFix.Size = UDim2.new(1, 0, 0, 12)
-titleCornerFix.Position = UDim2.new(0, 0, 1, -12)
-titleCornerFix.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
-titleCornerFix.BorderSizePixel = 0
-titleCornerFix.Parent = titleBar
-
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Name = "TitleLabel"
-titleLabel.Size = UDim2.new(1, -80, 1, 0)
-titleLabel.Position = UDim2.new(0, 12, 0, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Egg Go-To v11"
-titleLabel.TextColor3 = Color3.fromRGB(220, 230, 255)
-titleLabel.TextSize = 13
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Parent = titleBar
-
 local closeBtn = Instance.new("TextButton")
-closeBtn.Name = "CloseBtn"
-closeBtn.Size = UDim2.new(0, 30, 0, 24)
-closeBtn.Position = UDim2.new(1, -38, 0.5, -12)
-closeBtn.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
-closeBtn.Text = "✕"
-closeBtn.TextColor3 = Color3.new(1, 1, 1)
-closeBtn.TextSize = 13
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.Parent = titleBar
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
--- Drag handling for Main Frame
-local dragging, dragStart, startPos = false, nil, nil
-addConnection(titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = main.Position
-    end
-end))
+do
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+    local mainStroke = Instance.new("UIStroke", main)
+    mainStroke.Color = Color3.fromRGB(70, 110, 180)
+    mainStroke.Thickness = 1.5
 
-addConnection(titleBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end))
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 36)
+    titleBar.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = main
 
-addConnection(UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        main.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-    end
-end))
+    Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
+
+    -- Bottom filler for TitleBar corners
+    local titleCornerFix = Instance.new("Frame")
+    titleCornerFix.Name = "CornerFix"
+    titleCornerFix.Size = UDim2.new(1, 0, 0, 12)
+    titleCornerFix.Position = UDim2.new(0, 0, 1, -12)
+    titleCornerFix.BackgroundColor3 = Color3.fromRGB(32, 40, 60)
+    titleCornerFix.BorderSizePixel = 0
+    titleCornerFix.Parent = titleBar
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "TitleLabel"
+    titleLabel.Size = UDim2.new(1, -80, 1, 0)
+    titleLabel.Position = UDim2.new(0, 12, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Egg Go-To v11"
+    titleLabel.TextColor3 = Color3.fromRGB(220, 230, 255)
+    titleLabel.TextSize = 13
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.new(0, 30, 0, 24)
+    closeBtn.Position = UDim2.new(1, -38, 0.5, -12)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.TextSize = 13
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = titleBar
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+    -- Drag handling for Main Frame
+    local dragging, dragStart, startPos = false, nil, nil
+    addConnection(titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+        end
+    end))
+
+    addConnection(titleBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end))
+
+    addConnection(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            main.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end))
+end
 
 -- Sidebar Navigation Rail (Width: 46px)
 local SIDEBAR_W = 46
@@ -598,13 +680,15 @@ sidebar.BackgroundColor3 = Color3.fromRGB(26, 32, 46)
 sidebar.BorderSizePixel = 0
 sidebar.Parent = main
 
-local sidebarDivider = Instance.new("Frame")
-sidebarDivider.Name = "SidebarDivider"
-sidebarDivider.Size = UDim2.new(0, 1, 1, 0)
-sidebarDivider.Position = UDim2.new(1, -1, 0, 0)
-sidebarDivider.BackgroundColor3 = Color3.fromRGB(50, 70, 105)
-sidebarDivider.BorderSizePixel = 0
-sidebarDivider.Parent = sidebar
+do
+    local sidebarDivider = Instance.new("Frame")
+    sidebarDivider.Name = "SidebarDivider"
+    sidebarDivider.Size = UDim2.new(0, 1, 1, 0)
+    sidebarDivider.Position = UDim2.new(1, -1, 0, 0)
+    sidebarDivider.BackgroundColor3 = Color3.fromRGB(50, 70, 105)
+    sidebarDivider.BorderSizePixel = 0
+    sidebarDivider.Parent = sidebar
+end
 
 -- Sidebar Button 1: Eggs
 local tabBtnEggs = Instance.new("TextButton")
@@ -631,6 +715,19 @@ tabBtnUtility.TextSize = 18
 tabBtnUtility.Font = Enum.Font.GothamBold
 tabBtnUtility.Parent = sidebar
 Instance.new("UICorner", tabBtnUtility).CornerRadius = UDim.new(0, 6)
+
+-- Sidebar Button 3: Halloween Dimension
+local tabBtnHalloween = Instance.new("TextButton")
+tabBtnHalloween.Name = "TabBtnHalloween"
+tabBtnHalloween.Size = UDim2.new(0, 34, 0, 34)
+tabBtnHalloween.Position = UDim2.new(0.5, -17, 0, 94)
+tabBtnHalloween.BackgroundColor3 = Color3.fromRGB(35, 42, 60)
+tabBtnHalloween.Text = "🎃"
+tabBtnHalloween.TextColor3 = Color3.fromRGB(150, 170, 200)
+tabBtnHalloween.TextSize = 18
+tabBtnHalloween.Font = Enum.Font.GothamBold
+tabBtnHalloween.Parent = sidebar
+Instance.new("UICorner", tabBtnHalloween).CornerRadius = UDim.new(0, 6)
 
 -- Content Area Container
 local contentContainer = Instance.new("Frame")
@@ -663,6 +760,86 @@ tabUtility.BorderSizePixel = 0
 tabUtility.ClipsDescendants = false
 tabUtility.Visible = false
 tabUtility.Parent = contentContainer
+
+-- Panel 3: Halloween Panel (Placeholder)
+local tabHalloween = Instance.new("Frame")
+tabHalloween.Name = "TabHalloween"
+tabHalloween.Size = UDim2.new(1, 0, 1, 0)
+tabHalloween.Position = UDim2.new(0, 0, 0, 0)
+tabHalloween.BackgroundTransparency = 1
+tabHalloween.BorderSizePixel = 0
+tabHalloween.ClipsDescendants = false
+tabHalloween.Visible = false
+tabHalloween.Parent = contentContainer
+
+-- Halloween Panel Placeholder Content
+do
+    local hwHeader = Instance.new("Frame")
+    hwHeader.Name = "HalloweenHeader"
+    hwHeader.Size = UDim2.new(1, -16, 0, 32)
+    hwHeader.Position = UDim2.new(0, 8, 0, 8)
+    hwHeader.BackgroundColor3 = Color3.fromRGB(30, 24, 20)
+    hwHeader.BorderSizePixel = 0
+    hwHeader.Parent = tabHalloween
+    Instance.new("UICorner", hwHeader).CornerRadius = UDim.new(0, 6)
+    local hwStroke = Instance.new("UIStroke", hwHeader)
+    hwStroke.Color = Color3.fromRGB(180, 85, 25)
+    hwStroke.Thickness = 1.2
+
+    local hwTitle = Instance.new("TextLabel")
+    hwTitle.Name = "Title"
+    hwTitle.Size = UDim2.new(1, -16, 1, 0)
+    hwTitle.Position = UDim2.new(0, 10, 0, 0)
+    hwTitle.BackgroundTransparency = 1
+    hwTitle.Text = "🎃 Halloween Dimension"
+    hwTitle.TextColor3 = Color3.fromRGB(255, 175, 75)
+    hwTitle.TextSize = 13
+    hwTitle.Font = Enum.Font.GothamBold
+    hwTitle.TextXAlignment = Enum.TextXAlignment.Left
+    hwTitle.Parent = hwHeader
+
+    local hwPlaceholderCard = Instance.new("Frame")
+    hwPlaceholderCard.Name = "PlaceholderCard"
+    hwPlaceholderCard.Size = UDim2.new(1, -16, 0, 160)
+    hwPlaceholderCard.Position = UDim2.new(0, 8, 0, 48)
+    hwPlaceholderCard.BackgroundColor3 = Color3.fromRGB(24, 22, 28)
+    hwPlaceholderCard.BorderSizePixel = 0
+    hwPlaceholderCard.Parent = tabHalloween
+    Instance.new("UICorner", hwPlaceholderCard).CornerRadius = UDim.new(0, 8)
+    local cardStroke = Instance.new("UIStroke", hwPlaceholderCard)
+    cardStroke.Color = Color3.fromRGB(70, 50, 40)
+    cardStroke.Thickness = 1
+
+    local hwIcon = Instance.new("TextLabel")
+    hwIcon.Size = UDim2.new(1, 0, 0, 40)
+    hwIcon.Position = UDim2.new(0, 0, 0, 14)
+    hwIcon.BackgroundTransparency = 1
+    hwIcon.Text = "🎃"
+    hwIcon.TextSize = 32
+    hwIcon.Font = Enum.Font.GothamBold
+    hwIcon.Parent = hwPlaceholderCard
+
+    local hwCardTitle = Instance.new("TextLabel")
+    hwCardTitle.Size = UDim2.new(1, -20, 0, 20)
+    hwCardTitle.Position = UDim2.new(0, 10, 0, 58)
+    hwCardTitle.BackgroundTransparency = 1
+    hwCardTitle.Text = "Halloween Dimension World"
+    hwCardTitle.TextColor3 = Color3.fromRGB(255, 195, 110)
+    hwCardTitle.TextSize = 13
+    hwCardTitle.Font = Enum.Font.GothamBold
+    hwCardTitle.Parent = hwPlaceholderCard
+
+    local hwDesc = Instance.new("TextLabel")
+    hwDesc.Size = UDim2.new(1, -30, 0, 60)
+    hwDesc.Position = UDim2.new(0, 15, 0, 82)
+    hwDesc.BackgroundTransparency = 1
+    hwDesc.Text = "Separate world dimension for Halloween event eggs, boss portal & shop.\n\n[Placeholder - Ready for Halloween logic implementation]"
+    hwDesc.TextColor3 = Color3.fromRGB(170, 160, 180)
+    hwDesc.TextSize = 11
+    hwDesc.Font = Enum.Font.Gotham
+    hwDesc.TextWrapped = true
+    hwDesc.Parent = hwPlaceholderCard
+end
 
 -- Forward declarations
 local renderFarmableEggs
@@ -721,12 +898,62 @@ local BIOME_ORDER = {
 }
 
 local ALL_SPECIES_LIST = {}
+local seenSpecies = {}
+
+local function registerDynamicSpecies(rawName, defaultBiome, defaultRarity)
+    if not rawName or type(rawName) ~= "string" or rawName == "" then return false end
+    local clean = normalizeSpecies(rawName)
+    if clean == "" then return false end
+
+    local existing = SPECIES_INFO[clean]
+    local disp = (existing and existing.DisplayName) or rawName
+    local biome = (existing and existing.Biome) or defaultBiome
+    if not biome or biome == "" or biome == "Unknown" then
+        if clean:find("halloween") or clean:find("pumpkin") or clean:find("witch") or clean:find("ghost") then
+            biome = "Halloween"
+        else
+            biome = "Ungrouped"
+        end
+    end
+    local rarity = (existing and existing.Rarity) or defaultRarity or "Common"
+    local rank = (existing and existing.Rank) or (RARITY_RANK[rarity] or 1)
+
+    local record = existing or {
+        DisplayName = disp,
+        Rarity      = rarity,
+        Rank        = rank,
+        Biome       = biome,
+    }
+    if not SPECIES_INFO[clean] then
+        SPECIES_INFO[clean] = record
+        if not SPECIES_INFO_BY_BIOME[biome] then
+            SPECIES_INFO_BY_BIOME[biome] = {}
+        end
+        SPECIES_INFO_BY_BIOME[biome][clean] = record
+    end
+
+    local cleanDisp = normalizeSpecies(disp)
+    if not seenSpecies[cleanDisp] then
+        seenSpecies[cleanDisp] = true
+        table.insert(ALL_SPECIES_LIST, {
+            Name      = disp,
+            Biome     = biome,
+            Rarity    = rarity,
+            Rank      = rank,
+            SearchKey = (disp .. " " .. biome .. " " .. rarity):lower(),
+        })
+        return true
+    end
+    return false
+end
+
+-- Pre-populate catalog species
 do
-    local seen = {}
     for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
         for _, spec in ipairs(biomeData.Species) do
-            if not seen[spec.Name] then
-                seen[spec.Name] = true
+            local cleanDisp = normalizeSpecies(spec.Name)
+            if not seenSpecies[cleanDisp] then
+                seenSpecies[cleanDisp] = true
                 table.insert(ALL_SPECIES_LIST, {
                     Name      = spec.Name,
                     Biome     = biomeData.Biome,
@@ -737,10 +964,33 @@ do
             end
         end
     end
-    table.sort(ALL_SPECIES_LIST, function(a, b)
-        return a.Name:lower() < b.Name:lower()
-    end)
 end
+
+-- Dynamic Game Discovery for Egg Species (ReplicatedStorage.Assets.Models.Eggs)
+do
+    local eggsFolder = nil
+    pcall(function()
+        eggsFolder = ReplicatedStorage:FindFirstChild("Assets")
+            and ReplicatedStorage.Assets:FindFirstChild("Models")
+            and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
+    end)
+    if eggsFolder then
+        local added = false
+        for _, child in ipairs(eggsFolder:GetChildren()) do
+            if registerDynamicSpecies(child.Name) then
+                added = true
+            end
+        end
+        if added then
+            table.sort(ALL_SPECIES_LIST, function(a, b)
+                return a.Name:lower() < b.Name:lower()
+            end)
+        end
+    end
+end
+table.sort(ALL_SPECIES_LIST, function(a, b)
+    return a.Name:lower() < b.Name:lower()
+end)
 
 local selectedRarities = { ["All"] = true }
 local selectedBiomes   = { ["All"] = true }
@@ -782,244 +1032,251 @@ activityStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 activityStatusLabel.Parent = tabEggs
 
 -- 2. Velocity Engine Control Bar (Default: Disabled)
-local velocityFrame = Instance.new("Frame")
-velocityFrame.Name = "VelocityFrame"
-velocityFrame.Size = UDim2.new(1, -16, 0, 26)
-velocityFrame.Position = UDim2.new(0, 8, 0, 22)
-velocityFrame.BackgroundTransparency = 1
-velocityFrame.BorderSizePixel = 0
-velocityFrame.Parent = tabEggs
+local velToggleBtn, goBox, carryBox
 
-local velToggleBtn = Instance.new("TextButton")
-velToggleBtn.Name = "VelToggleBtn"
-velToggleBtn.Size = UDim2.new(0, 104, 1, 0)
-velToggleBtn.Position = UDim2.new(0, 0, 0, 0)
-velToggleBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
-velToggleBtn.Text = "[OFF] Velocity"
-velToggleBtn.TextColor3 = Color3.fromRGB(210, 220, 240)
-velToggleBtn.TextSize = 11
-velToggleBtn.Font = Enum.Font.GothamBold
-velToggleBtn.Parent = velocityFrame
-Instance.new("UICorner", velToggleBtn).CornerRadius = UDim.new(0, 4)
+do
+    local velocityFrame = Instance.new("Frame")
+    velocityFrame.Name = "VelocityFrame"
+    velocityFrame.Size = UDim2.new(1, -16, 0, 26)
+    velocityFrame.Position = UDim2.new(0, 8, 0, 22)
+    velocityFrame.BackgroundTransparency = 1
+    velocityFrame.BorderSizePixel = 0
+    velocityFrame.Parent = tabEggs
 
-local goFrame = Instance.new("Frame")
-goFrame.Name = "GoSpeedFrame"
-goFrame.Size = UDim2.new(0, 70, 1, 0)
-goFrame.Position = UDim2.new(0, 108, 0, 0)
-goFrame.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
-goFrame.BorderSizePixel = 0
-goFrame.Parent = velocityFrame
-Instance.new("UICorner", goFrame).CornerRadius = UDim.new(0, 4)
-local goStroke = Instance.new("UIStroke", goFrame)
-goStroke.Color = Color3.fromRGB(50, 68, 98); goStroke.Thickness = 1
+    velToggleBtn = Instance.new("TextButton")
+    velToggleBtn.Name = "VelToggleBtn"
+    velToggleBtn.Size = UDim2.new(0, 104, 1, 0)
+    velToggleBtn.Position = UDim2.new(0, 0, 0, 0)
+    velToggleBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 65)
+    velToggleBtn.Text = "[OFF] Velocity"
+    velToggleBtn.TextColor3 = Color3.fromRGB(210, 220, 240)
+    velToggleBtn.TextSize = 11
+    velToggleBtn.Font = Enum.Font.GothamBold
+    velToggleBtn.Parent = velocityFrame
+    Instance.new("UICorner", velToggleBtn).CornerRadius = UDim.new(0, 4)
 
-local goLabel = Instance.new("TextLabel")
-goLabel.Size = UDim2.new(0, 20, 1, 0)
-goLabel.Position = UDim2.new(0, 4, 0, 0)
-goLabel.BackgroundTransparency = 1
-goLabel.Text = "Go:"
-goLabel.TextColor3 = Color3.fromRGB(160, 185, 220)
-goLabel.TextSize = 10.5
-goLabel.Font = Enum.Font.GothamBold
-goLabel.TextXAlignment = Enum.TextXAlignment.Left
-goLabel.Parent = goFrame
+    local goFrame = Instance.new("Frame")
+    goFrame.Name = "GoSpeedFrame"
+    goFrame.Size = UDim2.new(0, 70, 1, 0)
+    goFrame.Position = UDim2.new(0, 108, 0, 0)
+    goFrame.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+    goFrame.BorderSizePixel = 0
+    goFrame.Parent = velocityFrame
+    Instance.new("UICorner", goFrame).CornerRadius = UDim.new(0, 4)
+    local goStroke = Instance.new("UIStroke", goFrame)
+    goStroke.Color = Color3.fromRGB(50, 68, 98); goStroke.Thickness = 1
 
-local goBox = Instance.new("TextBox")
-goBox.Name = "GoSpeedBox"
-goBox.Size = UDim2.new(1, -26, 1, 0)
-goBox.Position = UDim2.new(0, 24, 0, 0)
-goBox.BackgroundTransparency = 1
-goBox.Text = tostring(baseGoSpeed)
-goBox.PlaceholderText = "330"
-goBox.TextColor3 = Color3.new(1, 1, 1)
-goBox.TextSize = 11
-goBox.Font = Enum.Font.GothamBold
-goBox.ClearTextOnFocus = false
-goBox.TextXAlignment = Enum.TextXAlignment.Center
-goBox.Parent = goFrame
+    local goLabel = Instance.new("TextLabel")
+    goLabel.Size = UDim2.new(0, 20, 1, 0)
+    goLabel.Position = UDim2.new(0, 4, 0, 0)
+    goLabel.BackgroundTransparency = 1
+    goLabel.Text = "Go:"
+    goLabel.TextColor3 = Color3.fromRGB(160, 185, 220)
+    goLabel.TextSize = 10.5
+    goLabel.Font = Enum.Font.GothamBold
+    goLabel.TextXAlignment = Enum.TextXAlignment.Left
+    goLabel.Parent = goFrame
 
-local carryFrame = Instance.new("Frame")
-carryFrame.Name = "CarrySpeedFrame"
-carryFrame.Size = UDim2.new(0, 80, 1, 0)
-carryFrame.Position = UDim2.new(0, 182, 0, 0)
-carryFrame.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
-carryFrame.BorderSizePixel = 0
-carryFrame.Parent = velocityFrame
-Instance.new("UICorner", carryFrame).CornerRadius = UDim.new(0, 4)
-local carryStroke = Instance.new("UIStroke", carryFrame)
-carryStroke.Color = Color3.fromRGB(50, 68, 98); carryStroke.Thickness = 1
+    goBox = Instance.new("TextBox")
+    goBox.Name = "GoSpeedBox"
+    goBox.Size = UDim2.new(1, -26, 1, 0)
+    goBox.Position = UDim2.new(0, 24, 0, 0)
+    goBox.BackgroundTransparency = 1
+    goBox.Text = tostring(baseGoSpeed)
+    goBox.PlaceholderText = "330"
+    goBox.TextColor3 = Color3.new(1, 1, 1)
+    goBox.TextSize = 11
+    goBox.Font = Enum.Font.GothamBold
+    goBox.ClearTextOnFocus = false
+    goBox.TextXAlignment = Enum.TextXAlignment.Center
+    goBox.Parent = goFrame
 
-local carryLabel = Instance.new("TextLabel")
-carryLabel.Size = UDim2.new(0, 32, 1, 0)
-carryLabel.Position = UDim2.new(0, 4, 0, 0)
-carryLabel.BackgroundTransparency = 1
-carryLabel.Text = "Carry:"
-carryLabel.TextColor3 = Color3.fromRGB(160, 185, 220)
-carryLabel.TextSize = 10.5
-carryLabel.Font = Enum.Font.GothamBold
-carryLabel.TextXAlignment = Enum.TextXAlignment.Left
-carryLabel.Parent = carryFrame
+    local carryFrame = Instance.new("Frame")
+    carryFrame.Name = "CarrySpeedFrame"
+    carryFrame.Size = UDim2.new(0, 80, 1, 0)
+    carryFrame.Position = UDim2.new(0, 182, 0, 0)
+    carryFrame.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+    carryFrame.BorderSizePixel = 0
+    carryFrame.Parent = velocityFrame
+    Instance.new("UICorner", carryFrame).CornerRadius = UDim.new(0, 4)
+    local carryStroke = Instance.new("UIStroke", carryFrame)
+    carryStroke.Color = Color3.fromRGB(50, 68, 98); carryStroke.Thickness = 1
 
-local carryBox = Instance.new("TextBox")
-carryBox.Name = "CarrySpeedBox"
-carryBox.Size = UDim2.new(1, -38, 1, 0)
-carryBox.Position = UDim2.new(0, 36, 0, 0)
-carryBox.BackgroundTransparency = 1
-carryBox.Text = tostring(baseCarrySpeed)
-carryBox.PlaceholderText = "280"
-carryBox.TextColor3 = Color3.new(1, 1, 1)
-carryBox.TextSize = 11
-carryBox.Font = Enum.Font.GothamBold
-carryBox.ClearTextOnFocus = false
-carryBox.TextXAlignment = Enum.TextXAlignment.Center
-carryBox.Parent = carryFrame
+    local carryLabel = Instance.new("TextLabel")
+    carryLabel.Size = UDim2.new(0, 32, 1, 0)
+    carryLabel.Position = UDim2.new(0, 4, 0, 0)
+    carryLabel.BackgroundTransparency = 1
+    carryLabel.Text = "Carry:"
+    carryLabel.TextColor3 = Color3.fromRGB(160, 185, 220)
+    carryLabel.TextSize = 10.5
+    carryLabel.Font = Enum.Font.GothamBold
+    carryLabel.TextXAlignment = Enum.TextXAlignment.Left
+    carryLabel.Parent = carryFrame
 
-velLiveLabel = Instance.new("TextLabel")
-velLiveLabel.Name = "VelLiveLabel"
-velLiveLabel.Size = UDim2.new(1, -266, 1, 0)
-velLiveLabel.Position = UDim2.new(0, 266, 0, 0)
-velLiveLabel.BackgroundColor3 = Color3.fromRGB(24, 29, 40)
-velLiveLabel.BorderSizePixel = 0
-velLiveLabel.Text = "Vel: OFF"
-velLiveLabel.TextColor3 = Color3.fromRGB(130, 140, 160)
-velLiveLabel.TextSize = 10
-velLiveLabel.Font = Enum.Font.GothamBold
-velLiveLabel.TextXAlignment = Enum.TextXAlignment.Center
-velLiveLabel.Parent = velocityFrame
-Instance.new("UICorner", velLiveLabel).CornerRadius = UDim.new(0, 4)
+    carryBox = Instance.new("TextBox")
+    carryBox.Name = "CarrySpeedBox"
+    carryBox.Size = UDim2.new(1, -38, 1, 0)
+    carryBox.Position = UDim2.new(0, 36, 0, 0)
+    carryBox.BackgroundTransparency = 1
+    carryBox.Text = tostring(baseCarrySpeed)
+    carryBox.PlaceholderText = "280"
+    carryBox.TextColor3 = Color3.new(1, 1, 1)
+    carryBox.TextSize = 11
+    carryBox.Font = Enum.Font.GothamBold
+    carryBox.ClearTextOnFocus = false
+    carryBox.TextXAlignment = Enum.TextXAlignment.Center
+    carryBox.Parent = carryFrame
 
--- 2b. Instant Recovery Control Bar (Row below Velocity Engine)
-local recoveryFrame = Instance.new("Frame")
-recoveryFrame.Name = "RecoveryFrame"
-recoveryFrame.Size = UDim2.new(1, -16, 0, 26)
-recoveryFrame.Position = UDim2.new(0, 8, 0, 52)
-recoveryFrame.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
-recoveryFrame.BorderSizePixel = 0
-recoveryFrame.Parent = tabEggs
-Instance.new("UICorner", recoveryFrame).CornerRadius = UDim.new(0, 4)
-local strokeRecovery = Instance.new("UIStroke", recoveryFrame)
-strokeRecovery.Color = Color3.fromRGB(45, 55, 75)
-strokeRecovery.Thickness = 1
+    velLiveLabel = Instance.new("TextLabel")
+    velLiveLabel.Name = "VelLiveLabel"
+    velLiveLabel.Size = UDim2.new(1, -266, 1, 0)
+    velLiveLabel.Position = UDim2.new(0, 266, 0, 0)
+    velLiveLabel.BackgroundColor3 = Color3.fromRGB(24, 29, 40)
+    velLiveLabel.BorderSizePixel = 0
+    velLiveLabel.Text = "Vel: OFF"
+    velLiveLabel.TextColor3 = Color3.fromRGB(130, 140, 160)
+    velLiveLabel.TextSize = 10
+    velLiveLabel.Font = Enum.Font.GothamBold
+    velLiveLabel.TextXAlignment = Enum.TextXAlignment.Center
+    velLiveLabel.Parent = velocityFrame
+    Instance.new("UICorner", velLiveLabel).CornerRadius = UDim.new(0, 4)
 
-local lblRecoveryTitle = Instance.new("TextLabel")
-lblRecoveryTitle.Name = "RecoveryTitle"
-lblRecoveryTitle.Size = UDim2.new(1, -74, 1, 0)
-lblRecoveryTitle.Position = UDim2.new(0, 10, 0, 0)
-lblRecoveryTitle.BackgroundTransparency = 1
-lblRecoveryTitle.Text = "Instant Recovery"
-lblRecoveryTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
-lblRecoveryTitle.Font = Enum.Font.GothamBold
-lblRecoveryTitle.TextSize = 11.5
-lblRecoveryTitle.TextXAlignment = Enum.TextXAlignment.Left
-lblRecoveryTitle.Parent = recoveryFrame
+    -- 2b. Instant Recovery Control Bar (Row below Velocity Engine)
+    local recoveryFrame = Instance.new("Frame")
+    recoveryFrame.Name = "RecoveryFrame"
+    recoveryFrame.Size = UDim2.new(1, -16, 0, 26)
+    recoveryFrame.Position = UDim2.new(0, 8, 0, 52)
+    recoveryFrame.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    recoveryFrame.BorderSizePixel = 0
+    recoveryFrame.Parent = tabEggs
+    Instance.new("UICorner", recoveryFrame).CornerRadius = UDim.new(0, 4)
+    local strokeRecovery = Instance.new("UIStroke", recoveryFrame)
+    strokeRecovery.Color = Color3.fromRGB(45, 55, 75)
+    strokeRecovery.Thickness = 1
 
-local toggleRecoveryBtn = Instance.new("TextButton")
-toggleRecoveryBtn.Name = "ToggleRecoveryBtn"
-toggleRecoveryBtn.Size = UDim2.new(0, 56, 0, 20)
-toggleRecoveryBtn.Position = UDim2.new(1, -62, 0.5, -10)
-toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
-toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
-toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-toggleRecoveryBtn.Font = Enum.Font.GothamBold
-toggleRecoveryBtn.TextSize = 11
-toggleRecoveryBtn.Parent = recoveryFrame
-Instance.new("UICorner", toggleRecoveryBtn).CornerRadius = UDim.new(0, 4)
+    local lblRecoveryTitle = Instance.new("TextLabel")
+    lblRecoveryTitle.Name = "RecoveryTitle"
+    lblRecoveryTitle.Size = UDim2.new(1, -74, 1, 0)
+    lblRecoveryTitle.Position = UDim2.new(0, 10, 0, 0)
+    lblRecoveryTitle.BackgroundTransparency = 1
+    lblRecoveryTitle.Text = "Instant Recovery"
+    lblRecoveryTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblRecoveryTitle.Font = Enum.Font.GothamBold
+    lblRecoveryTitle.TextSize = 11.5
+    lblRecoveryTitle.TextXAlignment = Enum.TextXAlignment.Left
+    lblRecoveryTitle.Parent = recoveryFrame
 
-addConnection(toggleRecoveryBtn.MouseButton1Click:Connect(function()
-    RECOVERY_CONFIG.Enabled = not RECOVERY_CONFIG.Enabled
-    toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
+    local toggleRecoveryBtn = Instance.new("TextButton")
+    toggleRecoveryBtn.Name = "ToggleRecoveryBtn"
+    toggleRecoveryBtn.Size = UDim2.new(0, 56, 0, 20)
+    toggleRecoveryBtn.Position = UDim2.new(1, -62, 0.5, -10)
     toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+    toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
     toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-end))
+    toggleRecoveryBtn.Font = Enum.Font.GothamBold
+    toggleRecoveryBtn.TextSize = 11
+    toggleRecoveryBtn.Parent = recoveryFrame
+    Instance.new("UICorner", toggleRecoveryBtn).CornerRadius = UDim.new(0, 4)
+
+    addConnection(toggleRecoveryBtn.MouseButton1Click:Connect(function()
+        RECOVERY_CONFIG.Enabled = not RECOVERY_CONFIG.Enabled
+        toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
+        toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end))
+end
 
 -- 3. World Egg Catalog List View
-local listHeader = Instance.new("Frame")
-listHeader.Name = "ListHeader"
-listHeader.Size = UDim2.new(1, -16, 0, 26)
-listHeader.Position = UDim2.new(0, 8, 0, 82)
-listHeader.BackgroundColor3 = Color3.fromRGB(26, 32, 46)
-listHeader.BorderSizePixel = 0
-listHeader.Parent = tabEggs
-Instance.new("UICorner", listHeader).CornerRadius = UDim.new(0, 6)
-
-local listHeaderTitle = Instance.new("TextLabel")
-listHeaderTitle.Name = "HeaderTitle"
-listHeaderTitle.Size = UDim2.new(1, -20, 1, 0)
-listHeaderTitle.Position = UDim2.new(0, 10, 0, 0)
-listHeaderTitle.BackgroundTransparency = 1
-listHeaderTitle.Text = "Farmable Eggs"
-listHeaderTitle.TextColor3 = Color3.fromRGB(220, 230, 255)
-listHeaderTitle.TextSize = 12
-listHeaderTitle.Font = Enum.Font.GothamBold
-listHeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-listHeaderTitle.Parent = listHeader
-
--- 4. Dropdown Filter Bar
 local filterFrame = Instance.new("Frame")
-filterFrame.Name = "FilterFrame"
-filterFrame.Size = UDim2.new(1, -16, 0, 58)
-filterFrame.Position = UDim2.new(0, 8, 0, 112)
-filterFrame.BackgroundTransparency = 1
-filterFrame.BorderSizePixel = 0
-filterFrame.ClipsDescendants = false
-filterFrame.ZIndex = 30
-filterFrame.Parent = tabEggs
-
--- 1. Rarity Filter Button
 local rarityBtn = Instance.new("TextButton")
-rarityBtn.Name = "RarityFilterBtn"
-rarityBtn.Size = UDim2.new(0.5, -3, 0, 26)
-rarityBtn.Position = UDim2.new(0, 0, 0, 0)
-rarityBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
-rarityBtn.Text = "Rarity: All ▼"
-rarityBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
-rarityBtn.TextSize = 11
-rarityBtn.Font = Enum.Font.GothamBold
-rarityBtn.ZIndex = 31
-rarityBtn.Parent = filterFrame
-Instance.new("UICorner", rarityBtn).CornerRadius = UDim.new(0, 6)
-
--- 2. Biome Filter Button
 local biomeBtn = Instance.new("TextButton")
-biomeBtn.Name = "BiomeFilterBtn"
-biomeBtn.Size = UDim2.new(0.5, -3, 0, 26)
-biomeBtn.Position = UDim2.new(0.5, 3, 0, 0)
-biomeBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
-biomeBtn.Text = "Biome: All ▼"
-biomeBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
-biomeBtn.TextSize = 11
-biomeBtn.Font = Enum.Font.GothamBold
-biomeBtn.ZIndex = 31
-biomeBtn.Parent = filterFrame
-Instance.new("UICorner", biomeBtn).CornerRadius = UDim.new(0, 6)
-
--- Row 2: Farm Label & Egg Filter Button
-local farmLabel = Instance.new("TextLabel")
-farmLabel.Name = "FarmLabel"
-farmLabel.Size = UDim2.new(0, 42, 0, 26)
-farmLabel.Position = UDim2.new(0, 2, 0, 30)
-farmLabel.BackgroundTransparency = 1
-farmLabel.Text = "Farm:"
-farmLabel.TextColor3 = Color3.fromRGB(180, 195, 220)
-farmLabel.TextSize = 11.5
-farmLabel.Font = Enum.Font.GothamBold
-farmLabel.TextXAlignment = Enum.TextXAlignment.Left
-farmLabel.ZIndex = 31
-farmLabel.Parent = filterFrame
-
 local eggBtn = Instance.new("TextButton")
-eggBtn.Name = "EggFilterBtn"
-eggBtn.Size = UDim2.new(1, -46, 0, 26)
-eggBtn.Position = UDim2.new(0, 46, 0, 30)
-eggBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
-eggBtn.Text = "All ▼"
-eggBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
-eggBtn.TextSize = 11.5
-eggBtn.Font = Enum.Font.GothamBold
-eggBtn.TextTruncate = Enum.TextTruncate.AtEnd
-eggBtn.ZIndex = 31
-eggBtn.Parent = filterFrame
-Instance.new("UICorner", eggBtn).CornerRadius = UDim.new(0, 6)
+
+do
+    local listHeader = Instance.new("Frame")
+    listHeader.Name = "ListHeader"
+    listHeader.Size = UDim2.new(1, -16, 0, 26)
+    listHeader.Position = UDim2.new(0, 8, 0, 82)
+    listHeader.BackgroundColor3 = Color3.fromRGB(26, 32, 46)
+    listHeader.BorderSizePixel = 0
+    listHeader.Parent = tabEggs
+    Instance.new("UICorner", listHeader).CornerRadius = UDim.new(0, 6)
+
+    local listHeaderTitle = Instance.new("TextLabel")
+    listHeaderTitle.Name = "HeaderTitle"
+    listHeaderTitle.Size = UDim2.new(1, -20, 1, 0)
+    listHeaderTitle.Position = UDim2.new(0, 10, 0, 0)
+    listHeaderTitle.BackgroundTransparency = 1
+    listHeaderTitle.Text = "Farmable Eggs"
+    listHeaderTitle.TextColor3 = Color3.fromRGB(220, 230, 255)
+    listHeaderTitle.TextSize = 12
+    listHeaderTitle.Font = Enum.Font.GothamBold
+    listHeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
+    listHeaderTitle.Parent = listHeader
+
+    -- 4. Dropdown Filter Bar
+    filterFrame.Name = "FilterFrame"
+    filterFrame.Size = UDim2.new(1, -16, 0, 58)
+    filterFrame.Position = UDim2.new(0, 8, 0, 112)
+    filterFrame.BackgroundTransparency = 1
+    filterFrame.BorderSizePixel = 0
+    filterFrame.ClipsDescendants = false
+    filterFrame.ZIndex = 30
+    filterFrame.Parent = tabEggs
+
+    -- 1. Rarity Filter Button
+    rarityBtn.Name = "RarityFilterBtn"
+    rarityBtn.Size = UDim2.new(0.5, -3, 0, 26)
+    rarityBtn.Position = UDim2.new(0, 0, 0, 0)
+    rarityBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
+    rarityBtn.Text = "Rarity: All ▼"
+    rarityBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
+    rarityBtn.TextSize = 11
+    rarityBtn.Font = Enum.Font.GothamBold
+    rarityBtn.ZIndex = 31
+    rarityBtn.Parent = filterFrame
+    Instance.new("UICorner", rarityBtn).CornerRadius = UDim.new(0, 6)
+
+    -- 2. Biome Filter Button
+    biomeBtn.Name = "BiomeFilterBtn"
+    biomeBtn.Size = UDim2.new(0.5, -3, 0, 26)
+    biomeBtn.Position = UDim2.new(0.5, 3, 0, 0)
+    biomeBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
+    biomeBtn.Text = "Biome: All ▼"
+    biomeBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
+    biomeBtn.TextSize = 11
+    biomeBtn.Font = Enum.Font.GothamBold
+    biomeBtn.ZIndex = 31
+    biomeBtn.Parent = filterFrame
+    Instance.new("UICorner", biomeBtn).CornerRadius = UDim.new(0, 6)
+
+    -- Row 2: Farm Label & Egg Filter Button
+    local farmLabel = Instance.new("TextLabel")
+    farmLabel.Name = "FarmLabel"
+    farmLabel.Size = UDim2.new(0, 42, 0, 26)
+    farmLabel.Position = UDim2.new(0, 2, 0, 30)
+    farmLabel.BackgroundTransparency = 1
+    farmLabel.Text = "Farm:"
+    farmLabel.TextColor3 = Color3.fromRGB(180, 195, 220)
+    farmLabel.TextSize = 11.5
+    farmLabel.Font = Enum.Font.GothamBold
+    farmLabel.TextXAlignment = Enum.TextXAlignment.Left
+    farmLabel.ZIndex = 31
+    farmLabel.Parent = filterFrame
+
+    eggBtn.Name = "EggFilterBtn"
+    eggBtn.Size = UDim2.new(1, -46, 0, 26)
+    eggBtn.Position = UDim2.new(0, 46, 0, 30)
+    eggBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
+    eggBtn.Text = "All ▼"
+    eggBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
+    eggBtn.TextSize = 11.5
+    eggBtn.Font = Enum.Font.GothamBold
+    eggBtn.TextTruncate = Enum.TextTruncate.AtEnd
+    eggBtn.ZIndex = 31
+    eggBtn.Parent = filterFrame
+    Instance.new("UICorner", eggBtn).CornerRadius = UDim.new(0, 6)
+end
 
 -- Dropdown Lists Container
 local rarityList = Instance.new("Frame")
@@ -1373,7 +1630,7 @@ eggDropListLayout.Padding = UDim.new(0, 2)
 eggDropListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 eggDropListLayout.Parent = eggDropScroll
 
-local eggButtonsPool = {}
+local eggPool = {}
 local rebuildEggDropdownItems
 local updateEggBtnText
 
@@ -1405,15 +1662,15 @@ rebuildEggDropdownItems = function()
     local q = eggSearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
     local matchedList = {}
     for _, spec in ipairs(ALL_SPECIES_LIST) do
-        if q == "" or spec.SearchKey:find(q, 1, true) then
+        if q == "" or (spec.SearchKey and spec.SearchKey:find(q, 1, true)) or (spec.Name and spec.Name:lower():find(q, 1, true)) then
             table.insert(matchedList, spec)
         end
     end
 
     for idx, spec in ipairs(matchedList) do
-        local btn = eggButtonsPool[idx]
-        if not btn then
-            btn = Instance.new("TextButton")
+        local item = eggPool[idx]
+        if not item then
+            local btn = Instance.new("TextButton")
             btn.Name = "EggBtn_" .. tostring(idx)
             btn.Size = UDim2.new(1, -4, 0, 22)
             btn.BorderSizePixel = 0
@@ -1437,11 +1694,17 @@ rebuildEggDropdownItems = function()
             sub.TextXAlignment = Enum.TextXAlignment.Right
             sub.TextSize = 9.5
             sub.Font = Enum.Font.Gotham
-            sub.ZIndex = 52
+            sub.ZIndex = 53
             sub.Parent = btn
 
+            item = {
+                btn  = btn,
+                sub  = sub,
+                spec = nil,
+            }
+
             btn.MouseButton1Click:Connect(function()
-                local s = btn.specRef
+                local s = item.spec
                 if not s then return end
                 if selectedEggs["All"] then
                     selectedEggs = {}
@@ -1463,27 +1726,27 @@ rebuildEggDropdownItems = function()
                 if renderFarmableEggs then renderFarmableEggs() end
             end)
 
-            eggButtonsPool[idx] = btn
+            eggPool[idx] = item
         end
 
-        btn.specRef = spec
+        item.spec = spec
         local isChecked = selectedEggs["All"] == true or selectedEggs[spec.Name] == true
-        btn.BackgroundColor3 = isChecked and Color3.fromRGB(48, 75, 115) or Color3.fromRGB(30, 36, 50)
-        btn.Text = (isChecked and "[X] " or "[ ] ") .. spec.Name
-        local rarCol = RARITY_COLORS[spec.Rarity] or Color3.fromRGB(220, 230, 255)
-        btn.TextColor3 = isChecked and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 210, 225)
+        item.btn.BackgroundColor3 = isChecked and Color3.fromRGB(48, 75, 115) or Color3.fromRGB(30, 36, 50)
+        item.btn.Text = (isChecked and "[X] " or "[ ] ") .. spec.Name
+        local rarCol = (spec.Rarity and RARITY_COLORS[spec.Rarity]) or Color3.fromRGB(220, 230, 255)
+        item.btn.TextColor3 = isChecked and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 210, 225)
+        item.btn.LayoutOrder = idx
 
-        local subInfo = btn:FindFirstChild("SubInfo")
-        if subInfo then
-            subInfo.Text = spec.Biome .. " • " .. spec.Rarity
-            subInfo.TextColor3 = rarCol
-        end
+        local bName = spec.Biome or "Unknown"
+        local rName = spec.Rarity or "Unknown"
+        item.sub.Text = bName .. " • " .. rName
+        item.sub.TextColor3 = rarCol
 
-        btn.Visible = true
+        item.btn.Visible = true
     end
 
-    for idx = #matchedList + 1, #eggButtonsPool do
-        eggButtonsPool[idx].Visible = false
+    for idx = #matchedList + 1, #eggPool do
+        eggPool[idx].btn.Visible = false
     end
 end
 
@@ -1599,86 +1862,88 @@ listPadding.Parent = eggListScroll
 -- TAB 2: UTILITY PANEL UI (Only Fast Pickup [E])
 -- ============================================================================
 
-local rowPickup = Instance.new("Frame")
-rowPickup.Name = "RowPickup"
-rowPickup.Size = UDim2.new(1, -16, 0, 36)
-rowPickup.Position = UDim2.new(0, 8, 0, 10)
-rowPickup.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
-rowPickup.BorderSizePixel = 0
-rowPickup.Parent = tabUtility
-Instance.new("UICorner", rowPickup).CornerRadius = UDim.new(0, 6)
-local strokePickup = Instance.new("UIStroke", rowPickup)
-strokePickup.Color = Color3.fromRGB(45, 55, 75)
-strokePickup.Thickness = 1
+do
+    local rowPickup = Instance.new("Frame")
+    rowPickup.Name = "RowPickup"
+    rowPickup.Size = UDim2.new(1, -16, 0, 36)
+    rowPickup.Position = UDim2.new(0, 8, 0, 10)
+    rowPickup.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowPickup.BorderSizePixel = 0
+    rowPickup.Parent = tabUtility
+    Instance.new("UICorner", rowPickup).CornerRadius = UDim.new(0, 6)
+    local strokePickup = Instance.new("UIStroke", rowPickup)
+    strokePickup.Color = Color3.fromRGB(45, 55, 75)
+    strokePickup.Thickness = 1
 
-local lblPickupTitle = Instance.new("TextLabel")
-lblPickupTitle.Size = UDim2.new(1, -80, 1, 0)
-lblPickupTitle.Position = UDim2.new(0, 12, 0, 0)
-lblPickupTitle.BackgroundTransparency = 1
-lblPickupTitle.Text = "Fast Pickup [E]"
-lblPickupTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
-lblPickupTitle.Font = Enum.Font.GothamBold
-lblPickupTitle.TextSize = 12
-lblPickupTitle.TextXAlignment = Enum.TextXAlignment.Left
-lblPickupTitle.Parent = rowPickup
+    local lblPickupTitle = Instance.new("TextLabel")
+    lblPickupTitle.Size = UDim2.new(1, -80, 1, 0)
+    lblPickupTitle.Position = UDim2.new(0, 12, 0, 0)
+    lblPickupTitle.BackgroundTransparency = 1
+    lblPickupTitle.Text = "Fast Pickup [E]"
+    lblPickupTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblPickupTitle.Font = Enum.Font.GothamBold
+    lblPickupTitle.TextSize = 12
+    lblPickupTitle.TextXAlignment = Enum.TextXAlignment.Left
+    lblPickupTitle.Parent = rowPickup
 
-local togglePickupBtn = Instance.new("TextButton")
-togglePickupBtn.Name = "TogglePickupBtn"
-togglePickupBtn.Size = UDim2.new(0, 56, 0, 24)
-togglePickupBtn.Position = UDim2.new(1, -66, 0.5, -12)
-togglePickupBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
-togglePickupBtn.Text = "ON"
-togglePickupBtn.TextColor3 = Color3.new(1, 1, 1)
-togglePickupBtn.Font = Enum.Font.GothamBold
-togglePickupBtn.TextSize = 11
-togglePickupBtn.Parent = rowPickup
-Instance.new("UICorner", togglePickupBtn).CornerRadius = UDim.new(0, 5)
+    local togglePickupBtn = Instance.new("TextButton")
+    togglePickupBtn.Name = "TogglePickupBtn"
+    togglePickupBtn.Size = UDim2.new(0, 56, 0, 24)
+    togglePickupBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    togglePickupBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+    togglePickupBtn.Text = "ON"
+    togglePickupBtn.TextColor3 = Color3.new(1, 1, 1)
+    togglePickupBtn.Font = Enum.Font.GothamBold
+    togglePickupBtn.TextSize = 11
+    togglePickupBtn.Parent = rowPickup
+    Instance.new("UICorner", togglePickupBtn).CornerRadius = UDim.new(0, 5)
 
-addConnection(togglePickupBtn.MouseButton1Click:Connect(function()
-    PICKUP_CONFIG.Enabled = not PICKUP_CONFIG.Enabled
-    PICKUP_CONFIG.ReachAssist = PICKUP_CONFIG.Enabled
-    togglePickupBtn.Text = PICKUP_CONFIG.Enabled and "ON" or "OFF"
-    togglePickupBtn.BackgroundColor3 = PICKUP_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
-    togglePickupBtn.TextColor3 = PICKUP_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-    if not PICKUP_CONFIG.Enabled then
-        autoPickupToken = (autoPickupToken or 0) + 1
-    end
-end))
+    addConnection(togglePickupBtn.MouseButton1Click:Connect(function()
+        PICKUP_CONFIG.Enabled = not PICKUP_CONFIG.Enabled
+        PICKUP_CONFIG.ReachAssist = PICKUP_CONFIG.Enabled
+        togglePickupBtn.Text = PICKUP_CONFIG.Enabled and "ON" or "OFF"
+        togglePickupBtn.BackgroundColor3 = PICKUP_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+        togglePickupBtn.TextColor3 = PICKUP_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+        if not PICKUP_CONFIG.Enabled then
+            autoPickupToken = (autoPickupToken or 0) + 1
+        end
+    end))
 
-local rowCopyJson = Instance.new("Frame")
-rowCopyJson.Name = "RowCopyJson"
-rowCopyJson.Size = UDim2.new(1, -16, 0, 36)
-rowCopyJson.Position = UDim2.new(0, 8, 0, 52)
-rowCopyJson.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
-rowCopyJson.BorderSizePixel = 0
-rowCopyJson.Parent = tabUtility
-Instance.new("UICorner", rowCopyJson).CornerRadius = UDim.new(0, 6)
-local strokeCopyJson = Instance.new("UIStroke", rowCopyJson)
-strokeCopyJson.Color = Color3.fromRGB(45, 55, 75)
-strokeCopyJson.Thickness = 1
+    local rowCopyJson = Instance.new("Frame")
+    rowCopyJson.Name = "RowCopyJson"
+    rowCopyJson.Size = UDim2.new(1, -16, 0, 36)
+    rowCopyJson.Position = UDim2.new(0, 8, 0, 52)
+    rowCopyJson.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    rowCopyJson.BorderSizePixel = 0
+    rowCopyJson.Parent = tabUtility
+    Instance.new("UICorner", rowCopyJson).CornerRadius = UDim.new(0, 6)
+    local strokeCopyJson = Instance.new("UIStroke", rowCopyJson)
+    strokeCopyJson.Color = Color3.fromRGB(45, 55, 75)
+    strokeCopyJson.Thickness = 1
 
-local lblCopyTitle = Instance.new("TextLabel")
-lblCopyTitle.Size = UDim2.new(1, -100, 1, 0)
-lblCopyTitle.Position = UDim2.new(0, 12, 0, 0)
-lblCopyTitle.BackgroundTransparency = 1
-lblCopyTitle.Text = "Export Egg Data"
-lblCopyTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
-lblCopyTitle.Font = Enum.Font.GothamBold
-lblCopyTitle.TextSize = 12
-lblCopyTitle.TextXAlignment = Enum.TextXAlignment.Left
-lblCopyTitle.Parent = rowCopyJson
+    local lblCopyTitle = Instance.new("TextLabel")
+    lblCopyTitle.Size = UDim2.new(1, -100, 1, 0)
+    lblCopyTitle.Position = UDim2.new(0, 12, 0, 0)
+    lblCopyTitle.BackgroundTransparency = 1
+    lblCopyTitle.Text = "Export Egg Data"
+    lblCopyTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblCopyTitle.Font = Enum.Font.GothamBold
+    lblCopyTitle.TextSize = 12
+    lblCopyTitle.TextXAlignment = Enum.TextXAlignment.Left
+    lblCopyTitle.Parent = rowCopyJson
 
-copyJsonBtn = Instance.new("TextButton")
-copyJsonBtn.Name = "CopyJsonBtn"
-copyJsonBtn.Size = UDim2.new(0, 80, 0, 24)
-copyJsonBtn.Position = UDim2.new(1, -90, 0.5, -12)
-copyJsonBtn.BackgroundColor3 = Color3.fromRGB(45, 65, 100)
-copyJsonBtn.Text = "Copy JSON"
-copyJsonBtn.TextColor3 = Color3.fromRGB(210, 230, 255)
-copyJsonBtn.TextSize = 11
-copyJsonBtn.Font = Enum.Font.GothamBold
-copyJsonBtn.Parent = rowCopyJson
-Instance.new("UICorner", copyJsonBtn).CornerRadius = UDim.new(0, 5)
+    copyJsonBtn = Instance.new("TextButton")
+    copyJsonBtn.Name = "CopyJsonBtn"
+    copyJsonBtn.Size = UDim2.new(0, 80, 0, 24)
+    copyJsonBtn.Position = UDim2.new(1, -90, 0.5, -12)
+    copyJsonBtn.BackgroundColor3 = Color3.fromRGB(45, 65, 100)
+    copyJsonBtn.Text = "Copy JSON"
+    copyJsonBtn.TextColor3 = Color3.fromRGB(210, 230, 255)
+    copyJsonBtn.TextSize = 11
+    copyJsonBtn.Font = Enum.Font.GothamBold
+    copyJsonBtn.Parent = rowCopyJson
+    Instance.new("UICorner", copyJsonBtn).CornerRadius = UDim.new(0, 5)
+end
 
 -- ============================================================================
 -- 2. LIVE SERVER EGG DETECTION & FARMABLE LIST (Pooled & Throttled: Zero-Freeze)
@@ -3250,6 +3515,7 @@ local function syncEggSnapshot()
                 end
 
                 local currentUids = {}
+                local newSpeciesDiscovered = false
                 for _, r in pairs(res.Records) do
                     if typeof(r) == "table" then
                         local u = tostring(r.Uid or r.EggUid or "")
@@ -3260,7 +3526,20 @@ local function syncEggSnapshot()
                             if rId and rId ~= "" and rId ~= "Unknown" then
                                 rarityByUid[u] = tostring(rId)
                             end
+                            local rawName = r.DisplayName or r.AssetCategory or r.Name
+                            if rawName and registerDynamicSpecies(rawName, r.AreaId, rId) then
+                                newSpeciesDiscovered = true
+                            end
                         end
+                    end
+                end
+
+                if newSpeciesDiscovered then
+                    table.sort(ALL_SPECIES_LIST, function(a, b)
+                        return a.Name:lower() < b.Name:lower()
+                    end)
+                    if eggDropList and eggDropList.Visible and rebuildEggDropdownItems then
+                        rebuildEggDropdownItems()
                     end
                 end
 
@@ -3339,6 +3618,16 @@ local function startPushMonitor()
                 end
             else
                 eggCacheByUid[u] = payload
+            end
+
+            local rawName = payload.DisplayName or payload.AssetCategory or payload.Name
+            if rawName and registerDynamicSpecies(rawName, payload.AreaId, payload.RarityId) then
+                table.sort(ALL_SPECIES_LIST, function(a, b)
+                    return a.Name:lower() < b.Name:lower()
+                end)
+                if eggDropList and eggDropList.Visible and rebuildEggDropdownItems then
+                    rebuildEggDropdownItems()
+                end
             end
             requestListUpdate()
         end))
@@ -3442,21 +3731,21 @@ end)
 
 -- Tab switching handler (ready for modular tab additions)
 local function switchTab(tabName)
+    tabEggs.Visible = (tabName == "Eggs")
+    tabUtility.Visible = (tabName == "Utility")
+    tabHalloween.Visible = (tabName == "Halloween")
+
+    tabBtnEggs.BackgroundColor3 = (tabName == "Eggs") and Color3.fromRGB(45, 100, 160) or Color3.fromRGB(35, 42, 60)
+    tabBtnEggs.TextColor3 = (tabName == "Eggs") and Color3.new(1, 1, 1) or Color3.fromRGB(150, 170, 200)
+
+    tabBtnUtility.BackgroundColor3 = (tabName == "Utility") and Color3.fromRGB(45, 100, 160) or Color3.fromRGB(35, 42, 60)
+    tabBtnUtility.TextColor3 = (tabName == "Utility") and Color3.new(1, 1, 1) or Color3.fromRGB(150, 170, 200)
+
+    tabBtnHalloween.BackgroundColor3 = (tabName == "Halloween") and Color3.fromRGB(200, 95, 25) or Color3.fromRGB(35, 42, 60)
+    tabBtnHalloween.TextColor3 = (tabName == "Halloween") and Color3.new(1, 1, 1) or Color3.fromRGB(150, 170, 200)
+
     if tabName == "Eggs" then
-        tabEggs.Visible = true
-        tabUtility.Visible = false
-        tabBtnEggs.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
-        tabBtnEggs.TextColor3 = Color3.new(1, 1, 1)
-        tabBtnUtility.BackgroundColor3 = Color3.fromRGB(35, 42, 60)
-        tabBtnUtility.TextColor3 = Color3.fromRGB(150, 170, 200)
         requestListUpdate()
-    elseif tabName == "Utility" then
-        tabEggs.Visible = false
-        tabUtility.Visible = true
-        tabBtnEggs.BackgroundColor3 = Color3.fromRGB(35, 42, 60)
-        tabBtnEggs.TextColor3 = Color3.fromRGB(150, 170, 200)
-        tabBtnUtility.BackgroundColor3 = Color3.fromRGB(45, 100, 160)
-        tabBtnUtility.TextColor3 = Color3.new(1, 1, 1)
     end
 end
 
@@ -3466,6 +3755,10 @@ end))
 
 addConnection(tabBtnUtility.MouseButton1Click:Connect(function()
     switchTab("Utility")
+end))
+
+addConnection(tabBtnHalloween.MouseButton1Click:Connect(function()
+    switchTab("Halloween")
 end))
 
 -- Menu visibility toggle
