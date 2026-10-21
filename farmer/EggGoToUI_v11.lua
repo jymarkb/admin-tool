@@ -84,6 +84,10 @@ local RARITY_RANK = {
     ["Mythic"] = 6, ["Cosmic"] = 7, ["Secret"] = 8, ["Eternal"] = 9, ["Divine"] = 10,
 }
 
+local RARITY_ORDER = {
+    "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret", "Eternal", "Divine"
+}
+
 -- 13 Canonical World Biomes (Structured hierarchy for easy tracking and manual updates)
 -- Comprehensive Biome & Egg Catalog Taxonomy (Ground Truth + Server Discovered Assets)
 local BIOME_EGG_CATALOG = {
@@ -475,6 +479,7 @@ for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
             Rarity      = spec.Rarity,
             Rank        = RARITY_RANK[spec.Rarity] or 0,
             Biome       = biomeData.Biome,
+            IsCataloged = true,
         }
         if not SPECIES_INFO[canonicalNorm] then
             SPECIES_INFO[canonicalNorm] = record
@@ -778,14 +783,198 @@ tabHalloween.Parent = contentContainer
 local hwStatusLabel = nil
 local hwEggListScroll
 local hwEmptyNotice
+local hwRarityBtn
+local hwRarityDropList
+local hwRarityDd
+local selectedHwRarities = { ["All"] = true }
+local renderHalloweenEggs
 
--- Halloween Panel: Live List Scrolling Container (Clean List - No Header Row)
+-- Halloween Panel: Rarity Filter & Live List Scrolling Container
 do
-    -- Scrolling Frame for detected Halloween eggs
+    -- Rarity Filter Bar (Only Rarity Dropdown)
+    local hwFilterFrame = Instance.new("Frame")
+    hwFilterFrame.Name = "HwFilterFrame"
+    hwFilterFrame.Size = UDim2.new(1, -16, 0, 24)
+    hwFilterFrame.Position = UDim2.new(0, 8, 0, 6)
+    hwFilterFrame.BackgroundTransparency = 1
+    hwFilterFrame.BorderSizePixel = 0
+    hwFilterFrame.ClipsDescendants = false
+    hwFilterFrame.ZIndex = 30
+    hwFilterFrame.Parent = tabHalloween
+
+    hwRarityBtn = Instance.new("TextButton")
+    hwRarityBtn.Name = "HwRarityFilterBtn"
+    hwRarityBtn.Size = UDim2.new(1, 0, 1, 0)
+    hwRarityBtn.Position = UDim2.new(0, 0, 0, 0)
+    hwRarityBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
+    hwRarityBtn.Text = "Rarity: All ▼"
+    hwRarityBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
+    hwRarityBtn.TextSize = 11
+    hwRarityBtn.Font = Enum.Font.GothamBold
+    hwRarityBtn.ZIndex = 31
+    hwRarityBtn.Parent = hwFilterFrame
+    Instance.new("UICorner", hwRarityBtn).CornerRadius = UDim.new(0, 5)
+
+    -- Halloween Rarity Dropdown List
+    hwRarityDropList = Instance.new("Frame")
+    hwRarityDropList.Name = "HwRarityDropList"
+    hwRarityDropList.Size = UDim2.new(1, 0, 0, 256)
+    hwRarityDropList.Position = UDim2.new(0, 0, 0, 26)
+    hwRarityDropList.BackgroundColor3 = Color3.fromRGB(24, 20, 34)
+    hwRarityDropList.BorderSizePixel = 0
+    hwRarityDropList.ZIndex = 50
+    hwRarityDropList.ClipsDescendants = true
+    hwRarityDropList.Visible = false
+    hwRarityDropList.Parent = hwFilterFrame
+    Instance.new("UICorner", hwRarityDropList).CornerRadius = UDim.new(0, 6)
+    local hwRStroke = Instance.new("UIStroke", hwRarityDropList)
+    hwRStroke.Color = Color3.fromRGB(90, 55, 120)
+    hwRStroke.Thickness = 1
+
+    local hwRarityQuickRow = Instance.new("Frame")
+    hwRarityQuickRow.Size = UDim2.new(1, -6, 0, 22)
+    hwRarityQuickRow.Position = UDim2.new(0, 3, 0, 3)
+    hwRarityQuickRow.BackgroundTransparency = 1
+    hwRarityQuickRow.ZIndex = 51
+    hwRarityQuickRow.Parent = hwRarityDropList
+
+    local hwRarityAllBtn = Instance.new("TextButton")
+    hwRarityAllBtn.Size = UDim2.new(0.5, -2, 1, 0)
+    hwRarityAllBtn.Position = UDim2.new(0, 0, 0, 0)
+    hwRarityAllBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 150)
+    hwRarityAllBtn.Text = "All"
+    hwRarityAllBtn.TextColor3 = Color3.new(1, 1, 1)
+    hwRarityAllBtn.TextSize = 11
+    hwRarityAllBtn.Font = Enum.Font.GothamBold
+    hwRarityAllBtn.ZIndex = 52
+    hwRarityAllBtn.Parent = hwRarityQuickRow
+    Instance.new("UICorner", hwRarityAllBtn).CornerRadius = UDim.new(0, 4)
+
+    local hwRarityNoneBtn = Instance.new("TextButton")
+    hwRarityNoneBtn.Size = UDim2.new(0.5, -2, 1, 0)
+    hwRarityNoneBtn.Position = UDim2.new(0.5, 2, 0, 0)
+    hwRarityNoneBtn.BackgroundColor3 = Color3.fromRGB(110, 45, 45)
+    hwRarityNoneBtn.Text = "None"
+    hwRarityNoneBtn.TextColor3 = Color3.new(1, 1, 1)
+    hwRarityNoneBtn.TextSize = 11
+    hwRarityNoneBtn.Font = Enum.Font.GothamBold
+    hwRarityNoneBtn.ZIndex = 52
+    hwRarityNoneBtn.Parent = hwRarityQuickRow
+    Instance.new("UICorner", hwRarityNoneBtn).CornerRadius = UDim.new(0, 4)
+
+    local hwRarityItemsContainer = Instance.new("Frame")
+    hwRarityItemsContainer.Size = UDim2.new(1, -6, 1, -29)
+    hwRarityItemsContainer.Position = UDim2.new(0, 3, 0, 27)
+    hwRarityItemsContainer.BackgroundTransparency = 1
+    hwRarityItemsContainer.ZIndex = 51
+    hwRarityItemsContainer.Parent = hwRarityDropList
+
+    local hwRLayout = Instance.new("UIListLayout")
+    hwRLayout.Padding = UDim.new(0, 2)
+    hwRLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    hwRLayout.Parent = hwRarityItemsContainer
+
+    local hwRarityBtns = {}
+    local refreshHwRarityButtons
+    local updateHwRarityBtnText
+
+    updateHwRarityBtnText = function(isOpen)
+        local arrow = isOpen and "▲" or "▼"
+        if selectedHwRarities["All"] then
+            hwRarityBtn.Text = "Rarity: All " .. arrow
+            return
+        end
+        local list = {}
+        for _, r in ipairs(RARITY_ORDER) do
+            if selectedHwRarities[r] then table.insert(list, r) end
+        end
+        if #list == 0 then
+            hwRarityBtn.Text = "Rarity: None " .. arrow
+        elseif #list == 1 then
+            hwRarityBtn.Text = "Rarity: " .. list[1] .. " " .. arrow
+        else
+            hwRarityBtn.Text = string.format("Rarity: %s +%d %s", list[1], #list - 1, arrow)
+        end
+    end
+
+    refreshHwRarityButtons = function()
+        for _, r in ipairs(RARITY_ORDER) do
+            local on = selectedHwRarities["All"] == true or selectedHwRarities[r] == true
+            local b = hwRarityBtns[r]
+            if b then
+                b.BackgroundColor3 = on and Color3.fromRGB(48, 80, 125) or Color3.fromRGB(32, 28, 44)
+                b.Text = (on and "[X] " or "[ ] ") .. r
+            end
+        end
+    end
+
+    for i, r in ipairs(RARITY_ORDER) do
+        local b = Instance.new("TextButton")
+        b.Name = "HwRarity_" .. r
+        b.Size = UDim2.new(1, 0, 0, 20)
+        b.LayoutOrder = i
+        b.BackgroundColor3 = Color3.fromRGB(32, 28, 44)
+        b.Text = "[X] " .. r
+        b.TextColor3 = RARITY_COLORS[r] or Color3.fromRGB(220, 230, 255)
+        b.TextSize = 11
+        b.Font = Enum.Font.GothamBold
+        b.TextXAlignment = Enum.TextXAlignment.Left
+        b.ZIndex = 52
+        b.Parent = hwRarityItemsContainer
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+        local pad = Instance.new("UIPadding")
+        pad.PaddingLeft = UDim.new(0, 6)
+        pad.Parent = b
+        hwRarityBtns[r] = b
+
+        b.MouseButton1Click:Connect(function()
+            if selectedHwRarities["All"] then
+                selectedHwRarities = {}
+            end
+            if selectedHwRarities[r] then
+                selectedHwRarities[r] = nil
+            else
+                selectedHwRarities[r] = true
+            end
+            local totalChecked = 0
+            for _, checkR in ipairs(RARITY_ORDER) do
+                if selectedHwRarities[checkR] then totalChecked = totalChecked + 1 end
+            end
+            if totalChecked == #RARITY_ORDER then
+                selectedHwRarities = { ["All"] = true }
+            end
+            updateHwRarityBtnText(true)
+            refreshHwRarityButtons()
+            if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+        end)
+    end
+
+    hwRarityAllBtn.MouseButton1Click:Connect(function()
+        selectedHwRarities = { ["All"] = true }
+        updateHwRarityBtnText(true)
+        refreshHwRarityButtons()
+        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+    end)
+
+    hwRarityNoneBtn.MouseButton1Click:Connect(function()
+        selectedHwRarities = {}
+        updateHwRarityBtnText(true)
+        refreshHwRarityButtons()
+        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+    end)
+
+    hwRarityDd = {
+        btn = hwRarityBtn,
+        list = hwRarityDropList,
+        onOpen = function() refreshHwRarityButtons() end,
+        updateBtnText = updateHwRarityBtnText,
+    }
+
+    -- Scrolling Frame for detected Halloween eggs (Directly below rarity filter)
     hwEggListScroll = Instance.new("ScrollingFrame")
     hwEggListScroll.Name = "HwEggListScroll"
-    hwEggListScroll.Size = UDim2.new(1, -16, 1, -12)
-    hwEggListScroll.Position = UDim2.new(0, 8, 0, 6)
+    hwEggListScroll.Size = UDim2.new(1, -16, 1, -42)
+    hwEggListScroll.Position = UDim2.new(0, 8, 0, 36)
     hwEggListScroll.BackgroundTransparency = 1
     hwEggListScroll.BorderSizePixel = 0
     hwEggListScroll.ScrollBarThickness = 4
@@ -824,7 +1013,6 @@ end
 
 -- Forward declarations
 local renderFarmableEggs
-local renderHalloweenEggs
 local requestListUpdate
 local updateActivityStatus
 local activityStatusLabel
@@ -870,10 +1058,6 @@ pcall(function()
 end)
 
 -- Filter Selection State
-local RARITY_ORDER = {
-    "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret", "Eternal", "Divine"
-}
-
 local BIOME_ORDER = {
     "Forest", "Lake", "Desert", "Jungle", "Snow", "Volcano", "Abyss Ocean",
     "Prehistoric", "Cosmic", "Cherry Blossom", "Titan Temple", "Light & Dark", "Enchanted Forest", "Ungrouped"
@@ -897,14 +1081,16 @@ local function registerDynamicSpecies(rawName, defaultBiome, defaultRarity)
             biome = "Ungrouped"
         end
     end
-    local rarity = (existing and existing.Rarity) or defaultRarity or "Common"
-    local rank = (existing and existing.Rank) or (RARITY_RANK[rarity] or 1)
+    local isCataloged = (existing and existing.IsCataloged == true)
+    local rarity = (isCataloged and existing.Rarity) or defaultRarity or (biome == "Halloween" and "New Update" or "Common")
+    local rank = (isCataloged and existing.Rank) or (RARITY_RANK[rarity] or (rarity == "New Update" and 99 or 1))
 
     local record = existing or {
         DisplayName = disp,
         Rarity      = rarity,
         Rank        = rank,
         Biome       = biome,
+        IsCataloged = false,
     }
     if not SPECIES_INFO[clean] then
         SPECIES_INFO[clean] = record
@@ -1795,6 +1981,9 @@ local eggDd = {
 rarityBtn.MouseButton1Click:Connect(function() toggleDropdown(rarityDd) end)
 biomeBtn.MouseButton1Click:Connect(function() toggleDropdown(biomeDd) end)
 eggBtn.MouseButton1Click:Connect(function() toggleDropdown(eggDd) end)
+if hwRarityBtn and hwRarityDd then
+    hwRarityBtn.MouseButton1Click:Connect(function() toggleDropdown(hwRarityDd) end)
+end
 
 local function isInsideGui(guiObj, pos)
     if not (guiObj and guiObj.Visible) then return false end
@@ -3462,7 +3651,7 @@ end
 local function getHwEggColor(eggInst, eggDisplayName)
     local n = eggDisplayName and eggDisplayName:lower() or eggInst.Name:lower()
     local info = SPECIES_INFO[n] or (getSpeciesInfo and getSpeciesInfo(n))
-    if info and info.Rarity and RARITY_COLORS[info.Rarity] then
+    if info and info.IsCataloged == true and info.Rarity and RARITY_COLORS[info.Rarity] then
         return RARITY_COLORS[info.Rarity]
     end
     local glow = eggInst:FindFirstChild("Hitbox", true)
@@ -3667,9 +3856,27 @@ renderHalloweenEggs = function()
                 or egg:GetAttribute("AreaId")
                 or egg:GetAttribute("Biome")
                 or "WorldEggs"
-            local rarName = (info and info.Rarity) or egg:GetAttribute("Rarity") or "Rare"
 
-            local subLabel = string.format("%s • %s • %d studs", zoneName, rarName, math.floor(d))
+            local isCataloged = (info ~= nil and info.IsCataloged == true)
+            local rarName = (isCataloged and info.Rarity) or egg:GetAttribute("Rarity") or "New Update"
+
+            -- Rarity Filter:
+            -- Eggs not tracked in group or listed in any of our catalog will be flagged as new update,
+            -- so even if they do not match the rarity filter they should default to showing.
+            local matchesRarity = false
+            if selectedHwRarities and (selectedHwRarities["All"] or selectedHwRarities[rarName]) then
+                matchesRarity = true
+            end
+            if not isCataloged then
+                matchesRarity = true
+            end
+
+            if not matchesRarity then
+                continue
+            end
+
+            local tagUpdate = not isCataloged and " • [New Update]" or ""
+            local subLabel = string.format("%s • %s%s • %d studs", zoneName, rarName, tagUpdate, math.floor(d))
 
             table.insert(eggList, {
                 Model     = egg,
@@ -3679,7 +3886,7 @@ renderHalloweenEggs = function()
                 SubLabel  = subLabel,
                 Color     = getHwEggColor(egg, eggName),
                 Zone      = tonumber(zone) or 99,
-                Rank      = (info and info.Rank) or (RARITY_RANK[rarName] or 1),
+                Rank      = (isCataloged and info and info.Rank) or (RARITY_RANK[rarName] or 99),
                 Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
             })
         end
@@ -3712,8 +3919,9 @@ renderHalloweenEggs = function()
     if count == 0 then
         if hwEmptyNotice then
             hwEmptyNotice.Visible = true
+            local hasFilter = selectedHwRarities and not selectedHwRarities["All"]
             hwEmptyNotice.Text = (inHw or Workspace:FindFirstChild("HalloweenDimension"))
-                and "🎃 All Halloween eggs currently collected or respawning.\nWait for new spawn on pads."
+                and (hasFilter and "🎃 No Halloween eggs match current rarity filter.\nSelect [All] or adjust rarity filter." or "🎃 All Halloween eggs currently collected or respawning.\nWait for new spawn on pads.")
                 or "🎃 No Halloween eggs detected in current world.\nEnter the Halloween Portal to view eggs."
         end
     else
@@ -4147,6 +4355,7 @@ end)
 
 -- Tab switching handler (ready for modular tab additions)
 local function switchTab(tabName)
+    closeCurrentDropdown()
     tabEggs.Visible = (tabName == "Eggs")
     tabUtility.Visible = (tabName == "Utility")
     tabHalloween.Visible = (tabName == "Halloween")
