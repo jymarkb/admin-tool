@@ -1883,6 +1883,44 @@ local activeWalkToken = 0
 local walkLastPos = nil
 local walkStuckFrames = 0
 
+local cachedControls = nil
+local function getPlayerInputVector()
+    local inputVec = Vector3.zero
+    if cachedControls and cachedControls.GetMoveVector then
+        local ok, mv = pcall(function() return cachedControls:GetMoveVector() end)
+        if ok and typeof(mv) == "Vector3" and mv.Magnitude > 0.05 then
+            inputVec = mv
+        end
+    end
+    if inputVec.Magnitude <= 0.05 then
+        pcall(function()
+            local ps = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerScripts")
+            local pm = ps and ps:FindFirstChild("PlayerModule")
+            if pm then
+                local controls = require(pm):GetControls()
+                if controls and controls.GetMoveVector then
+                    cachedControls = controls
+                    local mv = controls:GetMoveVector()
+                    if typeof(mv) == "Vector3" and mv.Magnitude > 0.05 then
+                        inputVec = mv
+                    end
+                end
+            end
+        end)
+    end
+    if inputVec.Magnitude <= 0.05 and UserInputService then
+        local ix, iz = 0, 0
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then ix = ix - 1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then ix = ix + 1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.Up) then iz = iz - 1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) or UserInputService:IsKeyDown(Enum.KeyCode.Down) then iz = iz + 1 end
+        if ix ~= 0 or iz ~= 0 then
+            inputVec = Vector3.new(ix, 0, iz).Unit
+        end
+    end
+    return inputVec
+end
+
 local function stopWalking()
     activeWalkToken = (activeWalkToken or 0) + 1
     activeWalkTarget = nil
@@ -1894,7 +1932,10 @@ local function stopWalking()
         local char = LocalPlayer and LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hum then hum:Move(Vector3.zero, false) end
+        if hum then
+            hum:Move(Vector3.zero, false)
+            if hrp then hum.WalkToPoint = hrp.Position end
+        end
         if hrp then hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0) end
     end)
 end
@@ -1912,16 +1953,115 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
 
     activeWalkTarget = targetPos
     activeWalkArriveDist = arriveDist or 3.5
-    activeWalkSnapDist = snapDist or 60.0
+    activeWalkSnapDist = snapDist
     activeWalkUid = uid
     activeWalkCallback = onArrived
     walkLastPos = nil
     walkStuckFrames = 0
 
-    -- Safety timeout (if player gets stuck or path takes > 45s)
-    task.delay(45.0, function()
-        if activeWalkToken == myTok and activeWalkTarget == targetPos then
-            stopWalking()
+    task.spawn(function()
+        local t0 = os.clock()
+        while activeWalkToken == myTok do
+            -- Safety timeout (if player gets stuck or path takes > 45s)
+            if os.clock() - t0 > 45.0 then
+                stopWalking()
+                break
+            end
+
+            local char = LocalPlayer and LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not (hum and hrp and hum.Health > 0) then
+                task.wait(0.1)
+            else
+                -- 1. State / Target Validation checks
+                -- Walking to an egg and target egg already secured: stop walking to egg
+                if activeWalkUid ~= "SAFE_ZONE" and (weAreCarrying and carryUid == activeWalkUid) then
+                    local cb = activeWalkCallback
+                    stopWalking()
+                    if cb then task.spawn(cb) end
+                    return
+                end
+
+                -- Walking to SafeZone and egg dropped: immediately abort safezone walk and re-pick!
+                if activeWalkUid == "SAFE_ZONE" and not (weAreCarrying or isHoldingEgg()) then
+                    stopWalking()
+                    if autoReturnActive and autoReturnTargetUid then
+                        handleEggDropped(autoReturnTargetUid)
+                    end
+                    return
+                end
+
+                -- Target egg was claimed or carried by another player
+                if activeWalkUid and activeWalkUid ~= "SAFE_ZONE" and eggCacheByUid and eggCacheByUid[activeWalkUid] then
+                    local rec = eggCacheByUid[activeWalkUid]
+                    local myId = tostring(LocalPlayer and LocalPlayer.UserId or "")
+                    if rec.State == "Claimed" or (rec.CarrierUserId and tostring(rec.CarrierUserId) ~= myId) then
+                        stopWalking()
+                        if autoReturnActive and autoReturnTargetUid == activeWalkUid then
+                            if rec.State == "Claimed" and (rec.CarrierUserId and tostring(rec.CarrierUserId) == myId) then
+                                handleEggDelivered(activeWalkUid)
+                            else
+                                autoReturnActive = false
+                                autoReturnTargetUid = nil
+                                returnTripInProgress = false
+                                print("[EggGoTo v11] Target egg was taken by another player.")
+                            end
+                        end
+                        return
+                    end
+
+                    -- Live refresh target position if egg shifted
+                    local liveP = getEggPosition(rec, activeWalkUid)
+                    if liveP then
+                        targetPos = liveP
+                        activeWalkTarget = liveP
+                    end
+                end
+
+                local curPos = hrp.Position
+                local diff = Vector3.new(targetPos.X - curPos.X, 0, targetPos.Z - curPos.Z)
+                local dist = diff.Magnitude
+
+                -- 2. Arrival or Snap Teleport Check
+                local effectiveSnap = activeWalkSnapDist or 8.0
+                if dist <= activeWalkArriveDist or dist <= effectiveSnap then
+                    local cb = activeWalkCallback
+                    local walkUid = activeWalkUid
+                    local finalTarget = targetPos
+                    pcall(function()
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        if walkUid == "SAFE_ZONE" then
+                            local yPos = finalTarget.Y
+                            if math.abs(curPos.Y - finalTarget.Y) <= 4 then yPos = curPos.Y end
+                            hrp.CFrame = CFrame.new(finalTarget.X, yPos, finalTarget.Z) * (hrp.CFrame - hrp.CFrame.Position)
+                        else
+                            local bPos, lookTarget = getBesideOffset(finalTarget, curPos, 2.8)
+                            hrp.CFrame = CFrame.lookAt(bPos, lookTarget)
+                        end
+                        hum:Move(Vector3.zero, false)
+                        if hrp then hum.WalkToPoint = hrp.Position end
+                    end)
+                    stopWalking()
+                    if cb then task.spawn(cb) end
+                    return
+                end
+
+                -- 3. Anti-stuck watchdog: hop over small bumps if blocked
+                if walkLastPos and (Vector3.new(curPos.X - walkLastPos.X, 0, curPos.Z - walkLastPos.Z)).Magnitude < 0.5 then
+                    walkStuckFrames = walkStuckFrames + 1
+                    if walkStuckFrames >= 3 then
+                        walkStuckFrames = 0
+                        pcall(function() hum.Jump = true end)
+                    end
+                else
+                    walkStuckFrames = 0
+                end
+                walkLastPos = curPos
+
+                -- 4. Fast monitor tick: physics loop handles seamless steering and velocity
+                task.wait(0.08)
+            end
         end
     end)
 end
@@ -1985,7 +2125,7 @@ handleEggDropped = function(u, payload)
             Name = "Dropped Egg"
         })
         startAutoPickupSpam()
-    end, u, 60.0)
+    end, u, 8.0)
 end
 
 startReturnTrip = function()
@@ -2028,108 +2168,53 @@ local function updateVelocityPhysics()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not (hum and hrp and hrp.Parent and hum.Health > 0) then return end
 
-    -- 1. Active Auto-Walk towards Egg or SafeZone
+    local isCarrying = getCarryingStatus()
+    local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
+
+    -- Case 1: Active Auto-Walk (Walking to Egg or Returning to SafeZone)
     if activeWalkTarget then
-        -- Walking to an egg and target egg already secured: stop walking to egg
-        if activeWalkUid ~= "SAFE_ZONE" and (weAreCarrying and carryUid == activeWalkUid) then
-            local cb = activeWalkCallback
-            stopWalking()
-            if cb then task.spawn(cb) end
-            return
-        end
-
-        -- Walking to SafeZone and egg dropped: immediately abort safezone walk and re-pick!
-        if activeWalkUid == "SAFE_ZONE" and not (weAreCarrying or isHoldingEgg()) then
-            stopWalking()
-            if autoReturnActive and autoReturnTargetUid then
-                handleEggDropped(autoReturnTargetUid)
-            end
-            return
-        end
-
-        if activeWalkUid and activeWalkUid ~= "SAFE_ZONE" and eggCacheByUid and eggCacheByUid[activeWalkUid] then
-            local rec = eggCacheByUid[activeWalkUid]
-            local myId = tostring(LocalPlayer and LocalPlayer.UserId or "")
-            if rec.State == "Claimed" or (rec.CarrierUserId and tostring(rec.CarrierUserId) ~= myId) then
-                stopWalking()
-                if autoReturnActive and autoReturnTargetUid == activeWalkUid then
-                    if rec.State == "Claimed" and (rec.CarrierUserId and tostring(rec.CarrierUserId) == myId) then
-                        handleEggDelivered(activeWalkUid)
-                    else
-                        autoReturnActive = false
-                        autoReturnTargetUid = nil
-                        returnTripInProgress = false
-                        print("[EggGoTo v11] Target egg was taken by another player.")
-                    end
-                end
-                return
-            end
-        end
-
         local curPos = hrp.Position
         local diff = Vector3.new(activeWalkTarget.X - curPos.X, 0, activeWalkTarget.Z - curPos.Z)
-        local dist = diff.Magnitude
+        local targetDir = diff.Magnitude > 0.1 and diff.Unit or Vector3.zero
 
-        -- 60-Stud Snap Teleport: When within 60 studs (or arrival radius),
-        -- snap cleanly and zero velocity to eliminate overshoot/oscillation!
-        if (activeWalkSnapDist and dist <= activeWalkSnapDist) or dist <= activeWalkArriveDist then
-            local cb = activeWalkCallback
-            local walkUid = activeWalkUid
-            local walkTarget = activeWalkTarget
+        -- Query player manual steering input (A, D, W, S or analog thumbstick)
+        local inputVec = getPlayerInputVector()
+        local moveDir = targetDir
 
-            pcall(function()
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                if walkUid == "SAFE_ZONE" then
-                    local yPos = walkTarget.Y
-                    if math.abs(curPos.Y - walkTarget.Y) <= 4 then yPos = curPos.Y end
-                    hrp.CFrame = CFrame.new(walkTarget.X, yPos, walkTarget.Z) * (hrp.CFrame - hrp.CFrame.Position)
-                else
-                    local bPos, lookTarget = getBesideOffset(walkTarget, curPos, 2.8)
-                    hrp.CFrame = CFrame.lookAt(bPos, lookTarget)
-                end
-                hum:Move(Vector3.zero, false)
-            end)
-            stopWalking()
-            if cb then task.spawn(cb) end
-            return
-        end
+        if inputVec.Magnitude > 0.05 then
+            local cam = Workspace.CurrentCamera
+            local camLook = cam and cam.CFrame.LookVector or Vector3.new(0, 0, -1)
+            local camRight = cam and cam.CFrame.RightVector or Vector3.new(1, 0, 0)
+            local camFwdFlat = Vector3.new(camLook.X, 0, camLook.Z).Unit
+            local camRtFlat = Vector3.new(camRight.X, 0, camRight.Z).Unit
+            local worldManualDir = (camRtFlat * inputVec.X - camFwdFlat * inputVec.Z)
 
-        local dir = diff.Unit
-        local walkSpeed = velocityEnabled and (activeWalkUid == "SAFE_ZONE" and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 28)
-
-        -- Smoothly orient character towards target
-        pcall(function()
-            hrp.CFrame = CFrame.lookAt(curPos, Vector3.new(activeWalkTarget.X, curPos.Y, activeWalkTarget.Z))
-        end)
-
-        -- Anti-stuck: hop over small bumps if blocked for ~0.33s
-        if walkLastPos and (Vector3.new(curPos.X - walkLastPos.X, 0, curPos.Z - walkLastPos.Z)).Magnitude < 0.25 then
-            walkStuckFrames = walkStuckFrames + 1
-            if walkStuckFrames >= 20 then
-                walkStuckFrames = 0
-                pcall(function() hum.Jump = true end)
+            if worldManualDir.Magnitude > 0.05 then
+                -- Smoothly blend target direction with manual lateral steering:
+                -- Retains 100% full speed while allowing agile veering around obstacles!
+                moveDir = (targetDir + worldManualDir.Unit * 1.0).Unit
             end
-        else
-            walkStuckFrames = 0
         end
-        walkLastPos = curPos
 
-        hum:Move(dir, false)
+        hum:Move(moveDir, false)
 
-        hrp.AssemblyLinearVelocity = Vector3.new(
-            dir.X * walkSpeed,
-            hrp.AssemblyLinearVelocity.Y,
-            dir.Z * walkSpeed
-        )
+        if velocityEnabled and moveDir.Magnitude > 0.05 then
+            hrp.AssemblyLinearVelocity = Vector3.new(
+                moveDir.X * targetSpeed,
+                hrp.AssemblyLinearVelocity.Y,
+                moveDir.Z * targetSpeed
+            )
+            if hum.WalkSpeed ~= targetSpeed then
+                pcall(function() hum.WalkSpeed = targetSpeed end)
+            end
+        end
         return
     end
 
-    -- 2. Regular Velocity Physics for manual player movement (WASD)
+    -- Case 2: Regular Velocity Physics for manual player free-roam (WASD)
     if not velocityEnabled then return end
 
     if hum.MoveDirection.Magnitude > 0.05 then
-        local isCarrying = getCarryingStatus()
-        local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
         local dir = hum.MoveDirection.Unit
         hrp.AssemblyLinearVelocity = Vector3.new(
             dir.X * targetSpeed,
@@ -2217,7 +2302,6 @@ end))
 local recoveryJoints = {}
 local recoveryConnections = {}
 
-local cachedControls = nil
 local function enablePlayerControls()
     if cachedControls and cachedControls.Enable then
         pcall(function() cachedControls:Enable() end)
@@ -2871,7 +2955,7 @@ local function getOrCreateCard(idx)
                     Name = eggData.DisplayName
                 })
                 startAutoPickupSpam()
-            end, eggData.Uid, 60.0)
+            end, eggData.Uid, 8.0)
         end))
 
         cardPool[idx] = item
