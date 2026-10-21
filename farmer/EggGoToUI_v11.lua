@@ -670,6 +670,7 @@ local requestListUpdate
 local updateActivityStatus
 local activityStatusLabel
 local velLiveLabel
+local copyJsonBtn
 local startReturnTrip
 local handleEggDropped
 local handleEggDelivered
@@ -887,11 +888,55 @@ velLiveLabel.TextXAlignment = Enum.TextXAlignment.Center
 velLiveLabel.Parent = velocityFrame
 Instance.new("UICorner", velLiveLabel).CornerRadius = UDim.new(0, 4)
 
+-- 2b. Instant Recovery Control Bar (Row below Velocity Engine)
+local recoveryFrame = Instance.new("Frame")
+recoveryFrame.Name = "RecoveryFrame"
+recoveryFrame.Size = UDim2.new(1, -16, 0, 26)
+recoveryFrame.Position = UDim2.new(0, 8, 0, 52)
+recoveryFrame.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+recoveryFrame.BorderSizePixel = 0
+recoveryFrame.Parent = tabEggs
+Instance.new("UICorner", recoveryFrame).CornerRadius = UDim.new(0, 4)
+local strokeRecovery = Instance.new("UIStroke", recoveryFrame)
+strokeRecovery.Color = Color3.fromRGB(45, 55, 75)
+strokeRecovery.Thickness = 1
+
+local lblRecoveryTitle = Instance.new("TextLabel")
+lblRecoveryTitle.Name = "RecoveryTitle"
+lblRecoveryTitle.Size = UDim2.new(1, -74, 1, 0)
+lblRecoveryTitle.Position = UDim2.new(0, 10, 0, 0)
+lblRecoveryTitle.BackgroundTransparency = 1
+lblRecoveryTitle.Text = "Instant Recovery"
+lblRecoveryTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+lblRecoveryTitle.Font = Enum.Font.GothamBold
+lblRecoveryTitle.TextSize = 11.5
+lblRecoveryTitle.TextXAlignment = Enum.TextXAlignment.Left
+lblRecoveryTitle.Parent = recoveryFrame
+
+local toggleRecoveryBtn = Instance.new("TextButton")
+toggleRecoveryBtn.Name = "ToggleRecoveryBtn"
+toggleRecoveryBtn.Size = UDim2.new(0, 56, 0, 20)
+toggleRecoveryBtn.Position = UDim2.new(1, -62, 0.5, -10)
+toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
+toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+toggleRecoveryBtn.Font = Enum.Font.GothamBold
+toggleRecoveryBtn.TextSize = 11
+toggleRecoveryBtn.Parent = recoveryFrame
+Instance.new("UICorner", toggleRecoveryBtn).CornerRadius = UDim.new(0, 4)
+
+addConnection(toggleRecoveryBtn.MouseButton1Click:Connect(function()
+    RECOVERY_CONFIG.Enabled = not RECOVERY_CONFIG.Enabled
+    toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
+    toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+    toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+end))
+
 -- 3. World Egg Catalog List View
 local listHeader = Instance.new("Frame")
 listHeader.Name = "ListHeader"
 listHeader.Size = UDim2.new(1, -16, 0, 26)
-listHeader.Position = UDim2.new(0, 8, 0, 52)
+listHeader.Position = UDim2.new(0, 8, 0, 82)
 listHeader.BackgroundColor3 = Color3.fromRGB(26, 32, 46)
 listHeader.BorderSizePixel = 0
 listHeader.Parent = tabEggs
@@ -899,7 +944,7 @@ Instance.new("UICorner", listHeader).CornerRadius = UDim.new(0, 6)
 
 local listHeaderTitle = Instance.new("TextLabel")
 listHeaderTitle.Name = "HeaderTitle"
-listHeaderTitle.Size = UDim2.new(1, -95, 1, 0)
+listHeaderTitle.Size = UDim2.new(1, -20, 1, 0)
 listHeaderTitle.Position = UDim2.new(0, 10, 0, 0)
 listHeaderTitle.BackgroundTransparency = 1
 listHeaderTitle.Text = "Farmable Eggs"
@@ -909,23 +954,11 @@ listHeaderTitle.Font = Enum.Font.GothamBold
 listHeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
 listHeaderTitle.Parent = listHeader
 
-local copyJsonBtn = Instance.new("TextButton")
-copyJsonBtn.Name = "CopyJsonBtn"
-copyJsonBtn.Size = UDim2.new(0, 76, 0, 20)
-copyJsonBtn.Position = UDim2.new(1, -82, 0.5, -10)
-copyJsonBtn.BackgroundColor3 = Color3.fromRGB(45, 65, 100)
-copyJsonBtn.Text = "Copy JSON"
-copyJsonBtn.TextColor3 = Color3.fromRGB(210, 230, 255)
-copyJsonBtn.TextSize = 10
-copyJsonBtn.Font = Enum.Font.GothamBold
-copyJsonBtn.Parent = listHeader
-Instance.new("UICorner", copyJsonBtn).CornerRadius = UDim.new(0, 4)
-
 -- 4. Dropdown Filter Bar
 local filterFrame = Instance.new("Frame")
 filterFrame.Name = "FilterFrame"
 filterFrame.Size = UDim2.new(1, -16, 0, 58)
-filterFrame.Position = UDim2.new(0, 8, 0, 82)
+filterFrame.Position = UDim2.new(0, 8, 0, 112)
 filterFrame.BackgroundTransparency = 1
 filterFrame.BorderSizePixel = 0
 filterFrame.ClipsDescendants = false
@@ -1538,8 +1571,8 @@ end))
 -- Scrolling Egg List
 local eggListScroll = Instance.new("ScrollingFrame")
 eggListScroll.Name = "EggListScroll"
-eggListScroll.Size = UDim2.new(1, -16, 1, -150)
-eggListScroll.Position = UDim2.new(0, 8, 0, 144)
+eggListScroll.Size = UDim2.new(1, -16, 1, -180)
+eggListScroll.Position = UDim2.new(0, 8, 0, 174)
 eggListScroll.BackgroundTransparency = 1
 eggListScroll.BorderSizePixel = 0
 eggListScroll.ScrollBarThickness = 4
@@ -1612,47 +1645,40 @@ addConnection(togglePickupBtn.MouseButton1Click:Connect(function()
     end
 end))
 
-local rowRecovery = Instance.new("Frame")
-rowRecovery.Name = "RowRecovery"
-rowRecovery.Size = UDim2.new(1, -16, 0, 36)
-rowRecovery.Position = UDim2.new(0, 8, 0, 52)
-rowRecovery.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
-rowRecovery.BorderSizePixel = 0
-rowRecovery.Parent = tabUtility
-Instance.new("UICorner", rowRecovery).CornerRadius = UDim.new(0, 6)
-local strokeRecovery = Instance.new("UIStroke", rowRecovery)
-strokeRecovery.Color = Color3.fromRGB(45, 55, 75)
-strokeRecovery.Thickness = 1
+local rowCopyJson = Instance.new("Frame")
+rowCopyJson.Name = "RowCopyJson"
+rowCopyJson.Size = UDim2.new(1, -16, 0, 36)
+rowCopyJson.Position = UDim2.new(0, 8, 0, 52)
+rowCopyJson.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+rowCopyJson.BorderSizePixel = 0
+rowCopyJson.Parent = tabUtility
+Instance.new("UICorner", rowCopyJson).CornerRadius = UDim.new(0, 6)
+local strokeCopyJson = Instance.new("UIStroke", rowCopyJson)
+strokeCopyJson.Color = Color3.fromRGB(45, 55, 75)
+strokeCopyJson.Thickness = 1
 
-local lblRecoveryTitle = Instance.new("TextLabel")
-lblRecoveryTitle.Size = UDim2.new(1, -80, 1, 0)
-lblRecoveryTitle.Position = UDim2.new(0, 12, 0, 0)
-lblRecoveryTitle.BackgroundTransparency = 1
-lblRecoveryTitle.Text = "Instant Recovery"
-lblRecoveryTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
-lblRecoveryTitle.Font = Enum.Font.GothamBold
-lblRecoveryTitle.TextSize = 12
-lblRecoveryTitle.TextXAlignment = Enum.TextXAlignment.Left
-lblRecoveryTitle.Parent = rowRecovery
+local lblCopyTitle = Instance.new("TextLabel")
+lblCopyTitle.Size = UDim2.new(1, -100, 1, 0)
+lblCopyTitle.Position = UDim2.new(0, 12, 0, 0)
+lblCopyTitle.BackgroundTransparency = 1
+lblCopyTitle.Text = "Export Egg Data"
+lblCopyTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+lblCopyTitle.Font = Enum.Font.GothamBold
+lblCopyTitle.TextSize = 12
+lblCopyTitle.TextXAlignment = Enum.TextXAlignment.Left
+lblCopyTitle.Parent = rowCopyJson
 
-local toggleRecoveryBtn = Instance.new("TextButton")
-toggleRecoveryBtn.Name = "ToggleRecoveryBtn"
-toggleRecoveryBtn.Size = UDim2.new(0, 56, 0, 24)
-toggleRecoveryBtn.Position = UDim2.new(1, -66, 0.5, -12)
-toggleRecoveryBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
-toggleRecoveryBtn.Text = "ON"
-toggleRecoveryBtn.TextColor3 = Color3.new(1, 1, 1)
-toggleRecoveryBtn.Font = Enum.Font.GothamBold
-toggleRecoveryBtn.TextSize = 11
-toggleRecoveryBtn.Parent = rowRecovery
-Instance.new("UICorner", toggleRecoveryBtn).CornerRadius = UDim.new(0, 5)
-
-addConnection(toggleRecoveryBtn.MouseButton1Click:Connect(function()
-    RECOVERY_CONFIG.Enabled = not RECOVERY_CONFIG.Enabled
-    toggleRecoveryBtn.Text = RECOVERY_CONFIG.Enabled and "ON" or "OFF"
-    toggleRecoveryBtn.BackgroundColor3 = RECOVERY_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
-    toggleRecoveryBtn.TextColor3 = RECOVERY_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-end))
+copyJsonBtn = Instance.new("TextButton")
+copyJsonBtn.Name = "CopyJsonBtn"
+copyJsonBtn.Size = UDim2.new(0, 80, 0, 24)
+copyJsonBtn.Position = UDim2.new(1, -90, 0.5, -12)
+copyJsonBtn.BackgroundColor3 = Color3.fromRGB(45, 65, 100)
+copyJsonBtn.Text = "Copy JSON"
+copyJsonBtn.TextColor3 = Color3.fromRGB(210, 230, 255)
+copyJsonBtn.TextSize = 11
+copyJsonBtn.Font = Enum.Font.GothamBold
+copyJsonBtn.Parent = rowCopyJson
+Instance.new("UICorner", copyJsonBtn).CornerRadius = UDim.new(0, 5)
 
 -- ============================================================================
 -- 2. LIVE SERVER EGG DETECTION & FARMABLE LIST (Pooled & Throttled: Zero-Freeze)
@@ -2089,7 +2115,6 @@ local function updateVelocityPhysics()
         walkLastPos = curPos
 
         hum:Move(dir, false)
-        pcall(function() hum:MoveTo(activeWalkTarget) end)
 
         hrp.AssemblyLinearVelocity = Vector3.new(
             dir.X * walkSpeed,
@@ -2102,20 +2127,18 @@ local function updateVelocityPhysics()
     -- 2. Regular Velocity Physics for manual player movement (WASD)
     if not velocityEnabled then return end
 
-    local isCarrying = getCarryingStatus()
-    local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
-
     if hum.MoveDirection.Magnitude > 0.05 then
+        local isCarrying = getCarryingStatus()
+        local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
         local dir = hum.MoveDirection.Unit
         hrp.AssemblyLinearVelocity = Vector3.new(
             dir.X * targetSpeed,
             hrp.AssemblyLinearVelocity.Y,
             dir.Z * targetSpeed
         )
-    end
-
-    if hum.WalkSpeed ~= targetSpeed then
-        pcall(function() hum.WalkSpeed = targetSpeed end)
+        if hum.WalkSpeed ~= targetSpeed then
+            pcall(function() hum.WalkSpeed = targetSpeed end)
+        end
     end
 end
 
@@ -2194,13 +2217,19 @@ end))
 local recoveryJoints = {}
 local recoveryConnections = {}
 
+local cachedControls = nil
 local function enablePlayerControls()
+    if cachedControls and cachedControls.Enable then
+        pcall(function() cachedControls:Enable() end)
+        return
+    end
     pcall(function()
         local ps = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerScripts")
         local pm = ps and ps:FindFirstChild("PlayerModule")
         if pm then
             local controls = require(pm):GetControls()
             if controls and controls.Enable then
+                cachedControls = controls
                 controls:Enable()
             end
         end
@@ -2225,13 +2254,27 @@ local function clearRagdollAttributes()
     end)
 end
 
+local isRecovering = false
+local lastRecoveryTime = 0
+
 executeInstantRecovery = function(reason)
     if not (RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled) then return end
+    local now = os.clock()
+    if isRecovering or (now - lastRecoveryTime < 0.05) then return end
+    isRecovering = true
+    lastRecoveryTime = now
+
     local char = LocalPlayer and LocalPlayer.Character
-    if not char then return end
+    if not char then
+        isRecovering = false
+        return
+    end
     local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not (hum and hrp and hum.Health > 0) then return end
+    if not (hum and hrp and hum.Health > 0) then
+        isRecovering = false
+        return
+    end
 
     clearRagdollAttributes()
 
@@ -2239,12 +2282,6 @@ executeInstantRecovery = function(reason)
         for _, motor in ipairs(recoveryJoints) do
             if motor and motor.Parent and not motor.Enabled then
                 motor.Enabled = true
-            end
-        end
-    else
-        for _, desc in ipairs(char:GetDescendants()) do
-            if desc:IsA("Motor6D") and not desc.Enabled then
-                pcall(function() desc.Enabled = true end)
             end
         end
     end
@@ -2276,60 +2313,15 @@ executeInstantRecovery = function(reason)
     if RECOVERY_CONFIG.AntiFling and hrp then
         local curVel = hrp.AssemblyLinearVelocity
         local fastY = curVel.Y
-        if fastY > 0 then
-            fastY = -45
-        elseif fastY > -30 then
+        if fastY > -30 then
             fastY = -45
         end
         hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)
         hrp.AssemblyAngularVelocity = Vector3.zero
     end
-end
 
-local metamethodsInstalled = false
-local function installRecoveryMetamethods()
-    if metamethodsInstalled then return end
-    if typeof(hookmetamethod) ~= "function" then return end
-    local checkcaller = checkcaller or function() return false end
-    pcall(function()
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if method == "GetAttribute" then
-                if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and not checkcaller() then
-                    local attrName = ...
-                    if attrName == "RagdollEndTime" or attrName == "RagdollTime" then
-                        return 0
-                    end
-                end
-            end
-            return oldNamecall(self, ...)
-        end)
-
-        local oldNewIndex
-        oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
-            if not checkcaller() and RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled then
-                if key == "PlatformStand" and value == true then
-                    local char = LocalPlayer and LocalPlayer.Character
-                    if char and self.Parent == char then
-                        return oldNewIndex(self, key, false)
-                    end
-                elseif key == "Enabled" and value == false then
-                    local char = LocalPlayer and LocalPlayer.Character
-                    if char then
-                        local ok, isMotor = pcall(function() return self:IsA("Motor6D") end)
-                        if ok and isMotor and self:IsDescendantOf(char) then
-                            return oldNewIndex(self, key, true)
-                        end
-                    end
-                end
-            end
-            return oldNewIndex(self, key, value)
-        end)
-        metamethodsInstalled = true
-    end)
+    isRecovering = false
 end
-pcall(installRecoveryMetamethods)
 
 bindRecoveryCharacter = function(char)
     for _, conn in ipairs(recoveryConnections) do
@@ -2413,40 +2405,6 @@ bindRecoveryCharacter = function(char)
     end)
     table.insert(recoveryConnections, attrConn2)
 end
-
-addConnection(RunService.Heartbeat:Connect(function()
-    if not (RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled) then return end
-    local char = LocalPlayer and LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not (hum and hrp and hum.Health > 0) then return end
-
-    if LocalPlayer and (LocalPlayer:GetAttribute("RagdollEndTime") or 0) > 0 then
-        clearRagdollAttributes()
-        enablePlayerControls()
-    end
-
-    local disabled = 0
-    for _, m in ipairs(recoveryJoints) do
-        if m and m.Parent and not m.Enabled then
-            disabled = disabled + 1
-            m.Enabled = true
-        end
-    end
-    if disabled > 0 then
-        executeInstantRecovery("MotorsFixed")
-    end
-
-    local s = hum:GetState()
-    if s == Enum.HumanoidStateType.Ragdoll
-        or s == Enum.HumanoidStateType.FallingDown
-        or s == Enum.HumanoidStateType.Physics
-        or hum.PlatformStand
-        or hum.Sit then
-        executeInstantRecovery(tostring(s.Name))
-    end
-end))
 
 if LocalPlayer and LocalPlayer.Character then
     task.spawn(function()
@@ -2736,9 +2694,8 @@ addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if UserInputService:GetFocusedTextBox() ~= nil then return end
 
-    if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.A or
-       input.KeyCode == Enum.KeyCode.S or input.KeyCode == Enum.KeyCode.D or
-       input.KeyCode == Enum.KeyCode.Space then
+    -- Cancel auto-walk / auto-return ONLY when [Q] is pressed (W, A, S, D will NOT cancel auto-travel)
+    if input.KeyCode == Enum.KeyCode.Q then
         if activeWalkTarget then
             stopWalking()
         end
@@ -2747,8 +2704,21 @@ addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
             autoReturnTargetUid = nil
             returnTripInProgress = false
             if activityStatusLabel then
-                activityStatusLabel.Text = "Status: Auto-Return Cancelled (Manual Movement)"
+                activityStatusLabel.Text = "Status: Auto-Travel Cancelled [Q]"
                 activityStatusLabel.TextColor3 = Color3.fromRGB(255, 180, 100)
+            end
+        end
+    end
+
+    -- Jump during auto-walk / auto-return: trigger jump without cancelling movement or slowing down
+    if input.KeyCode == Enum.KeyCode.Space then
+        if activeWalkTarget then
+            local char = LocalPlayer and LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                pcall(function()
+                    hum.Jump = true
+                end)
             end
         end
     end
@@ -3357,6 +3327,15 @@ task.spawn(function()
         if listDirty then
             listDirty = false
             pcall(renderFarmableEggs)
+        end
+
+        -- Instant Recovery gentle safety fallback (0.3s throttled = 0 CPU cost)
+        if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and executeInstantRecovery then
+            local char = LocalPlayer and LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum and (hum.PlatformStand or hum.Sit) then
+                executeInstantRecovery("LoopFallback")
+            end
         end
     end
 end)
