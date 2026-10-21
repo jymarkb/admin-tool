@@ -281,30 +281,38 @@ local BIOME_EGG_CATALOG = {
     },
     {
         Biome = "Halloween",
-        EggNames = { "Halloween Egg", "Halloween Dimension Egg", "Candy Corn Egg" },
+        EggNames = { "Halloween Egg", "Hooded Gerbil Egg", "Toadstool Egg", "Patchwork Imp Egg", "Halloween Dimension Egg", "Candy Corn Egg" },
         Species = {
-            { Name = "Halloween Egg", Rarity = "Rare", Aliases = { "Halloween" } },
-            { Name = "Candy Corn Egg", Rarity = "Rare", Aliases = { "Candy Corn" } },
-            { Name = "Witch Crow Egg", Rarity = "Rare", Aliases = { "Witch Crow" } },
-            { Name = "Crowshade Egg", Rarity = "Rare", Aliases = { "Crowshade" } },
-            { Name = "Hooded Gerbil Egg", Rarity = "Rare", Aliases = { "Hooded Gerbil" } },
             { Name = "Mummy Egg", Rarity = "Epic", Aliases = { "Mummy" } },
-            { Name = "Candlefang Egg", Rarity = "Epic", Aliases = { "Candlefang" } },
-            { Name = "Patchwork Imp Egg", Rarity = "Epic", Aliases = { "Patchwork Imp" } },
             { Name = "Ghost Fish Egg", Rarity = "Epic", Aliases = { "Ghost Fish" } },
             { Name = "Witch Pumpkin Egg", Rarity = "Legendary", Aliases = { "Witch Pumpkin" } },
-            { Name = "Haunted Scorpio Egg", Rarity = "Legendary", Aliases = { "Haunted Scorpio" } },
-            { Name = "Graveyard Brute Egg", Rarity = "Legendary", Aliases = { "Graveyard Brute" } },
-            { Name = "Werewolf Egg", Rarity = "Legendary", Aliases = { "Werewolf" } },
-            { Name = "Hexed Pumpkin Egg", Rarity = "Mythic", Aliases = { "Hexed Pumpkin" } },
-            { Name = "BloodBloom Egg", Rarity = "Mythic", Aliases = { "BloodBloom" } },
             { Name = "Zombified Halloween Egg", Rarity = "Mythic", Aliases = { "Zombified Halloween" } },
             { Name = "Halloween Dimension Egg", Rarity = "Cosmic", Aliases = { "Halloween Dimension" } },
             { Name = "Halloween Boss Egg", Rarity = "Cosmic", Aliases = { "Halloween Boss" } },
-            { Name = "Voidseer Pumpkin Egg", Rarity = "Cosmic", Aliases = { "Voidseer Pumpkin" } },
-            { Name = "Spirit Knight Egg", Rarity = "Secret", Aliases = { "Spirit Knight" } },
-            { Name = "Ghost Reaper Egg", Rarity = "Secret", Aliases = { "Ghost Reaper" } },
-            { Name = "Halloween Royal Mimic Egg", Rarity = "Secret", Aliases = { "Halloween Royal Mimic", "Royal Mimic" } },
+
+            { Name = "Candy Corn Egg", Rarity = "Legendary", Aliases = { "Candy Corn" } },
+            { Name = "Whiskers Egg", Rarity = "Epic", Aliases = { "Whiskers" } },
+            { Name = "Jester Egg", Rarity = "Legendary", Aliases = { "Jester" } },
+            { Name = "Jesterpop Egg", Rarity = "Legendary", Aliases = { "Jesterpop" } },
+            { Name = "Candlefang Egg", Rarity = "Mythic", Aliases = { "Candlefang" } },
+            { Name = "Spirit Knight Egg", Rarity = "Cosmic", Aliases = { "Spirit Knight", "SpiritKnight" } },
+            { Name = "Witch Crow Egg", Rarity = "Cosmic", Aliases = { "Witch Crow" } },
+            { Name = "Graveyard Brute Egg", Rarity = "Secret", Aliases = { "Graveyard Brute" } },
+            { Name = "Ghost Reaper Egg", Rarity = "Eternal", Aliases = { "Ghost Reaper" } },
+
+            { Name = "Hooded Gerbil Egg", Rarity = "Legendary", Aliases = { "Hooded Gerbil", "Halloween Egg", "Halloween" } },
+            { Name = "Toadstool Egg", Rarity = "Mythic", Aliases = { "Toadstool", "Rotshroom", "Rotshroom Egg" } },
+            { Name = "Patchwork Imp Egg", Rarity = "Cosmic", Aliases = { "Quilted Imp Egg", "Quilted Imp", "Patchwork Imp" } },
+            { Name = "Haunted Scorpio Egg", Rarity = "Cosmic", Aliases = { "Haunted Scorpio" } },
+            { Name = "BloodBloom Egg", Rarity = "Secret", Aliases = { "BloodBloom" } },
+            { Name = "Shelltide Voyager Egg", Rarity = "Eternal", Aliases = { "Shelltide Voyager" } },
+
+            { Name = "Halloween Royal Mimic Egg", Rarity = "Legendary", Aliases = { "Halloween Royal Mimic", "Royal Mimic" } },
+            { Name = "Crowshade Egg", Rarity = "Mythic", Aliases = { "Crowshade" } },
+            { Name = "Hexed Pumpkin Egg", Rarity = "Cosmic", Aliases = { "Hexed Pumpkin" } },
+            { Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } },
+            { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong" } },
+            { Name = "Voidseer Pumpkin Egg", Rarity = "Divine", Aliases = { "Voidseer Pumpkin" } }
         }
     },
     {
@@ -419,17 +427,12 @@ local BIOME_EGG_CATALOG = {
             { Name = "Ostrich OP", Rarity = "Epic" },
             -- World / Special / Boss Additions
             { Name = "Mushroom Egg", Rarity = "Rare", Aliases = { "Mushroom" } },
-            { Name = "Toadstool Egg", Rarity = "Epic", Aliases = { "Toadstool" } },
             { Name = "Banjo Firefly", Rarity = "Rare" },
-            { Name = "Whiskers Egg", Rarity = "Rare", Aliases = { "Whiskers" } },
             { Name = "Engine Snail", Rarity = "Epic" },
             { Name = "Monster Egg", Rarity = "Mythic" },
             { Name = "Monstrous Egg", Rarity = "Secret" },
-            { Name = "Abomination Kong Egg", Rarity = "Secret", Aliases = { "Abomination Kong" } },
             { Name = "Ring Guard", Rarity = "Secret" },
             { Name = "Irihorus", Rarity = "Cosmic" },
-            { Name = "Jester Egg", Rarity = "Rare", Aliases = { "Jester" } },
-            { Name = "Jesterpop Egg", Rarity = "Epic", Aliases = { "Jesterpop" } },
             { Name = "Starry Wolf", Rarity = "Secret" },
             { Name = "World Spirit", Rarity = "Divine" },
             { Name = "Drill Monster", Rarity = "Cosmic" },
@@ -761,7 +764,7 @@ tabUtility.ClipsDescendants = false
 tabUtility.Visible = false
 tabUtility.Parent = contentContainer
 
--- Panel 3: Halloween Panel (Placeholder)
+-- Panel 3: Halloween Panel (Isolated Module)
 local tabHalloween = Instance.new("Frame")
 tabHalloween.Name = "TabHalloween"
 tabHalloween.Size = UDim2.new(1, 0, 1, 0)
@@ -772,77 +775,56 @@ tabHalloween.ClipsDescendants = false
 tabHalloween.Visible = false
 tabHalloween.Parent = contentContainer
 
--- Halloween Panel Placeholder Content
+local hwStatusLabel = nil
+local hwEggListScroll
+local hwEmptyNotice
+
+-- Halloween Panel: Live List Scrolling Container (Clean List - No Header Row)
 do
-    local hwHeader = Instance.new("Frame")
-    hwHeader.Name = "HalloweenHeader"
-    hwHeader.Size = UDim2.new(1, -16, 0, 32)
-    hwHeader.Position = UDim2.new(0, 8, 0, 8)
-    hwHeader.BackgroundColor3 = Color3.fromRGB(30, 24, 20)
-    hwHeader.BorderSizePixel = 0
-    hwHeader.Parent = tabHalloween
-    Instance.new("UICorner", hwHeader).CornerRadius = UDim.new(0, 6)
-    local hwStroke = Instance.new("UIStroke", hwHeader)
-    hwStroke.Color = Color3.fromRGB(180, 85, 25)
-    hwStroke.Thickness = 1.2
+    -- Scrolling Frame for detected Halloween eggs
+    hwEggListScroll = Instance.new("ScrollingFrame")
+    hwEggListScroll.Name = "HwEggListScroll"
+    hwEggListScroll.Size = UDim2.new(1, -16, 1, -12)
+    hwEggListScroll.Position = UDim2.new(0, 8, 0, 6)
+    hwEggListScroll.BackgroundTransparency = 1
+    hwEggListScroll.BorderSizePixel = 0
+    hwEggListScroll.ScrollBarThickness = 4
+    hwEggListScroll.ScrollBarImageColor3 = Color3.fromRGB(200, 95, 25)
+    hwEggListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    hwEggListScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    hwEggListScroll.ZIndex = 1
+    hwEggListScroll.Parent = tabHalloween
 
-    local hwTitle = Instance.new("TextLabel")
-    hwTitle.Name = "Title"
-    hwTitle.Size = UDim2.new(1, -16, 1, 0)
-    hwTitle.Position = UDim2.new(0, 10, 0, 0)
-    hwTitle.BackgroundTransparency = 1
-    hwTitle.Text = "🎃 Halloween Dimension"
-    hwTitle.TextColor3 = Color3.fromRGB(255, 175, 75)
-    hwTitle.TextSize = 13
-    hwTitle.Font = Enum.Font.GothamBold
-    hwTitle.TextXAlignment = Enum.TextXAlignment.Left
-    hwTitle.Parent = hwHeader
+    local hwListLayout = Instance.new("UIListLayout")
+    hwListLayout.Padding = UDim.new(0, 3)
+    hwListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    hwListLayout.Parent = hwEggListScroll
 
-    local hwPlaceholderCard = Instance.new("Frame")
-    hwPlaceholderCard.Name = "PlaceholderCard"
-    hwPlaceholderCard.Size = UDim2.new(1, -16, 0, 160)
-    hwPlaceholderCard.Position = UDim2.new(0, 8, 0, 48)
-    hwPlaceholderCard.BackgroundColor3 = Color3.fromRGB(24, 22, 28)
-    hwPlaceholderCard.BorderSizePixel = 0
-    hwPlaceholderCard.Parent = tabHalloween
-    Instance.new("UICorner", hwPlaceholderCard).CornerRadius = UDim.new(0, 8)
-    local cardStroke = Instance.new("UIStroke", hwPlaceholderCard)
-    cardStroke.Color = Color3.fromRGB(70, 50, 40)
-    cardStroke.Thickness = 1
+    local hwListPadding = Instance.new("UIPadding")
+    hwListPadding.PaddingTop = UDim.new(0, 2)
+    hwListPadding.PaddingBottom = UDim.new(0, 12)
+    hwListPadding.PaddingLeft = UDim.new(0, 2)
+    hwListPadding.PaddingRight = UDim.new(0, 6)
+    hwListPadding.Parent = hwEggListScroll
 
-    local hwIcon = Instance.new("TextLabel")
-    hwIcon.Size = UDim2.new(1, 0, 0, 40)
-    hwIcon.Position = UDim2.new(0, 0, 0, 14)
-    hwIcon.BackgroundTransparency = 1
-    hwIcon.Text = "🎃"
-    hwIcon.TextSize = 32
-    hwIcon.Font = Enum.Font.GothamBold
-    hwIcon.Parent = hwPlaceholderCard
-
-    local hwCardTitle = Instance.new("TextLabel")
-    hwCardTitle.Size = UDim2.new(1, -20, 0, 20)
-    hwCardTitle.Position = UDim2.new(0, 10, 0, 58)
-    hwCardTitle.BackgroundTransparency = 1
-    hwCardTitle.Text = "Halloween Dimension World"
-    hwCardTitle.TextColor3 = Color3.fromRGB(255, 195, 110)
-    hwCardTitle.TextSize = 13
-    hwCardTitle.Font = Enum.Font.GothamBold
-    hwCardTitle.Parent = hwPlaceholderCard
-
-    local hwDesc = Instance.new("TextLabel")
-    hwDesc.Size = UDim2.new(1, -30, 0, 60)
-    hwDesc.Position = UDim2.new(0, 15, 0, 82)
-    hwDesc.BackgroundTransparency = 1
-    hwDesc.Text = "Separate world dimension for Halloween event eggs, boss portal & shop.\n\n[Placeholder - Ready for Halloween logic implementation]"
-    hwDesc.TextColor3 = Color3.fromRGB(170, 160, 180)
-    hwDesc.TextSize = 11
-    hwDesc.Font = Enum.Font.Gotham
-    hwDesc.TextWrapped = true
-    hwDesc.Parent = hwPlaceholderCard
+    hwEmptyNotice = Instance.new("TextLabel")
+    hwEmptyNotice.Name = "EmptyNotice"
+    hwEmptyNotice.Size = UDim2.new(1, -20, 0, 80)
+    hwEmptyNotice.Position = UDim2.new(0, 10, 0, 30)
+    hwEmptyNotice.BackgroundTransparency = 1
+    hwEmptyNotice.Text = "🎃 No Halloween eggs detected in current world.\nEnter the Halloween Portal to view eggs."
+    hwEmptyNotice.TextColor3 = Color3.fromRGB(180, 165, 190)
+    hwEmptyNotice.TextSize = 11.5
+    hwEmptyNotice.Font = Enum.Font.Gotham
+    hwEmptyNotice.TextWrapped = true
+    hwEmptyNotice.Visible = true
+    hwEmptyNotice.LayoutOrder = 1
+    hwEmptyNotice.Parent = hwEggListScroll
 end
 
 -- Forward declarations
 local renderFarmableEggs
+local renderHalloweenEggs
 local requestListUpdate
 local updateActivityStatus
 local activityStatusLabel
@@ -3323,6 +3305,436 @@ local function renderFarmableEggs()
 end
 
 -- ============================================================================
+-- HALLOWEEN DIMENSION LIVE EGG LIST (ISOLATED MODULE - NO PICKUP LOGIC)
+-- ============================================================================
+
+local function getHwEggPos(eggInst)
+    if not eggInst then return nil end
+    local hitbox = eggInst:FindFirstChild("Hitbox")
+    if hitbox and hitbox:IsA("BasePart") then return hitbox.Position end
+    if eggInst.PrimaryPart then return eggInst.PrimaryPart.Position end
+    local ok, p = pcall(function() return eggInst:GetPivot().Position end)
+    if ok and p then return p end
+    local bp = eggInst:FindFirstChildWhichIsA("BasePart")
+    return bp and bp.Position or nil
+end
+
+local function resolveCanonicalHwName(raw)
+    if not raw or raw == "" then return nil end
+    local s = tostring(raw)
+    local info = (getSpeciesInfo and getSpeciesInfo(s, "Halloween")) or (getSpeciesInfo and getSpeciesInfo(s))
+    if info and info.DisplayName then
+        return info.DisplayName
+    end
+    local lower = s:lower()
+    if lower == "halloween egg" or lower == "halloween" or lower == "hooded gerbil" or lower == "halloweenegg" then
+        return "Hooded Gerbil Egg"
+    end
+    if lower == "rotshroom" or lower == "rotshroom egg" or lower == "toadstool" then
+        return "Toadstool Egg"
+    end
+    if lower == "quilted imp" or lower == "quilted imp egg" or lower == "patchwork imp" then
+        return "Patchwork Imp Egg"
+    end
+    if not lower:find("egg") then
+        return s .. " Egg"
+    end
+    return s
+end
+
+local function getHwEggName(eggInst)
+    if not eggInst then return "Hooded Gerbil Egg" end
+
+    -- 1. Check direct attributes: PreparedSourceName is the primary live attribute
+    local srcName = eggInst:GetAttribute("PreparedSourceName")
+        or eggInst:GetAttribute("DisplayName")
+        or eggInst:GetAttribute("EggName")
+        or eggInst:GetAttribute("EggType")
+        or eggInst:GetAttribute("Species")
+        or eggInst:GetAttribute("Name")
+
+    if srcName and tostring(srcName) ~= "" and tostring(srcName):lower() ~= "egg" then
+        local resolved = resolveCanonicalHwName(srcName)
+        if resolved then return resolved end
+    end
+
+    local hitbox = eggInst:FindFirstChild("Hitbox")
+    if hitbox then
+        local hbAttr = hitbox:GetAttribute("PreparedSourceName")
+            or hitbox:GetAttribute("DisplayName")
+            or hitbox:GetAttribute("EggName")
+            or hitbox:GetAttribute("EggType")
+            or hitbox:GetAttribute("Species")
+        if hbAttr and tostring(hbAttr) ~= "" and tostring(hbAttr):lower() ~= "egg" then
+            local resolved = resolveCanonicalHwName(hbAttr)
+            if resolved then return resolved end
+        end
+    end
+
+    -- 2. Check child string values
+    for _, ch in ipairs(eggInst:GetChildren()) do
+        if ch:IsA("StringValue") and ch.Value ~= "" and ch.Value:lower() ~= "egg" then
+            local resolved = resolveCanonicalHwName(ch.Value)
+            if resolved then return resolved end
+        end
+    end
+
+    -- 3. Check child model names
+    for _, ch in ipairs(eggInst:GetChildren()) do
+        if ch:IsA("Model") and ch.Name ~= "Model" and ch.Name ~= "Hitbox" and ch.Name:lower() ~= "egg" then
+            local resolved = resolveCanonicalHwName(ch.Name)
+            if resolved then return resolved end
+        end
+    end
+
+    -- 4. Check ProximityPrompt text on model for explicit species keywords
+    local prMatch = nil
+    pcall(function()
+        for _, d in ipairs(eggInst:GetDescendants()) do
+            if d:IsA("ProximityPrompt") then
+                local txt = (d.ObjectText or "") .. " " .. (d.ActionText or "")
+                for cleanName, rec in pairs(SPECIES_INFO) do
+                    if cleanName ~= "egg" and cleanName ~= "halloween" and cleanName ~= "halloweenegg" then
+                        if rec.DisplayName and txt:lower():find(cleanName, 1, true) then
+                            prMatch = rec.DisplayName
+                            break
+                        end
+                    end
+                end
+                if prMatch then break end
+            end
+        end
+    end)
+    if prMatch then
+        return resolveCanonicalHwName(prMatch)
+    end
+
+    -- 5. If model is standard HalloweenEgg or Halloween Egg, it represents Hooded Gerbil Egg
+    if eggInst.Name == "HalloweenEgg" or eggInst.Name == "Halloween Egg" then
+        return "Hooded Gerbil Egg"
+    end
+
+    -- 6. Speculative template match against ReplicatedStorage.Assets.Models.Eggs ONLY for unnamed/generic models
+    local okMatch, matchedName = pcall(function()
+        local eggAssets = ReplicatedStorage:FindFirstChild("Assets")
+            and ReplicatedStorage.Assets:FindFirstChild("Models")
+            and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
+        if not eggAssets then return nil end
+        local liveChildren = {}
+        local genericPartNames = {
+            hitbox = true, part = true, meshpart = true, model = true,
+            basepart = true, weld = true, weldconstraint = true,
+            pointlight = true, attachment = true, eggradius = true,
+            egggrip = true, eggglow = true, eggrootweld = true
+        }
+        for _, c in ipairs(eggInst:GetChildren()) do
+            local cLower = c.Name:lower()
+            if not genericPartNames[cLower] and not cLower:find("^cube%.") then
+                liveChildren[cLower] = true
+            end
+        end
+        local nonGenericCount = 0
+        for _ in pairs(liveChildren) do nonGenericCount = nonGenericCount + 1 end
+        if nonGenericCount == 0 then return nil end
+
+        local bestName, bestCount = nil, 0
+        for _, tModel in ipairs(eggAssets:GetChildren()) do
+            if tModel:IsA("Model") then
+                local matchCount = 0
+                for _, tc in ipairs(tModel:GetChildren()) do
+                    if liveChildren[tc.Name:lower()] then matchCount = matchCount + 1 end
+                end
+                if matchCount > bestCount then
+                    bestCount = matchCount
+                    bestName = tModel.Name
+                end
+            end
+        end
+        return (bestCount >= 2) and bestName or nil
+    end)
+    if okMatch and matchedName then
+        return resolveCanonicalHwName(matchedName)
+    end
+
+    return resolveCanonicalHwName(eggInst.Name) or eggInst.Name
+end
+
+local function getHwEggColor(eggInst, eggDisplayName)
+    local n = eggDisplayName and eggDisplayName:lower() or eggInst.Name:lower()
+    local info = SPECIES_INFO[n] or (getSpeciesInfo and getSpeciesInfo(n))
+    if info and info.Rarity and RARITY_COLORS[info.Rarity] then
+        return RARITY_COLORS[info.Rarity]
+    end
+    local glow = eggInst:FindFirstChild("Hitbox", true)
+    local light = glow and glow:FindFirstChildOfClass("PointLight")
+    if light then return light.Color end
+    return Color3.fromRGB(230, 115, 30)
+end
+
+local hwCardPool = {}
+
+local function getOrCreateHwCard(idx)
+    local item = hwCardPool[idx]
+    if not item then
+        local card = Instance.new("Frame")
+        card.Name = "HwCard_" .. tostring(idx)
+        card.Size = UDim2.new(1, -6, 0, 34)
+        card.BackgroundColor3 = Color3.fromRGB(26, 22, 34)
+        card.BorderSizePixel = 0
+        card.LayoutOrder = idx
+        card.Parent = hwEggListScroll
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+        local accent = Instance.new("Frame")
+        accent.Name = "Accent"
+        accent.Size = UDim2.new(0, 3, 1, -6)
+        accent.Position = UDim2.new(0, 4, 0, 3)
+        accent.BackgroundColor3 = Color3.fromRGB(220, 110, 30)
+        accent.BorderSizePixel = 0
+        accent.Parent = card
+        Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 2)
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Name = "NameLabel"
+        nameLabel.Size = UDim2.new(1, -95, 0, 16)
+        nameLabel.Position = UDim2.new(0, 12, 0, 2)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextColor3 = Color3.fromRGB(255, 235, 210)
+        nameLabel.TextSize = 11.5
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        nameLabel.Parent = card
+
+        local subLabel = Instance.new("TextLabel")
+        subLabel.Name = "SubLabel"
+        subLabel.Size = UDim2.new(1, -95, 0, 13)
+        subLabel.Position = UDim2.new(0, 12, 0, 18)
+        subLabel.BackgroundTransparency = 1
+        subLabel.TextColor3 = Color3.fromRGB(180, 170, 195)
+        subLabel.TextSize = 10
+        subLabel.Font = Enum.Font.Gotham
+        subLabel.TextXAlignment = Enum.TextXAlignment.Left
+        subLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        subLabel.Parent = card
+
+        local tpBtn = Instance.new("TextButton")
+        tpBtn.Name = "TpBtn"
+        tpBtn.Size = UDim2.new(0, 36, 0, 22)
+        tpBtn.Position = UDim2.new(1, -84, 0.5, -11)
+        tpBtn.BackgroundColor3 = Color3.fromRGB(45, 55, 85)
+        tpBtn.Text = "TP"
+        tpBtn.TextColor3 = Color3.fromRGB(210, 225, 255)
+        tpBtn.TextSize = 10.5
+        tpBtn.Font = Enum.Font.GothamBold
+        tpBtn.Parent = card
+        Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 4)
+
+        local getBtn = Instance.new("TextButton")
+        getBtn.Name = "GetBtn"
+        getBtn.Size = UDim2.new(0, 40, 0, 22)
+        getBtn.Position = UDim2.new(1, -44, 0.5, -11)
+        getBtn.BackgroundColor3 = Color3.fromRGB(180, 85, 25)
+        getBtn.Text = "Get"
+        getBtn.TextColor3 = Color3.new(1, 1, 1)
+        getBtn.TextSize = 10.5
+        getBtn.Font = Enum.Font.GothamBold
+        getBtn.Parent = card
+        Instance.new("UICorner", getBtn).CornerRadius = UDim.new(0, 4)
+
+        item = {
+            card      = card,
+            accent    = accent,
+            nameLabel = nameLabel,
+            subLabel  = subLabel,
+            tpBtn     = tpBtn,
+            getBtn    = getBtn,
+            data      = nil,
+        }
+
+        -- Placeholder TP Action: Teleport player +3 studs above egg (NO pickup)
+        addConnection(tpBtn.MouseButton1Click:Connect(function()
+            local eggData = item.data
+            if not (eggData and eggData.Position) then return end
+            pcall(function()
+                local ch = LocalPlayer and LocalPlayer.Character
+                local root = ch and ch:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    root.CFrame = CFrame.new(eggData.Position + Vector3.new(0, 3, 0))
+                end
+            end)
+        end))
+
+        -- Placeholder GET Action: Move toward egg (NO pickup)
+        addConnection(getBtn.MouseButton1Click:Connect(function()
+            local eggData = item.data
+            if not (eggData and eggData.Position) then return end
+            print(string.format("[Halloween Placeholder] GET clicked for %s at (%.1f, %.1f, %.1f)", tostring(eggData.Name), eggData.Position.X, eggData.Position.Y, eggData.Position.Z))
+            pcall(function()
+                local ch = LocalPlayer and LocalPlayer.Character
+                local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum:MoveTo(eggData.Position)
+                end
+            end)
+        end))
+
+        hwCardPool[idx] = item
+    end
+    return item
+end
+
+renderHalloweenEggs = function()
+    if not (screenGui and screenGui.Parent and main and main.Visible and tabHalloween and tabHalloween.Visible) then
+        return
+    end
+
+    local charPos = nil
+    pcall(function()
+        local ch = LocalPlayer and LocalPlayer.Character
+        local root = ch and ch:FindFirstChild("HumanoidRootPart")
+        if root then charPos = root.Position end
+    end)
+
+    local eggList = {}
+    local rawEggModels = {}
+    local seenModels = {}
+
+    local function addEggCandidate(egg)
+        if egg and not seenModels[egg] then
+            seenModels[egg] = true
+            table.insert(rawEggModels, egg)
+        end
+    end
+
+    pcall(function()
+        local hw = Workspace:FindFirstChild("HalloweenDimension")
+        if not hw then
+            hw = Workspace:FindFirstChild("HalloweenDimension", true)
+        end
+        local worldEggs = hw and (hw:FindFirstChild("WorldEggs") or hw:FindFirstChild("WorldEggs", true))
+        if not worldEggs then
+            worldEggs = Workspace:FindFirstChild("WorldEggs")
+        end
+        if worldEggs then
+            for _, egg in ipairs(worldEggs:GetChildren()) do
+                addEggCandidate(egg)
+            end
+        end
+
+        local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
+        if tagged then
+            for _, egg in ipairs(tagged) do
+                addEggCandidate(egg)
+            end
+        end
+    end)
+
+    local inHw = false
+    pcall(function()
+        inHw = (LocalPlayer and LocalPlayer:GetAttribute("InHalloweenDimension") == true)
+            or (Workspace:FindFirstChild("HalloweenDimension") ~= nil)
+            or (#rawEggModels > 0)
+    end)
+
+    for _, egg in ipairs(rawEggModels) do
+        if egg.Name:lower():find("holder") then
+            continue
+        end
+        local canPick = egg:GetAttribute("HalloweenEggCanPickUp")
+        if canPick == false then
+            continue
+        end
+        local p = getHwEggPos(egg)
+        if p then
+            local eggName = getHwEggName(egg)
+            if eggName:lower():find("holder") then
+                continue
+            end
+            local d = charPos and (p - charPos).Magnitude or 99999
+            local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
+            -- Exclude placeholder models named 'Egg' from PT2 or anywhere if they are holders/placeholders
+            if (egg.Name:lower() == "egg" or eggName:lower() == "egg") and not info then
+                continue
+            end
+            if eggName:lower() == "halloween egg" or eggName:lower() == "halloweenegg" or eggName:lower() == "halloween" then
+                continue
+            end
+
+            local zone = egg:GetAttribute("Zone")
+            local zoneName = zone and string.format("Zone %s", tostring(zone))
+                or egg:GetAttribute("AreaId")
+                or egg:GetAttribute("Biome")
+                or "WorldEggs"
+            local rarName = (info and info.Rarity) or egg:GetAttribute("Rarity") or "Rare"
+
+            local subLabel = string.format("%s • %s • %d studs", zoneName, rarName, math.floor(d))
+
+            table.insert(eggList, {
+                Model     = egg,
+                Name      = eggName,
+                Position  = p,
+                Distance  = d,
+                SubLabel  = subLabel,
+                Color     = getHwEggColor(egg, eggName),
+                Zone      = tonumber(zone) or 99,
+                Rank      = (info and info.Rank) or (RARITY_RANK[rarName] or 1),
+                Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
+            })
+        end
+    end
+
+    -- Stable sort: Zone, then Highest Rarity Rank, then Name
+    table.sort(eggList, function(a, b)
+        if a.Zone ~= b.Zone then
+            return a.Zone < b.Zone
+        end
+        if a.Rank ~= b.Rank then
+            return a.Rank > b.Rank
+        end
+        if a.Name ~= b.Name then
+            return a.Name < b.Name
+        end
+        return tostring(a.Uid) < tostring(b.Uid)
+    end)
+
+    local count = #eggList
+    local deliv = LocalPlayer and LocalPlayer:GetAttribute("HalloweenDelivered") or 0
+    if hwStatusLabel then
+        if inHw or count > 0 then
+            hwStatusLabel.Text = string.format("Status: In Dimension (%d Live) | Deliv: %s", count, tostring(deliv))
+        else
+            hwStatusLabel.Text = "Status: Outside Dimension (Portal Ready)"
+        end
+    end
+
+    if count == 0 then
+        if hwEmptyNotice then
+            hwEmptyNotice.Visible = true
+            hwEmptyNotice.Text = (inHw or Workspace:FindFirstChild("HalloweenDimension"))
+                and "🎃 All Halloween eggs currently collected or respawning.\nWait for new spawn on pads."
+                or "🎃 No Halloween eggs detected in current world.\nEnter the Halloween Portal to view eggs."
+        end
+    else
+        if hwEmptyNotice then hwEmptyNotice.Visible = false end
+    end
+
+    for idx, eggData in ipairs(eggList) do
+        local poolItem = getOrCreateHwCard(idx)
+        poolItem.data = eggData
+        poolItem.nameLabel.Text = eggData.Name
+        poolItem.subLabel.Text = eggData.SubLabel
+        poolItem.accent.BackgroundColor3 = eggData.Color
+        poolItem.card.Visible = true
+    end
+
+    for idx = count + 1, #hwCardPool do
+        hwCardPool[idx].card.Visible = false
+    end
+end
+
+-- ============================================================================
 -- FULL EGG LIST JSON EXPORTER (For diagnostics, rarity audits & alias mapping)
 -- ============================================================================
 
@@ -3702,6 +4114,10 @@ task.spawn(function()
             pcall(renderFarmableEggs)
         end
 
+        if tabHalloween and tabHalloween.Visible and renderHalloweenEggs then
+            pcall(renderHalloweenEggs)
+        end
+
         -- Instant Recovery gentle safety fallback (0.3s throttled = 0 CPU cost)
         if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and executeInstantRecovery then
             local char = LocalPlayer and LocalPlayer.Character
@@ -3746,6 +4162,8 @@ local function switchTab(tabName)
 
     if tabName == "Eggs" then
         requestListUpdate()
+    elseif tabName == "Halloween" then
+        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
     end
 end
 
