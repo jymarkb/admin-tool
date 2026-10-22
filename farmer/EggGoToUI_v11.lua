@@ -4157,8 +4157,17 @@ halloweenEngine = {
 
             local targetEgg = halloweenEngine.autoFarm.findTarget()
             if not targetEgg then
-                -- If no egg spawn on selected filter, auto farm is done
-                halloweenEngine.autoFarm.stop("Done (No Eggs)")
+                -- Continuous mode: Does not stop unless manually stopped by user
+                if lblFarmStatus then
+                    lblFarmStatus.Text = "Status: Waiting for Eggs..."
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(220, 180, 70)
+                end
+                task.delay(1.0, function()
+                    if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                        return
+                    end
+                    halloweenEngine.autoFarm.runNextCycle(token)
+                end)
                 return
             end
 
