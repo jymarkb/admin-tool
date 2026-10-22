@@ -27,11 +27,11 @@ local DEFAULT_CAST_POS = Vector3.new(-5668.5, -206.5, -7368.9)  -- Water Reel Ta
 local ROD_NAME         = "Haunted Rod [X1]"                      -- Rod to auto-equip
 
 local CLICKS           = 13
-local HOLD_DELAY       = 0.45
-local CAST_POWER_MIN   = 0.70
-local CAST_POWER_MAX   = 0.92
-local EXTRA_WAIT       = 1.15
-local CYCLE_PAUSE      = 0.85
+local HOLD_DELAY       = 0.40       -- Safe charge time (avoids server power mismatch)
+local CAST_POWER_MIN   = 0.72       -- Proven safe range from fishing-3.log
+local CAST_POWER_MAX   = 0.90       -- Proven safe range from fishing-3.log
+local EXTRA_WAIT       = 1.10       -- Crucial bite window buffer (guarantees server hooks fish)
+local CYCLE_PAUSE      = 0.40       -- Clean reset before next cast
 local MAX_REEL_RETRIES = 2
 
 -- ======================
@@ -425,7 +425,7 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     end
 
     local method = getnamecallmethod()
-    if method == "InvokeServer" and not enabled then
+    if method == "InvokeServer" and not enabled and not running then
         local name = ""
         pcall(function() name = self.Name end)
 
@@ -534,6 +534,7 @@ local function doCycle()
             setStatus("Holding...", Color3.fromRGB(160, 200, 255))
             pcall(function() RE_Hold:FireServer() end)
             task.wait(HOLD_DELAY)
+            if not enabled then break end
 
             local power = CAST_POWER_MIN + math.random() * (CAST_POWER_MAX - CAST_POWER_MIN)
             power = math.floor(power * 1000) / 1000
@@ -561,6 +562,7 @@ local function doCycle()
                 setStatus(string.format("Waiting %.1fs", waitTime), Color3.fromRGB(180, 210, 255))
                 log("Waiting " .. string.format("%.2f", waitTime) .. "s  Id=" .. tostring(fishId))
                 task.wait(waitTime)
+                if not enabled then break end
 
                 -- Reel with retries
                 local success = false
@@ -591,7 +593,7 @@ local function doCycle()
                     end
 
                     if attempt <= MAX_REEL_RETRIES then
-                        task.wait(0.45) -- small delay before retry
+                        task.wait(0.25) -- fast retry delay
                     end
                 end
 
@@ -607,6 +609,7 @@ local function doCycle()
             end
 
             task.wait(CYCLE_PAUSE)
+            if not enabled then break end
         end
         running = false
         log("Loop stopped")
