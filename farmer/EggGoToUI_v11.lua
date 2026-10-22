@@ -2688,7 +2688,7 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
                     local finalTarget = targetPos
                     pcall(function()
                         hrp.AssemblyLinearVelocity = Vector3.zero
-                        if walkUid == "SAFE_ZONE" or walkUid == "HW_SAFEZONE" then
+                        if walkUid == "SAFE_ZONE" or walkUid == "HW_SAFEZONE" or walkUid == "HW_DROPZONE" then
                             local yPos = finalTarget.Y
                             if math.abs(curPos.Y - finalTarget.Y) <= 4 then yPos = curPos.Y end
                             hrp.CFrame = CFrame.new(finalTarget.X, yPos, finalTarget.Z) * (hrp.CFrame - hrp.CFrame.Position)
@@ -4100,8 +4100,63 @@ local function getOrCreateHwCard(idx)
                 end
                 updateActivityStatus()
 
+                -- Check if egg is from Zone 1:
+                -- Zone 1 eggs cannot be dropped via remote at dropPos after direct TP.
+                -- Fallback for Zone 1: TP to egg + pickup, then walk towards dropPos waypoint, then to safezone!
+                local isZone1 = (eggData.Zone == 1)
+                    or (model and tonumber(model:GetAttribute("Zone")) == 1)
+                    or (targetPos.Z < -6500 and targetPos.Z > -7050)
+
+                if isZone1 then
+                    pcall(function()
+                        local currChar = LocalPlayer and LocalPlayer.Character
+                        local h = currChar and currChar:FindFirstChildOfClass("Humanoid")
+                        local hrp = currChar and currChar:FindFirstChild("HumanoidRootPart")
+                        if h then
+                            if h.Sit then h.Sit = false end
+                            if h.PlatformStand then h.PlatformStand = false end
+                        end
+                        if hrp then
+                            hrp.Anchored = false
+                            local diff = Vector3.new(dropPos.X - hrp.Position.X, 0, dropPos.Z - hrp.Position.Z)
+                            if diff.Magnitude > 0.1 then
+                                local dir = diff.Unit
+                                hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
+                            end
+                        end
+                    end)
+
+                    walkToTarget(dropPos, 6.0, function()
+                        pcall(function()
+                            local currChar = LocalPlayer and LocalPlayer.Character
+                            local hrp = currChar and currChar:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                local diff = Vector3.new(hwSafeZone.X - hrp.Position.X, 0, hwSafeZone.Z - hrp.Position.Z)
+                                if diff.Magnitude > 0.1 then
+                                    local dir = diff.Unit
+                                    hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
+                                end
+                            end
+                        end)
+
+                        walkToTarget(hwSafeZone, 6.0, function()
+                            pcall(function()
+                                local currChar = LocalPlayer and LocalPlayer.Character
+                                local h = currChar and currChar:FindFirstChildOfClass("Humanoid")
+                                if h then h:UnequipTools() end
+                            end)
+                            if hwCarryState then
+                                hwCarryState.active = false
+                                hwCarryState.name = nil
+                            end
+                            updateActivityStatus()
+                        end, "HW_SAFEZONE", 8.0)
+                    end, "HW_DROPZONE", 8.0)
+                    return
+                end
+
                 -- ==========================================================
-                -- STEP 2: TP TOWARDS DROP LOCATION BEFORE DROPPING
+                -- STEP 2: TP TOWARDS DROP LOCATION BEFORE DROPPING (ZONES 2 & 3)
                 -- Pulse CFrame at dropPos so server receives replication BEFORE dropping!
                 -- ==========================================================
                 for i = 1, 4 do
