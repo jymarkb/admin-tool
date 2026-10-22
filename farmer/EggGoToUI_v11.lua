@@ -22,6 +22,7 @@ local UserInputService  = game:GetService("UserInputService")
 local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService       = game:GetService("HttpService")
+local CollectionService = game:GetService("CollectionService")
 
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
@@ -788,14 +789,59 @@ local hwRarityDropList
 local hwRarityDd
 local selectedHwRarities = { ["All"] = true }
 local renderHalloweenEggs
+local hwAutoPickBtn
+local hwAutoPickEnabled = false
+local togglePickupBtn
+local setHwAutoPick
+local setUtilityAutoPick
+local startHalloweenAutoPickup
 
--- Halloween Panel: Rarity Filter & Live List Scrolling Container
+-- Halloween Panel: Auto-Pickup, Rarity Filter & Live List Scrolling Container
 do
-    -- Rarity Filter Bar (Only Rarity Dropdown)
+    -- Auto Pick Toggle Bar (Above Rarity Filter)
+    local hwAutoPickFrame = Instance.new("Frame")
+    hwAutoPickFrame.Name = "HwAutoPickFrame"
+    hwAutoPickFrame.Size = UDim2.new(1, -16, 0, 24)
+    hwAutoPickFrame.Position = UDim2.new(0, 8, 0, 6)
+    hwAutoPickFrame.BackgroundTransparency = 1
+    hwAutoPickFrame.BorderSizePixel = 0
+    hwAutoPickFrame.Parent = tabHalloween
+
+    hwAutoPickBtn = Instance.new("TextButton")
+    hwAutoPickBtn.Name = "HwAutoPickBtn"
+    hwAutoPickBtn.Size = UDim2.new(1, 0, 1, 0)
+    hwAutoPickBtn.Position = UDim2.new(0, 0, 0, 0)
+    hwAutoPickBtn.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
+    hwAutoPickBtn.Text = "[OFF] Auto Pick [E]"
+    hwAutoPickBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+    hwAutoPickBtn.TextSize = 11
+    hwAutoPickBtn.Font = Enum.Font.GothamBold
+    hwAutoPickBtn.Parent = hwAutoPickFrame
+    Instance.new("UICorner", hwAutoPickBtn).CornerRadius = UDim.new(0, 5)
+
+    setHwAutoPick = function(enabled, syncOther)
+        hwAutoPickEnabled = enabled
+        if hwAutoPickBtn then
+            hwAutoPickBtn.Text = hwAutoPickEnabled and "[ON] Auto Pick [E]" or "[OFF] Auto Pick [E]"
+            hwAutoPickBtn.BackgroundColor3 = hwAutoPickEnabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(36, 44, 62)
+            hwAutoPickBtn.TextColor3 = hwAutoPickEnabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+        end
+
+        -- Reciprocal synchronization: if Halloween auto pick turns ON, utility turns OFF; if Halloween turns OFF, utility turns ON
+        if syncOther ~= false and setUtilityAutoPick then
+            setUtilityAutoPick(not hwAutoPickEnabled, false)
+        end
+    end
+
+    hwAutoPickBtn.MouseButton1Click:Connect(function()
+        setHwAutoPick(not hwAutoPickEnabled)
+    end)
+
+    -- Rarity Filter Bar (Only Rarity Dropdown - Positioned below Auto Pick)
     local hwFilterFrame = Instance.new("Frame")
     hwFilterFrame.Name = "HwFilterFrame"
     hwFilterFrame.Size = UDim2.new(1, -16, 0, 24)
-    hwFilterFrame.Position = UDim2.new(0, 8, 0, 6)
+    hwFilterFrame.Position = UDim2.new(0, 8, 0, 34)
     hwFilterFrame.BackgroundTransparency = 1
     hwFilterFrame.BorderSizePixel = 0
     hwFilterFrame.ClipsDescendants = false
@@ -973,8 +1019,8 @@ do
     -- Scrolling Frame for detected Halloween eggs (Directly below rarity filter)
     hwEggListScroll = Instance.new("ScrollingFrame")
     hwEggListScroll.Name = "HwEggListScroll"
-    hwEggListScroll.Size = UDim2.new(1, -16, 1, -42)
-    hwEggListScroll.Position = UDim2.new(0, 8, 0, 36)
+    hwEggListScroll.Size = UDim2.new(1, -16, 1, -70)
+    hwEggListScroll.Position = UDim2.new(0, 8, 0, 64)
     hwEggListScroll.BackgroundTransparency = 1
     hwEggListScroll.BorderSizePixel = 0
     hwEggListScroll.ScrollBarThickness = 4
@@ -2057,7 +2103,7 @@ do
     lblPickupTitle.TextXAlignment = Enum.TextXAlignment.Left
     lblPickupTitle.Parent = rowPickup
 
-    local togglePickupBtn = Instance.new("TextButton")
+    togglePickupBtn = Instance.new("TextButton")
     togglePickupBtn.Name = "TogglePickupBtn"
     togglePickupBtn.Size = UDim2.new(0, 56, 0, 24)
     togglePickupBtn.Position = UDim2.new(1, -66, 0.5, -12)
@@ -2069,15 +2115,28 @@ do
     togglePickupBtn.Parent = rowPickup
     Instance.new("UICorner", togglePickupBtn).CornerRadius = UDim.new(0, 5)
 
-    addConnection(togglePickupBtn.MouseButton1Click:Connect(function()
-        PICKUP_CONFIG.Enabled = not PICKUP_CONFIG.Enabled
-        PICKUP_CONFIG.ReachAssist = PICKUP_CONFIG.Enabled
-        togglePickupBtn.Text = PICKUP_CONFIG.Enabled and "ON" or "OFF"
-        togglePickupBtn.BackgroundColor3 = PICKUP_CONFIG.Enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
-        togglePickupBtn.TextColor3 = PICKUP_CONFIG.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-        if not PICKUP_CONFIG.Enabled then
+    setUtilityAutoPick = function(enabled, syncOther)
+        if PICKUP_CONFIG then
+            PICKUP_CONFIG.Enabled = enabled
+            PICKUP_CONFIG.ReachAssist = enabled
+        end
+        if togglePickupBtn then
+            togglePickupBtn.Text = enabled and "ON" or "OFF"
+            togglePickupBtn.BackgroundColor3 = enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+            togglePickupBtn.TextColor3 = enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+        end
+        if not enabled then
             autoPickupToken = (autoPickupToken or 0) + 1
         end
+
+        -- Reciprocal synchronization: if utility turns ON, Halloween turns OFF; if utility turns OFF, Halloween turns ON
+        if syncOther ~= false and setHwAutoPick then
+            setHwAutoPick(not enabled, false)
+        end
+    end
+
+    addConnection(togglePickupBtn.MouseButton1Click:Connect(function()
+        setUtilityAutoPick(not (PICKUP_CONFIG and PICKUP_CONFIG.Enabled))
     end))
 
     local rowCopyJson = Instance.new("Frame")
@@ -3025,8 +3084,37 @@ local function carryEgg(uid, burstCount)
     return true
 end
 
+local function isCarryPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return false end
+    local name = (prompt.Name or ""):lower()
+    local action = (prompt.ActionText or ""):lower()
+    local obj = (prompt.ObjectText or ""):lower()
+
+    -- Strict blacklist: REJECT ANY hatch, open, crack, buy, purchase, shop, talk, manor prompt
+    if name:find("hatch") or name:find("open") or name:find("crack") or name:find("buy") or name:find("shop") or name:find("purchase") or name:find("talk") or name:find("manor") then
+        return false
+    end
+    if action:find("hatch") or action:find("open") or action:find("crack") or action:find("buy") or action:find("shop") or action:find("purchase") or action:find("talk") then
+        return false
+    end
+    if obj:find("hatch") or obj:find("open") or obj:find("crack") or obj:find("buy") or obj:find("shop") or obj:find("purchase") or obj:find("talk") then
+        return false
+    end
+
+    -- Strict whitelist: ONLY accept steal, carry, pick, take, grab, collect, hold
+    if name:find("carry") or name:find("steal") or name:find("pickup") or name:find("pick") or name:find("halloweenegg") or name:find("eggprompt") then
+        return true
+    end
+    if action:find("steal") or action:find("carry") or action:find("pick") or action:find("take") or action:find("grab") or action:find("collect") then
+        return true
+    end
+
+    return false
+end
+
 local function triggerProximityPrompt(prompt)
     if not prompt or not prompt.Parent then return end
+    if not isCarryPrompt(prompt) then return end
     pcall(function()
         prompt.HoldDuration = 0
         prompt.RequiresLineOfSight = false
@@ -3311,9 +3399,12 @@ addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
         end
     end
 
-    if not (PICKUP_CONFIG and PICKUP_CONFIG.Enabled) then return end
     if input.KeyCode == Enum.KeyCode.E then
-        startAutoPickupSpam()
+        if hwAutoPickEnabled and startHalloweenAutoPickup then
+            startHalloweenAutoPickup()
+        elseif PICKUP_CONFIG and PICKUP_CONFIG.Enabled then
+            startAutoPickupSpam()
+        end
     end
 end))
 
@@ -4008,6 +4099,190 @@ renderHalloweenEggs = function()
     for idx = count + 1, #hwCardPool do
         hwCardPool[idx].card.Visible = false
     end
+end
+
+-- ============================================================================
+-- HALLOWEEN AUTO-PICKUP ENGINE (ISOLATED WORLD 2 MODULE)
+-- ============================================================================
+
+local hwPickupToken = 0
+
+local function findBestHwPickupTarget()
+    local char = LocalPlayer and LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local charPos  = root.Position
+    local charLook = root.CFrame.LookVector
+    local cam = Workspace.CurrentCamera
+    local camPos  = cam and cam.CFrame.Position or charPos
+    local camLook = cam and cam.CFrame.LookVector or charLook
+
+    local function scoreHwTarget(pos, dist)
+        local toTarget = (pos - charPos).Unit
+        local charDot = charLook:Dot(toTarget)
+        local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
+        local camDot = camLook:Dot(camDir)
+        local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
+        if dist <= 6 then score = score + 3 end
+        return score
+    end
+
+    local rawEggModels = {}
+    local seen = {}
+    local function addEgg(inst)
+        if inst and not seen[inst] then
+            seen[inst] = true
+            table.insert(rawEggModels, inst)
+        end
+    end
+
+    pcall(function()
+        local hw = Workspace:FindFirstChild("HalloweenDimension")
+        if not hw then hw = Workspace:FindFirstChild("HalloweenDimension", true) end
+        local worldEggs = hw and (hw:FindFirstChild("WorldEggs") or hw:FindFirstChild("WorldEggs", true))
+        if not worldEggs then worldEggs = Workspace:FindFirstChild("WorldEggs") end
+        if worldEggs then
+            for _, egg in ipairs(worldEggs:GetChildren()) do
+                addEgg(egg)
+            end
+        end
+        local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
+        if tagged then
+            for _, egg in ipairs(tagged) do
+                addEgg(egg)
+            end
+        end
+    end)
+
+    local bestTarget = nil
+    local highestScore = -math.huge
+    local maxPickupDist = 45
+
+    for _, egg in ipairs(rawEggModels) do
+        if egg.Name:lower():find("holder") then
+            continue
+        end
+        if egg:GetAttribute("HalloweenEggCanPickUp") == false then
+            continue
+        end
+
+        local p = getHwEggPos(egg)
+        if p then
+            local dist = (p - charPos).Magnitude
+            if dist <= maxPickupDist then
+                local score = scoreHwTarget(p, dist)
+                if score > highestScore then
+                    local eggName = getHwEggName(egg)
+                    if not eggName:lower():find("holder") then
+                        highestScore = score
+                        local pr = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        bestTarget = {
+                            Model    = egg,
+                            Name     = eggName,
+                            Position = p,
+                            Distance = dist,
+                            Uid      = egg:GetAttribute("HalloweenEggUid") or egg.Name,
+                            Prompt   = (pr and isCarryPrompt(pr)) and pr or nil
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    if bestTarget and not bestTarget.Prompt then
+        local sp = Workspace:FindFirstChild("SmartPromptPart")
+        if sp then
+            for _, pr in ipairs(sp:GetDescendants()) do
+                if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
+                    bestTarget.Prompt = pr
+                    break
+                end
+            end
+        end
+    end
+
+    return bestTarget
+end
+
+local function executeHwPickupSpam(target)
+    if not target then return end
+    local uid = target.Uid
+
+    -- 1. Dispatch Halloween Remote: RF/HalloweenDimension/AskCarryEgg (Parallel Burst)
+    if uid and uid ~= "" then
+        local net = ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Networking")
+        local hwRf = net and net:FindFirstChild("RF/HalloweenDimension/AskCarryEgg")
+        if hwRf then
+            for i = 1, 6 do
+                task.spawn(function()
+                    pcall(function() hwRf:InvokeServer(uid) end)
+                end)
+            end
+        end
+    end
+
+    -- 2. Trigger ProximityPrompt ONLY if it is a validated carry prompt
+    if target.Prompt and isCarryPrompt(target.Prompt) then
+        triggerProximityPrompt(target.Prompt)
+    end
+    local sp = Workspace:FindFirstChild("SmartPromptPart")
+    if sp then
+        for _, pr in ipairs(sp:GetDescendants()) do
+            if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
+                triggerProximityPrompt(pr)
+                break
+            end
+        end
+    end
+end
+
+startHalloweenAutoPickup = function()
+    local holding, _ = isHoldingEgg()
+    if holding or weAreCarrying then return end
+
+    hwPickupToken = (hwPickupToken or 0) + 1
+    local myTok = hwPickupToken
+
+    task.spawn(function()
+        local tStart = os.clock()
+        local maxDuration = 1.2
+        local hasSnapped = false
+
+        while hwPickupToken == myTok and hwAutoPickEnabled and (os.clock() - tStart < maxDuration) do
+            local curHolding, _ = isHoldingEgg()
+            if curHolding or weAreCarrying then
+                break -- Egg is secured! Stop burst immediately
+            end
+
+            local target = findBestHwPickupTarget()
+            if target then
+                -- Reach Assist: Instant snap to egg on first detection within 35 studs
+                if not hasSnapped and target.Position then
+                    local char = LocalPlayer and LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    local dist = root and (target.Position - root.Position).Magnitude or 999
+                    if dist <= 3.5 then
+                        hasSnapped = true
+                    elseif dist <= 35 then
+                        if applyReachAssist(target.Position) then
+                            hasSnapped = true
+                        end
+                    end
+                end
+
+                executeHwPickupSpam(target)
+
+                if target.Model and target.Model.Parent then
+                    if target.Model:GetAttribute("HalloweenEggCanPickUp") == false then
+                        break -- Server confirmed carry, stop immediately!
+                    end
+                end
+            end
+
+            task.wait(0.035)
+        end
+    end)
 end
 
 -- ============================================================================
