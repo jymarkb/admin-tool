@@ -794,7 +794,7 @@ local hwAutoPickEnabled = false
 local togglePickupBtn
 local setHwAutoPick
 local setUtilityAutoPick
-local startHalloweenAutoPickup
+local startHalloweenAutoPickup, executeHwPickupSpam, pickupHwEgg, hwPickupToken = nil, nil, nil, 0
 
 -- Halloween Panel: Auto-Pickup, Rarity Filter & Live List Scrolling Container
 do
@@ -1094,8 +1094,8 @@ local RECOVERY_CONFIG = {
 local velocityEnabled = false
 local weAreCarrying = false
 local carryUid = nil
-local baseGoSpeed = 330
-local baseCarrySpeed = 280
+local baseGoSpeed = 360
+local baseCarrySpeed = 310
 local savedWalkSpeed = 16.0
 pcall(function()
     local ch = LocalPlayer and LocalPlayer.Character
@@ -2382,13 +2382,95 @@ local function isHoldingEgg()
     return false, nil
 end
 
+local hwCarryState = {
+    active = false,
+    name = nil,
+    backpackEggs = {},
+    isCarrying = nil,
+}
+
+do
+    local function recordBackpackTool(tool)
+        if tool and tool:IsA("Tool") and tool.Name:lower():find("egg", 1, true) then
+            hwCarryState.backpackEggs[tool] = true
+        end
+    end
+
+    pcall(function()
+        local bp = LocalPlayer and LocalPlayer:FindFirstChild("Backpack")
+        if bp then
+            for _, t in ipairs(bp:GetChildren()) do
+                recordBackpackTool(t)
+            end
+            addConnection(bp.ChildAdded:Connect(recordBackpackTool))
+        end
+    end)
+
+    if LocalPlayer then
+        addConnection(LocalPlayer.ChildAdded:Connect(function(c)
+            if c.Name == "Backpack" then
+                pcall(function()
+                    for _, t in ipairs(c:GetChildren()) do
+                        recordBackpackTool(t)
+                    end
+                end)
+                addConnection(c.ChildAdded:Connect(recordBackpackTool))
+            end
+        end))
+    end
+
+    hwCarryState.isCarrying = function()
+        local char = LocalPlayer and LocalPlayer.Character
+        if not char then
+            hwCarryState.active = false
+            hwCarryState.name = nil
+            return false, nil
+        end
+
+        local heldFieldTool = nil
+        for _, c in ipairs(char:GetChildren()) do
+            if c:IsA("Tool") and c.Name:lower():find("egg", 1, true) then
+                if not hwCarryState.backpackEggs[c] then
+                    heldFieldTool = c
+                    break
+                end
+            end
+        end
+
+        if heldFieldTool then
+            hwCarryState.active = true
+            hwCarryState.name = heldFieldTool.Name
+            return true, heldFieldTool.Name
+        end
+
+        if hwCarryState.active then
+            if not isHoldingEgg() then
+                hwCarryState.active = false
+                hwCarryState.name = nil
+                return false, nil
+            end
+            return true, hwCarryState.name or "Halloween Egg"
+        end
+
+        return false, nil
+    end
+end
+
 local function getCarryingStatus()
     if weAreCarrying then
         local rec = carryUid and eggCacheByUid[carryUid]
         local name = rec and (rec.DisplayName or rec.AssetCategory or rec.Name) or carryUid or "Egg"
         return true, name
     end
-    return isHoldingEgg()
+
+    if hwCarryState and hwCarryState.isCarrying then
+        local hwHolding, hwName = hwCarryState.isCarrying()
+        if hwHolding then
+            return true, hwName or "Halloween Egg"
+        end
+    end
+
+    return false, nil
 end
 
 updateActivityStatus = function()
@@ -2498,6 +2580,9 @@ local function stopWalking()
         if hum then
             hum:Move(Vector3.zero, false)
             if hrp then hum.WalkToPoint = hrp.Position end
+            if not velocityEnabled and savedWalkSpeed then
+                hum.WalkSpeed = savedWalkSpeed
+            end
         end
         if hrp then hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0) end
     end)
@@ -2521,6 +2606,12 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
     activeWalkCallback = onArrived
     walkLastPos = nil
     walkStuckFrames = 0
+
+    pcall(function()
+        local char = LocalPlayer and LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum:MoveTo(targetPos) end
+    end)
 
     task.spawn(function()
         local t0 = os.clock()
@@ -2594,7 +2685,7 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
                     local finalTarget = targetPos
                     pcall(function()
                         hrp.AssemblyLinearVelocity = Vector3.zero
-                        if walkUid == "SAFE_ZONE" then
+                        if walkUid == "SAFE_ZONE" or walkUid == "HW_SAFEZONE" then
                             local yPos = finalTarget.Y
                             if math.abs(curPos.Y - finalTarget.Y) <= 4 then yPos = curPos.Y end
                             hrp.CFrame = CFrame.new(finalTarget.X, yPos, finalTarget.Z) * (hrp.CFrame - hrp.CFrame.Position)
@@ -2761,7 +2852,7 @@ local function updateVelocityPhysics()
 
         hum:Move(moveDir, false)
 
-        if velocityEnabled and moveDir.Magnitude > 0.05 then
+        if moveDir.Magnitude > 0.05 then
             hrp.AssemblyLinearVelocity = Vector3.new(
                 moveDir.X * targetSpeed,
                 hrp.AssemblyLinearVelocity.Y,
@@ -2852,6 +2943,10 @@ addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
     end
     weAreCarrying = false
     carryUid = nil
+    if hwCarryState then
+        hwCarryState.active = false
+        hwCarryState.name = nil
+    end
     updateActivityStatus()
     pcall(function()
         bindRecoveryCharacter(newChar)
@@ -3408,7 +3503,7 @@ addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-local function requestListUpdate()
+requestListUpdate = function()
     listDirty = true
 end
 
@@ -3558,7 +3653,7 @@ local function getOrCreateCard(idx)
     return item
 end
 
-local function renderFarmableEggs()
+renderFarmableEggs = function()
     if not (screenGui and screenGui.Parent and main and main.Visible and tabEggs and tabEggs.Visible) then
         return
     end
@@ -3900,32 +3995,340 @@ local function getOrCreateHwCard(idx)
             data      = nil,
         }
 
-        -- Placeholder TP Action: Teleport player +3 studs above egg (NO pickup)
+        -- TP Action: Teleport to egg + pulse pick up, TP & pulse drop location before dropping, re-pick up, and walk towards safezone
         addConnection(tpBtn.MouseButton1Click:Connect(function()
             local eggData = item.data
-            if not (eggData and eggData.Position) then return end
-            pcall(function()
-                local ch = LocalPlayer and LocalPlayer.Character
-                local root = ch and ch:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.AssemblyLinearVelocity = Vector3.zero
-                    root.CFrame = CFrame.new(eggData.Position + Vector3.new(0, 3, 0))
+            if not eggData then return end
+
+            stopWalking()
+
+            local model = eggData.Model
+            local targetPos = (model and getHwEggPos(model)) or eggData.Position
+            if not targetPos then return end
+            if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
+            if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
+                targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
+            end
+            if typeof(targetPos) ~= "Vector3" then return end
+
+            local dropPos = Vector3.new(-5959.698, -203.718, -7126.994)
+            local hwSafeZone = Vector3.new(-5811.221, -203.718, -7273.499)
+
+            hwPickupToken = (hwPickupToken or 0) + 1
+            local myTok = hwPickupToken
+
+            task.spawn(function()
+                local function setPlayerPos(pos)
+                    pcall(function()
+                        local ch = LocalPlayer and LocalPlayer.Character
+                        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            hrp.AssemblyLinearVelocity = Vector3.zero
+                            hrp.CFrame = CFrame.new(pos)
+                        end
+                    end)
                 end
+
+                local function isCarryingNow()
+                    local held, name = isHoldingEgg()
+                    if held then return true, name end
+                    if hwCarryState and hwCarryState.isCarrying then
+                        local hwHeld, hwName = hwCarryState.isCarrying()
+                        if hwHeld then return true, hwName end
+                    end
+                    return false, nil
+                end
+
+                -- ==========================================================
+                -- STEP 1: INITIAL TP + REPEATED PULSE UNTIL PICKUP SECURED
+                -- (Continuously pulses CFrame so server registers player position)
+                -- ==========================================================
+                local tStart = os.clock()
+                local secured = false
+                while hwPickupToken == myTok and (os.clock() - tStart < 3.0) do
+                    setPlayerPos(targetPos)
+
+                    local carrying, cName = isCarryingNow()
+                    if carrying or (model and model.Parent and model:GetAttribute("HalloweenEggCanPickUp") == false) then
+                        if hwCarryState then
+                            hwCarryState.active = true
+                            hwCarryState.name = cName or eggData.Name
+                        end
+                        updateActivityStatus()
+                        secured = true
+                        break
+                    end
+
+                    -- Update live position if egg model moved
+                    if model and model.Parent then
+                        local lp = getHwEggPos(model)
+                        if lp and (lp - targetPos).Magnitude <= 35 then
+                            targetPos = lp
+                        end
+                    end
+
+                    local pr = model and model.Parent and model:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    local prompt = (pr and isCarryPrompt(pr)) and pr or nil
+                    local liveUid = (model and model.Parent and model:GetAttribute("HalloweenEggUid")) or eggData.Uid
+
+                    if executeHwPickupSpam then
+                        executeHwPickupSpam({
+                            Model    = model,
+                            Name     = eggData.Name,
+                            Position = targetPos,
+                            Uid      = liveUid,
+                            Prompt   = prompt,
+                        })
+                    end
+
+                    task.wait(0.035)
+                end
+
+                if hwPickupToken ~= myTok then return end
+
+                local holdingAfterStep1, hName1 = isCarryingNow()
+                if not holdingAfterStep1 and not secured then
+                    return -- Initial pickup did not succeed, abort gracefully
+                end
+
+                if hwCarryState then
+                    hwCarryState.active = true
+                    hwCarryState.name = hName1 or eggData.Name
+                end
+                updateActivityStatus()
+
+                -- ==========================================================
+                -- STEP 2: TP TOWARDS DROP LOCATION BEFORE DROPPING
+                -- Pulse CFrame at dropPos so server receives replication BEFORE dropping!
+                -- ==========================================================
+                for i = 1, 4 do
+                    if hwPickupToken ~= myTok then return end
+                    setPlayerPos(dropPos)
+                    task.wait(0.035)
+                end
+
+                -- Drop the egg: invoke AskDropEgg until no longer holding
+                local net = ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Networking")
+                local dropRf = net and net:FindFirstChild("RF/HalloweenDimension/AskDropEgg")
+                local dropStart = os.clock()
+                while hwPickupToken == myTok and (os.clock() - dropStart < 1.2) do
+                    if dropRf then
+                        pcall(function() dropRf:InvokeServer() end)
+                    end
+                    task.wait(0.035)
+                    local stillHolding = isHoldingEgg()
+                    if not stillHolding then
+                        break
+                    end
+                end
+
+                if hwPickupToken ~= myTok then return end
+
+                if hwCarryState then
+                    hwCarryState.active = false
+                    hwCarryState.name = nil
+                end
+                updateActivityStatus()
+
+                -- Settle wait for server drop debounce and instance creation
+                task.wait(0.12)
+
+                -- Helper to scan dropped egg models, uid and all proximity prompts near dropPos
+                local function collectDropPromptsAndUid()
+                    local prompts = {}
+                    local foundUid = nil
+                    local foundModel = nil
+
+                    local function checkInst(inst)
+                        if not inst then return end
+                        local p = getHwEggPos(inst)
+                        if p and (p - dropPos).Magnitude <= 25 then
+                            foundModel = foundModel or inst
+                            local u = inst:GetAttribute("HalloweenEggUid") or inst:GetAttribute("Uid") or inst.Name
+                            if u and u ~= "" then foundUid = u end
+                            for _, pr in ipairs(inst:GetDescendants()) do
+                                if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
+                                    table.insert(prompts, pr)
+                                end
+                            end
+                        end
+                    end
+
+                    -- Spatial query for parts/models in 25-stud radius of dropPos
+                    pcall(function()
+                        if typeof(Workspace.GetPartBoundsInRadius) == "function" then
+                            local parts = Workspace:GetPartBoundsInRadius(dropPos, 25)
+                            for _, pt in ipairs(parts) do
+                                local pr = pt:FindFirstChildWhichIsA("ProximityPrompt")
+                                if pr and isCarryPrompt(pr) then table.insert(prompts, pr) end
+                                local m = pt:FindFirstAncestorOfClass("Model")
+                                if m and m ~= (LocalPlayer and LocalPlayer.Character) then checkInst(m) end
+                            end
+                        end
+                    end)
+
+                    -- Folder scans for dropped eggs in field
+                    pcall(function()
+                        local folders = {
+                            Workspace,
+                            Workspace:FindFirstChild("HalloweenDimension"),
+                            Workspace:FindFirstChild("PlacedEggRenders"),
+                            Workspace:FindFirstChild("Eggs"),
+                            Workspace:FindFirstChild("WorldEggs"),
+                        }
+                        for _, f in ipairs(folders) do
+                            if f then
+                                for _, ch in ipairs(f:GetChildren()) do
+                                    checkInst(ch)
+                                end
+                            end
+                        end
+                    end)
+
+                    -- Tagged egg scans
+                    pcall(function()
+                        local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
+                        if tagged then
+                            for _, ch in ipairs(tagged) do
+                                checkInst(ch)
+                            end
+                        end
+                    end)
+
+                    -- SmartPromptPart carry prompts
+                    pcall(function()
+                        local sp = Workspace:FindFirstChild("SmartPromptPart")
+                        if sp then
+                            for _, pr in ipairs(sp:GetDescendants()) do
+                                if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
+                                    table.insert(prompts, pr)
+                                end
+                            end
+                        end
+                    end)
+
+                    return foundModel, foundUid, prompts
+                end
+
+                -- ==========================================================
+                -- STEP 3: RE-PICKUP SAME EGG AT DROP LOCATION
+                -- (NO CFrame pulsing here! Player stands at dropPos naturally)
+                -- ==========================================================
+                local rePickStart = os.clock()
+                local reSecured = false
+
+                while hwPickupToken == myTok and (os.clock() - rePickStart < 3.0) do
+                    local reHolding, reName = isCarryingNow()
+                    if reHolding then
+                        if hwCarryState then
+                            hwCarryState.active = true
+                            hwCarryState.name = reName or eggData.Name
+                        end
+                        updateActivityStatus()
+                        reSecured = true
+                        break
+                    end
+
+                    local dropModel, dropUid, dropPrompts = collectDropPromptsAndUid()
+                    local finalUid = dropUid or eggData.Uid
+
+                    -- 1. Dispatch Remotes (Halloween remote + Field remote)
+                    if finalUid and finalUid ~= "" then
+                        local hwNet = ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Networking")
+                        local hwRf = hwNet and hwNet:FindFirstChild("RF/HalloweenDimension/AskCarryEgg")
+                        if hwRf then
+                            for b = 1, 4 do
+                                task.spawn(function() pcall(function() hwRf:InvokeServer(finalUid) end) end)
+                            end
+                        end
+                        local fieldRf = hwNet and hwNet:FindFirstChild("RF/EggWorld/AskFieldEggCarry")
+                        if fieldRf then
+                            task.spawn(function() pcall(function() fieldRf:InvokeServer({ Uid = finalUid }) end) end)
+                        end
+                    end
+
+                    -- 2. Trigger all detected proximity prompts
+                    for _, pr in ipairs(dropPrompts) do
+                        triggerProximityPrompt(pr)
+                    end
+
+                    task.wait(0.04)
+                end
+
+                if hwPickupToken ~= myTok then return end
+
+                -- Grace period: if not yet held, wait up to 2 seconds for manual E pickup or server sync
+                if not reSecured and not isCarryingNow() then
+                    local graceStart = os.clock()
+                    while hwPickupToken == myTok and (os.clock() - graceStart < 2.0) do
+                        local h, n = isCarryingNow()
+                        if h then
+                            reSecured = true
+                            if hwCarryState then
+                                hwCarryState.active = true
+                                hwCarryState.name = n or eggData.Name
+                            end
+                            updateActivityStatus()
+                            break
+                        end
+                        task.wait(0.05)
+                    end
+                end
+
+                if hwPickupToken ~= myTok then return end
+
+                local finalHolding, fName = isCarryingNow()
+                if finalHolding or reSecured then
+                    if hwCarryState then
+                        hwCarryState.active = true
+                        hwCarryState.name = fName or eggData.Name
+                    end
+                    updateActivityStatus()
+                end
+
+                -- ==========================================================
+                -- STEP 4: WALK TOWARDS SAFEZONE
+                -- Direct velocity travel at full carry speed (310 studs/s)
+                -- ==========================================================
+                walkToTarget(hwSafeZone, 6.0, function()
+                    pcall(function()
+                        local ch = LocalPlayer and LocalPlayer.Character
+                        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+                        if hum then hum:UnequipTools() end
+                    end)
+                end, "HW_SAFEZONE", 8.0)
             end)
         end))
 
-        -- Placeholder GET Action: Move toward egg (NO pickup)
+        -- GET Action: Walk toward egg using velocity engine and pick it up
         addConnection(getBtn.MouseButton1Click:Connect(function()
             local eggData = item.data
-            if not (eggData and eggData.Position) then return end
-            print(string.format("[Halloween Placeholder] GET clicked for %s at (%.1f, %.1f, %.1f)", tostring(eggData.Name), eggData.Position.X, eggData.Position.Y, eggData.Position.Z))
+            if not eggData then return end
+
             pcall(function()
                 local ch = LocalPlayer and LocalPlayer.Character
                 local hum = ch and ch:FindFirstChildOfClass("Humanoid")
                 if hum then
-                    hum:MoveTo(eggData.Position)
+                    hum:UnequipTools()
+                    if hum.Sit then hum.Sit = false end
+                    if hum.PlatformStand then hum.PlatformStand = false end
                 end
             end)
+
+            local model = eggData.Model
+            local targetPos = (model and getHwEggPos(model)) or eggData.Position
+            if not targetPos then return end
+            if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
+            if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
+                targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
+            end
+            if typeof(targetPos) ~= "Vector3" then return end
+
+            local uid = eggData.Uid or (model and model:GetAttribute("HalloweenEggUid")) or (model and model.Name) or "HW_EGG"
+
+            walkToTarget(targetPos, 3.5, function()
+                pickupHwEgg(eggData)
+            end, "HW_" .. tostring(uid), 8.0)
         end))
 
         hwCardPool[idx] = item
@@ -4105,7 +4508,7 @@ end
 -- HALLOWEEN AUTO-PICKUP ENGINE (ISOLATED WORLD 2 MODULE)
 -- ============================================================================
 
-local hwPickupToken = 0
+hwPickupToken = 0
 
 local function findBestHwPickupTarget()
     local char = LocalPlayer and LocalPlayer.Character
@@ -4205,7 +4608,7 @@ local function findBestHwPickupTarget()
     return bestTarget
 end
 
-local function executeHwPickupSpam(target)
+executeHwPickupSpam = function(target)
     if not target then return end
     local uid = target.Uid
 
@@ -4223,8 +4626,16 @@ local function executeHwPickupSpam(target)
     end
 
     -- 2. Trigger ProximityPrompt ONLY if it is a validated carry prompt
-    if target.Prompt and isCarryPrompt(target.Prompt) then
-        triggerProximityPrompt(target.Prompt)
+    local prompt = target.Prompt
+    if not prompt and target.Model and target.Model.Parent then
+        local pr = target.Model:FindFirstChildWhichIsA("ProximityPrompt", true)
+        if pr and isCarryPrompt(pr) then
+            prompt = pr
+            target.Prompt = pr
+        end
+    end
+    if prompt and isCarryPrompt(prompt) then
+        triggerProximityPrompt(prompt)
     end
     local sp = Workspace:FindFirstChild("SmartPromptPart")
     if sp then
@@ -4235,6 +4646,90 @@ local function executeHwPickupSpam(target)
             end
         end
     end
+end
+
+pickupHwEgg = function(eggData, onSecured)
+    if not eggData then return end
+    local model = eggData.Model
+    local targetPos = (model and getHwEggPos(model)) or eggData.Position
+    local uid = eggData.Uid or (model and model:GetAttribute("HalloweenEggUid")) or (model and model.Name)
+
+    hwPickupToken = (hwPickupToken or 0) + 1
+    local myTok = hwPickupToken
+
+    task.spawn(function()
+        local tStart = os.clock()
+        local maxDuration = 1.5
+        local hasSnapped = false
+        local secured = false
+
+        while hwPickupToken == myTok and (os.clock() - tStart < maxDuration) do
+            local curHolding = isHoldingEgg() or (hwCarryState and hwCarryState.isCarrying and hwCarryState.isCarrying())
+            if curHolding or weAreCarrying then
+                if hwCarryState then
+                    hwCarryState.active = true
+                    hwCarryState.name = eggData.Name
+                end
+                updateActivityStatus()
+                secured = true
+                break -- Egg is secured! Stop burst immediately
+            end
+
+            if model and model.Parent then
+                if model:GetAttribute("HalloweenEggCanPickUp") == false then
+                    if hwCarryState then
+                        hwCarryState.active = true
+                        hwCarryState.name = eggData.Name
+                    end
+                    updateActivityStatus()
+                    secured = true
+                    break -- Server confirmed carry, stop immediately!
+                end
+            end
+
+            local livePos = targetPos
+            if model and model.Parent then
+                local p = getHwEggPos(model)
+                if p and (not targetPos or (p - targetPos).Magnitude <= 35) then
+                    livePos = p
+                end
+            end
+
+            if livePos and not hasSnapped then
+                local char = LocalPlayer and LocalPlayer.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local dist = root and (livePos - root.Position).Magnitude or 999
+                if dist <= 3.5 then
+                    hasSnapped = true
+                elseif dist <= 35 then
+                    if applyReachAssist(livePos) then
+                        hasSnapped = true
+                    end
+                end
+            end
+
+            local pr = model and model.Parent and model:FindFirstChildWhichIsA("ProximityPrompt", true)
+            local prompt = (pr and isCarryPrompt(pr)) and pr or nil
+
+            local liveUid = (model and model.Parent and model:GetAttribute("HalloweenEggUid")) or uid
+
+            local hwTarget = {
+                Model    = model,
+                Name     = eggData.Name,
+                Position = livePos or targetPos,
+                Uid      = liveUid,
+                Prompt   = prompt,
+            }
+
+            executeHwPickupSpam(hwTarget)
+
+            task.wait(0.035)
+        end
+
+        if secured and onSecured then
+            task.spawn(onSecured)
+        end
+    end)
 end
 
 startHalloweenAutoPickup = function()
@@ -4252,6 +4747,11 @@ startHalloweenAutoPickup = function()
         while hwPickupToken == myTok and hwAutoPickEnabled and (os.clock() - tStart < maxDuration) do
             local curHolding, _ = isHoldingEgg()
             if curHolding or weAreCarrying then
+                if hwCarryState then
+                    hwCarryState.active = true
+                    hwCarryState.name = target and target.Name or "Halloween Egg"
+                end
+                updateActivityStatus()
                 break -- Egg is secured! Stop burst immediately
             end
 
