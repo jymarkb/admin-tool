@@ -3998,6 +3998,56 @@ local function getOrCreateHwCard(idx)
             data      = nil,
         }
 
+        local dropPos = Vector3.new(-5959.698, -203.718, -7126.994)
+        local hwSafeZone = Vector3.new(-5963.824, -203.718, -7274.822)
+
+        local function walkViaDropZoneToSafeZone()
+            pcall(function()
+                local currChar = LocalPlayer and LocalPlayer.Character
+                local h = currChar and currChar:FindFirstChildOfClass("Humanoid")
+                local hrp = currChar and currChar:FindFirstChild("HumanoidRootPart")
+                if h then
+                    if h.Sit then h.Sit = false end
+                    if h.PlatformStand then h.PlatformStand = false end
+                end
+                if hrp then
+                    hrp.Anchored = false
+                    local diff = Vector3.new(dropPos.X - hrp.Position.X, 0, dropPos.Z - hrp.Position.Z)
+                    if diff.Magnitude > 0.1 then
+                        local dir = diff.Unit
+                        hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
+                    end
+                end
+            end)
+
+            walkToTarget(dropPos, 6.0, function()
+                pcall(function()
+                    local currChar = LocalPlayer and LocalPlayer.Character
+                    local hrp = currChar and currChar:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local diff = Vector3.new(hwSafeZone.X - hrp.Position.X, 0, hwSafeZone.Z - hrp.Position.Z)
+                        if diff.Magnitude > 0.1 then
+                            local dir = diff.Unit
+                            hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
+                        end
+                    end
+                end)
+
+                walkToTarget(hwSafeZone, 6.0, function()
+                    pcall(function()
+                        local currChar = LocalPlayer and LocalPlayer.Character
+                        local h = currChar and currChar:FindFirstChildOfClass("Humanoid")
+                        if h then h:UnequipTools() end
+                    end)
+                    if hwCarryState then
+                        hwCarryState.active = false
+                        hwCarryState.name = nil
+                    end
+                    updateActivityStatus()
+                end, "HW_SAFEZONE", 8.0)
+            end, "HW_DROPZONE", 8.0)
+        end
+
         -- TP Action: Teleport to egg + pulse pick up, TP & pulse drop location before dropping, re-pick up, and walk towards safezone
         addConnection(tpBtn.MouseButton1Click:Connect(function()
             local eggData = item.data
@@ -4013,9 +4063,6 @@ local function getOrCreateHwCard(idx)
                 targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
             end
             if typeof(targetPos) ~= "Vector3" then return end
-
-            local dropPos = Vector3.new(-5959.698, -203.718, -7126.994)
-            local hwSafeZone = Vector3.new(-5963.824, -203.718, -7274.822)
 
             hwPickupToken = (hwPickupToken or 0) + 1
             local myTok = hwPickupToken
@@ -4108,50 +4155,7 @@ local function getOrCreateHwCard(idx)
                     or (targetPos.Z < -6500 and targetPos.Z > -7050)
 
                 if isZone1 then
-                    pcall(function()
-                        local currChar = LocalPlayer and LocalPlayer.Character
-                        local h = currChar and currChar:FindFirstChildOfClass("Humanoid")
-                        local hrp = currChar and currChar:FindFirstChild("HumanoidRootPart")
-                        if h then
-                            if h.Sit then h.Sit = false end
-                            if h.PlatformStand then h.PlatformStand = false end
-                        end
-                        if hrp then
-                            hrp.Anchored = false
-                            local diff = Vector3.new(dropPos.X - hrp.Position.X, 0, dropPos.Z - hrp.Position.Z)
-                            if diff.Magnitude > 0.1 then
-                                local dir = diff.Unit
-                                hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
-                            end
-                        end
-                    end)
-
-                    walkToTarget(dropPos, 6.0, function()
-                        pcall(function()
-                            local currChar = LocalPlayer and LocalPlayer.Character
-                            local hrp = currChar and currChar:FindFirstChild("HumanoidRootPart")
-                            if hrp then
-                                local diff = Vector3.new(hwSafeZone.X - hrp.Position.X, 0, hwSafeZone.Z - hrp.Position.Z)
-                                if diff.Magnitude > 0.1 then
-                                    local dir = diff.Unit
-                                    hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
-                                end
-                            end
-                        end)
-
-                        walkToTarget(hwSafeZone, 6.0, function()
-                            pcall(function()
-                                local currChar = LocalPlayer and LocalPlayer.Character
-                                local h = currChar and currChar:FindFirstChildOfClass("Humanoid")
-                                if h then h:UnequipTools() end
-                            end)
-                            if hwCarryState then
-                                hwCarryState.active = false
-                                hwCarryState.name = nil
-                            end
-                            updateActivityStatus()
-                        end, "HW_SAFEZONE", 8.0)
-                    end, "HW_DROPZONE", 8.0)
+                    walkViaDropZoneToSafeZone()
                     return
                 end
 
@@ -4392,7 +4396,14 @@ local function getOrCreateHwCard(idx)
             local uid = eggData.Uid or (model and model:GetAttribute("HalloweenEggUid")) or (model and model.Name) or "HW_EGG"
 
             walkToTarget(targetPos, 3.5, function()
-                pickupHwEgg(eggData)
+                pickupHwEgg(eggData, function()
+                    if hwCarryState then
+                        hwCarryState.active = true
+                        hwCarryState.name = eggData.Name
+                    end
+                    updateActivityStatus()
+                    walkViaDropZoneToSafeZone()
+                end)
             end, "HW_" .. tostring(uid), 8.0)
         end))
 
@@ -4791,7 +4802,8 @@ pickupHwEgg = function(eggData, onSecured)
             task.wait(0.035)
         end
 
-        if secured and onSecured then
+        local isSec = secured or isHoldingEgg() or (hwCarryState and hwCarryState.isCarrying and hwCarryState.isCarrying())
+        if isSec and onSecured then
             task.spawn(onSecured)
         end
     end)
