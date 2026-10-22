@@ -4002,6 +4002,37 @@ halloweenEngine = {
     safeZone = Vector3.new(-5963.824, -203.718, -7274.822),
     autoFarmEnabled = false,
     autoFarmToken = 0,
+    nightResetTriggered = false,
+    nightResetGraceUntil = nil,
+    lastNightResetAt = nil,
+
+    triggerNightReset = function(duration)
+        local now = os.clock()
+        -- Debounce: strictly one-time reset per 5-min night cycle (45s cooldown)
+        if halloweenEngine.lastNightResetAt and (now - halloweenEngine.lastNightResetAt < 45.0) then
+            return
+        end
+        local grace = duration or 15.0
+        halloweenEngine.nightResetTriggered = true
+        halloweenEngine.lastNightResetAt = now
+        halloweenEngine.nightResetGraceUntil = now + grace
+        halloweenEngine.cachedWorldEggs = nil
+        if halloweenEngine.autoFarmEnabled and lblFarmStatus then
+            lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/15s)...", grace)
+            lblFarmStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
+        end
+    end,
+
+    isNightResetActive = function()
+        if halloweenEngine.nightResetGraceUntil and (os.clock() < halloweenEngine.nightResetGraceUntil) then
+            return true, math.max(0, halloweenEngine.nightResetGraceUntil - os.clock())
+        end
+        if halloweenEngine.nightResetGraceUntil and (os.clock() >= halloweenEngine.nightResetGraceUntil) then
+            halloweenEngine.nightResetGraceUntil = nil
+            halloweenEngine.nightResetTriggered = false
+        end
+        return false, 0
+    end,
 
     -- Sub-module: auto farm (Divine -> Eternal -> Secret priority; finishes when no eggs match filter)
     autoFarm = {
@@ -4127,8 +4158,14 @@ halloweenEngine = {
                 hwAutoFarmBtn.TextColor3 = Color3.new(1, 1, 1)
             end
             if lblFarmStatus then
-                lblFarmStatus.Text = "Status: Scanning Eggs..."
-                lblFarmStatus.TextColor3 = Color3.fromRGB(80, 210, 120)
+                local inGrace, remaining = halloweenEngine.isNightResetActive()
+                if inGrace then
+                    lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/15s)...", remaining)
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
+                else
+                    lblFarmStatus.Text = "Status: Scanning Eggs..."
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(80, 210, 120)
+                end
             end
 
             task.spawn(function()
@@ -4155,6 +4192,21 @@ halloweenEngine = {
 
         runNextCycle = function(token)
             if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                return
+            end
+
+            local inGrace, remaining = halloweenEngine.isNightResetActive()
+            if inGrace then
+                if lblFarmStatus then
+                    lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/15s)...", remaining)
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
+                end
+                task.delay(0.5, function()
+                    if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                        return
+                    end
+                    halloweenEngine.autoFarm.runNextCycle(token)
+                end)
                 return
             end
 
@@ -5416,6 +5468,7 @@ local function startPushMonitor()
     local evBatch = getNetRemote("RE/EggWorld/FieldEggBatchShifted")
     local evRarities = getNetRemote("RE/EggWorld/FieldEggRaritiesShown")
     local evGone = getNetRemote("RE/EggWorld/FieldEggGone")
+    local evCountdown = getNetRemote("RE/EggWorld/FieldEggCycleCountdown")
 
     if evShift then
         addConnection(evShift.OnClientEvent:Connect(function(payload)
@@ -5487,6 +5540,17 @@ local function startPushMonitor()
         end))
     end
 
+    if evCountdown then
+        addConnection(evCountdown.OnClientEvent:Connect(function(val)
+            local cd = tonumber(val) or (typeof(val) == "table" and tonumber(val.Countdown or val.Time or val.Seconds))
+            if cd and cd <= 1 then
+                if halloweenEngine and halloweenEngine.triggerNightReset then
+                    halloweenEngine.triggerNightReset(15.0)
+                end
+            end
+        end))
+    end
+
     if evBatch then
         addConnection(evBatch.OnClientEvent:Connect(function()
             syncEggSnapshot()
@@ -5529,6 +5593,24 @@ local function startPushMonitor()
                 end
                 eggCacheByUid[u] = nil
                 requestListUpdate()
+            end
+        end))
+    end
+
+    local okLighting, lighting = pcall(function() return game:GetService("Lighting") end)
+    if okLighting and lighting then
+        local lastClockTime = lighting.ClockTime
+        addConnection(lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+            local cur = lighting.ClockTime
+            local prev = lastClockTime or cur
+            lastClockTime = cur
+
+            local wasDay = (prev >= 6 and prev < 18)
+            local isNight = (cur >= 18 or cur < 6)
+            if wasDay and isNight then
+                if halloweenEngine and halloweenEngine.triggerNightReset then
+                    halloweenEngine.triggerNightReset(15.0)
+                end
             end
         end))
     end
