@@ -4024,13 +4024,16 @@ halloweenEngine = {
             end
 
             pcall(function()
-                local hw = Workspace:FindFirstChild("HalloweenDimension")
-                if not hw then
-                    hw = Workspace:FindFirstChild("HalloweenDimension", true)
-                end
-                local worldEggs = hw and (hw:FindFirstChild("WorldEggs") or hw:FindFirstChild("WorldEggs", true))
-                if not worldEggs then
-                    worldEggs = Workspace:FindFirstChild("WorldEggs")
+                local worldEggs = halloweenEngine and halloweenEngine.cachedWorldEggs
+                if not (worldEggs and worldEggs.Parent) then
+                    local hw = Workspace:FindFirstChild("HalloweenDimension")
+                    worldEggs = hw and hw:FindFirstChild("WorldEggs")
+                    if not worldEggs then
+                        worldEggs = Workspace:FindFirstChild("WorldEggs")
+                    end
+                    if halloweenEngine then
+                        halloweenEngine.cachedWorldEggs = worldEggs
+                    end
                 end
                 if worldEggs then
                     for _, egg in ipairs(worldEggs:GetChildren()) do
@@ -4299,6 +4302,13 @@ halloweenEngine.tpAction = function(eggData, onComplete)
         -- ==========================================================
         local tStart = os.clock()
         local secured = false
+        local spamPayload = {
+            Model    = model,
+            Name     = eggData.Name,
+            Position = targetPos,
+            Uid      = eggData.Uid,
+            Prompt   = nil,
+        }
         while hwPickupToken == myTok and (os.clock() - tStart < 3.0) do
             setPlayerPos(targetPos)
 
@@ -4326,13 +4336,10 @@ halloweenEngine.tpAction = function(eggData, onComplete)
             local liveUid = (model and model.Parent and model:GetAttribute("HalloweenEggUid")) or eggData.Uid
 
             if executeHwPickupSpam then
-                executeHwPickupSpam({
-                    Model    = model,
-                    Name     = eggData.Name,
-                    Position = targetPos,
-                    Uid      = liveUid,
-                    Prompt   = prompt,
-                })
+                spamPayload.Position = targetPos
+                spamPayload.Uid      = liveUid
+                spamPayload.Prompt   = prompt
+                executeHwPickupSpam(spamPayload)
             end
 
             task.wait(0.035)
@@ -4740,13 +4747,16 @@ renderHalloweenEggs = function()
     end
 
     pcall(function()
-        local hw = Workspace:FindFirstChild("HalloweenDimension")
-        if not hw then
-            hw = Workspace:FindFirstChild("HalloweenDimension", true)
-        end
-        local worldEggs = hw and (hw:FindFirstChild("WorldEggs") or hw:FindFirstChild("WorldEggs", true))
-        if not worldEggs then
-            worldEggs = Workspace:FindFirstChild("WorldEggs")
+        local worldEggs = halloweenEngine and halloweenEngine.cachedWorldEggs
+        if not (worldEggs and worldEggs.Parent) then
+            local hw = Workspace:FindFirstChild("HalloweenDimension")
+            worldEggs = hw and hw:FindFirstChild("WorldEggs")
+            if not worldEggs then
+                worldEggs = Workspace:FindFirstChild("WorldEggs")
+            end
+            if halloweenEngine then
+                halloweenEngine.cachedWorldEggs = worldEggs
+            end
         end
         if worldEggs then
             for _, egg in ipairs(worldEggs:GetChildren()) do
@@ -4997,7 +5007,7 @@ executeHwPickupSpam = function(target)
         local net = ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Networking")
         local hwRf = net and net:FindFirstChild("RF/HalloweenDimension/AskCarryEgg")
         if hwRf then
-            for i = 1, 6 do
+            for i = 1, 2 do
                 task.spawn(function()
                     pcall(function() hwRf:InvokeServer(uid) end)
                 end)
