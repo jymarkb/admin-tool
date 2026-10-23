@@ -173,6 +173,7 @@ Enum.KeyCode = { E = "E", Q = "Q", Space = "Space" }
 ---------------------------------------------------------------------------
 Stub.registry = {}         -- name -> instance (last created with that name)
 Stub.instances = {}        -- all created instances
+Stub.created = {}          -- class -> created count (leak forensics)
 Stub.children = setmetatable({}, { __mode = "k" })
 
 local Instance
@@ -238,7 +239,8 @@ knownMethods = {
         return false
     end,
     Destroy = function(self)
-        local p = self.Parent
+        rawset(self, "_destroyed", true)
+        local p = rawget(self, "_parent")
         if p and Stub.children[p] then
             for i, c in ipairs(Stub.children[p]) do
                 if c == self then table.remove(Stub.children[p], i) break end
@@ -337,6 +339,63 @@ Stub.fire = function(obj, key, ...)
     if sig then sig:Fire(...) end
 end
 
+---------------------------------------------------------------------------
+-- optional profiling (opt-in; completely inert unless Stub.prof.enabled).
+-- Measures wall-clock CPU spent inside the script's calls into the Roblox API,
+-- which is what shows up as frame time / hitch in the real client.
+---------------------------------------------------------------------------
+Stub.prof = { enabled = false, calls = {}, cpu = {}, names = {}, order = {} }
+
+local function profAdd(key, dt)
+    local p = Stub.prof
+    if p.calls[key] == nil then
+        p.calls[key] = 0
+        p.cpu[key] = 0
+        table.insert(p.order, key)
+        p.names[key] = key
+    end
+    p.calls[key] = p.calls[key] + 1
+    p.cpu[key] = p.cpu[key] + dt
+end
+Stub.profAdd = profAdd
+
+function Stub.profReset()
+    Stub.prof.calls, Stub.prof.cpu, Stub.prof.order = {}, {}, {}
+end
+
+function Stub.profReport()
+    local out = {}
+    for _, key in ipairs(Stub.prof.order) do
+        table.insert(out, { name = key, calls = Stub.prof.calls[key], cpu = Stub.prof.cpu[key] })
+    end
+    table.sort(out, function(a, b) return a.cpu > b.cpu end)
+    return out
+end
+
+-- live instances (Destroy only unparents in the stub, so track it explicitly)
+function Stub.liveInstances()
+    local n = 0
+    for _, inst in ipairs(Stub.instances) do
+        if not rawget(inst, "_destroyed") then n = n + 1 end
+    end
+    return n
+end
+
+-- total connected handlers across every signal ever handed to the script
+function Stub.handlerCount()
+    local n = 0
+    for _, inst in ipairs(Stub.instances) do
+        local sigs = inst._sigs
+        if sigs then
+            for _, sig in pairs(sigs) do n = n + #sig._handlers end
+        end
+    end
+    for _, list in pairs(Stub.signals) do
+        for _, sig in ipairs(list) do n = n + #sig._handlers end
+    end
+    return n
+end
+
 local okSet = {
     Visible = true, Parent = true, Name = true, Text = true, Value = true,
     WalkSpeed = true, Health = true, ClockTime = true, CanCollide = true,
@@ -344,10 +403,11 @@ local okSet = {
 
 Instance = {}
 Instance.new = function(class, parent)
+    local t0 = os.clock()
     local obj = {
         ClassName = class,
         _name = class,
-        Parent = nil,
+        _parent = nil,
         _attrs = {},
         -- Property writes must go through __newindex every time, otherwise the
         -- second write to e.g. Lighting.ClockTime would bypass change listeners.
@@ -358,9 +418,26 @@ Instance.new = function(class, parent)
             local raw = rawget(t, k)
             if raw ~= nil then return raw end
             if k == "Name" then return rawget(t, "_name") end
+            if k == "Parent" then return rawget(t, "_parent") end
             local props = rawget(t, "_props")
             if props and props[k] ~= nil then return props[k] end
-            if knownMethods[k] then return knownMethods[k] end
+            if knownMethods[k] then
+                if not Stub.prof.enabled then return knownMethods[k] end
+                local cache = t._profWrap
+                if not cache then cache = {}; rawset(t, "_profWrap", cache) end
+                local w = cache[k]
+                if not w then
+                    local fn = knownMethods[k]
+                    w = function(self2, ...)
+                        local t0 = os.clock()
+                        local res = table.pack(fn(self2, ...))
+                        profAdd(k, os.clock() - t0)
+                        return table.unpack(res, 1, res.n)
+                    end
+                    cache[k] = w
+                end
+                return w
+            end
             if k == "CFrame" then return CFrame.new(t._position or Vector3.new(0, 0, 0)) end
             if k == "Position" then return t._position or Vector3.new(0, 0, 0) end
             if k == "AssemblyLinearVelocity" then return t._velocity or Vector3.new(0, 0, 0) end
@@ -387,7 +464,13 @@ Instance.new = function(class, parent)
         end,
         __newindex = function(t, k, v)
             if k == "Parent" then
-                rawset(t, "Parent", v)
+                local old = rawget(t, "_parent")
+                if old and Stub.children[old] then
+                    for i, c in ipairs(Stub.children[old]) do
+                        if c == t then table.remove(Stub.children[old], i) break end
+                    end
+                end
+                rawset(t, "_parent", v)
                 if v then
                     Stub.children[v] = Stub.children[v] or {}
                     table.insert(Stub.children[v], t)
@@ -403,6 +486,7 @@ Instance.new = function(class, parent)
             if k == "AssemblyLinearVelocity" then rawset(t, "_velocity", v); return end
             t._props = rawget(t, "_props") or {}
             t._props[k] = v
+            if Stub.prof.enabled then profAdd("write:" .. tostring(k), 0) end
             local ls = t._propListeners and t._propListeners[k]
             if ls then
                 for _, fn in ipairs({ table.unpack(ls) }) do fn() end
@@ -411,6 +495,8 @@ Instance.new = function(class, parent)
         __tostring = function(t) return "Instance<" .. tostring(rawget(t, "_name")) .. ">" end,
     })
     table.insert(Stub.instances, obj)
+    Stub.created[class] = (Stub.created[class] or 0) + 1
+    if Stub.prof.enabled then profAdd("Instance.new", os.clock() - t0) end
     if parent then obj.Parent = parent end
     Stub.registry[obj._name] = obj
     return obj

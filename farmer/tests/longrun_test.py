@@ -67,7 +67,7 @@ DRIVER = textwrap.dedent(
     local fishSeq = 0
     local eggsCarried = 0
     local newUpdateCarried = 0
-    local toolsCarried = {}
+    local tool = nil
 
     local function eggByUid(uid)
         for _, egg in ipairs(Stub.worldEggs:GetChildren()) do
@@ -112,10 +112,11 @@ DRIVER = textwrap.dedent(
                 end
                 egg:SetAttribute("HalloweenEggCanPickUp", false)
                 eggsCarried = eggsCarried + 1
-                local tool = Instance.new("Tool")
-                tool.Name = "Halloween Egg Tool"
-                tool.Parent = Stub.player.Character
-                table.insert(toolsCarried, tool)
+                if not tool then
+                    tool = Instance.new("Tool")
+                    tool.Name = "Halloween Egg Tool"
+                    tool.Parent = Stub.player.Character
+                end
             end
             return true
         end
