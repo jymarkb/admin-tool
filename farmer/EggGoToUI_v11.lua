@@ -514,27 +514,31 @@ local function getSpeciesInfo(name, biomeFilter)
     return SPECIES_INFO[clean]
 end
 
-local function getSpeciesRarity(name)
-    local info = getSpeciesInfo(name)
-    return info and info.Rarity or "Common"
-end
+-- Keep legacy lookup helpers in a local scope so they don't consume registers
+-- throughout this large LocalScript. They are currently not called elsewhere.
+do
+    local function getSpeciesRarity(name)
+        local info = getSpeciesInfo(name)
+        return info and info.Rarity or "Common"
+    end
 
-local function getSpeciesBiome(name)
-    local info = getSpeciesInfo(name)
-    return info and info.Biome or nil
-end
+    local function getSpeciesBiome(name)
+        local info = getSpeciesInfo(name)
+        return info and info.Biome or nil
+    end
 
-local function matchSpecies(nameA, nameB)
-    local a = normalizeSpecies(nameA)
-    local b = normalizeSpecies(nameB)
-    if a == "" or b == "" then return false end
-    if a == b then return true end
-    local aliasA = EGG_ALIASES[a]
-    local aliasB = EGG_ALIASES[b]
-    if aliasA and aliasA == b then return true end
-    if aliasB and aliasB == a then return true end
-    if aliasA and aliasB and aliasA == aliasB then return true end
-    return false
+    local function matchSpecies(nameA, nameB)
+        local a = normalizeSpecies(nameA)
+        local b = normalizeSpecies(nameB)
+        if a == "" or b == "" then return false end
+        if a == b then return true end
+        local aliasA = EGG_ALIASES[a]
+        local aliasB = EGG_ALIASES[b]
+        if aliasA and aliasA == b then return true end
+        if aliasB and aliasB == a then return true end
+        if aliasA and aliasB and aliasA == aliasB then return true end
+        return false
+    end
 end
 
 -- ============================================================================
@@ -781,7 +785,7 @@ tabHalloween.ClipsDescendants = false
 tabHalloween.Visible = false
 tabHalloween.Parent = contentContainer
 
-local hwStatusLabel, halloweenEngine, hwAutoFarmBtn, lblFarmStatus = nil, nil, nil, nil
+local hwStatusLabel, halloweenEngine, hwAutoFarmBtn, lblFarmStatus, hwAutoFishBtn, lblFishStatus, hwLogLabel = nil, nil, nil, nil, nil, nil, nil
 local hwEggListScroll
 local hwEmptyNotice
 local hwRarityBtn
@@ -872,11 +876,99 @@ do
         setHwAutoFarm(not isEnabled)
     end))
 
+    -- Auto Fishing Engine Row (Two-Column: Text Left, Toggle Right)
+    local hwAutoFishRow = Instance.new("Frame")
+    hwAutoFishRow.Name = "HwAutoFishRow"
+    hwAutoFishRow.Size = UDim2.new(1, -16, 0, 36)
+    hwAutoFishRow.Position = UDim2.new(0, 8, 0, 46)
+    hwAutoFishRow.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    hwAutoFishRow.BorderSizePixel = 0
+    hwAutoFishRow.Parent = tabHalloween
+    Instance.new("UICorner", hwAutoFishRow).CornerRadius = UDim.new(0, 6)
+    local strokeAutoFish = Instance.new("UIStroke", hwAutoFishRow)
+    strokeAutoFish.Color = Color3.fromRGB(45, 55, 75)
+    strokeAutoFish.Thickness = 1
+
+    local lblFishTitle = Instance.new("TextLabel")
+    lblFishTitle.Name = "LblFishTitle"
+    lblFishTitle.Size = UDim2.new(1, -76, 0, 18)
+    lblFishTitle.Position = UDim2.new(0, 10, 0, 2)
+    lblFishTitle.BackgroundTransparency = 1
+    lblFishTitle.Text = "Auto Fishing"
+    lblFishTitle.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblFishTitle.Font = Enum.Font.GothamBold
+    lblFishTitle.TextSize = 12
+    lblFishTitle.TextXAlignment = Enum.TextXAlignment.Left
+    lblFishTitle.Parent = hwAutoFishRow
+
+    lblFishStatus = Instance.new("TextLabel")
+    lblFishStatus.Name = "LblFishStatus"
+    lblFishStatus.Size = UDim2.new(1, -76, 0, 14)
+    lblFishStatus.Position = UDim2.new(0, 10, 0, 19)
+    lblFishStatus.BackgroundTransparency = 1
+    lblFishStatus.Text = "Status: Idle"
+    lblFishStatus.TextColor3 = Color3.fromRGB(150, 160, 180)
+    lblFishStatus.Font = Enum.Font.Gotham
+    lblFishStatus.TextSize = 10
+    lblFishStatus.TextXAlignment = Enum.TextXAlignment.Left
+    lblFishStatus.Parent = hwAutoFishRow
+
+    hwAutoFishBtn = Instance.new("TextButton")
+    hwAutoFishBtn.Name = "HwAutoFishBtn"
+    hwAutoFishBtn.Size = UDim2.new(0, 56, 0, 24)
+    hwAutoFishBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+    hwAutoFishBtn.Text = "OFF"
+    hwAutoFishBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+    hwAutoFishBtn.Font = Enum.Font.GothamBold
+    hwAutoFishBtn.TextSize = 11
+    hwAutoFishBtn.Parent = hwAutoFishRow
+    Instance.new("UICorner", hwAutoFishBtn).CornerRadius = UDim.new(0, 5)
+
+    local function setHwAutoFish(enabled)
+        -- When Auto Farm is ON, fishing is a managed phase of the same engine:
+        -- farm matching eggs -> wait 3 seconds -> fish. Do not start a competing loop.
+        if halloweenEngine and halloweenEngine.autoFarmEnabled then
+            if halloweenEngine.fishing and halloweenEngine.fishing.log then
+                halloweenEngine.fishing.log("Auto Fishing is managed by Halloween Auto Farm: farm eggs -> wait 3s -> fish.")
+            end
+            if hwAutoFishBtn then
+                hwAutoFishBtn.Text = "AUTO"
+                hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 90, 135)
+                hwAutoFishBtn.TextColor3 = Color3.new(1, 1, 1)
+            end
+            return
+        end
+
+        if halloweenEngine and halloweenEngine.fishing then
+            if enabled then
+                halloweenEngine.fishing.start()
+            else
+                halloweenEngine.fishing.stop("Manual Stop")
+            end
+        else
+            if hwAutoFishBtn then
+                hwAutoFishBtn.Text = enabled and "ON" or "OFF"
+                hwAutoFishBtn.BackgroundColor3 = enabled and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
+                hwAutoFishBtn.TextColor3 = enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+            end
+            if lblFishStatus then
+                lblFishStatus.Text = enabled and "Status: Active" or "Status: Idle"
+                lblFishStatus.TextColor3 = enabled and Color3.fromRGB(80, 210, 120) or Color3.fromRGB(150, 160, 180)
+            end
+        end
+    end
+
+    addConnection(hwAutoFishBtn.MouseButton1Click:Connect(function()
+        local isEnabled = halloweenEngine and halloweenEngine.fishing and halloweenEngine.fishing.enabled
+        setHwAutoFish(not isEnabled)
+    end))
+
     -- Auto Pick Toggle Bar (Above Rarity Filter)
     local hwAutoPickFrame = Instance.new("Frame")
     hwAutoPickFrame.Name = "HwAutoPickFrame"
     hwAutoPickFrame.Size = UDim2.new(1, -16, 0, 24)
-    hwAutoPickFrame.Position = UDim2.new(0, 8, 0, 46)
+    hwAutoPickFrame.Position = UDim2.new(0, 8, 0, 86)
     hwAutoPickFrame.BackgroundTransparency = 1
     hwAutoPickFrame.BorderSizePixel = 0
     hwAutoPickFrame.Parent = tabHalloween
@@ -915,7 +1007,7 @@ do
     local hwFilterFrame = Instance.new("Frame")
     hwFilterFrame.Name = "HwFilterFrame"
     hwFilterFrame.Size = UDim2.new(1, -16, 0, 24)
-    hwFilterFrame.Position = UDim2.new(0, 8, 0, 74)
+    hwFilterFrame.Position = UDim2.new(0, 8, 0, 114)
     hwFilterFrame.BackgroundTransparency = 1
     hwFilterFrame.BorderSizePixel = 0
     hwFilterFrame.ClipsDescendants = false
@@ -1096,8 +1188,8 @@ do
     -- Scrolling Frame for detected Halloween eggs (Directly below rarity filter)
     hwEggListScroll = Instance.new("ScrollingFrame")
     hwEggListScroll.Name = "HwEggListScroll"
-    hwEggListScroll.Size = UDim2.new(1, -16, 1, -110)
-    hwEggListScroll.Position = UDim2.new(0, 8, 0, 104)
+    hwEggListScroll.Size = UDim2.new(1, -16, 1, -266)
+    hwEggListScroll.Position = UDim2.new(0, 8, 0, 144)
     hwEggListScroll.BackgroundTransparency = 1
     hwEggListScroll.BorderSizePixel = 0
     hwEggListScroll.ScrollBarThickness = 4
@@ -1132,6 +1224,91 @@ do
     hwEmptyNotice.Visible = true
     hwEmptyNotice.LayoutOrder = 1
     hwEmptyNotice.Parent = hwEggListScroll
+
+    -- Small Log Box below the farm list
+    local hwLogFrame = Instance.new("Frame")
+    hwLogFrame.Name = "HwLogFrame"
+    hwLogFrame.Size = UDim2.new(1, -16, 0, 110)
+    hwLogFrame.Position = UDim2.new(0, 8, 1, -116)
+    hwLogFrame.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
+    hwLogFrame.BorderSizePixel = 0
+    hwLogFrame.Parent = tabHalloween
+    Instance.new("UICorner", hwLogFrame).CornerRadius = UDim.new(0, 6)
+    local strokeLog = Instance.new("UIStroke", hwLogFrame)
+    strokeLog.Color = Color3.fromRGB(45, 55, 75)
+    strokeLog.Thickness = 1
+
+    local hwLogTitle = Instance.new("TextLabel")
+    hwLogTitle.Name = "HwLogTitle"
+    hwLogTitle.Size = UDim2.new(1, -62, 0, 16)
+    hwLogTitle.Position = UDim2.new(0, 8, 0, 2)
+    hwLogTitle.BackgroundTransparency = 1
+    hwLogTitle.Text = "Activity & Fishing Log"
+    hwLogTitle.TextColor3 = Color3.fromRGB(160, 190, 230)
+    hwLogTitle.Font = Enum.Font.GothamBold
+    hwLogTitle.TextSize = 10
+    hwLogTitle.TextXAlignment = Enum.TextXAlignment.Left
+    hwLogTitle.Parent = hwLogFrame
+
+    local hwLogCopyBtn = Instance.new("TextButton")
+    hwLogCopyBtn.Name = "HwLogCopyBtn"
+    hwLogCopyBtn.Size = UDim2.new(0, 50, 0, 14)
+    hwLogCopyBtn.Position = UDim2.new(1, -56, 0, 2)
+    hwLogCopyBtn.BackgroundColor3 = Color3.fromRGB(45, 75, 110)
+    hwLogCopyBtn.Text = "COPY"
+    hwLogCopyBtn.TextColor3 = Color3.fromRGB(210, 230, 255)
+    hwLogCopyBtn.Font = Enum.Font.GothamBold
+    hwLogCopyBtn.TextSize = 9
+    hwLogCopyBtn.Parent = hwLogFrame
+    Instance.new("UICorner", hwLogCopyBtn).CornerRadius = UDim.new(0, 3)
+
+    hwLogCopyBtn.MouseButton1Click:Connect(function()
+        local content = hwLogLabel and hwLogLabel.Text or ""
+        local copied = false
+        if typeof(setclipboard) == "function" then
+            copied = pcall(setclipboard, content)
+        end
+        if not copied and typeof(toclipboard) == "function" then
+            copied = pcall(toclipboard, content)
+        end
+
+        hwLogCopyBtn.Text = copied and "COPIED" or "NO CLIP"
+        if not copied then
+            warn("[HW-Fishing] Clipboard API unavailable; unable to copy the log.")
+        end
+        task.delay(1.25, function()
+            if hwLogCopyBtn and hwLogCopyBtn.Parent then
+                hwLogCopyBtn.Text = "COPY"
+            end
+        end)
+    end)
+
+    local hwLogScroll = Instance.new("ScrollingFrame")
+    hwLogScroll.Name = "HwLogScroll"
+    hwLogScroll.Size = UDim2.new(1, -12, 1, -22)
+    hwLogScroll.Position = UDim2.new(0, 6, 0, 18)
+    hwLogScroll.BackgroundTransparency = 1
+    hwLogScroll.BorderSizePixel = 0
+    hwLogScroll.ScrollBarThickness = 3
+    hwLogScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 140, 200)
+    hwLogScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    hwLogScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    hwLogScroll.Parent = hwLogFrame
+
+    hwLogLabel = Instance.new("TextLabel")
+    hwLogLabel.Name = "HwLogLabel"
+    hwLogLabel.Size = UDim2.new(1, -4, 0, 0)
+    hwLogLabel.Position = UDim2.new(0, 0, 0, 0)
+    hwLogLabel.AutomaticSize = Enum.AutomaticSize.Y
+    hwLogLabel.BackgroundTransparency = 1
+    hwLogLabel.Text = "[Ready] Engine idle. Logs will appear here..."
+    hwLogLabel.TextColor3 = Color3.fromRGB(200, 215, 235)
+    hwLogLabel.Font = Enum.Font.Code
+    hwLogLabel.TextSize = 9
+    hwLogLabel.TextXAlignment = Enum.TextXAlignment.Left
+    hwLogLabel.TextYAlignment = Enum.TextYAlignment.Top
+    hwLogLabel.TextWrapped = true
+    hwLogLabel.Parent = hwLogScroll
 end
 
 -- Forward declarations
@@ -4017,8 +4194,11 @@ halloweenEngine = {
         halloweenEngine.lastNightResetAt = now
         halloweenEngine.nightResetGraceUntil = now + grace
         halloweenEngine.cachedWorldEggs = nil
+        if halloweenEngine.fishing and halloweenEngine.fishing.running then
+            halloweenEngine.fishing.stop("Night Reset")
+        end
         if halloweenEngine.autoFarmEnabled and lblFarmStatus then
-            lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/15s)...", grace)
+            lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/16s)...", grace)
             lblFarmStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
         end
     end,
@@ -4148,6 +4328,10 @@ halloweenEngine = {
         end,
 
         start = function()
+            -- Keep manual fishing and auto-farm fishing from launching separate loops.
+            if halloweenEngine.fishing and halloweenEngine.fishing.enabled then
+                halloweenEngine.fishing.stop("Auto Farm Started")
+            end
             halloweenEngine.autoFarmEnabled = true
             halloweenEngine.autoFarmToken = (halloweenEngine.autoFarmToken or 0) + 1
             local currentToken = halloweenEngine.autoFarmToken
@@ -4156,6 +4340,11 @@ halloweenEngine = {
                 hwAutoFarmBtn.Text = "ON"
                 hwAutoFarmBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
                 hwAutoFarmBtn.TextColor3 = Color3.new(1, 1, 1)
+            end
+            if hwAutoFishBtn then
+                hwAutoFishBtn.Text = "AUTO"
+                hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 90, 135)
+                hwAutoFishBtn.TextColor3 = Color3.new(1, 1, 1)
             end
             if lblFarmStatus then
                 local inGrace, remaining = halloweenEngine.isNightResetActive()
@@ -4187,6 +4376,15 @@ halloweenEngine = {
                 lblFarmStatus.TextColor3 = Color3.fromRGB(150, 160, 180)
             end
 
+            if halloweenEngine.fishing and (halloweenEngine.fishing.running or halloweenEngine.fishing.enabled or halloweenEngine.fishing.autoCycleActive) then
+                halloweenEngine.fishing.stop("Auto Farm Stopped")
+            end
+            if hwAutoFishBtn then
+                hwAutoFishBtn.Text = "OFF"
+                hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+                hwAutoFishBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+            end
+
             stopWalking()
         end,
 
@@ -4197,6 +4395,9 @@ halloweenEngine = {
 
             local inGrace, remaining = halloweenEngine.isNightResetActive()
             if inGrace then
+                if halloweenEngine.fishing and halloweenEngine.fishing.running then
+                    halloweenEngine.fishing.stop("Night Reset")
+                end
                 if lblFarmStatus then
                     lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/15s)...", remaining)
                     lblFarmStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
@@ -4210,39 +4411,666 @@ halloweenEngine = {
                 return
             end
 
+            -- 1. Auto Farm: check for target egg matching rarity filter
             local targetEgg = halloweenEngine.autoFarm.findTarget()
-            if not targetEgg then
-                -- Continuous mode: Does not stop unless manually stopped by user
-                if lblFarmStatus then
-                    lblFarmStatus.Text = "Status: Waiting for Eggs..."
-                    lblFarmStatus.TextColor3 = Color3.fromRGB(220, 180, 70)
+            if targetEgg then
+                if halloweenEngine.fishing and halloweenEngine.fishing.running then
+                    halloweenEngine.fishing.stop("Egg Detected")
                 end
-                task.delay(1.0, function()
+
+                if lblFarmStatus then
+                    lblFarmStatus.Text = string.format("Status: [%s] %s", targetEgg.Rarity or "Egg", targetEgg.Name)
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(80, 210, 120)
+                end
+
+                halloweenEngine.tpAction(targetEgg, function(success)
                     if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
                         return
                     end
-                    halloweenEngine.autoFarm.runNextCycle(token)
+
+                    task.delay(0.5, function()
+                        if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                            return
+                        end
+                        halloweenEngine.autoFarm.runNextCycle(token)
+                    end)
                 end)
                 return
             end
 
+            -- 2. No target egg: Wait 3s before transitioning to continuous fishing
             if lblFarmStatus then
-                lblFarmStatus.Text = string.format("Status: [%s] %s", targetEgg.Rarity or "Egg", targetEgg.Name)
-                lblFarmStatus.TextColor3 = Color3.fromRGB(80, 210, 120)
+                lblFarmStatus.Text = "Status: Waiting 3s before fishing..."
+                lblFarmStatus.TextColor3 = Color3.fromRGB(220, 180, 70)
+            end
+            if halloweenEngine.fishing and halloweenEngine.fishing.log then
+                halloweenEngine.fishing.log("Auto Farm phase done (no matching eggs). Waiting 3s, then Auto Fishing...")
             end
 
-            halloweenEngine.tpAction(targetEgg, function(success)
+            task.spawn(function()
+                local elapsed = 0
+                while elapsed < 3.0 do
+                    task.wait(0.5)
+                    elapsed = elapsed + 0.5
+                    if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                        return
+                    end
+                    local inG, _ = halloweenEngine.isNightResetActive()
+                    if inG then
+                        halloweenEngine.autoFarm.runNextCycle(token)
+                        return
+                    end
+                    local earlyEgg = halloweenEngine.autoFarm.findTarget()
+                    if earlyEgg then
+                        halloweenEngine.autoFarm.runNextCycle(token)
+                        return
+                    end
+                end
+
+                -- 3. Transition to Continuous Fishing until Night Reset!
                 if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
                     return
                 end
 
-                task.delay(0.5, function()
-                    if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                if lblFarmStatus then
+                    lblFarmStatus.Text = "Status: Auto Fishing (Until Night Reset)"
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(100, 200, 255)
+                end
+                if halloweenEngine.fishing and halloweenEngine.fishing.log then
+                    halloweenEngine.fishing.log("Auto Fishing phase started; will return to Auto Farm at Night Reset.")
+                end
+
+                if halloweenEngine.fishing then
+                    halloweenEngine.fishing.runAutoCycle(token)
+                end
+            end)
+        end,
+    },
+
+    -- Sub-module: auto fishing (Halloween bank stand spot & water target)
+    fishing = {
+        enabled = false,
+        token = 0,
+        running = false,
+        cycleBusy = false,
+        autoCycleActive = false,
+        catchCount = 0,
+        cycleCount = 0,
+        logLines = {},
+        spotPos = Vector3.new(-5695.6, -203.7, -7370.9),
+        castPos = Vector3.new(-5668.5, -206.5, -7368.9),
+        rodName = "Haunted Rod [X1]",
+        holdDelay = 0.40,
+        powerMin = 0.72,
+        powerMax = 0.90,
+        extraWait = 1.10,
+        cyclePause = 0.40,
+        clicks = 13,
+        maxRetries = 2,
+
+        reHold = nil,
+        rfCast = nil,
+        rfReel = nil,
+
+        log = function(msg)
+            local line = os.date("%H:%M:%S") .. " " .. tostring(msg)
+            table.insert(halloweenEngine.fishing.logLines, line)
+            if #halloweenEngine.fishing.logLines > 50 then
+                table.remove(halloweenEngine.fishing.logLines, 1)
+            end
+            if hwLogLabel and hwLogLabel.Parent then
+                pcall(function()
+                    hwLogLabel.Text = table.concat(halloweenEngine.fishing.logLines, "\n")
+                end)
+            end
+            pcall(function()
+                local sc = hwLogLabel and hwLogLabel.Parent
+                if sc and sc:IsA("ScrollingFrame") then
+                    sc.CanvasPosition = Vector2.new(0, 99999)
+                end
+            end)
+            print("[HW-Fishing] " .. line)
+        end,
+
+        getRemote = function(name)
+            local net = ReplicatedStorage:FindFirstChild("Packages")
+                and ReplicatedStorage.Packages:FindFirstChild("Networking")
+            if net then
+                local r = net:FindFirstChild(name)
+                if r then return r end
+            end
+            local found = ReplicatedStorage:FindFirstChild(name, true)
+            if found then return found end
+            pcall(function()
+                for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
+                    if d.Name == name or d.Name:lower() == name:lower() then
+                        found = d
+                        break
+                    end
+                end
+            end)
+            return found
+        end,
+
+        initRemotes = function()
+            if not halloweenEngine.fishing.reHold then
+                halloweenEngine.fishing.reHold = halloweenEngine.fishing.getRemote("RE/Fishing/Hold")
+            end
+            if not halloweenEngine.fishing.rfCast then
+                halloweenEngine.fishing.rfCast = halloweenEngine.fishing.getRemote("RF/Fishing/Cast")
+            end
+            if not halloweenEngine.fishing.rfReel then
+                halloweenEngine.fishing.rfReel = halloweenEngine.fishing.getRemote("RF/Fishing/Reel")
+            end
+        end,
+
+        findRod = function()
+            -- Match only the configured rod name. Substring matches like "rod" or "fish"
+            -- can select unrelated tools, so they are deliberately not accepted.
+            local expectedName = halloweenEngine.fishing.rodName:lower()
+            local char = LocalPlayer and LocalPlayer.Character
+            if char then
+                for _, t in ipairs(char:GetChildren()) do
+                    if t:IsA("Tool") and t.Name:lower() == expectedName then
+                        return t, true
+                    end
+                end
+            end
+            local bp = LocalPlayer and LocalPlayer:FindFirstChild("Backpack")
+            if bp then
+                for _, t in ipairs(bp:GetChildren()) do
+                    if t:IsA("Tool") and t.Name:lower() == expectedName then
+                        return t, false
+                    end
+                end
+            end
+            return nil, false
+        end,
+
+        ensureRodEquipped = function()
+            local rod, alreadyInHand = halloweenEngine.fishing.findRod()
+            local char = LocalPlayer and LocalPlayer.Character
+            if not rod then
+                local foundTools = {}
+                local bp = LocalPlayer and LocalPlayer:FindFirstChild("Backpack")
+                if char then
+                    for _, item in ipairs(char:GetChildren()) do
+                        if item:IsA("Tool") then table.insert(foundTools, item.Name) end
+                    end
+                end
+                if bp then
+                    for _, item in ipairs(bp:GetChildren()) do
+                        if item:IsA("Tool") then table.insert(foundTools, item.Name) end
+                    end
+                end
+                halloweenEngine.fishing.log("Required rod not found: exact name '" .. halloweenEngine.fishing.rodName .. "'. Available tools: " .. (#foundTools > 0 and table.concat(foundTools, ", ") or "none"))
+                return false
+            end
+            if alreadyInHand then return true end
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hum then
+                halloweenEngine.fishing.log("Cannot equip required rod: character Humanoid not found.")
+                return false
+            end
+            if hum.Sit then hum.Sit = false end
+            local equipOk, equipErr = pcall(function() hum:EquipTool(rod) end)
+            task.wait(0.25)
+            local equipped = equipOk and rod.Parent == char and rod.Name:lower() == halloweenEngine.fishing.rodName:lower()
+            if equipped then
+                halloweenEngine.fishing.log("Equipped required rod: " .. rod.Name)
+            else
+                halloweenEngine.fishing.log("ERROR: Failed to equip required rod '" .. halloweenEngine.fishing.rodName .. "'" .. (equipOk and ". Tool did not move into Character." or (": " .. tostring(equipErr))))
+            end
+            return equipped
+        end,
+
+        walkToSpot = function(cancelCheck)
+            local char = LocalPlayer and LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not (char and root and hum) then return false end
+
+            local target = halloweenEngine.fishing.spotPos
+            local curDist = Vector3.new(root.Position.X - target.X, 0, root.Position.Z - target.Z).Magnitude
+            if curDist <= 4.0 then return true end
+
+            if hum.Sit then hum.Sit = false end
+            if hum.PlatformStand then hum.PlatformStand = false end
+
+            local t0 = os.clock()
+            local lastP = nil
+            local stuckCount = 0
+            while (os.clock() - t0) < 35.0 do
+                if not (LocalPlayer and LocalPlayer.Character and root.Parent and hum.Health > 0) then break end
+                if cancelCheck and cancelCheck() then break end
+
+                local p = root.Position
+                local d = Vector3.new(p.X - target.X, 0, p.Z - target.Z).Magnitude
+                if d <= 3.5 then
+                    pcall(function()
+                        root.AssemblyLinearVelocity = Vector3.zero
+                        hum:Move(Vector3.zero, false)
+                        hum.WalkToPoint = root.Position
+                    end)
+                    return true
+                end
+
+                pcall(function() hum:MoveTo(target) end)
+
+                if lastP and Vector3.new(p.X - lastP.X, 0, p.Z - lastP.Z).Magnitude < 0.4 then
+                    stuckCount = stuckCount + 1
+                    if stuckCount >= 5 then
+                        stuckCount = 0
+                        pcall(function() hum.Jump = true end)
+                    end
+                else
+                    stuckCount = 0
+                end
+                lastP = p
+                task.wait(0.1)
+            end
+
+            pcall(function()
+                if root then root.AssemblyLinearVelocity = Vector3.zero end
+                if hum then hum:Move(Vector3.zero, false) end
+            end)
+            return (root and Vector3.new(root.Position.X - target.X, 0, root.Position.Z - target.Z).Magnitude <= 3.5)
+        end,
+
+        faceTarget = function()
+            pcall(function()
+                local ch = LocalPlayer and LocalPlayer.Character
+                local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+                local castP = halloweenEngine.fishing.castPos
+                if hrp and castP then
+                    hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(castP.X, hrp.Position.Y, castP.Z))
+                end
+            end)
+        end,
+
+        formatReward = function(item)
+            if typeof(item) ~= "table" then return tostring(item) end
+            local name = item.DisplayName or item.Id or item.Name or "Fish"
+            local rarity = item.Rarity or "Unknown"
+            local oneIn = item.OneIn and string.format(" (1 in %s)", tostring(item.OneIn)) or ""
+            local amount = item.Amount and tonumber(item.Amount) and tonumber(item.Amount) > 1 and string.format(" x%d", item.Amount) or ""
+            return string.format("[%s] %s%s%s", rarity, name, amount, oneIn)
+        end,
+
+        _executeSingleCycle = function(cancelCheck, onComplete)
+            if cancelCheck and cancelCheck() then
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            halloweenEngine.fishing.initRemotes()
+            local spot = halloweenEngine.fishing.spotPos
+            local castP = halloweenEngine.fishing.castPos
+
+            -- Safety drift check: if bumped > 10 studs away from spot, walk back
+            local ch = LocalPlayer and LocalPlayer.Character
+            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local d = Vector3.new(hrp.Position.X - spot.X, 0, hrp.Position.Z - spot.Z).Magnitude
+                if d > 10.0 then
+                    if lblFishStatus then
+                        lblFishStatus.Text = "Status: Returning to spot..."
+                        lblFishStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                    end
+                    halloweenEngine.fishing.log(string.format("Drifted %.1f studs, walking back...", d))
+                    halloweenEngine.fishing.walkToSpot(cancelCheck)
+                    if cancelCheck and cancelCheck() then
+                        if onComplete then onComplete(false) end
                         return
                     end
-                    halloweenEngine.autoFarm.runNextCycle(token)
-                end)
+                    halloweenEngine.fishing.faceTarget()
+                end
+            end
+
+            local rodOk = halloweenEngine.fishing.ensureRodEquipped()
+            if not rodOk then
+                halloweenEngine.fishing.log("Cycle aborted before Hold/Cast: required rod is not equipped. No other tool will be used.")
+                if lblFishStatus then
+                    lblFishStatus.Text = "Status: Required rod not equipped"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+                end
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            if cancelCheck and cancelCheck() then
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            local cp = hrp and hrp.Position or Vector3.zero
+            halloweenEngine.fishing.cycleCount = (halloweenEngine.fishing.cycleCount or 0) + 1
+            halloweenEngine.fishing.log(string.format("--- CYCLE #%d Char=(%.1f, %.1f, %.1f) ---",
+                halloweenEngine.fishing.cycleCount, cp.X, cp.Y, cp.Z))
+
+            -- 1. Hold
+            if lblFishStatus then
+                lblFishStatus.Text = "Status: Holding rod..."
+                lblFishStatus.TextColor3 = Color3.fromRGB(160, 200, 255)
+            end
+            local reHold = halloweenEngine.fishing.reHold or halloweenEngine.fishing.getRemote("RE/Fishing/Hold")
+            if reHold then
+                pcall(function() reHold:FireServer() end)
+                halloweenEngine.fishing.log("Hold fired -> waiting 0.40s charge")
+            else
+                halloweenEngine.fishing.log("WARNING: RE/Fishing/Hold remote not found!")
+            end
+            task.wait(halloweenEngine.fishing.holdDelay)
+
+            if cancelCheck and cancelCheck() then
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            -- 2. Cast
+            local pMin, pMax = halloweenEngine.fishing.powerMin, halloweenEngine.fishing.powerMax
+            local power = pMin + math.random() * (pMax - pMin)
+            power = math.floor(power * 1000) / 1000
+
+            if lblFishStatus then
+                lblFishStatus.Text = string.format("Status: Casting %.3f", power)
+                lblFishStatus.TextColor3 = Color3.fromRGB(160, 200, 255)
+            end
+
+            local rfCast = halloweenEngine.fishing.rfCast or halloweenEngine.fishing.getRemote("RF/Fishing/Cast")
+            if not rfCast then
+                halloweenEngine.fishing.log("ERROR: RF/Fishing/Cast remote NOT FOUND in ReplicatedStorage!")
+                if lblFishStatus then
+                    lblFishStatus.Text = "Status: RF/Fishing/Cast not found"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+                end
+                task.wait(2.0)
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            halloweenEngine.fishing.log(string.format("Casting power=%.3f Target=(%.1f, %.1f, %.1f)", power, castP.X, castP.Y, castP.Z))
+            -- Pack all InvokeServer results so a nil response can be distinguished
+            -- from an exception and logged with the relevant cast context.
+            local castResults = table.pack(pcall(function()
+                return rfCast:InvokeServer(power, castP)
+            end))
+            local castOk, castData = castResults[1], castResults[2]
+
+            if not castOk then
+                halloweenEngine.fishing.log("Cast EXCEPTION -> " .. tostring(castData))
+                if lblFishStatus then
+                    lblFishStatus.Text = "Status: Cast error: " .. tostring(castData):sub(1, 25)
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+                end
+                task.wait(2.0)
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            if type(castData) ~= "table" or not castData.Id then
+                local returnDetails = {}
+                for i = 2, castResults.n do
+                    table.insert(returnDetails, string.format("%d:%s=%s", i - 1, typeof(castResults[i]), tostring(castResults[i])))
+                end
+                local returnSummary = #returnDetails > 0 and table.concat(returnDetails, ", ") or "no return values"
+                local failReason = castData == nil and "server returned nil (InvokeServer did not throw)" or "invalid response (missing Id)"
+                halloweenEngine.fishing.log(string.format(
+                    "Cast FAILED -> %s; returnCount=%d; returns={%s}; power=%.3f; rodEquipped=%s; Char=(%.1f, %.1f, %.1f); Target=(%.1f, %.1f, %.1f)",
+                    failReason, math.max(0, castResults.n - 1), returnSummary, power, tostring(rodOk),
+                    cp.X, cp.Y, cp.Z, castP.X, castP.Y, castP.Z
+                ))
+                if lblFishStatus then
+                    lblFishStatus.Text = "Status: Cast failed (" .. tostring(castData):sub(1, 20) .. ")"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 160, 60)
+                end
+                task.wait(2.0)
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            -- 3. Wait Bite
+            local fishId = castData.Id
+            local waitTime = (tonumber(castData.Wait) or 3) + halloweenEngine.fishing.extraWait
+            halloweenEngine.fishing.log(string.format("Cast OK -> Id=%s Wait=%.2fs (total=%.2fs)",
+                tostring(fishId), tonumber(castData.Wait) or 0, waitTime))
+
+            -- 3. Wait Bite
+            if lblFishStatus then
+                lblFishStatus.Text = string.format("Status: Waiting bite %.1fs", waitTime)
+                lblFishStatus.TextColor3 = Color3.fromRGB(180, 210, 255)
+            end
+
+            local waitElapsed = 0
+            while waitElapsed < waitTime do
+                task.wait(0.25)
+                waitElapsed = waitElapsed + 0.25
+                if cancelCheck and cancelCheck() then
+                    break
+                end
+            end
+
+            if cancelCheck and cancelCheck() then
+                halloweenEngine.fishing.log("Cycle cancelled during bite wait.")
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            -- 4. Reel with retries
+            local success = false
+            local caughtItem = nil
+            local rfReel = halloweenEngine.fishing.rfReel or halloweenEngine.fishing.getRemote("RF/Fishing/Reel")
+
+            if not rfReel then
+                halloweenEngine.fishing.log("ERROR: RF/Fishing/Reel remote NOT FOUND!")
+                if onComplete then onComplete(false) end
+                return
+            end
+
+            for attempt = 1, halloweenEngine.fishing.maxRetries + 1 do
+                if lblFishStatus then
+                    lblFishStatus.Text = attempt > 1 and string.format("Status: Reeling (retry %d)...", attempt - 1) or "Status: Reeling..."
+                    lblFishStatus.TextColor3 = Color3.fromRGB(100, 220, 140)
+                end
+
+                local res = table.pack(pcall(function()
+                    return rfReel:InvokeServer(fishId, "Caught", halloweenEngine.fishing.clicks)
+                end))
+                local reelOk, ret1, ret2 = res[1], res[2], res[3]
+
+                if reelOk and ret1 == true then
+                    success = true
+                    caughtItem = ret2
+                    local itemText = halloweenEngine.fishing.formatReward(caughtItem)
+                    halloweenEngine.fishing.log(string.format("Reel SUCCESS -> %s (Id=%s attempt=%d)", itemText, tostring(fishId), attempt))
+                    break
+                else
+                    halloweenEngine.fishing.log(string.format("Reel attempt %d failed -> ok=%s ret1=%s ret2=%s",
+                        attempt, tostring(reelOk), tostring(ret1), tostring(ret2)))
+                end
+
+                if attempt <= halloweenEngine.fishing.maxRetries then
+                    task.wait(0.25)
+                end
+            end
+
+            if success then
+                halloweenEngine.fishing.catchCount = (halloweenEngine.fishing.catchCount or 0) + 1
+                local itemText = halloweenEngine.fishing.formatReward(caughtItem)
+                if lblFishStatus then
+                    lblFishStatus.Text = string.format("Status: Caught #%d %s", halloweenEngine.fishing.catchCount, itemText)
+                    lblFishStatus.TextColor3 = Color3.fromRGB(100, 255, 140)
+                end
+            else
+                if lblFishStatus then
+                    lblFishStatus.Text = "Status: Reel failed after retries"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+                end
+            end
+
+            task.wait(halloweenEngine.fishing.cyclePause)
+            if onComplete then onComplete(success) end
+        end,
+
+        runAutoCycle = function(farmToken)
+            if halloweenEngine.fishing.autoCycleActive then
+                halloweenEngine.fishing.log("Duplicate auto-fishing loop ignored; a loop is already active.")
+                return
+            end
+            halloweenEngine.fishing.autoCycleActive = true
+            halloweenEngine.fishing.running = true
+            halloweenEngine.fishing.initRemotes()
+
+            local function shouldAbort()
+                if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= farmToken then
+                    return true
+                end
+                local inGrace, _ = halloweenEngine.isNightResetActive()
+                if inGrace then return true end
+                return false
+            end
+
+            if shouldAbort() then
+                halloweenEngine.fishing.running = false
+                halloweenEngine.fishing.autoCycleActive = false
+                if halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == farmToken then
+                    halloweenEngine.autoFarm.runNextCycle(farmToken)
+                end
+                return
+            end
+
+            local char = LocalPlayer and LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local curPos = root and root.Position
+            local spot = halloweenEngine.fishing.spotPos
+            local dist = curPos and Vector3.new(curPos.X - spot.X, 0, curPos.Z - spot.Z).Magnitude or 999
+            if dist > 4.0 then
+                if lblFishStatus then
+                    lblFishStatus.Text = string.format("Status: Walking to spot (%.0fm)...", dist)
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                end
+                halloweenEngine.fishing.log(string.format("Walking to spot (%.1fm)...", dist))
+                halloweenEngine.fishing.walkToSpot(shouldAbort)
+                if shouldAbort() then
+                    halloweenEngine.fishing.running = false
+                    halloweenEngine.fishing.autoCycleActive = false
+                    if halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == farmToken then
+                        halloweenEngine.autoFarm.runNextCycle(farmToken)
+                    end
+                    return
+                end
+            end
+
+            halloweenEngine.fishing.faceTarget()
+            halloweenEngine.fishing.log("At spot. Starting continuous fishing until Night Reset.")
+
+            while halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == farmToken do
+                local inGrace, rem = halloweenEngine.isNightResetActive()
+                if inGrace then
+                    halloweenEngine.fishing.log(string.format("Night Reset active (%.1fs)! Halting fishing for egg farm.", rem))
+                    break
+                end
+
+                halloweenEngine.fishing.executeSingleCycle(shouldAbort)
+
+                if shouldAbort() then
+                    break
+                end
+                task.wait(halloweenEngine.fishing.cyclePause)
+            end
+
+            halloweenEngine.fishing.running = false
+            halloweenEngine.fishing.autoCycleActive = false
+            if halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == farmToken then
+                halloweenEngine.fishing.log("Fishing halted -> Handing back to Auto Farm.")
+                halloweenEngine.autoFarm.runNextCycle(farmToken)
+            end
+        end,
+
+        start = function()
+            if halloweenEngine.autoFarmEnabled then
+                halloweenEngine.fishing.log("Auto Fishing is controlled by Halloween Auto Farm: Auto Farm -> wait 3s -> Auto Fishing.")
+                return
+            end
+            if halloweenEngine.fishing.enabled then
+                halloweenEngine.fishing.log("Manual Auto Fishing start ignored; it is already enabled.")
+                return
+            end
+            halloweenEngine.fishing.enabled = true
+            halloweenEngine.fishing.token = (halloweenEngine.fishing.token or 0) + 1
+            local tok = halloweenEngine.fishing.token
+
+            if hwAutoFishBtn then
+                hwAutoFishBtn.Text = "ON"
+                hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
+                hwAutoFishBtn.TextColor3 = Color3.new(1, 1, 1)
+            end
+            if lblFishStatus then
+                lblFishStatus.Text = "Status: Starting..."
+                lblFishStatus.TextColor3 = Color3.fromRGB(80, 210, 120)
+            end
+            halloweenEngine.fishing.running = true
+            halloweenEngine.fishing.log("Manual Auto Fishing started.")
+
+            task.spawn(function()
+                -- Wait for an in-flight auto-farm cycle to finish before starting another one.
+                while halloweenEngine.fishing.enabled and halloweenEngine.fishing.token == tok
+                    and (halloweenEngine.fishing.cycleBusy or halloweenEngine.fishing.autoCycleActive) do
+                    task.wait(0.1)
+                end
+                if not halloweenEngine.fishing.enabled or halloweenEngine.fishing.token ~= tok then
+                    if halloweenEngine.fishing.token == tok then
+                        halloweenEngine.fishing.running = false
+                    end
+                    return
+                end
+                halloweenEngine.fishing.initRemotes()
+                local char = LocalPlayer and LocalPlayer.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local curPos = root and root.Position
+                local spot = halloweenEngine.fishing.spotPos
+                local dist = curPos and Vector3.new(curPos.X - spot.X, 0, curPos.Z - spot.Z).Magnitude or 999
+                if dist > 4.0 then
+                    if lblFishStatus then
+                        lblFishStatus.Text = string.format("Status: Walking to spot (%.0fm)...", dist)
+                        lblFishStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                    end
+                    halloweenEngine.fishing.log(string.format("Walking to spot (%.1fm)...", dist))
+                    halloweenEngine.fishing.walkToSpot(function()
+                        return not halloweenEngine.fishing.enabled or halloweenEngine.fishing.token ~= tok
+                    end)
+                end
+                halloweenEngine.fishing.faceTarget()
+                halloweenEngine.fishing.log("At spot. Starting fishing loop.")
+
+                while halloweenEngine.fishing.enabled and halloweenEngine.fishing.token == tok do
+                    halloweenEngine.fishing.executeSingleCycle(function()
+                        return not halloweenEngine.fishing.enabled or halloweenEngine.fishing.token ~= tok
+                    end)
+                    if not halloweenEngine.fishing.enabled or halloweenEngine.fishing.token ~= tok then break end
+                    task.wait(halloweenEngine.fishing.cyclePause)
+                end
+                if halloweenEngine.fishing.token == tok then
+                    halloweenEngine.fishing.running = false
+                end
             end)
+        end,
+
+        stop = function(reason)
+            halloweenEngine.fishing.enabled = false
+            halloweenEngine.fishing.token = (halloweenEngine.fishing.token or 0) + 1
+            halloweenEngine.fishing.running = false
+
+            if hwAutoFishBtn then
+                hwAutoFishBtn.Text = "OFF"
+                hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+                hwAutoFishBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+            end
+            if lblFishStatus then
+                lblFishStatus.Text = reason and ("Status: " .. reason) or "Status: Idle"
+                lblFishStatus.TextColor3 = Color3.fromRGB(150, 160, 180)
+            end
+            halloweenEngine.fishing.log("Auto Fishing stopped: " .. tostring(reason or "Manual"))
         end,
     },
 
@@ -4252,6 +5080,32 @@ halloweenEngine = {
         version = "1.0",
     },
 }
+
+-- Serialize the complete Hold -> Cast -> Bite Wait -> Reel sequence.
+-- A second loop may request a cycle, but it must not issue overlapping fishing remotes.
+halloweenEngine.fishing.executeSingleCycle = function(cancelCheck, onComplete)
+    local fishing = halloweenEngine.fishing
+    if fishing.cycleBusy then
+        fishing.log("CYCLE SKIPPED -> another Hold/Cast/Reel cycle is still active.")
+        if onComplete then onComplete(false) end
+        return false
+    end
+
+    fishing.cycleBusy = true
+    local cycleOk, cycleErr = pcall(function()
+        fishing._executeSingleCycle(cancelCheck, onComplete)
+    end)
+    fishing.cycleBusy = false
+
+    if not cycleOk then
+        fishing.log("Fishing cycle exception -> " .. tostring(cycleErr))
+        if lblFishStatus then
+            lblFishStatus.Text = "Status: Fishing cycle error"
+            lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+        end
+    end
+    return cycleOk
+end
 
 halloweenEngine.walkViaDropZoneToSafeZone = function(onComplete)
     pcall(function()
