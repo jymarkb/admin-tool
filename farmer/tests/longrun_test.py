@@ -131,7 +131,7 @@ DRIVER = textwrap.dedent(
         table.insert(ring, line)
         if #ring > 200 then table.remove(ring, 1) end
         if line:find("CYCLE #", 1, true) then hits.cycles = hits.cycles + 1 end
-        if line:find("resetting rod state and retrying once", 1, true) then hits.castRecoveries = hits.castRecoveries + 1 end
+        if line:find("resetting rod state and retrying", 1, true) then hits.castRecoveries = hits.castRecoveries + 1 end
         if line:find("resetting rod & remote state", 1, true) then hits.nightRecoveries = hits.nightRecoveries + 1 end
         if line:find("Cast FAILED after retry", 1, true) then hits.castFailed = hits.castFailed + 1 end
         if line:find("Night Reset", 1, true) then hits.nightReset = hits.nightReset + 1 end

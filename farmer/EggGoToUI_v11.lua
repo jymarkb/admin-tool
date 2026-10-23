@@ -4503,6 +4503,11 @@ halloweenEngine = {
         -- Set by triggerNightReset; forces one full rod/remote reset before the
         -- next cast, because an interrupted cycle leaves both sides out of sync.
         needsRecovery = false,
+        -- Id of a cast that was never reeled (cycle cancelled by a night reset).
+        -- The server keeps that session open and answers the next Cast with
+        -- nil + "Hold on..." until it is closed.
+        pendingFishId = nil,
+        castMaxAttempts = 4,
 
         log = function(msg)
             local line = os.date("%H:%M:%S") .. " " .. tostring(msg)
@@ -4587,6 +4592,20 @@ halloweenEngine = {
             local f = halloweenEngine.fishing
             f.reHold, f.rfCast, f.rfReel = nil, nil, nil
             f.initRemotes()
+
+            -- Close a cast left open by the interrupted cycle; otherwise the server
+            -- keeps answering Cast with nil + "Hold on...".
+            if f.pendingFishId then
+                local rfReel = f.rfReel or f.getRemote("RF/Fishing/Reel")
+                if rfReel then
+                    local ok, res = pcall(function()
+                        return rfReel:InvokeServer(f.pendingFishId, "Caught", f.clicks)
+                    end)
+                    f.log(string.format("Closed interrupted cast Id=%s -> ok=%s res=%s",
+                        tostring(f.pendingFishId), tostring(ok), tostring(res)))
+                end
+                f.pendingFishId = nil
+            end
 
             f.walkToSpot(cancelCheck)
 
@@ -4811,7 +4830,9 @@ halloweenEngine = {
             end
 
             local castResults, castOk, castData
-            for castAttempt = 1, 2 do
+            local maxAttempts = halloweenEngine.fishing.castMaxAttempts or 4
+            local retryWaits = { 1.0, 2.0, 4.0 }
+            for castAttempt = 1, maxAttempts do
                 local rfCast = halloweenEngine.fishing.rfCast or halloweenEngine.fishing.getRemote("RF/Fishing/Cast")
                 if not rfCast then
                     halloweenEngine.fishing.log("ERROR: RF/Fishing/Cast remote NOT FOUND in ReplicatedStorage!")
@@ -4832,24 +4853,53 @@ halloweenEngine = {
                     return rfCast:InvokeServer(power, castP)
                 end))
                 castOk, castData = castResults[1], castResults[2]
+                local serverMsg = castResults[3]
 
                 if castOk and type(castData) == "table" and castData.Id then
+                    -- Keep the id: if this cycle is cancelled before the reel, the
+                    -- server session has to be closed on the next one.
+                    halloweenEngine.fishing.pendingFishId = castData.Id
                     break
                 end
 
+                if castAttempt >= maxAttempts then
+                    break
+                end
+
+                local waitFor = retryWaits[math.min(castAttempt, #retryWaits)]
+                if serverMsg ~= nil then
+                    -- The server refuses with a reason ("Hold on..."): it is busy,
+                    -- not broken. Re-hold and wait longer instead of tearing down
+                    -- the rod, and surface the message so it is never lost again.
+                    halloweenEngine.fishing.log(string.format(
+                        "Cast refused by server (%q) -> re-holding, retry %d/%d in %.1fs",
+                        tostring(serverMsg), castAttempt + 1, maxAttempts, waitFor))
+                else
+                    halloweenEngine.fishing.log(string.format(
+                        "Cast returned no fish -> resetting rod state and retrying (%d/%d) in %.1fs",
+                        castAttempt + 1, maxAttempts, waitFor))
+                end
+
+                if lblFishStatus then
+                    lblFishStatus.Text = string.format("Status: Cast busy (retry %d/%d)...", castAttempt + 1, maxAttempts)
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                end
+
                 if castAttempt == 1 then
-                    -- First miss is usually the stale post-reset state: reset rod/remote
-                    -- and retry exactly once instead of burning a whole cycle.
-                    if lblFishStatus then
-                        lblFishStatus.Text = "Status: Cast recovery (retry 1)..."
-                        lblFishStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
-                    end
-                    halloweenEngine.fishing.log("Cast returned no fish -> resetting rod state and retrying once.")
+                    -- First miss after a reset: reset rod/remote state once.
                     halloweenEngine.fishing.recoverRodState(cancelCheck, false)
-                    if cancelCheck and cancelCheck() then
-                        if onComplete then onComplete(false) end
-                        return
-                    end
+                else
+                    -- Later misses are the server still being busy: just re-hold.
+                    local reHold = halloweenEngine.fishing.reHold
+                        or halloweenEngine.fishing.getRemote("RE/Fishing/Hold")
+                    if reHold then pcall(function() reHold:FireServer() end) end
+                    task.wait(halloweenEngine.fishing.holdDelay)
+                end
+                task.wait(waitFor)
+
+                if cancelCheck and cancelCheck() then
+                    if onComplete then onComplete(false) end
+                    return
                 end
             end
 
@@ -4870,7 +4920,10 @@ halloweenEngine = {
                     table.insert(returnDetails, string.format("%d:%s=%s", i - 1, typeof(castResults[i]), tostring(castResults[i])))
                 end
                 local returnSummary = #returnDetails > 0 and table.concat(returnDetails, ", ") or "no return values"
-                local failReason = castData == nil and "server returned nil (InvokeServer did not throw)" or "invalid response (missing Id)"
+                local serverMsg = castResults[3]
+                local failReason = serverMsg ~= nil
+                    and string.format("server refused: %q", tostring(serverMsg))
+                    or (castData == nil and "server returned nil (InvokeServer did not throw)" or "invalid response (missing Id)")
                 halloweenEngine.fishing.log(string.format(
                     "Cast FAILED after retry -> %s; returnCount=%d; returns={%s}; power=%.3f; rodEquipped=%s; Char=(%.1f, %.1f, %.1f); Target=(%.1f, %.1f, %.1f)",
                     failReason, math.max(0, castResults.n - 1), returnSummary, power, tostring(rodOk),
@@ -4949,6 +5002,8 @@ halloweenEngine = {
                     task.wait(0.25)
                 end
             end
+
+            halloweenEngine.fishing.pendingFishId = nil
 
             if success then
                 halloweenEngine.fishing.catchCount = (halloweenEngine.fishing.catchCount or 0) + 1
