@@ -52,7 +52,8 @@ DRIVER = textwrap.dedent(
         nightRecovery = "resetting rod & remote state",
         castRetry     = "resetting rod state and retrying",
         castRefused   = "Cast refused by server",
-        castClosed    = "Closed interrupted cast",
+        castClosed    = "Closing pending cast",
+        castKept      = "kept pending for close",
         castFailed    = "Cast FAILED after retry",
         castOk        = "Cast OK ->",
         cycle         = "--- CYCLE #",
@@ -80,6 +81,14 @@ DRIVER = textwrap.dedent(
     local castSeq, casts, okCasts, refused = 0, 0, 0, 0
     local firstCastAt = nil
 
+    -- Server session model: one open cast at a time. While a session is open
+    -- every Cast is answered with nil + "Hold on..." (what the game did).
+    local openSession = nil
+    local rejectReels = {}          -- id -> remaining rejected reels
+    local reelRejected, reelClosed = 0, 0
+    local okCastsAfterFail = 0
+    local failedOnce = false
+
     local castRemote = Stub.remotes["RF/Fishing/Cast"]
     castRemote.InvokeServer = function(_, _power, _target)
         casts = casts + 1
@@ -88,13 +97,35 @@ DRIVER = textwrap.dedent(
             refused = refused + 1
             return nil, "Hold on..."        -- the reported "Cast Failed (nil)"
         end
+        if openSession then
+            refused = refused + 1
+            return nil, "Hold on..."        -- pending session keeps the line busy
+        end
         castSeq = castSeq + 1
+        local id = "fish" .. castSeq
+        openSession = id
         okCasts = okCasts + 1
+        if failedOnce and okCastsAfterFail ~= nil then okCastsAfterFail = okCastsAfterFail + 1 end
         if not firstCastAt then firstCastAt = Stub.now end
-        return { Id = "fish" .. castSeq, Wait = 0.2 }
+        -- reproduce: one cast whose reel is rejected ("fish escaped")
+        if opts.failReel and not failedOnce and Stub.now >= (opts.failReelAt or 60) then
+            failedOnce = true
+            rejectReels[id] = opts.reelFailures or 3
+        end
+        return { Id = id, Wait = 0.2 }
     end
-    Stub.remotes["RF/Fishing/Reel"].InvokeServer = function()
-        return true, { Name = "Old Boot", Rarity = "Common", Amount = 1 }
+
+    Stub.remotes["RF/Fishing/Reel"].InvokeServer = function(_, id, action)
+        if id ~= openSession then return false, nil end   -- stale / already closed
+        local remaining = rejectReels[id]
+        if remaining and remaining > 0 then
+            rejectReels[id] = remaining - 1
+            reelRejected = reelRejected + 1
+            return false, nil                             -- not caught, session stays open
+        end
+        openSession = nil
+        reelClosed = reelClosed + 1
+        return true, { Name = "Candy Corn", Rarity = "Common", Amount = 1 }
     end
 
     ------------------------------------------------------------------
@@ -160,6 +191,9 @@ DRIVER = textwrap.dedent(
         hits = hits,
         casts = casts,
         okCasts = okCasts,
+        okCastsAfterFail = okCastsAfterFail,
+        reelRejected = reelRejected,
+        reelClosed = reelClosed,
         refused = refused,
         fishBtnAfterResets = {},
         sawFishingBeforeReset = sawFishingBeforeReset,
@@ -177,7 +211,8 @@ DRIVER = textwrap.dedent(
 
 
 def run_scenario(lua, stub, script_src, *, resets, first_reset_at, reset_every,
-                 nil_casts_per_reset, clear_at, budget, verbose):
+                 nil_casts_per_reset, clear_at, budget, verbose,
+                 fail_reel=False, reel_failures=3):
     driver = lua.eval("function(s) return assert(load(s, '@cast_driver.lua')) end")(DRIVER)
     opts = lua.table_from({
         "resets": resets,
@@ -186,6 +221,9 @@ def run_scenario(lua, stub, script_src, *, resets, first_reset_at, reset_every,
         "nilCastsPerReset": nil_casts_per_reset,
         "clearAt": clear_at,
         "budget": budget,
+        "failReel": fail_reel,
+        "failReelAt": 60,
+        "reelFailures": reel_failures,
     })
     raw = driver(stub, script_src, opts)
     return lua_to_python(raw)
@@ -231,6 +269,8 @@ def main() -> int:
         dict(name="B: reset, first post-reset cast is nil", nil_casts=1, resets=3, clear_at=None),
         dict(name="C: server refuses all casts, then recovers", nil_casts=500, resets=2, clear_at=260),
         dict(name="D: interrupted cast left open, server busy x3", nil_casts=3, resets=2, clear_at=None),
+        dict(name="E: reel rejected, session left open (live log)", nil_casts=0, resets=1, clear_at=None,
+             fail_reel=True, reel_failures=3),
     ]
 
     for sc in scenarios:
@@ -241,6 +281,7 @@ def main() -> int:
             lua, stub, script_src,
             resets=sc["resets"], first_reset_at=90, reset_every=70,
             nil_casts_per_reset=sc["nil_casts"], clear_at=sc["clear_at"],
+            fail_reel=sc.get("fail_reel", False), reel_failures=sc.get("reel_failures", 3),
             budget=420, verbose=args.verbose,
         )
 
@@ -268,7 +309,20 @@ def main() -> int:
         check("no engine runtime errors",
               int(res.get("errors") or 0) == 0, str(res.get("errorList") or [])[:160])
 
-        if sc["nil_casts"] == 0:
+        if sc.get("fail_reel"):
+            check("rejected reel keeps the cast id for closing",
+                  int(hits.get("castKept") or 0) >= 1,
+                  f"reelRejected={res.get('reelRejected')} castKept={hits.get('castKept')}")
+            check("orphaned cast is closed on a later attempt",
+                  int(hits.get("castClosed") or 0) >= 1,
+                  f"castClosed={hits.get('castClosed')} reelClosed={res.get('reelClosed')}")
+            check("casting recovers after the rejected reel",
+                  int(res.get("okCastsAfterFail") or 0) >= 3,
+                  f"okCastsAfterFail={res.get('okCastsAfterFail')} refused={res.get('refused')}")
+            check("no permanent 'Hold on...' spiral",
+                  int(res.get("refused") or 0) <= 6 and int(hits.get("castFailed") or 0) <= 2,
+                  f"refused={res.get('refused')} castFailed={hits.get('castFailed')}")
+        elif sc["nil_casts"] == 0:
             check("nil cast never occurs (no recovery retry logged)",
                   int(hits.get("castRetry") or 0) == 0
                   and int(hits.get("castFailed") or 0) == 0,

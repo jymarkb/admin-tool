@@ -4446,7 +4446,7 @@ halloweenEngine = {
             local scanned = scan and scan.scanned or 0
             if lblFarmStatus then
                 if scanned > 0 then
-                    lblFarmStatus.Text = string.format("Status: %d egg(s) filtered out (rarity) - fishing", scanned)
+                    lblFarmStatus.Text = string.format("Status: %d egg(s) in world, none match filter - fishing", scanned)
                 else
                     lblFarmStatus.Text = "Status: Waiting 3s before fishing..."
                 end
@@ -4455,7 +4455,7 @@ halloweenEngine = {
             if halloweenEngine.fishing and halloweenEngine.fishing.log then
                 if scanned > 0 then
                     halloweenEngine.fishing.log(string.format(
-                        "Auto Farm phase done: %d egg(s) visible but none match the rarity filter. Waiting 3s, then Auto Fishing...", scanned))
+                        "Auto Farm phase done: %d egg(s) in world but none match the rarity filter. Waiting 3s, then Auto Fishing...", scanned))
                 else
                     halloweenEngine.fishing.log("Auto Farm phase done (no matching eggs). Waiting 3s, then Auto Fishing...")
                 end
@@ -4622,6 +4622,39 @@ halloweenEngine = {
             return nil, false
         end,
 
+        -- A cast whose reel never returned true stays open on the server, and every
+        -- following Cast is answered with nil + "Hold on...". Close it explicitly.
+        -- Keep the id until the server confirms, so a rejected close is retried.
+        closePendingCast = function()
+            local f = halloweenEngine.fishing
+            if not f.pendingFishId then return false end
+            local rfReel = f.rfReel or f.getRemote("RF/Fishing/Reel")
+            if not rfReel then return false end
+
+            local id = f.pendingFishId
+            local closed = false
+            -- "Caught" closes an interrupted (still biting) cast; "Cancel" is the
+            -- fallback for a cast whose reel was already rejected.
+            for _, action in ipairs({ "Caught", "Cancel" }) do
+                local ok, res = pcall(function()
+                    return rfReel:InvokeServer(id, action, f.clicks)
+                end)
+                f.log(string.format("Closing pending cast Id=%s (%s) -> ok=%s res=%s",
+                    tostring(id), action, tostring(ok), tostring(res)))
+                if ok and res == true then
+                    closed = true
+                    break
+                end
+            end
+
+            if closed then
+                f.pendingFishId = nil
+            else
+                f.log(string.format("Pending cast Id=%s could not be closed; will retry", tostring(id)))
+            end
+            return closed
+        end,
+
         -- Reset everything that a night reset can invalidate: cached remote refs
         -- (a re-streamed RemoteFunction never answers again), rod equip state and
         -- distance to the fishing spot. Call before casting after a reset, and
@@ -4633,17 +4666,7 @@ halloweenEngine = {
 
             -- Close a cast left open by the interrupted cycle; otherwise the server
             -- keeps answering Cast with nil + "Hold on...".
-            if f.pendingFishId then
-                local rfReel = f.rfReel or f.getRemote("RF/Fishing/Reel")
-                if rfReel then
-                    local ok, res = pcall(function()
-                        return rfReel:InvokeServer(f.pendingFishId, "Caught", f.clicks)
-                    end)
-                    f.log(string.format("Closed interrupted cast Id=%s -> ok=%s res=%s",
-                        tostring(f.pendingFishId), tostring(ok), tostring(res)))
-                end
-                f.pendingFishId = nil
-            end
+            f.closePendingCast()
 
             f.walkToSpot(cancelCheck)
 
@@ -4905,6 +4928,11 @@ halloweenEngine = {
                 end
 
                 local waitFor = retryWaits[math.min(castAttempt, #retryWaits)]
+                if halloweenEngine.fishing.pendingFishId and halloweenEngine.fishing.closePendingCast() then
+                    -- Session closed: the refusal was caused by it, so do not burn
+                    -- the full backoff before trying again.
+                    waitFor = 0.25
+                end
                 if serverMsg ~= nil then
                     -- The server refuses with a reason ("Hold on..."): it is busy,
                     -- not broken. Re-hold and wait longer instead of tearing down
@@ -5041,9 +5069,8 @@ halloweenEngine = {
                 end
             end
 
-            halloweenEngine.fishing.pendingFishId = nil
-
             if success then
+                halloweenEngine.fishing.pendingFishId = nil
                 halloweenEngine.fishing.catchCount = (halloweenEngine.fishing.catchCount or 0) + 1
                 local itemText = halloweenEngine.fishing.formatReward(caughtItem)
                 if lblFishStatus then
@@ -5051,6 +5078,12 @@ halloweenEngine = {
                     lblFishStatus.TextColor3 = Color3.fromRGB(100, 255, 140)
                 end
             else
+                -- Rejected reel leaves the cast open server-side: keep the id so the
+                -- next cycle / cast retry can close it instead of spiralling on
+                -- "Hold on...".
+                halloweenEngine.fishing.pendingFishId = fishId
+                halloweenEngine.fishing.log(string.format(
+                    "Reel failed -> cast Id=%s kept pending for close", tostring(fishId)))
                 if lblFishStatus then
                     lblFishStatus.Text = "Status: Reel failed after retries"
                     lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
