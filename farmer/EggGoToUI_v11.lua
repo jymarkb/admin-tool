@@ -4220,7 +4220,7 @@ halloweenEngine = {
         if halloweenEngine.lastNightResetAt and (now - halloweenEngine.lastNightResetAt < 45.0) then
             return
         end
-        local grace = duration or 14.0
+        local grace = duration or 12.0
         halloweenEngine.nightResetTriggered = true
         halloweenEngine.lastNightResetAt = now
         halloweenEngine.nightResetGraceUntil = now + grace
@@ -6630,7 +6630,7 @@ local function startPushMonitor()
             local cd = tonumber(val) or (typeof(val) == "table" and tonumber(val.Countdown or val.Time or val.Seconds))
             if cd and cd <= 1 then
                 if halloweenEngine and halloweenEngine.triggerNightReset then
-                    halloweenEngine.triggerNightReset(14.0)
+                    halloweenEngine.triggerNightReset(12.0)
                 end
             end
         end))
@@ -6694,7 +6694,7 @@ local function startPushMonitor()
             local isNight = (cur >= 18 or cur < 6)
             if wasDay and isNight then
                 if halloweenEngine and halloweenEngine.triggerNightReset then
-                    halloweenEngine.triggerNightReset(14.0)
+                    halloweenEngine.triggerNightReset(12.0)
                 end
             end
         end))
