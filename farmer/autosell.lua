@@ -4,6 +4,7 @@
     - Scans unplaced EggInventory records from FetchProfile
     - Sells known-rarity eggs strictly below the selected threshold
     - Keeps Unknown-rarity eggs and entries without verified UIDs
+    - Hard-keeps plain "Egg" / "Unknown Egg" names (event/new/base)
     - Uses RE/PetSatchel/SellSelection with { Eggs = { UIDs }, Assets = {} }
 ]]
 
@@ -232,7 +233,7 @@ local EGG_NAME_TO_DEFAULT_RARITY = {
     ["light dove egg"]         = "Legendary",
     ["unstable"]               = "Common",
     ["unstable egg"]           = "Common",
-    ["egg"]                    = "Common",
+    -- deliberately NO ["egg"] = "Common" so plain base eggs never get a sellable default
 }
 
 local KNOWN_BIOME_EGGS = ALL_BIOMES_AND_EVENTS
@@ -350,7 +351,7 @@ local STATIC_SPECIES_TO_BIOME_EGG = {
 local State = {
     BagEggs = {},
     SellBelowRarity = "Secret",
-    SellInterval = 10,
+    SellInterval = 600,          -- default 600s as requested
     AutoSellActive = false,
     AutoSellToken = 0,
 }
@@ -886,6 +887,24 @@ local function scanInventory()
     return eggs, nil, unknownCount, missingUidCount
 end
 
+-- Hard keep for plain base / unknown egg names so event or new eggs never get sold by accident.
+local function isHardKeepName(egg)
+    local candidates = { egg.RawName, egg.GroupName, egg.Species }
+    for _, cand in ipairs(candidates) do
+        if cand then
+            local n = tostring(cand):lower()
+                :gsub("%s*%([%d,%.]+%s*[Kk][Gg]%)%s*$", "")
+                :gsub("^%s*", ""):gsub("%s*$", "")
+                :gsub("%s+", " ")
+            local base = n:gsub("%s*egg%s*$", "")
+            if base == "" or base == "egg" or base == "unknown" or n == "egg" or n == "unknown egg" then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function getSellableEggUids(eggs)
     local thresholdRank = RARITY_RANK[State.SellBelowRarity] or 0
     local seen, uids = {}, {}
@@ -893,8 +912,8 @@ local function getSellableEggUids(eggs)
     for _, egg in ipairs(eggs or State.BagEggs) do
         local rarity = normalizeRarity(egg.Rarity) or "Unknown"
         local rank = RARITY_RANK[rarity]
-        if egg.RarityVerified ~= true or rarity == "Unknown" or not rank then
-            -- Fail closed: guessed, legacy, or unverified records are never sold.
+        if isHardKeepName(egg) or egg.RarityVerified ~= true or rarity == "Unknown" or not rank then
+            -- Fail closed: guessed, legacy, unverified, or plain "Egg" names are never sold.
             unknownCount = unknownCount + 1
         elseif rank < thresholdRank then
             local uid = egg.CanSell and egg.Uid or nil
@@ -1034,7 +1053,7 @@ intervalBox.Size = UDim2.fromOffset(42, 26)
 intervalBox.Position = UDim2.fromOffset(207, 38)
 intervalBox.BackgroundColor3 = Color3.fromRGB(9, 13, 20)
 intervalBox.TextColor3 = Color3.fromRGB(240, 244, 255)
-intervalBox.Text = tostring(State.SellInterval)
+intervalBox.Text = tostring(State.SellInterval)   -- shows 600
 intervalBox.ClearTextOnFocus = false
 intervalBox.Font = Enum.Font.Code
 intervalBox.TextSize = 11
@@ -1056,7 +1075,7 @@ local preview = Instance.new("TextLabel")
 preview.Size = UDim2.new(1, -16, 0, 30)
 preview.Position = UDim2.fromOffset(8, 68)
 preview.BackgroundTransparency = 1
-preview.Text = "Scan first. Only verified, consistent rarities can be sold; guessed/new eggs are kept."
+preview.Text = "Scan first. Only verified, consistent rarities can be sold; guessed/new/plain Egg names are kept."
 preview.TextColor3 = Color3.fromRGB(184, 200, 221)
 preview.Font = Enum.Font.Gotham
 preview.TextSize = 9
@@ -1132,7 +1151,7 @@ Instance.new("UIStroke", dropdown).Color = Color3.fromRGB(75, 95, 130)
 
 local function updatePreview()
     local uids, unknownCount, missingUidCount = getSellableEggUids(State.BagEggs)
-    preview.Text = string.format("Below %s: %d sellable | Unknown kept: %d | Missing UID kept: %d | Every %.1fs",
+    preview.Text = string.format("Below %s: %d sellable | Unknown/hard-kept: %d | Missing UID kept: %d | Every %.1fs",
         State.SellBelowRarity, #uids, unknownCount, missingUidCount, State.SellInterval)
 end
 
@@ -1156,20 +1175,20 @@ local function applyScan(shouldLog)
     local uids, unknownSkipped, missingUidSkipped = getSellableEggUids(eggs)
     updatePreview()
     if shouldLog then
-        appendLog(string.format("Scan complete: %d unplaced eggs; eligible=%d; unverified/unknown=%d; missing UID=%d.",
+        appendLog(string.format("Scan complete: %d unplaced eggs; eligible=%d; unverified/unknown/hard-kept=%d; missing UID=%d.",
             #eggs, #uids, unknownCount or unknownSkipped, missingUidCount or missingUidSkipped))
         local heldCount = 0
         for _, egg in ipairs(eggs) do
-            if egg.RarityVerified ~= true and heldCount < 8 then
+            if (egg.RarityVerified ~= true or isHardKeepName(egg)) and heldCount < 8 then
                 heldCount = heldCount + 1
                 local guess = egg.InferredRarity and egg.InferredRarity ~= "Unknown"
                     and ("; name-only guess=" .. egg.InferredRarity) or ""
+                local reason = isHardKeepName(egg) and "hard-kept plain/base Egg name" or tostring(egg.RaritySource or "unverified rarity")
                 appendLog(string.format("SAFETY HOLD: %s (UID=%s)%s; %s.",
-                    tostring(egg.RawName), tostring(egg.Uid or "missing"), guess,
-                    tostring(egg.RaritySource or "unverified rarity")))
+                    tostring(egg.RawName), tostring(egg.Uid or "missing"), guess, reason))
             end
         end
-        if heldCount >= 8 then appendLog("Additional unverified eggs omitted from scan log.") end
+        if heldCount >= 8 then appendLog("Additional unverified/hard-kept eggs omitted from scan log.") end
     end
     return true
 end
@@ -1241,7 +1260,7 @@ startBtn.MouseButton1Click:Connect(function()
     State.AutoSellToken = State.AutoSellToken + 1
     local token = State.AutoSellToken
     startBtn.Text = "RUNNING..."
-    appendLog(string.format("Auto-sell started: below %s, every %.1fs. Guessed, conflicting, unknown, and missing-UID eggs will be kept.", State.SellBelowRarity, State.SellInterval))
+    appendLog(string.format("Auto-sell started: below %s, every %.1fs. Guessed, conflicting, unknown, plain Egg, and missing-UID eggs will be kept.", State.SellBelowRarity, State.SellInterval))
 
     task.spawn(function()
         local consecutiveScanFailures = 0
@@ -1275,7 +1294,7 @@ startBtn.MouseButton1Click:Connect(function()
                                 if pendingCount > 0 then
                                     appendLog(string.format("Waiting for profile confirmation on %d previously requested egg(s); duplicate UIDs will not be resent for %.0fs.", pendingCount, PENDING_SELL_CONFIRM_TIMEOUT))
                                 else
-                                    appendLog(string.format("No eligible eggs below %s. Unknown kept=%d; missing UID kept=%d.", State.SellBelowRarity, unknownCount, missingUidCount))
+                                    appendLog(string.format("No eligible eggs below %s. Unknown/hard-kept=%d; missing UID kept=%d.", State.SellBelowRarity, unknownCount, missingUidCount))
                                 end
                                 lastNoEligibleState = idleState
                             end
@@ -1287,7 +1306,7 @@ startBtn.MouseButton1Click:Connect(function()
                             if callOk then
                                 local sentAt = os.clock()
                                 for _, uid in ipairs(eggUids) do pendingSellUids[uid] = sentAt end
-                                appendLog(string.format("SellSelection request sent for %d egg(s) below %s. Unknown kept=%d; missing UID kept=%d; pending confirmation=%d.", #eggUids, State.SellBelowRarity, unknownCount, missingUidCount, pendingCount))
+                                appendLog(string.format("SellSelection request sent for %d egg(s) below %s. Unknown/hard-kept=%d; missing UID kept=%d; pending confirmation=%d.", #eggUids, State.SellBelowRarity, unknownCount, missingUidCount, pendingCount))
                             else
                                 appendLog("SELL ERROR: " .. tostring(callErr))
                             end
@@ -1358,7 +1377,7 @@ end
 _G.StandaloneAutoSell_Cleanup = cleanup
 closeBtn.MouseButton1Click:Connect(cleanup)
 
-appendLog("Loaded. Safety mode: only verified, consistent rarities can be sold; guessed or conflicting rarities are kept. Default threshold is Secret.")
+appendLog("Loaded. Safety mode: only verified, consistent rarities can be sold; guessed, conflicting, plain Egg, or missing-UID eggs are kept. Default threshold is Secret, default loop 600s.")
 task.spawn(function()
     task.wait(0.15)
     if guiAlive then applyScan(true) end

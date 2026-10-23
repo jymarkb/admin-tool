@@ -82,6 +82,7 @@ end
 -- value types
 ---------------------------------------------------------------------------
 local Vector3 = {}
+local Vector2Stub = { X = 0, Y = 0 }
 Vector3.__index = Vector3
 function Vector3.new(x, y, z) return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0 }, Vector3) end
 Vector3.zero = Vector3.new(0, 0, 0)
@@ -152,6 +153,12 @@ function UDim.new(s, o) return { Scale = s or 0, Offset = o or 0 } end
 local UDim2 = {}
 function UDim2.new(xs, xo, ys, yo)
     return { X = { Scale = xs or 0, Offset = xo or 0 }, Y = { Scale = ys or 0, Offset = yo or 0 } }
+end
+function UDim2.fromOffset(x, y)
+    return { X = { Scale = 0, Offset = x or 0 }, Y = { Scale = 0, Offset = y or 0 } }
+end
+function UDim2.fromScale(x, y)
+    return { X = { Scale = x or 0, Offset = 0 }, Y = { Scale = y or 0, Offset = 0 } }
 end
 
 local Enum = setmetatable({}, {
@@ -502,7 +509,6 @@ Instance.new = function(class, parent)
     return obj
 end
 
-local Vector2Stub = { X = 0, Y = 0 }
 Stub.Vector3 = Vector3
 Stub.CFrame = CFrame
 Stub.Instance = Instance
@@ -548,16 +554,20 @@ local remoteNames = {
     "RF/Fishing/Cast", "RF/Fishing/Reel", "RE/Fishing/Hold",
     "RF/HalloweenDimension/AskCarryEgg", "RF/HalloweenDimension/AskDropEgg",
     "RF/EggWorld/AskFieldEggCarry", "RF/EggWorld/AskFieldEggSnapshot",
+    "RF/ProfileMirror/FetchProfile", "RE/PetSatchel/SellSelection",
+    "RF/EggWorld/AskLiveSnapshot",
     "RE/EggWorld/FieldEggShifted", "RE/EggWorld/FieldEggBatchShifted",
     "RE/EggWorld/FieldEggRaritiesShown", "RE/EggWorld/FieldEggGone",
     "RE/EggWorld/FieldEggCycleCountdown",
 }
 Stub.remotes = {}
 for _, n in ipairs(remoteNames) do
-    local r = Instance.new("RemoteFunction")
+    local class = n:sub(1, 3) == "RE/" and "RemoteEvent" or "RemoteFunction"
+    local r = Instance.new(class)
     r.Name = n
     r.Parent = networking
-    r.OnClientEvent = { Connect = function(_, fn) return { Disconnect = function() end, _fn = fn } end }
+    -- a real signal so tests can deliver server->client payloads with Stub.fire
+    r.OnClientEvent = defaultSignal(r, "OnClientEvent")
     Stub.remotes[n] = r
 end
 
@@ -592,6 +602,34 @@ end
 ---------------------------------------------------------------------------
 -- global environment
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- optional game config modules (ReplicatedStorage.Data.Assets.Configs)
+---------------------------------------------------------------------------
+-- Injected on demand so other scripts that never read the config folder keep
+-- the plain environment. `require` of a ModuleScript returns its payload.
+function Stub.installSpeciesConfigs(entries)
+    local data = Instance.new("Folder")
+    data.Name = "Data"
+    data.Parent = rs
+    local assets = Instance.new("Folder")
+    assets.Name = "Assets"
+    assets.Parent = data
+    local configs = Instance.new("Folder")
+    configs.Name = "Configs"
+    configs.Parent = assets
+    for _, entry in ipairs(entries or {}) do
+        local mod = Instance.new("ModuleScript")
+        mod.Name = entry.name
+        local payload = {}
+        for k, v in pairs(entry) do
+            if k ~= "name" then payload[k] = v end
+        end
+        rawset(mod, "_moduleData", payload)
+        mod.Parent = configs
+    end
+    return configs
+end
+
 function Stub.buildEnv()
     local env = {
         task = taskLib,
@@ -635,6 +673,13 @@ function Stub.buildEnv()
         warn = function(...) Stub.warnings = Stub.warnings or {}; table.insert(Stub.warnings, table.concat({ ... }, " ")) end,
         print = function(...) Stub.logs = Stub.logs or {}; table.insert(Stub.logs, table.concat({ ... }, " ")) end,
         setclipboard = function() end,
+        require = function(mod)
+            if type(mod) == "table" then
+                local payload = rawget(mod, "_moduleData")
+                if payload ~= nil then return payload end
+            end
+            return _G.require(mod)
+        end,
         gethui = nil,
     }
     env._G = env
