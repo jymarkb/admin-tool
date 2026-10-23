@@ -111,7 +111,51 @@ interval box clamps `0 → 3`, `999999 → 3600`, `-5 → 3` and keeps the previ
 `X` destroys the GUI, clears `_G.StandaloneAutoSell_Cleanup`, drains the loop coroutine and stops
 all remote traffic (0 calls in the following 30 s).
 
-## Observations (no code changed — these are by design, listed so they are not mistaken for bugs)
+## FPS under combined load (v11 + autosell) — fixed
+
+Reported symptom: with v11 (instant recovery, fast pickup, auto farm, auto fishing) plus autosell,
+FPS decayed below 20. Reproduced with `farmer/tests/combined_test.py`, which runs both scripts in
+one environment with a 60 FPS frame clock and reports the worst frame, the number of frames over the
+16.7 ms budget, and CPU per simulated second.
+
+Root cause: a scan resolved every satchel record in one synchronous pass, ~0.29 ms per egg. The bag
+grows while you farm, so the stall grows with it — 29 ms at 100 eggs, 290 ms at 1000 — and at a
+short loop interval it lands on a frame every few seconds. It is a spike, not a leak (heap,
+instances and handlers were flat over 30 min), which is why it reads as "FPS drops over time" as the
+satchel fills.
+
+Fix (3 changes in `farmer/autosell.lua`, no behaviour change):
+
+1. **Sliced scan.** The record loop now yields every ~2 ms (`task.wait()` after 8+ records, hard cap
+   16 records), so no frame carries more than ~5 ms of scan work. A 1000-egg scan still costs the
+   same ~290 ms of total CPU but is spread over ~60 frames instead of blocking one. Closing the
+   window mid-scan aborts it quietly.
+2. **Hard-keep name resolved once.** The plain-"Egg" name matcher ran again for every egg in the
+   eligibility pass; it now runs inside the (sliced) scan and the result is stored on the record.
+3. **Eligibility computed once per scan.** `applyScan`, `updatePreview` and the loop each asked for
+   the sellable list; it is now memoised on (bag table, threshold), so a scan computes it once.
+   `reconcilePendingSellUids` also skips its pass when nothing is pending.
+
+Before/after, 1000-egg satchel, v11 farming at 60 FPS:
+
+| case | worst frame | frames over 16.7 ms per min | CPU |
+|---|---|---|---|
+| before, 10 s loop | **289–318 ms** | 6–7 | 31 ms/s |
+| before, 3 s loop | **280 ms** | 20–21 | 95 ms/s |
+| after, 10 s loop | **8–9 ms** | **0** | 25–30 ms/s |
+| after, 3 s loop | **8–11 ms** | **0** | 69 ms/s |
+
+30-minute run at the 3 s floor with 1000 eggs: worst frame 15 ms, **0 frames over budget in 29
+samples**, CPU 68.7 ms/s in the first quarter vs 70.6 ms/s in the last (1.03x, i.e. flat), instances
+734 → 734, handlers 170 → 170. v11 alone is unchanged at 1.0 ms/s and 2 ms worst frame.
+
+```
+python3 farmer/tests/combined_test.py --minutes 30 --bag 1000 --interval 3
+python3 farmer/tests/combined_test.py --no-autosell          # control
+python3 farmer/tests/combined_test.py --idle                 # autosell loaded, loop stopped
+```
+
+## Observations (still by design — listed so they are not mistaken for bugs)
 
 1. **Retry wait is `max(interval, backoff)`.** With the default 600 s interval a failing scan is
    retried every 600 s, not after 3 s: the 3/6/12/…/60 s ladder only becomes the binding delay when

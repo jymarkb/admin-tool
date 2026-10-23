@@ -592,16 +592,19 @@ def main() -> int:
 
     # ---------------- large bag ----------------
     print("\n=== large bag: 1000 eggs ===\n")
-    r = newrun(scenario="bigbag", budget=240, runSeconds=30, eggCount=1000,
+    # The scan now yields every ~16 records, and one driver step is 0.25 s of
+    # simulated time, so a 1000-egg scan occupies ~60 steps here (one frame per
+    # step in game). Give the run enough simulated time to scan and sell.
+    r = newrun(scenario="bigbag", budget=300, runSeconds=120, eggCount=1000,
                confirmOnSell=False, copyInventory=False)
     scans = int(r.get("profileCalls") or 0)
     cpu = float(r.get("cpuMs") or 0)
     per_scan = cpu / max(1, scans)
     biggest = int(r.get("biggestPayload") or 0)
     samples = r.get("samples") or []
-    print(f"  {scans} scans, {per_scan:.0f} ms/scan ({per_scan / 1008:.2f} ms per egg),"
-          f" largest payload {biggest}")
-    check("a 1000-egg scan stays under 400 ms", per_scan < 400.0, f"{per_scan:.0f} ms")
+    print(f"  {scans} scans, {per_scan:.0f} ms of CPU per scan ({per_scan / 1008:.2f} ms per egg),"
+          f" largest payload {biggest}  [spread over frames - see combined_test.py for stalls]")
+    check("a 1000-egg scan costs under 400 ms of CPU", per_scan < 400.0, f"{per_scan:.0f} ms")
     check("one payload carries every eligible egg", biggest >= 800, f"payload={biggest}")
     check("the unverified fifth is never included", biggest <= 1008 + 16, f"payload={biggest}")
     if samples:

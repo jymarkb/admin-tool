@@ -810,6 +810,24 @@ local function hasPlacement(data)
     return true
 end
 
+-- Hard keep for plain base / unknown egg names so event or new eggs never get sold by accident.
+local function isHardKeepName(egg)
+    local candidates = { egg.RawName, egg.GroupName, egg.Species }
+    for _, cand in ipairs(candidates) do
+        if cand then
+            local n = tostring(cand):lower()
+                :gsub("%s*%([%d,%.]+%s*[Kk][Gg]%)%s*$", "")
+                :gsub("^%s*", ""):gsub("%s*$", "")
+                :gsub("%s+", " ")
+            local base = n:gsub("%s*egg%s*$", "")
+            if base == "" or base == "egg" or base == "unknown" or n == "egg" or n == "unknown egg" then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function scanInventory()
     local configWaitStart = os.clock()
     while not speciesConfigIndexReady and os.clock() - configWaitStart < 1.5 do
@@ -848,7 +866,26 @@ local function scanInventory()
 
     local eggs, seenUids = {}, {}
     local unknownCount, missingUidCount = 0, 0
+    -- A large satchel takes ~0.3 ms of string work per egg, so a 1000-egg scan
+    -- would freeze a frame for ~300 ms. Resolve the records in ~2 ms slices so a
+    -- scan never stutters the client, however big the bag gets. The record cap
+    -- keeps the slice bounded even if the clock does not advance per record.
+    local SLICE_MIN_RECORDS = 8
+    local SLICE_MAX_RECORDS = 16
+    local SLICE_SECONDS = 0.002
+    local sliceRecords = 0
+    local sliceStart = os.clock()
     for inventoryKey, data in pairs(inventory) do
+        sliceRecords = sliceRecords + 1
+        if sliceRecords >= SLICE_MIN_RECORDS
+            and (sliceRecords >= SLICE_MAX_RECORDS or os.clock() - sliceStart >= SLICE_SECONDS) then
+            task.wait()
+            sliceStart = os.clock()
+            sliceRecords = 0
+            if not guiAlive then
+                return nil, "Window closed during the scan. Nothing was sold."
+            end
+        end
         if type(data) == "table" and not hasPlacement(data) then
             local dataUid = metadataText(readMetadataField(data, UID_FIELDS))
             local keyUid = type(inventoryKey) == "string" and inventoryKey ~= "" and inventoryKey or nil
@@ -870,7 +907,7 @@ local function scanInventory()
                 local rarityName = verifiedRarity or "Unknown"
                 if not verifiedRarity then unknownCount = unknownCount + 1 end
                 if not canSell then missingUidCount = missingUidCount + 1 end
-                table.insert(eggs, {
+                local record = {
                     Uid = uidText,
                     CanSell = canSell,
                     RawName = rawName,
@@ -880,29 +917,15 @@ local function scanInventory()
                     RarityVerified = verifiedRarity ~= nil,
                     RaritySource = raritySource,
                     InferredRarity = normalizeRarity(inferredRarity) or "Unknown",
-                })
+                }
+                -- Resolved here, inside the sliced loop, so the eligibility pass
+                -- below does not re-run the name matcher once per egg.
+                record.HardKeep = isHardKeepName(record)
+                table.insert(eggs, record)
             end
         end
     end
     return eggs, nil, unknownCount, missingUidCount
-end
-
--- Hard keep for plain base / unknown egg names so event or new eggs never get sold by accident.
-local function isHardKeepName(egg)
-    local candidates = { egg.RawName, egg.GroupName, egg.Species }
-    for _, cand in ipairs(candidates) do
-        if cand then
-            local n = tostring(cand):lower()
-                :gsub("%s*%([%d,%.]+%s*[Kk][Gg]%)%s*$", "")
-                :gsub("^%s*", ""):gsub("%s*$", "")
-                :gsub("%s+", " ")
-            local base = n:gsub("%s*egg%s*$", "")
-            if base == "" or base == "egg" or base == "unknown" or n == "egg" or n == "unknown egg" then
-                return true
-            end
-        end
-    end
-    return false
 end
 
 local function getSellableEggUids(eggs)
@@ -912,7 +935,9 @@ local function getSellableEggUids(eggs)
     for _, egg in ipairs(eggs or State.BagEggs) do
         local rarity = normalizeRarity(egg.Rarity) or "Unknown"
         local rank = RARITY_RANK[rarity]
-        if isHardKeepName(egg) or egg.RarityVerified ~= true or rarity == "Unknown" or not rank then
+        local hardKeep = egg.HardKeep
+        if hardKeep == nil then hardKeep = isHardKeepName(egg) end
+        if hardKeep or egg.RarityVerified ~= true or rarity == "Unknown" or not rank then
             -- Fail closed: guessed, legacy, unverified, or plain "Egg" names are never sold.
             unknownCount = unknownCount + 1
         elseif rank < thresholdRank then
@@ -931,6 +956,21 @@ local function getSellableEggUids(eggs)
     return uids, unknownCount, missingUidCount
 end
 
+-- One scan calls the eligibility pass from applyScan, updatePreview and the loop
+-- itself. Keep the result while the bag and the threshold are unchanged: it is a
+-- pure function of those two, and a 1000-egg bag makes a wasted pass cost ~6 ms.
+local sellableMemoBag, sellableMemoRarity
+local sellableMemoUids, sellableMemoUnknown, sellableMemoMissing
+local function getSellableEggUidsCached(eggs)
+    if sellableMemoBag == eggs and sellableMemoRarity == State.SellBelowRarity then
+        return sellableMemoUids, sellableMemoUnknown, sellableMemoMissing
+    end
+    local uids, unknownCount, missingUidCount = getSellableEggUids(eggs)
+    sellableMemoBag, sellableMemoRarity = eggs, State.SellBelowRarity
+    sellableMemoUids, sellableMemoUnknown, sellableMemoMissing = uids, unknownCount, missingUidCount
+    return uids, unknownCount, missingUidCount
+end
+
 -- Avoid resending the same UIDs while the profile catches up with a SellSelection
 -- request. Since FireServer has no acknowledgement, pending entries expire so a
 -- failed request can be retried later.
@@ -938,6 +978,7 @@ local pendingSellUids = {}
 local PENDING_SELL_CONFIRM_TIMEOUT = 45
 
 local function reconcilePendingSellUids(eggs)
+    if next(pendingSellUids) == nil then return end   -- nothing pending: no pass needed
     local presentUids = {}
     for _, egg in ipairs(eggs or {}) do
         if egg.Uid and egg.Uid ~= "" then presentUids[tostring(egg.Uid)] = true end
@@ -1150,7 +1191,7 @@ dropLayout.Parent = dropdown
 Instance.new("UIStroke", dropdown).Color = Color3.fromRGB(75, 95, 130)
 
 local function updatePreview()
-    local uids, unknownCount, missingUidCount = getSellableEggUids(State.BagEggs)
+    local uids, unknownCount, missingUidCount = getSellableEggUidsCached(State.BagEggs)
     preview.Text = string.format("Below %s: %d sellable | Unknown/hard-kept: %d | Missing UID kept: %d | Every %.1fs",
         State.SellBelowRarity, #uids, unknownCount, missingUidCount, State.SellInterval)
 end
@@ -1166,20 +1207,23 @@ local function applyScan(shouldLog)
         return false
     end
     if not eggs then
+        if not guiAlive then return false end     -- closed mid-scan: nothing to report
         appendLog("SCAN ERROR: " .. tostring(err))
         preview.Text = "Scan failed; no eggs were sold. See log."
         return false
     end
     State.BagEggs = eggs
     reconcilePendingSellUids(eggs)
-    local uids, unknownSkipped, missingUidSkipped = getSellableEggUids(eggs)
+    local uids, unknownSkipped, missingUidSkipped = getSellableEggUidsCached(eggs)
     updatePreview()
     if shouldLog then
         appendLog(string.format("Scan complete: %d unplaced eggs; eligible=%d; unverified/unknown/hard-kept=%d; missing UID=%d.",
             #eggs, #uids, unknownCount or unknownSkipped, missingUidCount or missingUidSkipped))
         local heldCount = 0
         for _, egg in ipairs(eggs) do
-            if (egg.RarityVerified ~= true or isHardKeepName(egg)) and heldCount < 8 then
+            local hardKeepEgg = egg.HardKeep
+            if hardKeepEgg == nil then hardKeepEgg = isHardKeepName(egg) end
+            if (egg.RarityVerified ~= true or hardKeepEgg) and heldCount < 8 then
                 heldCount = heldCount + 1
                 local guess = egg.InferredRarity and egg.InferredRarity ~= "Unknown"
                     and ("; name-only guess=" .. egg.InferredRarity) or ""
@@ -1277,7 +1321,7 @@ startBtn.MouseButton1Click:Connect(function()
                 if scanned then
                     consecutiveScanFailures = 0
                     if State.AutoSellActive and State.AutoSellToken == token then
-                        local candidates, unknownCount, missingUidCount = getSellableEggUids(State.BagEggs)
+                        local candidates, unknownCount, missingUidCount = getSellableEggUidsCached(State.BagEggs)
                         local eggUids = {}
                         local pendingCount = 0
                         for _, uid in ipairs(candidates) do
