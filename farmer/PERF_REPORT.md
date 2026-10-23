@@ -1,8 +1,43 @@
 # Performance report — Halloween panel (auto farm + auto fishing)
 
-**Script:** `farmer/EggGoToUI_v11.lua` @ `6e59b82`
+**Script:** `farmer/EggGoToUI_v11.lua` — measured at `6e59b82` (before) and after the fixes below
 **Harness:** `farmer/tests/perf_test.py` (+ `roblox_stub.lua`), real script, virtual clock, profiled Roblox API
 **Question:** long-run FPS / CPU / RAM use during auto farm + auto fishing.
+
+---
+
+## Before / after the optimizations
+
+All five recommended fixes are now in `EggGoToUI_v11.lua`. Same harness, same world (40 eggs,
+10–20 virtual minutes):
+
+| Metric | Before | After | Change |
+|---|---|---|---|
+| CPU, Halloween tab visible | 2.4 ms/s | **1.0 ms/s** | −58 % |
+| List render cost (visible − hidden) | 1.7 ms/s | **0.5 ms/s** | −71 % |
+| `GetAttribute` calls | 1521 /s | **664 /s** | −56 % |
+| `FindFirstChild` calls | 204 /s | **126 /s** | −38 % |
+| GUI property writes | 272 /s | **82 /s** | −70 % |
+| CPU at 100 eggs | 5.5 ms/s | **2.4 ms/s** | −56 % |
+| Live instances / handlers / heap | flat | flat | unchanged |
+
+Behaviour is unchanged: same cards, same order, same filters — `longrun_test.py` and
+`test_cast_after_reset.py` still pass.
+
+What changed in the script:
+
+1. **List render is event-driven** — `WorldEggs.ChildAdded/ChildRemoved` set `hwListDirty`;
+   otherwise the list refreshes at 1 Hz (`hwRenderEvery`) instead of every 0.3 s tick.
+2. **Only changed GUI properties are written** — name/sub-label/accent colour/visibility are
+   compared against the previous value per card.
+3. **Egg names are cached per model** (`halloweenEngine.nameCache`, weak keys, invalidated by
+   `PreparedSourceName`) so the attribute/child/descendant resolver runs once per egg instead of
+   on every render *and* every farm scan.
+4. **Card pool is capped at 150** — a one-off 100-egg burst no longer pins ~700 instances.
+5. **Log label refreshes are coalesced** to ~4/s instead of per log line.
+
+Remaining after the fixes (fine, but visible if egg counts grow):
+render still scales ~linearly with eggs (0.02 ms/s per egg), and distances update at 1 Hz.
 
 ---
 

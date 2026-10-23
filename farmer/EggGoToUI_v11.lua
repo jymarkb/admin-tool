@@ -4046,9 +4046,9 @@ local function resolveCanonicalHwName(raw)
     return s
 end
 
-local function getHwEggName(eggInst)
-    if not eggInst then return "Hooded Gerbil Egg" end
-
+-- The resolver below walks attributes, children and descendants, so cache its
+-- answer per model. Weak keys: a recycled egg model does not pin memory.
+local function resolveHwEggName(eggInst)
     -- 1. Check direct attributes: PreparedSourceName is the primary live attribute
     local srcName = eggInst:GetAttribute("PreparedSourceName")
         or eggInst:GetAttribute("DisplayName")
@@ -4163,6 +4163,24 @@ local function getHwEggName(eggInst)
     return resolveCanonicalHwName(eggInst.Name) or eggInst.Name
 end
 
+local function getHwEggName(eggInst)
+    if not eggInst then return "Hooded Gerbil Egg" end
+
+    local eng = halloweenEngine
+    local cache = eng and eng.nameCache
+    local srcAttr = eggInst:GetAttribute("PreparedSourceName")
+    if cache then
+        local hit = cache[eggInst]
+        if hit and hit.src == srcAttr then return hit.name end
+    end
+
+    local name = resolveHwEggName(eggInst)
+    if cache then
+        cache[eggInst] = { src = srcAttr, name = name }
+    end
+    return name
+end
+
 local function getHwEggColor(eggInst, eggDisplayName)
     local n = eggDisplayName and eggDisplayName:lower() or eggInst.Name:lower()
     local info = SPECIES_INFO[n] or (getSpeciesInfo and getSpeciesInfo(n))
@@ -4188,6 +4206,13 @@ halloweenEngine = {
     lastNightResetAt = nil,
     -- Rarity bucket for eggs that are not in the catalog yet.
     newRarity = "New Update",
+    -- model -> { src, name }; avoids re-resolving names on every render/scan.
+    nameCache = setmetatable({}, { __mode = "k" }),
+    -- live-list render throttle state
+    hwListDirty = true,
+    hwLastRenderAt = 0,
+    hwRenderEvery = 1.0,
+    hwHookedFolder = nil,
 
     triggerNightReset = function(duration)
         local now = os.clock()
@@ -4509,23 +4534,36 @@ halloweenEngine = {
         pendingFishId = nil,
         castMaxAttempts = 4,
 
+        logDirty = false,
+        logFlushedAt = -1,
+        refreshLog = function()
+            local f = halloweenEngine.fishing
+            if not f.logDirty then return end
+            f.logDirty = false
+            f.logFlushedAt = os.clock()
+            if not (hwLogLabel and hwLogLabel.Parent) then return end
+            pcall(function()
+                hwLogLabel.Text = table.concat(f.logLines, "\n")
+                local sc = hwLogLabel.Parent
+                if sc and sc:IsA("ScrollingFrame") then
+                    sc.CanvasPosition = Vector2.new(0, 99999)
+                end
+            end)
+        end,
+
         log = function(msg)
             local line = os.date("%H:%M:%S") .. " " .. tostring(msg)
             table.insert(halloweenEngine.fishing.logLines, line)
             if #halloweenEngine.fishing.logLines > 50 then
                 table.remove(halloweenEngine.fishing.logLines, 1)
             end
-            if hwLogLabel and hwLogLabel.Parent then
-                pcall(function()
-                    hwLogLabel.Text = table.concat(halloweenEngine.fishing.logLines, "\n")
-                end)
+            -- Rebuilding the label means a concat of the whole buffer plus a
+            -- layout pass; coalesce bursts into at most ~4 refreshes per second.
+            local f = halloweenEngine.fishing
+            f.logDirty = true
+            if (os.clock() - (f.logFlushedAt or -1)) >= 0.25 then
+                f.refreshLog()
             end
-            pcall(function()
-                local sc = hwLogLabel and hwLogLabel.Parent
-                if sc and sc:IsA("ScrollingFrame") then
-                    sc.CanvasPosition = Vector2.new(0, 99999)
-                end
-            end)
             print("[HW-Fishing] " .. line)
         end,
 
@@ -5835,6 +5873,17 @@ renderHalloweenEggs = function()
             for _, egg in ipairs(worldEggs:GetChildren()) do
                 addEggCandidate(egg)
             end
+            -- Mark the list dirty only when the world actually changes, instead of
+            -- rebuilding it 3.3x/s just in case.
+            if halloweenEngine and halloweenEngine.hwHookedFolder ~= worldEggs then
+                halloweenEngine.hwHookedFolder = worldEggs
+                addConnection(worldEggs.ChildAdded:Connect(function()
+                    halloweenEngine.hwListDirty = true
+                end))
+                addConnection(worldEggs.ChildRemoved:Connect(function()
+                    halloweenEngine.hwListDirty = true
+                end))
+            end
         end
 
         local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
@@ -5909,14 +5958,45 @@ renderHalloweenEggs = function()
     for idx, eggData in ipairs(eggList) do
         local poolItem = getOrCreateHwCard(idx)
         poolItem.data = eggData
-        poolItem.nameLabel.Text = eggData.Name
-        poolItem.subLabel.Text = eggData.SubLabel
-        poolItem.accent.BackgroundColor3 = eggData.Color
-        poolItem.card.Visible = true
+        -- Only write the GUI properties that actually changed: every extra write
+        -- is a property-changed notification plus a layout invalidation.
+        if poolItem.lastName ~= eggData.Name then
+            poolItem.lastName = eggData.Name
+            poolItem.nameLabel.Text = eggData.Name
+        end
+        if poolItem.lastSub ~= eggData.SubLabel then
+            poolItem.lastSub = eggData.SubLabel
+            poolItem.subLabel.Text = eggData.SubLabel
+        end
+        if poolItem.lastColor ~= eggData.Color then
+            poolItem.lastColor = eggData.Color
+            poolItem.accent.BackgroundColor3 = eggData.Color
+        end
+        if poolItem.card.Visible ~= true then
+            poolItem.card.Visible = true
+        end
     end
 
     for idx = count + 1, #hwCardPool do
-        hwCardPool[idx].card.Visible = false
+        local poolItem = hwCardPool[idx]
+        if poolItem.lastSub ~= nil then
+            poolItem.lastSub = nil
+            poolItem.lastName = nil
+            poolItem.lastColor = nil
+        end
+        if poolItem.card.Visible then
+            poolItem.card.Visible = false
+        end
+    end
+
+    -- Keep the pool bounded: a one-off 100-egg burst must not pin ~700 instances
+    -- for the rest of the session.
+    local POOL_MAX = 150
+    while #hwCardPool > POOL_MAX do
+        local extra = table.remove(hwCardPool)
+        if extra and extra.card then
+            pcall(function() extra.card:Destroy() end)
+        end
     end
 end
 
@@ -6610,8 +6690,20 @@ task.spawn(function()
             pcall(renderFarmableEggs)
         end
 
+        if halloweenEngine and halloweenEngine.fishing and halloweenEngine.fishing.logDirty then
+            pcall(halloweenEngine.fishing.refreshLog)
+        end
+
+        -- Rebuild the live list only when the world changed (folder hooks / filter
+        -- changes) or at 1 Hz, instead of unconditionally every 0.3 s tick.
         if tabHalloween and tabHalloween.Visible and renderHalloweenEggs then
-            pcall(renderHalloweenEggs)
+            local now = os.clock()
+            local every = halloweenEngine.hwRenderEvery or 1.0
+            if halloweenEngine.hwListDirty or (now - (halloweenEngine.hwLastRenderAt or 0)) >= every then
+                halloweenEngine.hwListDirty = false
+                halloweenEngine.hwLastRenderAt = now
+                pcall(renderHalloweenEggs)
+            end
         end
 
         -- Instant Recovery gentle safety fallback (0.3s throttled = 0 CPU cost)
@@ -6660,6 +6752,8 @@ local function switchTab(tabName)
     if tabName == "Eggs" then
         requestListUpdate()
     elseif tabName == "Halloween" then
+        halloweenEngine.hwListDirty = false
+        halloweenEngine.hwLastRenderAt = os.clock()
         if renderHalloweenEggs then pcall(renderHalloweenEggs) end
     end
 end
