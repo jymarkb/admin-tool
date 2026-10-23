@@ -791,7 +791,9 @@ local hwEmptyNotice
 local hwRarityBtn
 local hwRarityDropList
 local hwRarityDd
-local selectedHwRarities = { ["Divine"] = true, ["Eternal"] = true, ["Secret"] = true }
+-- "New Update" is a real filter entry (not force-shown), so the live list and the
+-- auto-farm agree on which eggs are farmable. It stays selected by default.
+local selectedHwRarities = { ["New Update"] = true, ["Divine"] = true, ["Eternal"] = true, ["Secret"] = true }
 local renderHalloweenEggs
 local hwAutoPickBtn
 local hwAutoPickEnabled = false
@@ -1030,7 +1032,7 @@ do
     -- Halloween Rarity Dropdown List
     hwRarityDropList = Instance.new("Frame")
     hwRarityDropList.Name = "HwRarityDropList"
-    hwRarityDropList.Size = UDim2.new(1, 0, 0, 256)
+    hwRarityDropList.Size = UDim2.new(1, 0, 0, 280)
     hwRarityDropList.Position = UDim2.new(0, 0, 0, 26)
     hwRarityDropList.BackgroundColor3 = Color3.fromRGB(24, 20, 34)
     hwRarityDropList.BorderSizePixel = 0
@@ -1089,6 +1091,8 @@ do
     local hwRarityBtns = {}
     local refreshHwRarityButtons
     local updateHwRarityBtnText
+    -- Halloween-only filter rows: the catalog rarities plus the uncatalogued bucket.
+    local RARITY_ROWS = { "New Update", table.unpack(RARITY_ORDER) }
 
     updateHwRarityBtnText = function(isOpen)
         local arrow = isOpen and "▲" or "▼"
@@ -1097,7 +1101,7 @@ do
             return
         end
         local list = {}
-        for _, r in ipairs(RARITY_ORDER) do
+        for _, r in ipairs(RARITY_ROWS) do
             if selectedHwRarities[r] then table.insert(list, r) end
         end
         if #list == 0 then
@@ -1110,7 +1114,7 @@ do
     end
 
     refreshHwRarityButtons = function()
-        for _, r in ipairs(RARITY_ORDER) do
+        for _, r in ipairs(RARITY_ROWS) do
             local on = selectedHwRarities["All"] == true or selectedHwRarities[r] == true
             local b = hwRarityBtns[r]
             if b then
@@ -1120,14 +1124,14 @@ do
         end
     end
 
-    for i, r in ipairs(RARITY_ORDER) do
+    for i, r in ipairs(RARITY_ROWS) do
         local b = Instance.new("TextButton")
         b.Name = "HwRarity_" .. r
         b.Size = UDim2.new(1, 0, 0, 20)
         b.LayoutOrder = i
         b.BackgroundColor3 = Color3.fromRGB(32, 28, 44)
         b.Text = "[X] " .. r
-        b.TextColor3 = RARITY_COLORS[r] or Color3.fromRGB(220, 230, 255)
+        b.TextColor3 = RARITY_COLORS[r] or (r == "New Update" and Color3.fromRGB(235, 150, 60)) or Color3.fromRGB(220, 230, 255)
         b.TextSize = 11
         b.Font = Enum.Font.GothamBold
         b.TextXAlignment = Enum.TextXAlignment.Left
@@ -1149,10 +1153,10 @@ do
                 selectedHwRarities[r] = true
             end
             local totalChecked = 0
-            for _, checkR in ipairs(RARITY_ORDER) do
+            for _, checkR in ipairs(RARITY_ROWS) do
                 if selectedHwRarities[checkR] then totalChecked = totalChecked + 1 end
             end
-            if totalChecked == #RARITY_ORDER then
+            if totalChecked == #RARITY_ROWS then
                 selectedHwRarities = { ["All"] = true }
             end
             updateHwRarityBtnText(true)
@@ -4182,6 +4186,8 @@ halloweenEngine = {
     nightResetTriggered = false,
     nightResetGraceUntil = nil,
     lastNightResetAt = nil,
+    -- Rarity bucket for eggs that are not in the catalog yet.
+    newRarity = "New Update",
 
     triggerNightReset = function(duration)
         local now = os.clock()
@@ -4194,8 +4200,13 @@ halloweenEngine = {
         halloweenEngine.lastNightResetAt = now
         halloweenEngine.nightResetGraceUntil = now + grace
         halloweenEngine.cachedWorldEggs = nil
-        if halloweenEngine.fishing and halloweenEngine.fishing.running then
-            halloweenEngine.fishing.stop("Night Reset")
+        if halloweenEngine.fishing then
+            halloweenEngine.fishing.needsRecovery = true
+            -- Drop cached remotes so they are resolved again on the next cycle.
+            halloweenEngine.fishing.reHold, halloweenEngine.fishing.rfCast, halloweenEngine.fishing.rfReel = nil, nil, nil
+            if halloweenEngine.fishing.running then
+                halloweenEngine.fishing.stop("Night Reset")
+            end
         end
         if halloweenEngine.autoFarmEnabled and lblFarmStatus then
             lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/16s)...", grace)
@@ -4261,56 +4272,22 @@ halloweenEngine = {
             end)
 
             local candidates = {}
+            local scanned = 0
             for _, egg in ipairs(rawEggModels) do
-                if egg.Name:lower():find("holder") then
-                    continue
-                end
-                if egg:GetAttribute("HalloweenEggCanPickUp") == false then
-                    continue
-                end
-
-                local p = getHwEggPos(egg)
-                if p then
-                    local eggName = getHwEggName(egg)
-                    if eggName:lower():find("holder") then
-                        continue
-                    end
-                    local d = charPos and (p - charPos).Magnitude or 99999
-                    local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
-                    if (egg.Name:lower() == "egg" or eggName:lower() == "egg") and not info then
-                        continue
-                    end
-                    if eggName:lower() == "halloween egg" or eggName:lower() == "halloweenegg" or eggName:lower() == "halloween" then
-                        continue
-                    end
-
-                    local zone = egg:GetAttribute("Zone")
-                    local isCataloged = (info ~= nil and info.IsCataloged == true)
-                    local rarName = (isCataloged and info.Rarity) or egg:GetAttribute("Rarity") or "New Update"
-
-                    local matches = false
-                    if selectedHwRarities and (selectedHwRarities["All"] or selectedHwRarities[rarName]) then
-                        matches = true
-                    end
-
-                    if matches then
-                        local rank = (isCataloged and info and info.Rank) or (RARITY_RANK[rarName] or 0)
-                        table.insert(candidates, {
-                            Model     = egg,
-                            Name      = eggName,
-                            Position  = p,
-                            Distance  = d,
-                            Zone      = tonumber(zone) or 99,
-                            Rank      = rank,
-                            Rarity    = rarName,
-                            Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
-                        })
+                local entry = halloweenEngine.classifyEgg(egg, charPos)
+                if entry then
+                    scanned = scanned + 1
+                    if halloweenEngine.rarityMatches(entry.Rarity) then
+                        table.insert(candidates, entry)
                     end
                 end
             end
 
+            -- Second return value lets callers tell "no eggs on the map" apart from
+            -- "eggs exist but the rarity filter excludes all of them".
+            local stats = { scanned = scanned, matched = #candidates }
             if #candidates == 0 then
-                return nil
+                return nil, stats
             end
 
             -- Priority order: Highest Rarity Rank (Divine: 10 -> Eternal: 9 -> Secret: 8), then closest distance
@@ -4324,7 +4301,7 @@ halloweenEngine = {
                 return tostring(a.Uid) < tostring(b.Uid)
             end)
 
-            return candidates[1]
+            return candidates[1], stats
         end,
 
         start = function()
@@ -4412,7 +4389,7 @@ halloweenEngine = {
             end
 
             -- 1. Auto Farm: check for target egg matching rarity filter
-            local targetEgg = halloweenEngine.autoFarm.findTarget()
+            local targetEgg, scan = halloweenEngine.autoFarm.findTarget()
             if targetEgg then
                 if halloweenEngine.fishing and halloweenEngine.fishing.running then
                     halloweenEngine.fishing.stop("Egg Detected")
@@ -4439,12 +4416,24 @@ halloweenEngine = {
             end
 
             -- 2. No target egg: Wait 3s before transitioning to continuous fishing
+            -- Distinguish "nothing on the map" from "everything is filtered out", otherwise
+            -- the farm reports "done" while the live list still shows farmable-looking eggs.
+            local scanned = scan and scan.scanned or 0
             if lblFarmStatus then
-                lblFarmStatus.Text = "Status: Waiting 3s before fishing..."
+                if scanned > 0 then
+                    lblFarmStatus.Text = string.format("Status: %d egg(s) filtered out (rarity) - fishing", scanned)
+                else
+                    lblFarmStatus.Text = "Status: Waiting 3s before fishing..."
+                end
                 lblFarmStatus.TextColor3 = Color3.fromRGB(220, 180, 70)
             end
             if halloweenEngine.fishing and halloweenEngine.fishing.log then
-                halloweenEngine.fishing.log("Auto Farm phase done (no matching eggs). Waiting 3s, then Auto Fishing...")
+                if scanned > 0 then
+                    halloweenEngine.fishing.log(string.format(
+                        "Auto Farm phase done: %d egg(s) visible but none match the rarity filter. Waiting 3s, then Auto Fishing...", scanned))
+                else
+                    halloweenEngine.fishing.log("Auto Farm phase done (no matching eggs). Waiting 3s, then Auto Fishing...")
+                end
             end
 
             task.spawn(function()
@@ -4511,6 +4500,9 @@ halloweenEngine = {
         reHold = nil,
         rfCast = nil,
         rfReel = nil,
+        -- Set by triggerNightReset; forces one full rod/remote reset before the
+        -- next cast, because an interrupted cycle leaves both sides out of sync.
+        needsRecovery = false,
 
         log = function(msg)
             local line = os.date("%H:%M:%S") .. " " .. tostring(msg)
@@ -4585,6 +4577,35 @@ halloweenEngine = {
                 end
             end
             return nil, false
+        end,
+
+        -- Reset everything that a night reset can invalidate: cached remote refs
+        -- (a re-streamed RemoteFunction never answers again), rod equip state and
+        -- distance to the fishing spot. Call before casting after a reset, and
+        -- once as a retry path when Cast returns nil.
+        recoverRodState = function(cancelCheck, skipHold)
+            local f = halloweenEngine.fishing
+            f.reHold, f.rfCast, f.rfReel = nil, nil, nil
+            f.initRemotes()
+
+            f.walkToSpot(cancelCheck)
+
+            local ch = LocalPlayer and LocalPlayer.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if hum then
+                pcall(function() hum:UnequipTools() end)
+                task.wait(0.2)
+            end
+            f.ensureRodEquipped()
+            f.faceTarget()
+
+            if not skipHold then
+                local reHold = f.reHold or f.getRemote("RE/Fishing/Hold")
+                if reHold then
+                    pcall(function() reHold:FireServer() end)
+                end
+                task.wait(f.holdDelay)
+            end
         end,
 
         ensureRodEquipped = function()
@@ -4707,6 +4728,18 @@ halloweenEngine = {
             local spot = halloweenEngine.fishing.spotPos
             local castP = halloweenEngine.fishing.castPos
 
+            -- A night reset interrupts Hold/Cast mid-flight; the server then rejects the
+            -- next Cast with nil. Reset rod + remote state once before casting again.
+            if halloweenEngine.fishing.needsRecovery then
+                halloweenEngine.fishing.needsRecovery = false
+                halloweenEngine.fishing.log("Night reset detected -> resetting rod & remote state before casting.")
+                halloweenEngine.fishing.recoverRodState(cancelCheck, true)
+                if cancelCheck and cancelCheck() then
+                    if onComplete then onComplete(false) end
+                    return
+                end
+            end
+
             -- Safety drift check: if bumped > 10 studs away from spot, walk back
             local ch = LocalPlayer and LocalPlayer.Character
             local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
@@ -4777,25 +4810,48 @@ halloweenEngine = {
                 lblFishStatus.TextColor3 = Color3.fromRGB(160, 200, 255)
             end
 
-            local rfCast = halloweenEngine.fishing.rfCast or halloweenEngine.fishing.getRemote("RF/Fishing/Cast")
-            if not rfCast then
-                halloweenEngine.fishing.log("ERROR: RF/Fishing/Cast remote NOT FOUND in ReplicatedStorage!")
-                if lblFishStatus then
-                    lblFishStatus.Text = "Status: RF/Fishing/Cast not found"
-                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+            local castResults, castOk, castData
+            for castAttempt = 1, 2 do
+                local rfCast = halloweenEngine.fishing.rfCast or halloweenEngine.fishing.getRemote("RF/Fishing/Cast")
+                if not rfCast then
+                    halloweenEngine.fishing.log("ERROR: RF/Fishing/Cast remote NOT FOUND in ReplicatedStorage!")
+                    if lblFishStatus then
+                        lblFishStatus.Text = "Status: RF/Fishing/Cast not found"
+                        lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+                    end
+                    task.wait(2.0)
+                    if onComplete then onComplete(false) end
+                    return
                 end
-                task.wait(2.0)
-                if onComplete then onComplete(false) end
-                return
-            end
 
-            halloweenEngine.fishing.log(string.format("Casting power=%.3f Target=(%.1f, %.1f, %.1f)", power, castP.X, castP.Y, castP.Z))
-            -- Pack all InvokeServer results so a nil response can be distinguished
-            -- from an exception and logged with the relevant cast context.
-            local castResults = table.pack(pcall(function()
-                return rfCast:InvokeServer(power, castP)
-            end))
-            local castOk, castData = castResults[1], castResults[2]
+                halloweenEngine.fishing.log(string.format("Casting power=%.3f Target=(%.1f, %.1f, %.1f) attempt=%d",
+                    power, castP.X, castP.Y, castP.Z, castAttempt))
+                -- Pack all InvokeServer results so a nil response can be distinguished
+                -- from an exception and logged with the relevant cast context.
+                castResults = table.pack(pcall(function()
+                    return rfCast:InvokeServer(power, castP)
+                end))
+                castOk, castData = castResults[1], castResults[2]
+
+                if castOk and type(castData) == "table" and castData.Id then
+                    break
+                end
+
+                if castAttempt == 1 then
+                    -- First miss is usually the stale post-reset state: reset rod/remote
+                    -- and retry exactly once instead of burning a whole cycle.
+                    if lblFishStatus then
+                        lblFishStatus.Text = "Status: Cast recovery (retry 1)..."
+                        lblFishStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                    end
+                    halloweenEngine.fishing.log("Cast returned no fish -> resetting rod state and retrying once.")
+                    halloweenEngine.fishing.recoverRodState(cancelCheck, false)
+                    if cancelCheck and cancelCheck() then
+                        if onComplete then onComplete(false) end
+                        return
+                    end
+                end
+            end
 
             if not castOk then
                 halloweenEngine.fishing.log("Cast EXCEPTION -> " .. tostring(castData))
@@ -4816,7 +4872,7 @@ halloweenEngine = {
                 local returnSummary = #returnDetails > 0 and table.concat(returnDetails, ", ") or "no return values"
                 local failReason = castData == nil and "server returned nil (InvokeServer did not throw)" or "invalid response (missing Id)"
                 halloweenEngine.fishing.log(string.format(
-                    "Cast FAILED -> %s; returnCount=%d; returns={%s}; power=%.3f; rodEquipped=%s; Char=(%.1f, %.1f, %.1f); Target=(%.1f, %.1f, %.1f)",
+                    "Cast FAILED after retry -> %s; returnCount=%d; returns={%s}; power=%.3f; rodEquipped=%s; Char=(%.1f, %.1f, %.1f); Target=(%.1f, %.1f, %.1f)",
                     failReason, math.max(0, castResults.n - 1), returnSummary, power, tostring(rodOk),
                     cp.X, cp.Y, cp.Z, castP.X, castP.Y, castP.Z
                 ))
@@ -5061,14 +5117,28 @@ halloweenEngine = {
             halloweenEngine.fishing.token = (halloweenEngine.fishing.token or 0) + 1
             halloweenEngine.fishing.running = false
 
+            -- When the Auto Farm is driving fishing, a stop (night reset, egg detected)
+            -- is a pause, not a user-facing OFF. Keep the row honest about that.
+            local farmDriven = halloweenEngine.autoFarmEnabled == true
             if hwAutoFishBtn then
-                hwAutoFishBtn.Text = "OFF"
-                hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
-                hwAutoFishBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+                if farmDriven then
+                    hwAutoFishBtn.Text = "AUTO"
+                    hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 90, 135)
+                    hwAutoFishBtn.TextColor3 = Color3.new(1, 1, 1)
+                else
+                    hwAutoFishBtn.Text = "OFF"
+                    hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+                    hwAutoFishBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+                end
             end
             if lblFishStatus then
-                lblFishStatus.Text = reason and ("Status: " .. reason) or "Status: Idle"
-                lblFishStatus.TextColor3 = Color3.fromRGB(150, 160, 180)
+                if farmDriven and reason == "Night Reset" then
+                    lblFishStatus.Text = "Status: Night Reset (paused, resumes with farm)"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
+                else
+                    lblFishStatus.Text = reason and ("Status: " .. reason) or "Status: Idle"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(150, 160, 180)
+                end
             end
             halloweenEngine.fishing.log("Auto Fishing stopped: " .. tostring(reason or "Manual"))
         end,
@@ -5080,6 +5150,48 @@ halloweenEngine = {
         version = "1.0",
     },
 }
+
+-- Single source of truth for "is this a Halloween egg the panel can show/farm".
+-- Both renderHalloweenEggs and autoFarm.findTarget classify through here, so the
+-- list can never show an egg that the farm refuses to target.
+halloweenEngine.classifyEgg = function(egg, charPos)
+    if not egg or egg.Name:lower():find("holder") then return nil end
+    if egg:GetAttribute("HalloweenEggCanPickUp") == false then return nil end
+
+    local p = getHwEggPos(egg)
+    if not p then return nil end
+
+    local eggName = getHwEggName(egg)
+    local lowerName = eggName:lower()
+    if lowerName:find("holder") then return nil end
+    -- Placeholder models named "Egg"/"Halloween Egg" carry no species information
+    if lowerName == "egg" or lowerName == "halloween egg" or lowerName == "halloweenegg" or lowerName == "halloween" then
+        return nil
+    end
+
+    local info = getSpeciesInfo and getSpeciesInfo(eggName) or nil
+    local isCataloged = (info ~= nil and info.IsCataloged == true)
+    local rarity = (isCataloged and info.Rarity) or egg:GetAttribute("Rarity") or halloweenEngine.newRarity
+    local zone = egg:GetAttribute("Zone")
+
+    return {
+        Model       = egg,
+        Name        = eggName,
+        Position    = p,
+        Distance    = charPos and (p - charPos).Magnitude or 99999,
+        Zone        = tonumber(zone) or 99,
+        Rank        = (isCataloged and info.Rank) or RARITY_RANK[rarity] or 0,
+        Rarity      = rarity,
+        IsCataloged = isCataloged,
+        Uid         = egg:GetAttribute("HalloweenEggUid") or egg.Name,
+        Color       = getHwEggColor(egg, eggName),
+    }
+end
+
+halloweenEngine.rarityMatches = function(rarity)
+    if not selectedHwRarities then return false end
+    return selectedHwRarities["All"] == true or selectedHwRarities[rarity] == true
+end
 
 -- Serialize the complete Hold -> Cast -> Bite Wait -> Reel sequence.
 -- A second loop may request a cycle, but it must not issue overlapping fishing remotes.
@@ -5686,67 +5798,20 @@ renderHalloweenEggs = function()
     end)
 
     for _, egg in ipairs(rawEggModels) do
-        if egg.Name:lower():find("holder") then
-            continue
-        end
-        local canPick = egg:GetAttribute("HalloweenEggCanPickUp")
-        if canPick == false then
-            continue
-        end
-        local p = getHwEggPos(egg)
-        if p then
-            local eggName = getHwEggName(egg)
-            if eggName:lower():find("holder") then
-                continue
-            end
-            local d = charPos and (p - charPos).Magnitude or 99999
-            local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
-            -- Exclude placeholder models named 'Egg' from PT2 or anywhere if they are holders/placeholders
-            if (egg.Name:lower() == "egg" or eggName:lower() == "egg") and not info then
-                continue
-            end
-            if eggName:lower() == "halloween egg" or eggName:lower() == "halloweenegg" or eggName:lower() == "halloween" then
-                continue
-            end
-
+        -- Same classifier and same filter rule as autoFarm.findTarget, so the list
+        -- never shows an egg that the auto-farm would refuse to target.
+        local entry = halloweenEngine.classifyEgg(egg, charPos)
+        if entry and halloweenEngine.rarityMatches(entry.Rarity) then
             local zone = egg:GetAttribute("Zone")
             local zoneName = zone and string.format("Zone %s", tostring(zone))
                 or egg:GetAttribute("AreaId")
                 or egg:GetAttribute("Biome")
                 or "WorldEggs"
 
-            local isCataloged = (info ~= nil and info.IsCataloged == true)
-            local rarName = (isCataloged and info.Rarity) or egg:GetAttribute("Rarity") or "New Update"
-
-            -- Rarity Filter:
-            -- Eggs not tracked in group or listed in any of our catalog will be flagged as new update,
-            -- so even if they do not match the rarity filter they should default to showing.
-            local matchesRarity = false
-            if selectedHwRarities and (selectedHwRarities["All"] or selectedHwRarities[rarName]) then
-                matchesRarity = true
-            end
-            if not isCataloged then
-                matchesRarity = true
-            end
-
-            if not matchesRarity then
-                continue
-            end
-
-            local tagUpdate = not isCataloged and " • [New Update]" or ""
-            local subLabel = string.format("%s • %s%s • %d studs", zoneName, rarName, tagUpdate, math.floor(d))
-
-            table.insert(eggList, {
-                Model     = egg,
-                Name      = eggName,
-                Position  = p,
-                Distance  = d,
-                SubLabel  = subLabel,
-                Color     = getHwEggColor(egg, eggName),
-                Zone      = tonumber(zone) or 99,
-                Rank      = (isCataloged and info and info.Rank) or (RARITY_RANK[rarName] or 99),
-                Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
-            })
+            local tagUpdate = not entry.IsCataloged and " • [New Update]" or ""
+            entry.SubLabel = string.format("%s • %s%s • %d studs",
+                zoneName, entry.Rarity, tagUpdate, math.floor(entry.Distance))
+            table.insert(eggList, entry)
         end
     end
 
@@ -5858,31 +5923,29 @@ local function findBestHwPickupTarget()
     local maxPickupDist = 45
 
     for _, egg in ipairs(rawEggModels) do
-        if egg.Name:lower():find("holder") then
-            continue
-        end
-        if egg:GetAttribute("HalloweenEggCanPickUp") == false then
-            continue
-        end
-
-        local p = getHwEggPos(egg)
-        if p then
-            local dist = (p - charPos).Magnitude
-            if dist <= maxPickupDist then
-                local score = scoreHwTarget(p, dist)
-                if score > highestScore then
-                    local eggName = getHwEggName(egg)
-                    if not eggName:lower():find("holder") then
-                        highestScore = score
-                        local pr = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        bestTarget = {
-                            Model    = egg,
-                            Name     = eggName,
-                            Position = p,
-                            Distance = dist,
-                            Uid      = egg:GetAttribute("HalloweenEggUid") or egg.Name,
-                            Prompt   = (pr and isCarryPrompt(pr)) and pr or nil
-                        }
+        -- Guards are combined (instead of `continue`) so this file also loads in
+        -- stock Lua, which the long-run test harness relies on.
+        if not egg.Name:lower():find("holder")
+            and egg:GetAttribute("HalloweenEggCanPickUp") ~= false then
+            local p = getHwEggPos(egg)
+            if p then
+                local dist = (p - charPos).Magnitude
+                if dist <= maxPickupDist then
+                    local score = scoreHwTarget(p, dist)
+                    if score > highestScore then
+                        local eggName = getHwEggName(egg)
+                        if not eggName:lower():find("holder") then
+                            highestScore = score
+                            local pr = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            bestTarget = {
+                                Model    = egg,
+                                Name     = eggName,
+                                Position = p,
+                                Distance = dist,
+                                Uid      = egg:GetAttribute("HalloweenEggUid") or egg.Name,
+                                Prompt   = (pr and isCarryPrompt(pr)) and pr or nil
+                            }
+                        end
                     end
                 end
             end
