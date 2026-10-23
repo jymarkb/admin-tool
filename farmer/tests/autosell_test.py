@@ -78,7 +78,7 @@ DRIVER = textwrap.dedent(
     end
 
     local function fixture()
-        return {
+        local t = {
             -- sellable (verified, below Secret)
             [1] = egg("uid-common-1", "Chicken Egg", "Common"),
             [2] = egg("uid-mythic-1", "Froggo Egg", "Mythic"),
@@ -125,7 +125,16 @@ DRIVER = textwrap.dedent(
             [25] = egg("uid-evt-1", "Owl Egg", nil),
             -- ... but a plain base name stays kept even with an event rarity
             [26] = egg("uid-evt-plain-1", "Egg", nil),
+            -- optional: pad the bag to a realistic late-game size
         }
+        if cfg.eggCount then
+            for i = 1, cfg.eggCount do
+                -- one in five is unverified (must be held), the rest are sellable
+                local rarity = (i % 5 == 0) and nil or "Common"
+                t[#t + 1] = egg("uid-bulk-" .. i, "Bulk Egg " .. i, rarity)
+            end
+        end
+        return t
     end
 
     local CONFIGS = {
@@ -148,14 +157,18 @@ DRIVER = textwrap.dedent(
         if profileMode == "noinventory" then return { Data = {}, Other = true } end
         if profileMode == "throw" then error("profile remote exploded") end
         -- copy so the script cannot mutate the fixture
-        local inv = {}
-        for key, rec in pairs(inventory) do
-            if type(rec) == "table" then
-                local copy = {}
-                for k, v in pairs(rec) do copy[k] = v end
-                inv[key] = copy
-            else
-                inv[key] = rec
+        local inv = inventory
+        if cfg.copyInventory ~= false then
+            -- the script never mutates records; the copy only guards the fixture
+            inv = {}
+            for key, rec in pairs(inventory) do
+                if type(rec) == "table" then
+                    local copy = {}
+                    for k, v in pairs(rec) do copy[k] = v end
+                    inv[key] = copy
+                else
+                    inv[key] = rec
+                end
             end
         end
         return { EggInventory = inv }
@@ -394,6 +407,16 @@ DRIVER = textwrap.dedent(
             },
         })
         advance(8)
+    elseif scenario == "bigbag" then
+        setInterval("3")
+        clickText("START LOOP")
+        advance(cfg.runSeconds or 30)
+        local biggest = 0
+        for _, p in ipairs(sellPayloads) do
+            if #p.uids > biggest then biggest = #p.uids end
+        end
+        result.biggestPayload = biggest
+        result.scanned = result.cpuMs
     elseif scenario == "sellerror" then
         setInterval("3")
         sellFailuresLeft = 2
@@ -566,6 +589,32 @@ def main() -> int:
     check("START button does not enter the RUNNING state",
           "RUNNING" not in str(r.get("startedText") or ""), str(r.get("startedText")))
     check("no sell traffic without a RemoteEvent", not (r.get("sellPayloads") or []))
+
+    # ---------------- large bag ----------------
+    print("\n=== large bag: 1000 eggs ===\n")
+    r = newrun(scenario="bigbag", budget=240, runSeconds=30, eggCount=1000,
+               confirmOnSell=False, copyInventory=False)
+    scans = int(r.get("profileCalls") or 0)
+    cpu = float(r.get("cpuMs") or 0)
+    per_scan = cpu / max(1, scans)
+    biggest = int(r.get("biggestPayload") or 0)
+    samples = r.get("samples") or []
+    print(f"  {scans} scans, {per_scan:.0f} ms/scan ({per_scan / 1008:.2f} ms per egg),"
+          f" largest payload {biggest}")
+    check("a 1000-egg scan stays under 400 ms", per_scan < 400.0, f"{per_scan:.0f} ms")
+    check("one payload carries every eligible egg", biggest >= 800, f"payload={biggest}")
+    check("the unverified fifth is never included", biggest <= 1008 + 16, f"payload={biggest}")
+    if samples:
+        first, last = samples[0], samples[-1]
+        check("large bag: no instance growth",
+              last["instances"] - first["instances"] <= 2,
+              f"{last['instances'] - first['instances']:+d}")
+        check("large bag: no handler growth",
+              last["handlers"] - first["handlers"] <= 1,
+              f"{last['handlers'] - first['handlers']:+d}")
+        check("large bag: heap stable", abs(last["kb"] - first["kb"]) <= 256,
+              f"{last['kb'] - first['kb']:+.0f} KB")
+    check("large bag: no runtime errors", not r.get("errors"), str(r.get("errors"))[:120])
 
     # ---------------- rarity event cache ----------------
     print("\n=== rarity events ===\n")

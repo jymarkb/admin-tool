@@ -16,7 +16,7 @@ the player actually uses (buttons and text boxes found by their label text).
 
 ## Result
 
-**76 checks, 0 failures**, at `--minutes 180` (≈9 h simulated in total):
+**83 checks, 0 failures**, at `--minutes 180` (≈9 h simulated in total):
 
 * 3 h at the default 600 s loop interval,
 * 3 h at the 3 s interval floor (20 scans/min, the worst CPU/remote case),
@@ -31,15 +31,48 @@ the player actually uses (buttons and text boxes found by their label text).
 | unconfirmed, 3 h | — | 3600 (20.0/min) | 240 (1.3/min) | 73 → 73 | — | +140 KB |
 
 * No instance growth, no handler growth, no coroutine growth (exactly one loop coroutine at all
-  times, including after 15 START/STOP cycles), no heap growth beyond GC noise — the unconfirmed
-  run's +140 KB over 3 h is sublinear (it is +203 KB after 6 h, i.e. it does not scale with time;
-  it is the 80-line log ring and its strings settling).
+  times, including after 15 START/STOP cycles). See the leak scaling evidence below — heap growth
+  flattens instead of scaling with run time.
 * CPU is 0.01 ms per simulated second when idle and ~4 ms per scan at the fastest allowed
   interval, which is well below one frame at 60 FPS.
 * Remote traffic is bounded by the loop interval: one `FetchProfile` per scan, and `SellSelection`
   only when something is actually eligible. There is no polling, no heartbeat work and no timer
   per egg.
 * Log box stays at 8 visible lines (`appendLog` ring of 80) for the whole run.
+
+### Is it a leak? (scaling evidence)
+
+Same code, three durations. A real leak grows linearly with time; this does not:
+
+| mode | 1 h | 3 h | 6 h | 10 h |
+|---|---|---|---|---|
+| 600 s interval, heap Δ | −1 KB | +6 KB | +15 KB | — |
+| 3 s interval, heap Δ | +3 KB | +9 KB | +19 KB | — |
+| unconfirmed, heap Δ | +56 KB | +140 KB | +203 KB | — |
+| unconfirmed, harness recording disabled, heap Δ | +40 KB | +88 KB | +97 KB | **+109 KB** |
+
+The last row is the honest measurement: with the test harness no longer storing 480–800 payload
+records, growth is +40 KB in hour 1 and +109 KB after 10 hours — it plateaus (roughly +2 KB/h at the
+end), while instances, handlers and coroutines stay perfectly flat. The residual is the script's
+80-line log ring and the string intern table filling up, not per-scan accumulation.
+
+### Cost of one scan (bag size)
+
+Each scan walks the whole profile exactly once. Measured (1000-record profiles, no fetch copies):
+
+| eggs in bag | CPU per scan | CPU per egg |
+|---|---|---|
+| 100 | 33 ms | 0.30 ms |
+| 200 | 60 ms | 0.30 ms |
+| 300 | 89 ms | 0.30 ms |
+| 1000 | 293 ms | 0.28 ms |
+| 2000 | 557 ms | 0.28 ms |
+
+So the cost is linear and predictable, with no super-linear term. At the default 600 s interval a
+1000-egg bag costs 293 ms every 10 minutes (~0.05 % of one core). At the 3 s interval floor the same
+bag costs ~293 ms out of every 3000 ms (~9 %) and the scan itself does not yield, so it is a single
+~293 ms hitch per scan — the only place where bag size is visible. A bag of ~200 eggs (well above
+average) costs ~60 ms per scan.
 
 ## Edge cases covered
 
