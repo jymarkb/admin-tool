@@ -34,20 +34,22 @@ if not LocalPlayer then
     LocalPlayer = LocalPlayer or Players.LocalPlayer
 end
 
-local function getSafeUiParent()
-    if typeof(gethui) == "function" then
-        local okHui, h = pcall(gethui)
-        if okHui and h then return h end
+local PlayerGui
+do
+    local function getSafeUiParent()
+        if typeof(gethui) == "function" then
+            local okHui, h = pcall(gethui)
+            if okHui and h then return h end
+        end
+        local okCore, core = pcall(function() return game:GetService("CoreGui") end)
+        if okCore and core then
+            local okTest = pcall(function() local f = Instance.new("Folder", core); f:Destroy() end)
+            if okTest then return core end
+        end
+        return (LocalPlayer and (LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5))) or game:GetService("CoreGui")
     end
-    local okCore, core = pcall(function() return game:GetService("CoreGui") end)
-    if okCore and core then
-        local okTest = pcall(function() local f = Instance.new("Folder", core); f:Destroy() end)
-        if okTest then return core end
-    end
-    return (LocalPlayer and (LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5))) or game:GetService("CoreGui")
+    PlayerGui = getSafeUiParent()
 end
-
-local PlayerGui = getSafeUiParent()
 
 -- Connection management
 local connections = {}
@@ -447,7 +449,7 @@ local BIOME_EGG_CATALOG = {
 }
 
 -- Fast lookup indexes
-local SPECIES_INFO, SPECIES_INFO_BY_BIOME, EGG_ALIASES, EGG_TO_BIOME = {}, {}, {}, {}
+local SPECIES_INFO, SPECIES_INFO_BY_BIOME, EGG_ALIASES = {}, {}, {}
 
 local function normalizeSpecies(name)
     if not name or type(name) ~= "string" then return "" end
@@ -463,11 +465,6 @@ end
 for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
     if not SPECIES_INFO_BY_BIOME[biomeData.Biome] then
         SPECIES_INFO_BY_BIOME[biomeData.Biome] = {}
-    end
-    if biomeData.EggNames then
-        for _, eggName in ipairs(biomeData.EggNames) do
-            EGG_TO_BIOME[normalizeSpecies(eggName)] = biomeData.Biome
-        end
     end
 
     for _, spec in ipairs(biomeData.Species) do
@@ -1761,8 +1758,10 @@ rarityList.ClipsDescendants = true
 rarityList.Visible = false
 rarityList.Parent = filterFrame
 Instance.new("UICorner", rarityList).CornerRadius = UDim.new(0, 6)
-local rStroke = Instance.new("UIStroke", rarityList)
-rStroke.Color = Color3.fromRGB(60, 85, 130); rStroke.Thickness = 1
+do
+    local s = Instance.new("UIStroke", rarityList)
+    s.Color = Color3.fromRGB(60, 85, 130); s.Thickness = 1
+end
 
 local rarityQuickRow = Instance.new("Frame")
 rarityQuickRow.Size = UDim2.new(1, -6, 0, 22)
@@ -1798,9 +1797,11 @@ rarityItemsContainer.BackgroundTransparency = 1
 rarityItemsContainer.ZIndex = 51
 rarityItemsContainer.Parent = rarityList
 
-local rLayout = Instance.new("UIListLayout")
-rLayout.Padding = UDim.new(0, 2); rLayout.SortOrder = Enum.SortOrder.LayoutOrder
-rLayout.Parent = rarityItemsContainer
+do
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0, 2); l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.Parent = rarityItemsContainer
+end
 
 local rarityBtns = {}
 local refreshRarityButtons
@@ -1899,8 +1900,10 @@ biomeList.ClipsDescendants = true
 biomeList.Visible = false
 biomeList.Parent = filterFrame
 Instance.new("UICorner", biomeList).CornerRadius = UDim.new(0, 6)
-local bStroke = Instance.new("UIStroke", biomeList)
-bStroke.Color = Color3.fromRGB(60, 85, 130); bStroke.Thickness = 1
+do
+    local s = Instance.new("UIStroke", biomeList)
+    s.Color = Color3.fromRGB(60, 85, 130); s.Thickness = 1
+end
 
 local biomeQuickRow = Instance.new("Frame")
 biomeQuickRow.Size = UDim2.new(1, -6, 0, 22)
@@ -1939,9 +1942,11 @@ biomeScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 biomeScroll.ZIndex = 51
 biomeScroll.Parent = biomeList
 
-local bLayout = Instance.new("UIListLayout")
-bLayout.Padding = UDim.new(0, 2); bLayout.SortOrder = Enum.SortOrder.LayoutOrder
-bLayout.Parent = biomeScroll
+do
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0, 2); l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.Parent = biomeScroll
+end
 
 local biomeBtns = {}
 local refreshBiomeButtons
@@ -2040,8 +2045,10 @@ eggDropList.ClipsDescendants = true
 eggDropList.Visible = false
 eggDropList.Parent = filterFrame
 Instance.new("UICorner", eggDropList).CornerRadius = UDim.new(0, 6)
-local eStroke = Instance.new("UIStroke", eggDropList)
-eStroke.Color = Color3.fromRGB(60, 85, 130); eStroke.Thickness = 1
+do
+    local s = Instance.new("UIStroke", eggDropList)
+    s.Color = Color3.fromRGB(60, 85, 130); s.Thickness = 1
+end
 
 local eggQuickRow = Instance.new("Frame")
 eggQuickRow.Size = UDim2.new(1, -6, 0, 22)
@@ -2084,7 +2091,11 @@ eggSearchBox.TextXAlignment = Enum.TextXAlignment.Left
 eggSearchBox.ZIndex = 52
 eggSearchBox.Parent = eggDropList
 Instance.new("UICorner", eggSearchBox).CornerRadius = UDim.new(0, 4)
-local esp = Instance.new("UIPadding"); esp.PaddingLeft = UDim.new(0, 6); esp.Parent = eggSearchBox
+do
+    local p = Instance.new("UIPadding")
+    p.PaddingLeft = UDim.new(0, 6)
+    p.Parent = eggSearchBox
+end
 
 local eggDropScroll = Instance.new("ScrollingFrame")
 eggDropScroll.Size = UDim2.new(1, -6, 1, -54)
@@ -2096,10 +2107,12 @@ eggDropScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 eggDropScroll.ZIndex = 51
 eggDropScroll.Parent = eggDropList
 
-local eggDropListLayout = Instance.new("UIListLayout")
-eggDropListLayout.Padding = UDim.new(0, 2)
-eggDropListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-eggDropListLayout.Parent = eggDropScroll
+do
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0, 2)
+    l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.Parent = eggDropScroll
+end
 
 local eggPool = {}
 local rebuildEggDropdownItems
@@ -2262,30 +2275,32 @@ local function toggleDropdown(dd)
     end
 end
 
-local rarityDd = {
-    btn = rarityBtn,
-    list = rarityList,
-    onOpen = function() refreshRarityButtons() end,
-    updateBtnText = updateRarityBtnText,
-}
-local biomeDd = {
-    btn = biomeBtn,
-    list = biomeList,
-    onOpen = function() refreshBiomeButtons() end,
-    updateBtnText = updateBiomeBtnText,
-}
-local eggDd = {
-    btn = eggBtn,
-    list = eggDropList,
-    onOpen = function() rebuildEggDropdownItems() end,
-    updateBtnText = updateEggBtnText,
-}
+do
+    local rarityDd = {
+        btn = rarityBtn,
+        list = rarityList,
+        onOpen = function() refreshRarityButtons() end,
+        updateBtnText = updateRarityBtnText,
+    }
+    local biomeDd = {
+        btn = biomeBtn,
+        list = biomeList,
+        onOpen = function() refreshBiomeButtons() end,
+        updateBtnText = updateBiomeBtnText,
+    }
+    local eggDd = {
+        btn = eggBtn,
+        list = eggDropList,
+        onOpen = function() rebuildEggDropdownItems() end,
+        updateBtnText = updateEggBtnText,
+    }
 
-rarityBtn.MouseButton1Click:Connect(function() toggleDropdown(rarityDd) end)
-biomeBtn.MouseButton1Click:Connect(function() toggleDropdown(biomeDd) end)
-eggBtn.MouseButton1Click:Connect(function() toggleDropdown(eggDd) end)
-if hwRarityBtn and hwRarityDd then
-    hwRarityBtn.MouseButton1Click:Connect(function() toggleDropdown(hwRarityDd) end)
+    rarityBtn.MouseButton1Click:Connect(function() toggleDropdown(rarityDd) end)
+    biomeBtn.MouseButton1Click:Connect(function() toggleDropdown(biomeDd) end)
+    eggBtn.MouseButton1Click:Connect(function() toggleDropdown(eggDd) end)
+    if hwRarityBtn and hwRarityDd then
+        hwRarityBtn.MouseButton1Click:Connect(function() toggleDropdown(hwRarityDd) end)
+    end
 end
 
 local function isInsideGui(guiObj, pos)
@@ -2319,17 +2334,19 @@ eggListScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 eggListScroll.ZIndex = 1
 eggListScroll.Parent = tabEggs
 
-local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 3)
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Parent = eggListScroll
+do
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0, 3)
+    l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.Parent = eggListScroll
 
-local listPadding = Instance.new("UIPadding")
-listPadding.PaddingTop = UDim.new(0, 2)
-listPadding.PaddingBottom = UDim.new(0, 12)
-listPadding.PaddingLeft = UDim.new(0, 2)
-listPadding.PaddingRight = UDim.new(0, 6)
-listPadding.Parent = eggListScroll
+    local p = Instance.new("UIPadding")
+    p.PaddingTop = UDim.new(0, 2)
+    p.PaddingBottom = UDim.new(0, 12)
+    p.PaddingLeft = UDim.new(0, 2)
+    p.PaddingRight = UDim.new(0, 6)
+    p.Parent = eggListScroll
+end
 
 -- ============================================================================
 -- ============================================================================
@@ -2508,8 +2525,7 @@ local eggCacheByUid = {}
 local rarityByUid = {}
 local cardPool = {}
 local emptyNoticeLabel = nil
-local listDirty = false
-local isFetchingSnapshot = false
+local listDirty, isFetchingSnapshot, snapshotSyncDebounce = false, false, false
 
 local function getNetRemote(name)
     local ok, res = pcall(function()
@@ -2523,11 +2539,13 @@ end
 local function getEggPosition(r, uid)
     if typeof(r) == "table" then
         local cf = r.BoundsCFrame or r.BottomCFrame or r.Position
-        if typeof(cf) == "CFrame" then return cf.Position end
-        if typeof(cf) == "Vector3" then return cf end
-        if typeof(cf) == "table" and cf.X and cf.Y and cf.Z then
-            return Vector3.new(cf.X, cf.Y, cf.Z)
+        local p = nil
+        if typeof(cf) == "CFrame" then p = cf.Position
+        elseif typeof(cf) == "Vector3" then p = cf
+        elseif typeof(cf) == "table" and cf.X and cf.Y and cf.Z then
+            p = Vector3.new(cf.X, cf.Y, cf.Z)
         end
+        if p and p.Magnitude > 10 then return p end
     end
     local u = uid or (typeof(r) == "table" and (r.Uid or r.EggUid))
     if u and u ~= "" then
@@ -2535,16 +2553,26 @@ local function getEggPosition(r, uid)
         if slots then
             local sl = slots:FindFirstChild(u)
             if sl then
-                if sl:IsA("BasePart") then return sl.Position end
-                if sl:IsA("Model") then return sl:GetPivot().Position end
+                if sl:IsA("BasePart") and sl.Position.Magnitude > 10 then return sl.Position end
+                if sl:IsA("Model") then
+                    local p = sl.PrimaryPart and sl.PrimaryPart.Position
+                    if p and p.Magnitude > 10 then return p end
+                    local ok, piv = pcall(function() return sl:GetPivot().Position end)
+                    if ok and piv and piv.Magnitude > 10 then return piv end
+                end
             end
         end
         local eggs = Workspace:FindFirstChild("Eggs")
         if eggs then
             local em = eggs:FindFirstChild(u)
             if em then
-                if em:IsA("BasePart") then return em.Position end
-                if em:IsA("Model") then return em:GetPivot().Position end
+                if em:IsA("BasePart") and em.Position.Magnitude > 10 then return em.Position end
+                if em:IsA("Model") then
+                    local p = em.PrimaryPart and em.PrimaryPart.Position
+                    if p and p.Magnitude > 10 then return p end
+                    local ok, piv = pcall(function() return em:GetPivot().Position end)
+                    if ok and piv and piv.Magnitude > 10 then return piv end
+                end
             end
         end
     end
@@ -2572,9 +2600,27 @@ local function resolveEggFields(r, uid, charPos)
     local rawArea = r.AreaId
     if rawArea == "Light Dark" then rawArea = "Light & Dark" end
     local serverRarity = r.RarityId or r.Rarity or (r.Attributes and r.Attributes.Rarity) or rarityByUid[uid]
+    local pos = getEggPosition(r, uid)
 
     local searchArea = rawArea
     if not searchArea or searchArea == "" or searchArea == "Unknown" then
+        if pos then
+            local x = pos.X
+            if x >= 500 and x < 680 then searchArea = "Forest"
+            elseif x >= 680 and x < 850 then searchArea = "Lake"
+            elseif x >= 850 and x < 1050 then searchArea = "Desert"
+            elseif x >= 1050 and x < 1300 then searchArea = "Jungle"
+            elseif x >= 1300 and x < 1650 then searchArea = "Snow"
+            elseif x >= 1650 and x < 2050 then searchArea = "Volcano"
+            elseif x >= 2050 and x < 2500 then searchArea = "Abyss Ocean"
+            elseif x >= 2500 and x < 3100 then searchArea = "Prehistoric"
+            elseif x >= 3100 and x < 3700 then searchArea = "Cosmic"
+            elseif x >= 3700 and x < 4400 then searchArea = "Cherry Blossom"
+            elseif x >= 4400 and x < 5200 then searchArea = "Titan Temple"
+            elseif x >= 5200 and x < 6100 then searchArea = "Light & Dark"
+            elseif x >= 6100 and x < 7500 then searchArea = "Enchanted Forest"
+            end
+        end
         if rawName:lower() == "shark" and serverRarity == "Secret" then
             searchArea = "Titan Temple"
         end
@@ -2588,9 +2634,36 @@ local function resolveEggFields(r, uid, charPos)
 
     local disp = (info and info.DisplayName) or r.DisplayName or r.AssetCategory or rawName
     local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown") and serverRarity or ((info and info.Rarity) or "Unknown")
+
+    -- Fallback: If name is generic (e.g. "Field", "Field Egg", "Egg") but rarity is known, deduce from catalog
+    local isGeneric = (disp == "Egg" or disp == "Field Egg" or disp == "Field" or disp:lower():find("field") ~= nil or not info)
+    if isGeneric and rarity and rarity ~= "Unknown" then
+        if searchArea and SPECIES_INFO_BY_BIOME[searchArea] then
+            for _, cand in pairs(SPECIES_INFO_BY_BIOME[searchArea]) do
+                if cand.Rarity == rarity then
+                    info = cand
+                    disp = cand.DisplayName or cand.Name
+                    break
+                end
+            end
+        else
+            -- Cross-biome resolution fallback for rare/unique rarities
+            for bName, bTable in pairs(SPECIES_INFO_BY_BIOME) do
+                for _, cand in pairs(bTable) do
+                    if cand.Rarity == rarity then
+                        info = cand
+                        disp = cand.DisplayName or cand.Name
+                        searchArea = bName
+                        break
+                    end
+                end
+                if info then break end
+            end
+        end
+    end
+
     local rank = (info and info.Rank) or (RARITY_RANK[rarity] or 1)
     local biome = (searchArea and searchArea ~= "" and searchArea ~= "Unknown") and searchArea or ((info and info.Biome) or "Unknown")
-    local pos = getEggPosition(r, uid)
     local dist = (pos and charPos) and (pos - charPos).Magnitude or nil
     return rawName, info, disp, serverRarity, rarity, rank, biome, pos, dist
 end
@@ -2938,51 +3011,21 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onF
                     local rec = eggCacheByUid[activeWalkUid]
                     local myId = tostring(LocalPlayer and LocalPlayer.UserId or "")
                     if rec.State == "Claimed" or (rec.CarrierUserId and tostring(rec.CarrierUserId) ~= myId) then
+                        stopWalking()
                         if autoReturnActive and autoReturnTargetUid == activeWalkUid then
                             if rec.State == "Claimed" and (rec.CarrierUserId and tostring(rec.CarrierUserId) == myId) then
-                                stopWalking()
                                 handleEggDelivered(activeWalkUid)
-                                return
                             else
-                                eggCacheByUid[activeWalkUid] = nil
-                                local nextEgg, nextUid, nextPos = nil, nil, nil
-                                for cUid, cEgg in pairs(eggCacheByUid) do
-                                    if isFarmableEgg(cEgg) and cUid ~= activeWalkUid then
-                                        local p = getEggPosition(cEgg, cUid)
-                                        if p then
-                                            nextEgg = cEgg
-                                            nextUid = cUid
-                                            nextPos = p
-                                            break
-                                        end
-                                    end
-                                end
-                                if nextEgg and nextPos then
-                                    activeWalkUid = nextUid
-                                    autoReturnTargetUid = nextUid
-                                    targetPos = nextPos
-                                    activeWalkTarget = nextPos
-                                    if activityStatusLabel then
-                                        activityStatusLabel.Text = "Status: Target egg snatched by rival - pivoting..."
-                                        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
-                                    end
-                                    pcall(function() hum:MoveTo(nextPos) end)
-                                else
-                                    stopWalking()
-                                    autoReturnActive = false
-                                    autoReturnTargetUid = nil
-                                    returnTripInProgress = false
-                                    if activityStatusLabel then
-                                        activityStatusLabel.Text = "Status: Target egg taken by another player"
-                                        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-                                    end
-                                    return
+                                autoReturnActive = false
+                                autoReturnTargetUid = nil
+                                returnTripInProgress = false
+                                if activityStatusLabel then
+                                    activityStatusLabel.Text = "Status: Target egg taken by another player"
+                                    activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
                                 end
                             end
-                        else
-                            stopWalking()
-                            return
                         end
+                        return
                     end
 
                     -- Live refresh target position if egg shifted
@@ -3508,10 +3551,7 @@ end
 -- ============================================================================
 
 local function getCarryRemote()
-    local ok, r = pcall(function()
-        return ReplicatedStorage.Packages.Networking["RF/EggWorld/AskFieldEggCarry"]
-    end)
-    return ok and r or nil
+    return getNetRemote("RF/EggWorld/AskFieldEggCarry")
 end
 
 local function carryEgg(uid, burstCount)
@@ -3744,17 +3784,24 @@ executePickupSpam = function(target)
         triggerProximityPrompt(target.Prompt)
     else
         local pr = nil
-        local ar = Workspace:FindFirstChild("AreaEggSlotsClient")
-        if ar and target.Uid then
-            local sl = ar:FindFirstChild(target.Uid)
-            if not sl then
-                for _, ch in ipairs(ar:GetChildren()) do
-                    if ch:GetAttribute("Uid") == target.Uid or ch:GetAttribute("EggUid") == target.Uid then
-                        sl = ch; break
+        local spp = Workspace:FindFirstChild("SmartPromptPart")
+        if spp then
+            local sp = spp:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if sp and isCarryPrompt(sp) then pr = sp end
+        end
+        if not pr then
+            local ar = Workspace:FindFirstChild("AreaEggSlotsClient")
+            if ar and target.Uid then
+                local sl = ar:FindFirstChild(target.Uid)
+                if not sl then
+                    for _, ch in ipairs(ar:GetChildren()) do
+                        if ch:GetAttribute("Uid") == target.Uid or ch:GetAttribute("EggUid") == target.Uid then
+                            sl = ch; break
+                        end
                     end
                 end
+                if sl then pr = sl:FindFirstChildWhichIsA("ProximityPrompt", true) end
             end
-            if sl then pr = sl:FindFirstChildWhichIsA("ProximityPrompt", true) end
         end
         if not pr and target.Uid and Workspace:FindFirstChild("Eggs") then
             local em = Workspace.Eggs:FindFirstChild(target.Uid)
@@ -3769,7 +3816,7 @@ executePickupSpam = function(target)
     end
 end
 
-startAutoPickupSpam = function()
+startAutoPickupSpam = function(initialTarget)
     if weAreCarrying then return end
     autoPickupToken = (autoPickupToken or 0) + 1
     local myTok = autoPickupToken
@@ -3778,7 +3825,7 @@ startAutoPickupSpam = function()
         local maxDuration = 1.5
         local hasSnapped = false
         while autoPickupToken == myTok and PICKUP_CONFIG and PICKUP_CONFIG.Enabled and (os.clock() - tStart < maxDuration) do
-            local target = getBestFocusedTarget()
+            local target = getBestFocusedTarget() or initialTarget
             if target then
                 if not hasSnapped and PICKUP_CONFIG.ReachAssist and target.Position then
                     local char = LocalPlayer and LocalPlayer.Character
@@ -3844,10 +3891,17 @@ addConnection(UserInputService.InputBegan:Connect(function(input, gpe)
     end
 
     if input.KeyCode == Enum.KeyCode.E then
-        if hwAutoPickEnabled and startHalloweenAutoPickup then
+        local inHw = false
+        pcall(function()
+            inHw = (LocalPlayer and LocalPlayer:GetAttribute("InHalloweenDimension") == true)
+                or (Workspace:FindFirstChild("HalloweenDimension") ~= nil)
+        end)
+        if inHw and hwAutoPickEnabled and startHalloweenAutoPickup then
             startHalloweenAutoPickup()
         elseif PICKUP_CONFIG and PICKUP_CONFIG.Enabled then
             startAutoPickupSpam()
+        elseif startHalloweenAutoPickup then
+            startHalloweenAutoPickup()
         end
     end
 end))
@@ -3988,12 +4042,13 @@ local function getOrCreateCard(idx)
             returnTripInProgress = false
 
             walkToTarget(targetPos, 3.5, function()
-                executePickupSpam({
+                local pickupTarget = {
                     Uid = eggData.Uid,
                     Position = targetPos,
                     Name = eggData.DisplayName
-                })
-                startAutoPickupSpam()
+                }
+                executePickupSpam(pickupTarget)
+                startAutoPickupSpam(pickupTarget)
             end, eggData.Uid, 8.0)
         end))
 
@@ -6481,165 +6536,168 @@ end
 -- FULL EGG LIST JSON EXPORTER (For diagnostics, rarity audits & alias mapping)
 -- ============================================================================
 
-local function copyToClipboard(str)
-    local ok = false
-    if typeof(setclipboard) == "function" then
-        ok = pcall(setclipboard, str)
-    end
-    if not ok and typeof(toclipboard) == "function" then
-        ok = pcall(toclipboard, str)
-    end
-    return ok
-end
-
-local function sanitizeForJson(val, depth)
-    depth = depth or 0
-    if depth > 6 then return tostring(val) end
-    if val == nil then return nil end
-
-    local t = typeof(val)
-    if t == "string" or t == "number" or t == "boolean" then
-        return val
-    elseif t == "Vector3" then
-        return {
-            X = math.floor(val.X * 10 + 0.5) / 10,
-            Y = math.floor(val.Y * 10 + 0.5) / 10,
-            Z = math.floor(val.Z * 10 + 0.5) / 10,
-        }
-    elseif t == "CFrame" then
-        local p = val.Position
-        return {
-            X = math.floor(p.X * 10 + 0.5) / 10,
-            Y = math.floor(p.Y * 10 + 0.5) / 10,
-            Z = math.floor(p.Z * 10 + 0.5) / 10,
-        }
-    elseif t == "Color3" then
-        return {
-            R = math.floor(val.R * 255 + 0.5),
-            G = math.floor(val.G * 255 + 0.5),
-            B = math.floor(val.B * 255 + 0.5),
-        }
-    elseif t == "Instance" then
-        return {
-            ClassName = val.ClassName,
-            Name = val.Name,
-        }
-    elseif t == "EnumItem" then
-        return tostring(val)
-    elseif t == "table" then
-        local count = 0
-        for _ in pairs(val) do
-            count = count + 1
+local exportEggListJson
+do
+    local function copyToClipboard(str)
+        local ok = false
+        if typeof(setclipboard) == "function" then
+            ok = pcall(setclipboard, str)
         end
-        local isDenseArray = (count > 0)
-        if isDenseArray then
-            for i = 1, count do
-                if val[i] == nil then
-                    isDenseArray = false
-                    break
+        if not ok and typeof(toclipboard) == "function" then
+            ok = pcall(toclipboard, str)
+        end
+        return ok
+    end
+
+    local function sanitizeForJson(val, depth)
+        depth = depth or 0
+        if depth > 6 then return tostring(val) end
+        if val == nil then return nil end
+
+        local t = typeof(val)
+        if t == "string" or t == "number" or t == "boolean" then
+            return val
+        elseif t == "Vector3" then
+            return {
+                X = math.floor(val.X * 10 + 0.5) / 10,
+                Y = math.floor(val.Y * 10 + 0.5) / 10,
+                Z = math.floor(val.Z * 10 + 0.5) / 10,
+            }
+        elseif t == "CFrame" then
+            local p = val.Position
+            return {
+                X = math.floor(p.X * 10 + 0.5) / 10,
+                Y = math.floor(p.Y * 10 + 0.5) / 10,
+                Z = math.floor(p.Z * 10 + 0.5) / 10,
+            }
+        elseif t == "Color3" then
+            return {
+                R = math.floor(val.R * 255 + 0.5),
+                G = math.floor(val.G * 255 + 0.5),
+                B = math.floor(val.B * 255 + 0.5),
+            }
+        elseif t == "Instance" then
+            return {
+                ClassName = val.ClassName,
+                Name = val.Name,
+            }
+        elseif t == "EnumItem" then
+            return tostring(val)
+        elseif t == "table" then
+            local count = 0
+            for _ in pairs(val) do
+                count = count + 1
+            end
+            local isDenseArray = (count > 0)
+            if isDenseArray then
+                for i = 1, count do
+                    if val[i] == nil then
+                        isDenseArray = false
+                        break
+                    end
                 end
             end
-        end
 
-        local clean = {}
-        if isDenseArray then
-            for i = 1, count do
-                clean[i] = sanitizeForJson(val[i], depth + 1)
+            local clean = {}
+            if isDenseArray then
+                for i = 1, count do
+                    clean[i] = sanitizeForJson(val[i], depth + 1)
+                end
+            else
+                for k, v in pairs(val) do
+                    clean[tostring(k)] = sanitizeForJson(v, depth + 1)
+                end
             end
+            return clean
         else
-            for k, v in pairs(val) do
-                clean[tostring(k)] = sanitizeForJson(v, depth + 1)
-            end
+            return tostring(val)
         end
-        return clean
-    else
-        return tostring(val)
     end
-end
 
-local function exportEggListJson()
-    local charPos = nil
-    pcall(function()
-        local ch = LocalPlayer and LocalPlayer.Character
-        local root = ch and ch:FindFirstChild("HumanoidRootPart")
-        if root then charPos = root.Position end
-    end)
+    exportEggListJson = function()
+        local charPos = nil
+        pcall(function()
+            local ch = LocalPlayer and LocalPlayer.Character
+            local root = ch and ch:FindFirstChild("HumanoidRootPart")
+            if root then charPos = root.Position end
+        end)
 
-    local exportData = {
-        exportedAt = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-        totalCached = 0,
-        totalFarmable = 0,
-        farmableEggs = {},
-        allEggs = {},
-    }
-
-    for uid, r in pairs(eggCacheByUid) do
-        exportData.totalCached = exportData.totalCached + 1
-
-        local rawName, info, disp, serverRarity, rarity, rank, biome, pos, dist = resolveEggFields(r, uid, charPos)
-
-        local raritySource = "fallback_unknown"
-        if serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown" then
-            raritySource = "server"
-        elseif info and info.Rarity then
-            raritySource = "catalog"
-        end
-
-        local eggItem = {
-            uid = tostring(uid),
-            displayName = disp,
-            rawName = rawName,
-            assetCategory = r.AssetCategory,
-            speciesMatched = (info ~= nil),
-            matchedSpeciesName = info and info.DisplayName or nil,
-            serverRarityId = serverRarity,
-            catalogRarity = info and info.Rarity or nil,
-            finalRarity = rarity,
-            raritySource = raritySource,
-            rank = rank,
-            biome = biome,
-            state = r.State or "Slot",
-            carrierUserId = r.CarrierUserId,
-            isFarmable = isFarmableEgg(r),
-            position = pos and {
-                X = math.floor(pos.X * 10 + 0.5) / 10,
-                Y = math.floor(pos.Y * 10 + 0.5) / 10,
-                Z = math.floor(pos.Z * 10 + 0.5) / 10,
-            } or nil,
-            distance = dist and (math.floor(dist * 10 + 0.5) / 10) or nil,
-            rawRecord = sanitizeForJson(r),
+        local exportData = {
+            exportedAt = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+            totalCached = 0,
+            totalFarmable = 0,
+            farmableEggs = {},
+            allEggs = {},
         }
 
-        table.insert(exportData.allEggs, eggItem)
-        if eggItem.isFarmable then
-            table.insert(exportData.farmableEggs, eggItem)
+        for uid, r in pairs(eggCacheByUid) do
+            exportData.totalCached = exportData.totalCached + 1
+
+            local rawName, info, disp, serverRarity, rarity, rank, biome, pos, dist = resolveEggFields(r, uid, charPos)
+
+            local raritySource = "fallback_unknown"
+            if serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown" then
+                raritySource = "server"
+            elseif info and info.Rarity then
+                raritySource = "catalog"
+            end
+
+            local eggItem = {
+                uid = tostring(uid),
+                displayName = disp,
+                rawName = rawName,
+                assetCategory = r.AssetCategory,
+                speciesMatched = (info ~= nil),
+                matchedSpeciesName = info and info.DisplayName or nil,
+                serverRarityId = serverRarity,
+                catalogRarity = info and info.Rarity or nil,
+                finalRarity = rarity,
+                raritySource = raritySource,
+                rank = rank,
+                biome = biome,
+                state = r.State or "Slot",
+                carrierUserId = r.CarrierUserId,
+                isFarmable = isFarmableEgg(r),
+                position = pos and {
+                    X = math.floor(pos.X * 10 + 0.5) / 10,
+                    Y = math.floor(pos.Y * 10 + 0.5) / 10,
+                    Z = math.floor(pos.Z * 10 + 0.5) / 10,
+                } or nil,
+                distance = dist and (math.floor(dist * 10 + 0.5) / 10) or nil,
+                rawRecord = sanitizeForJson(r),
+            }
+
+            table.insert(exportData.allEggs, eggItem)
+            if eggItem.isFarmable then
+                table.insert(exportData.farmableEggs, eggItem)
+            end
         end
-    end
 
-    exportData.totalFarmable = #exportData.farmableEggs
+        exportData.totalFarmable = #exportData.farmableEggs
 
-    -- Sort farmable eggs: highest rank first, then distance
-    table.sort(exportData.farmableEggs, function(a, b)
-        if a.rank ~= b.rank then return a.rank > b.rank end
-        return (a.distance or 99999) < (b.distance or 99999)
-    end)
+        -- Sort farmable eggs: highest rank first, then distance
+        table.sort(exportData.farmableEggs, function(a, b)
+            if a.rank ~= b.rank then return a.rank > b.rank end
+            return (a.distance or 99999) < (b.distance or 99999)
+        end)
 
-    local okJson, jsonStr = pcall(function()
-        return HttpService:JSONEncode(exportData)
-    end)
+        local okJson, jsonStr = pcall(function()
+            return HttpService:JSONEncode(exportData)
+        end)
 
-    if okJson and jsonStr then
-        local okClip = copyToClipboard(jsonStr)
-        print(string.format("[EggGoTo v11] Exported JSON (%d total, %d farmable, %d bytes) | Clipboard: %s",
-            exportData.totalCached,
-            exportData.totalFarmable,
-            #jsonStr,
-            tostring(okClip)
-        ))
-        return true, exportData.totalFarmable
-    else
-        warn("[EggGoTo v11] JSONEncode failed: " .. tostring(jsonStr))
-        return false, 0
+        if okJson and jsonStr then
+            local okClip = copyToClipboard(jsonStr)
+            print(string.format("[EggGoTo v11] Exported JSON (%d total, %d farmable, %d bytes) | Clipboard: %s",
+                exportData.totalCached,
+                exportData.totalFarmable,
+                #jsonStr,
+                tostring(okClip)
+            ))
+            return true, exportData.totalFarmable
+        else
+            warn("[EggGoTo v11] JSONEncode failed: " .. tostring(jsonStr))
+            return false, 0
+        end
     end
 end
 
@@ -6660,7 +6718,7 @@ local function syncAreaEggSlotsESP()
                 cf = child.CFrame
             elseif child:IsA("Model") then
                 local ok, piv = pcall(function() return child:GetPivot() end)
-                if ok and piv then cf = piv end
+                if ok and piv and piv.Position.Magnitude > 10 then cf = piv end
                 if not cf and child.PrimaryPart then cf = child.PrimaryPart.CFrame end
             end
 
@@ -6671,19 +6729,36 @@ local function syncAreaEggSlotsESP()
                 species = base:gsub("(%l)(%u)", "%1 %2")
             elseif uid:find("Forest:Slot") then
                 species = "Forest Egg"
+            else
+                local attrSpecies = child:GetAttribute("DisplayName") or child:GetAttribute("Species") or child:GetAttribute("AssetCategory")
+                if attrSpecies then
+                    species = tostring(attrSpecies)
+                else
+                    for _, ch in ipairs(child:GetChildren()) do
+                        local sInfo = SPECIES_INFO[ch.Name:lower()]
+                        if sInfo then
+                            species = sInfo.DisplayName
+                            break
+                        end
+                    end
+                end
             end
 
             local existing = eggCacheByUid[uid]
             if not existing then
-                eggCacheByUid[uid] = {
+                existing = {
                     Uid = uid,
                     State = "Slot",
                     BoundsCFrame = cf,
                     DisplayName = species or "Field Egg",
                 }
+                eggCacheByUid[uid] = existing
             else
-                if cf then existing.BoundsCFrame = cf end
-                if species then existing.DisplayName = species end
+                if cf and cf.Position.Magnitude > 10 then existing.BoundsCFrame = cf end
+                if species then
+                    existing.DisplayName = species
+                    existing.AssetCategory = species
+                end
             end
 
             if species and registerDynamicSpecies and registerDynamicSpecies(species, nil, nil) then
@@ -6773,6 +6848,15 @@ local function syncEggSnapshot()
     end)
 end
 
+local function scheduleSnapshotSync(delaySec)
+    if snapshotSyncDebounce then return end
+    snapshotSyncDebounce = true
+    task.delay(delaySec or 1.5, function()
+        snapshotSyncDebounce = false
+        syncEggSnapshot()
+    end)
+end
+
 -- Push event listener (0ms reaction, updates cache and requests throttled UI update)
 local function startPushMonitor()
     local evShift = getNetRemote("RE/EggWorld/FieldEggShifted")
@@ -6809,39 +6893,13 @@ local function startPushMonitor()
                 end
             elseif state == "Carried" and payload.CarrierUserId and tostring(payload.CarrierUserId) ~= myUidStr then
                 if autoReturnActive and autoReturnTargetUid == u then
-                    eggCacheByUid[u] = nil
-                    local nextEgg, nextUid, nextPos = nil, nil, nil
-                    for cUid, cEgg in pairs(eggCacheByUid) do
-                        if isFarmableEgg(cEgg) and cUid ~= u then
-                            local p = getEggPosition(cEgg, cUid)
-                            if p then
-                                nextEgg = cEgg
-                                nextUid = cUid
-                                nextPos = p
-                                break
-                            end
-                        end
-                    end
-                    if nextEgg and nextPos then
-                        autoReturnTargetUid = nextUid
-                        if activityStatusLabel then
-                            activityStatusLabel.Text = "Status: Target egg snatched by rival - pivoting..."
-                            activityStatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
-                        end
-                        walkToTarget(nextPos, 45.0, function()
-                            handleEggArrival(nextUid)
-                        end, function()
-                            stopWalking()
-                        end)
-                    else
-                        stopWalking()
-                        autoReturnActive = false
-                        autoReturnTargetUid = nil
-                        returnTripInProgress = false
-                        if activityStatusLabel then
-                            activityStatusLabel.Text = "Status: Target egg taken by another player"
-                            activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-                        end
+                    stopWalking()
+                    autoReturnActive = false
+                    autoReturnTargetUid = nil
+                    returnTripInProgress = false
+                    if activityStatusLabel then
+                        activityStatusLabel.Text = "Status: Target egg taken by another player"
+                        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
                     end
                 end
             elseif state == "Dropped" and autoReturnActive and autoReturnTargetUid == u then
@@ -6905,6 +6963,7 @@ local function startPushMonitor()
                     end
                 end
             end
+            requestListUpdate()
             syncEggSnapshot()
         end))
     end
@@ -6922,35 +6981,13 @@ local function startPushMonitor()
                     if returnTripInProgress then
                         handleEggDelivered(u)
                     else
-                        eggCacheByUid[u] = nil
-                        local nextEgg, nextUid, nextPos = nil, nil, nil
-                        for cUid, cEgg in pairs(eggCacheByUid) do
-                            if isFarmableEgg(cEgg) and cUid ~= u then
-                                local p = getEggPosition(cEgg, cUid)
-                                if p then
-                                    nextEgg = cEgg
-                                    nextUid = cUid
-                                    nextPos = p
-                                    break
-                                end
-                            end
-                        end
-                        if nextEgg and nextPos then
-                            autoReturnTargetUid = nextUid
-                            if activityStatusLabel then
-                                activityStatusLabel.Text = "Status: Target egg expired - pivoting..."
-                                activityStatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
-                            end
-                            walkToTarget(nextPos, 45.0, function()
-                                handleEggArrival(nextUid)
-                            end, function()
-                                stopWalking()
-                            end)
-                        else
-                            stopWalking()
-                            autoReturnActive = false
-                            autoReturnTargetUid = nil
-                            returnTripInProgress = false
+                        stopWalking()
+                        autoReturnActive = false
+                        autoReturnTargetUid = nil
+                        returnTripInProgress = false
+                        if activityStatusLabel then
+                            activityStatusLabel.Text = "Status: Target egg expired"
+                            activityStatusLabel.TextColor3 = Color3.fromRGB(255, 140, 60)
                         end
                     end
                 end
@@ -6970,7 +7007,7 @@ local function startPushMonitor()
                 if child:IsA("BasePart") then cf = child.CFrame
                 elseif child:IsA("Model") then
                     local ok, piv = pcall(function() return child:GetPivot() end)
-                    if ok and piv then cf = piv end
+                    if ok and piv and piv.Position.Magnitude > 10 then cf = piv end
                     if not cf and child.PrimaryPart then cf = child.PrimaryPart.CFrame end
                 end
                 local rawSrc = child:GetAttribute("PreparedSourceName")
@@ -6980,18 +7017,44 @@ local function startPushMonitor()
                     species = base:gsub("(%l)(%u)", "%1 %2")
                 elseif uid:find("Forest:Slot") then
                     species = "Forest Egg"
+                else
+                    local attrSpecies = child:GetAttribute("DisplayName") or child:GetAttribute("Species") or child:GetAttribute("AssetCategory")
+                    if attrSpecies then
+                        species = tostring(attrSpecies)
+                    else
+                        for _, ch in ipairs(child:GetChildren()) do
+                            local sInfo = SPECIES_INFO[ch.Name:lower()]
+                            if sInfo then
+                                species = sInfo.DisplayName
+                                break
+                            end
+                        end
+                    end
                 end
-                eggCacheByUid[uid] = {
-                    Uid = uid,
-                    State = "Slot",
-                    BoundsCFrame = cf,
-                    DisplayName = species or "Field Egg",
-                }
+                local existing = eggCacheByUid[uid]
+                if not existing then
+                    existing = {
+                        Uid = uid,
+                        State = "Slot",
+                        BoundsCFrame = cf,
+                        DisplayName = species or "Field Egg",
+                    }
+                    eggCacheByUid[uid] = existing
+                else
+                    if cf and cf.Position.Magnitude > 10 then existing.BoundsCFrame = cf end
+                    if species then
+                        existing.DisplayName = species
+                        existing.AssetCategory = species
+                    end
+                end
                 if species and registerDynamicSpecies and registerDynamicSpecies(species, nil, nil) then
                     table.sort(ALL_SPECIES_LIST, function(a, b) return a.Name:lower() < b.Name:lower() end)
                     if eggDropList and eggDropList.Visible and rebuildEggDropdownItems then
                         rebuildEggDropdownItems()
                     end
+                end
+                if scheduleSnapshotSync then
+                    scheduleSnapshotSync(1.5)
                 end
                 requestListUpdate()
             end
@@ -7074,14 +7137,20 @@ task.spawn(function()
     end
 end)
 
--- Background initialization (Workspace ESP & Push Monitor; snapshot is only a 1-time fallback)
+-- Background initialization (Workspace ESP & Push Monitor + 30s Overworld safety fallback)
 task.spawn(function()
     task.wait(0.5)
     startPushMonitor()
-    local okEsp = pcall(syncAreaEggSlotsESP)
-    -- If AreaEggSlotsClient is not present on this game instance, fall back to initial snapshot
-    if not okEsp or not Workspace:FindFirstChild("AreaEggSlotsClient") then
-        pcall(syncEggSnapshot)
+    pcall(syncAreaEggSlotsESP)
+    pcall(syncEggSnapshot)
+
+    while not _G.EggGoToUI_Stop do
+        task.wait(30.0)
+        local inHw = (LocalPlayer and LocalPlayer:GetAttribute("InHalloweenDimension") == true)
+            or (Workspace:FindFirstChild("HalloweenDimension") ~= nil)
+        if not inHw then
+            pcall(syncEggSnapshot)
+        end
     end
 end)
 
@@ -7166,6 +7235,18 @@ local function fullCleanup()
     _G.EggGoToUI_Stop = true
     velocityEnabled = false
     activeWalkToken = (activeWalkToken or 0) + 1
+    autoReturnActive = false
+    returnTripInProgress = false
+    if stopAutoPickupSpam then stopAutoPickupSpam() end
+    if stopWalking then stopWalking() end
+    if halloweenEngine then
+        if halloweenEngine.autoFarm and halloweenEngine.autoFarm.stop then
+            pcall(function() halloweenEngine.autoFarm.stop("Menu Closed") end)
+        end
+        if halloweenEngine.fishing and halloweenEngine.fishing.stop then
+            pcall(function() halloweenEngine.fishing.stop("Menu Closed") end)
+        end
+    end
     pcall(function()
         local ch = LocalPlayer and LocalPlayer.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
