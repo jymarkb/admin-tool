@@ -24,8 +24,10 @@ local TOOLS = {
     "Scramble Sword [X1]",
 }
 
-local SWING_DELAY = 0.03          -- very fast (was 0.15)
-local EQUIP_DELAY = 0.02          -- tiny delay after equip
+local TOOL_COOLDOWN = 0.60        -- game cooldown per bat
+local EQUIP_DELAY   = 0.03        -- delay to let tool weld/attach (was 0.02)
+-- Automatically paces switches so each bat is off cooldown (0.6s / #TOOLS):
+local SWING_DELAY   = math.max(0.02, (TOOL_COOLDOWN / math.max(#TOOLS, 1)) - EQUIP_DELAY)
 
 -- ======================
 -- REMOTE
@@ -56,16 +58,28 @@ local currentIndex = 1
 -- ======================
 -- HELPERS
 -- ======================
+local toolCache = {}
 local function findTool(name)
+    local cached = toolCache[name]
+    if cached and cached.Parent and (cached.Parent == lp.Character or (lp:FindFirstChild("Backpack") and cached.Parent == lp.Backpack)) then
+        return cached
+    end
+
     local char = lp.Character
     if char then
         local t = char:FindFirstChild(name)
-        if t and t:IsA("Tool") then return t end
+        if t and t:IsA("Tool") then
+            toolCache[name] = t
+            return t
+        end
     end
     local bp = lp:FindFirstChild("Backpack")
     if bp then
         local t = bp:FindFirstChild(name)
-        if t and t:IsA("Tool") then return t end
+        if t and t:IsA("Tool") then
+            toolCache[name] = t
+            return t
+        end
     end
     return nil
 end
@@ -196,7 +210,7 @@ local function setStatus(t, col)
 end
 
 -- ======================
--- SWING LOOP (fast)
+-- SWING LOOP (cooldown-aware)
 -- ======================
 local function startSwinging()
     if swinging then return end
@@ -204,6 +218,7 @@ local function startSwinging()
     enabled = true
 
     task.spawn(function()
+        local lastUiUpdate = 0
         while enabled do
             local toolName = TOOLS[currentIndex]
             local tool = findTool(toolName)
@@ -218,9 +233,13 @@ local function startSwinging()
 
                 if fireOk then
                     swingCount += 1
-                    countLabel.Text = "Swings: " .. swingCount
-                    toolLabel.Text = "Current: " .. toolName
-                    setStatus("Swinging: " .. toolName, Color3.fromRGB(255, 200, 100))
+                    local now = os.clock()
+                    if (now - lastUiUpdate) >= 0.15 then
+                        lastUiUpdate = now
+                        countLabel.Text = "Swings: " .. swingCount
+                        toolLabel.Text = "Current: " .. toolName
+                        setStatus("Swinging: " .. toolName, Color3.fromRGB(255, 200, 100))
+                    end
                 else
                     setStatus("Fire failed: " .. toolName, Color3.fromRGB(255, 120, 80))
                 end
@@ -237,6 +256,7 @@ local function startSwinging()
             task.wait(SWING_DELAY)
         end
         swinging = false
+        countLabel.Text = "Swings: " .. swingCount
         setStatus("Stopped", Color3.fromRGB(200, 180, 100))
     end)
 end
