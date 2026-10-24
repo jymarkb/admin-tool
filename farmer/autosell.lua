@@ -37,7 +37,6 @@ end
 
 local Remotes = {
     FetchProfile = getNetRemote("RF/ProfileMirror/FetchProfile"),
-    AskLiveSnapshot = getNetRemote("RF/EggWorld/AskLiveSnapshot"),
     SellSelection = getNetRemote("RE/PetSatchel/SellSelection"),
 }
 
@@ -62,6 +61,7 @@ local PET_RARITY_PRESETS = {
     ["Nuclear Mantis"]="Divine", ["Cthulhu"]="Divine", ["Luminous Cthulhu"]="Divine",
     ["Shattered Colossus"]="Divine", ["Dreadscale"]="Divine", ["Mecha Dreadscale"]="Divine",
     ["Depths Riptide Octopus"]="Divine", ["Aetheron"]="Divine", ["Octophant"]="Divine",
+    ["Voidseer Pumpkin"]="Divine",
 
     -- Eternal
     ["Eternal Lunar Dragon"]="Eternal", ["Skeleton Horse"]="Eternal", ["Pegasus"]="Eternal",
@@ -88,6 +88,7 @@ local PET_RARITY_PRESETS = {
     ["Electric Eel"]="Secret", ["Luminous Electric Eel"]="Secret", ["Abyss Overlord"]="Secret",
     ["Ember Dragon"]="Secret", ["Experiment #001"]="Secret", ["LimitedTimeExperimentPet"]="Secret", ["Mawbreaker"]="Secret",
     ["Shardwing"]="Secret", ["Wendigo"]="Secret", ["Ringlord"]="Secret",
+    ["Graveyard Brute"]="Secret", ["BloodBloom"]="Secret", ["Werewolf"]="Secret", ["Pumpkin Golem"]="Secret",
 
     -- Cosmic
     ["Cosmic Lion"]="Cosmic", ["La Vacca Saturno Saturnita"]="Cosmic", ["Mantis"]="Cosmic",
@@ -103,6 +104,7 @@ local PET_RARITY_PRESETS = {
     ["Dreadclaw"]="Cosmic", ["Shattered Ram"]="Cosmic", ["Ventinal"]="Cosmic",
     ["Mangolini Parrochini"]="Cosmic", ["Radcoon"]="Cosmic", ["Spiderpig"]="Cosmic",
     ["Three Headed Chicken"]="Cosmic", ["Stacked Turtle"]="Cosmic",
+    ["Hexed Pumpkin"]="Cosmic",
 
     -- Mythic
     ["Cyclops Gorilla"]="Mythic", ["Cosmic Gorilla"]="Mythic", ["Cosmic Beetle Blue"]="Mythic",
@@ -128,6 +130,7 @@ local PET_RARITY_PRESETS = {
     ["Rift Eye"]="Legendary", ["Void Angler"]="Legendary", ["Dove"]="Legendary",
     ["Brr Brr Patapim"]="Legendary", ["Axolotl"]="Legendary", ["Dream Axolotl"]="Legendary",
     ["Gorilla"]="Legendary", ["Prism Gecko"]="Legendary",
+    ["Candy Corn"]="Legendary", ["Witch Pumpkin"]="Legendary",
 
     -- Epic
     ["Centapede"]="Epic", ["Crane"]="Epic", ["Walrus"]="Epic", ["Swordfish"]="Epic",
@@ -165,6 +168,7 @@ local ALL_BIOMES_AND_EVENTS = {
     "Enchanted Forest Egg",
     "Experiment Egg",
     "Extinction Egg",
+    "Halloween Egg",
     "Lava Egg",
     "Light Dove Egg",
     "Luminous Egg",
@@ -233,6 +237,8 @@ local EGG_NAME_TO_DEFAULT_RARITY = {
     ["light dove egg"]         = "Legendary",
     ["unstable"]               = "Common",
     ["unstable egg"]           = "Common",
+    ["halloween"]              = "Secret",
+    ["halloween egg"]          = "Secret",
     -- deliberately NO ["egg"] = "Common" so plain base eggs never get a sellable default
 }
 
@@ -335,6 +341,16 @@ local STATIC_SPECIES_TO_BIOME_EGG = {
 
     -- Unstable Egg
     ["Three Headed Chicken"] = "Unstable Egg", ["Spiderpig"] = "Unstable Egg",
+
+    -- Halloween Egg
+    ["Voidseer Pumpkin"] = "Halloween Egg",
+    ["Hexed Pumpkin"] = "Halloween Egg",
+    ["Graveyard Brute"] = "Halloween Egg",
+    ["BloodBloom"] = "Halloween Egg",
+    ["Werewolf"] = "Halloween Egg",
+    ["Candy Corn"] = "Halloween Egg",
+    ["Witch Pumpkin"] = "Halloween Egg",
+    ["Pumpkin Golem"] = "Halloween Egg",
 
     -- Starter Egg
     ["Chicken"] = "Egg", ["Dog"] = "Egg", ["Frog"] = "Egg",
@@ -556,64 +572,8 @@ local function readEggRawName(data)
     return nil
 end
 
--- Keep the live rarity cache bounded and disconnect its listener during cleanup.
+-- Standalone rarity cache (no external event hooks or snapshot dependencies)
 local rarityByUid = {}
-local rarityCacheOrder = {}
-local rarityCacheCount = 0
-local rarityCacheNext = 1
-local MAX_RARITY_CACHE = 1024
-local rarityEventConnection = nil
-
-local function rememberRarity(uid, rarity)
-    if uid == nil or rarity == nil then return end
-    local key = tostring(uid)
-    if key == "" then return end
-
-    if rarityByUid[key] == nil then
-        if rarityCacheCount < MAX_RARITY_CACHE then
-            rarityCacheCount = rarityCacheCount + 1
-            rarityCacheOrder[rarityCacheCount] = key
-        else
-            local oldKey = rarityCacheOrder[rarityCacheNext]
-            if oldKey and oldKey ~= key then rarityByUid[oldKey] = nil end
-            rarityCacheOrder[rarityCacheNext] = key
-            rarityCacheNext = (rarityCacheNext % MAX_RARITY_CACHE) + 1
-        end
-    end
-    rarityByUid[key] = tostring(rarity)
-end
-
-local function rememberRareSpawns(payload)
-    if type(payload) ~= "table" or type(payload.RareSpawns) ~= "table" then return end
-    for _, egg in pairs(payload.RareSpawns) do
-        if type(egg) == "table" and egg.EggUid ~= nil and egg.RarityId ~= nil then
-            rememberRarity(egg.EggUid, egg.RarityId)
-        end
-    end
-end
-
-local function initRarityMonitor()
-    pcall(function()
-        local rfSnap = Remotes.AskLiveSnapshot
-        if rfSnap then
-            local ok, snap = pcall(function() return rfSnap:InvokeServer() end)
-            if ok then rememberRareSpawns(snap) end
-        end
-    end)
-
-    -- The snapshot can yield. If this script was closed/replaced while it yielded,
-    -- do not install a listener belonging to a dead UI instance.
-    if not guiAlive then return end
-    pcall(function()
-        local evRar = getNetRemote("RE/EggWorld/FieldEggRaritiesShown")
-        if evRar and evRar:IsA("RemoteEvent") and guiAlive then
-            rarityEventConnection = evRar.OnClientEvent:Connect(function(payload)
-                if guiAlive then rememberRareSpawns(payload) end
-            end)
-        end
-    end)
-end
-task.spawn(initRarityMonitor)
 
 local function resolveEggBiomeAndRarity(rawNameOrSpecies, directRarity, uid, directEggGroup)
     local raw = metadataText(rawNameOrSpecies) or "Unknown Egg"
@@ -810,6 +770,24 @@ local function hasPlacement(data)
     return true
 end
 
+-- Hard keep for plain base / unknown egg names so event or new eggs never get sold by accident.
+local function isHardKeepName(egg)
+    local candidates = { egg.RawName, egg.GroupName, egg.Species }
+    for _, cand in ipairs(candidates) do
+        if cand then
+            local n = tostring(cand):lower()
+                :gsub("%s*%([%d,%.]+%s*[Kk][Gg]%)%s*$", "")
+                :gsub("^%s*", ""):gsub("%s*$", "")
+                :gsub("%s+", " ")
+            local base = n:gsub("%s*egg%s*$", "")
+            if base == "" or base == "egg" or base == "unknown" or n == "egg" or n == "unknown egg" then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function scanInventory()
     local configWaitStart = os.clock()
     while not speciesConfigIndexReady and os.clock() - configWaitStart < 1.5 do
@@ -848,7 +826,26 @@ local function scanInventory()
 
     local eggs, seenUids = {}, {}
     local unknownCount, missingUidCount = 0, 0
+    -- A large satchel takes ~0.3 ms of string work per egg, so a 1000-egg scan
+    -- would freeze a frame for ~300 ms. Resolve the records in ~2 ms slices so a
+    -- scan never stutters the client, however big the bag gets. The record cap
+    -- keeps the slice bounded even if the clock does not advance per record.
+    local SLICE_MIN_RECORDS = 64
+    local SLICE_MAX_RECORDS = 128
+    local SLICE_SECONDS = 0.004
+    local sliceRecords = 0
+    local sliceStart = os.clock()
     for inventoryKey, data in pairs(inventory) do
+        sliceRecords = sliceRecords + 1
+        if sliceRecords >= SLICE_MIN_RECORDS
+            and (sliceRecords >= SLICE_MAX_RECORDS or os.clock() - sliceStart >= SLICE_SECONDS) then
+            task.wait()
+            sliceStart = os.clock()
+            sliceRecords = 0
+            if not guiAlive then
+                return nil, "Window closed during the scan. Nothing was sold."
+            end
+        end
         if type(data) == "table" and not hasPlacement(data) then
             local dataUid = metadataText(readMetadataField(data, UID_FIELDS))
             local keyUid = type(inventoryKey) == "string" and inventoryKey ~= "" and inventoryKey or nil
@@ -870,7 +867,7 @@ local function scanInventory()
                 local rarityName = verifiedRarity or "Unknown"
                 if not verifiedRarity then unknownCount = unknownCount + 1 end
                 if not canSell then missingUidCount = missingUidCount + 1 end
-                table.insert(eggs, {
+                local record = {
                     Uid = uidText,
                     CanSell = canSell,
                     RawName = rawName,
@@ -880,29 +877,15 @@ local function scanInventory()
                     RarityVerified = verifiedRarity ~= nil,
                     RaritySource = raritySource,
                     InferredRarity = normalizeRarity(inferredRarity) or "Unknown",
-                })
+                }
+                -- Resolved here, inside the sliced loop, so the eligibility pass
+                -- below does not re-run the name matcher once per egg.
+                record.HardKeep = isHardKeepName(record)
+                table.insert(eggs, record)
             end
         end
     end
     return eggs, nil, unknownCount, missingUidCount
-end
-
--- Hard keep for plain base / unknown egg names so event or new eggs never get sold by accident.
-local function isHardKeepName(egg)
-    local candidates = { egg.RawName, egg.GroupName, egg.Species }
-    for _, cand in ipairs(candidates) do
-        if cand then
-            local n = tostring(cand):lower()
-                :gsub("%s*%([%d,%.]+%s*[Kk][Gg]%)%s*$", "")
-                :gsub("^%s*", ""):gsub("%s*$", "")
-                :gsub("%s+", " ")
-            local base = n:gsub("%s*egg%s*$", "")
-            if base == "" or base == "egg" or base == "unknown" or n == "egg" or n == "unknown egg" then
-                return true
-            end
-        end
-    end
-    return false
 end
 
 local function getSellableEggUids(eggs)
@@ -912,7 +895,9 @@ local function getSellableEggUids(eggs)
     for _, egg in ipairs(eggs or State.BagEggs) do
         local rarity = normalizeRarity(egg.Rarity) or "Unknown"
         local rank = RARITY_RANK[rarity]
-        if isHardKeepName(egg) or egg.RarityVerified ~= true or rarity == "Unknown" or not rank then
+        local hardKeep = egg.HardKeep
+        if hardKeep == nil then hardKeep = isHardKeepName(egg) end
+        if hardKeep or egg.RarityVerified ~= true or rarity == "Unknown" or not rank then
             -- Fail closed: guessed, legacy, unverified, or plain "Egg" names are never sold.
             unknownCount = unknownCount + 1
         elseif rank < thresholdRank then
@@ -931,6 +916,21 @@ local function getSellableEggUids(eggs)
     return uids, unknownCount, missingUidCount
 end
 
+-- One scan calls the eligibility pass from applyScan, updatePreview and the loop
+-- itself. Keep the result while the bag and the threshold are unchanged: it is a
+-- pure function of those two, and a 1000-egg bag makes a wasted pass cost ~6 ms.
+local sellableMemoBag, sellableMemoRarity
+local sellableMemoUids, sellableMemoUnknown, sellableMemoMissing
+local function getSellableEggUidsCached(eggs)
+    if sellableMemoBag == eggs and sellableMemoRarity == State.SellBelowRarity then
+        return sellableMemoUids, sellableMemoUnknown, sellableMemoMissing
+    end
+    local uids, unknownCount, missingUidCount = getSellableEggUids(eggs)
+    sellableMemoBag, sellableMemoRarity = eggs, State.SellBelowRarity
+    sellableMemoUids, sellableMemoUnknown, sellableMemoMissing = uids, unknownCount, missingUidCount
+    return uids, unknownCount, missingUidCount
+end
+
 -- Avoid resending the same UIDs while the profile catches up with a SellSelection
 -- request. Since FireServer has no acknowledgement, pending entries expire so a
 -- failed request can be retried later.
@@ -938,6 +938,7 @@ local pendingSellUids = {}
 local PENDING_SELL_CONFIRM_TIMEOUT = 45
 
 local function reconcilePendingSellUids(eggs)
+    if next(pendingSellUids) == nil then return end   -- nothing pending: no pass needed
     local presentUids = {}
     for _, egg in ipairs(eggs or {}) do
         if egg.Uid and egg.Uid ~= "" then presentUids[tostring(egg.Uid)] = true end
@@ -1149,10 +1150,18 @@ dropLayout.SortOrder = Enum.SortOrder.LayoutOrder
 dropLayout.Parent = dropdown
 Instance.new("UIStroke", dropdown).Color = Color3.fromRGB(75, 95, 130)
 
-local function updatePreview()
-    local uids, unknownCount, missingUidCount = getSellableEggUids(State.BagEggs)
-    preview.Text = string.format("Below %s: %d sellable | Unknown/hard-kept: %d | Missing UID kept: %d | Every %.1fs",
-        State.SellBelowRarity, #uids, unknownCount, missingUidCount, State.SellInterval)
+local function updatePreview(countdownSeconds)
+    local uids, unknownCount, missingUidCount = getSellableEggUidsCached(State.BagEggs)
+    local timeInfo
+    if State.AutoSellActive and countdownSeconds ~= nil then
+        local mins = math.floor(countdownSeconds / 60)
+        local secs = countdownSeconds % 60
+        timeInfo = string.format(" | Next in %dm %02ds", mins, secs)
+    else
+        timeInfo = string.format(" | Every %.0fs (10m)", State.SellInterval)
+    end
+    preview.Text = string.format("Below %s: %d sellable | Hard-kept: %d%s",
+        State.SellBelowRarity, #uids, unknownCount, timeInfo)
 end
 
 local function applyScan(shouldLog)
@@ -1166,20 +1175,23 @@ local function applyScan(shouldLog)
         return false
     end
     if not eggs then
+        if not guiAlive then return false end     -- closed mid-scan: nothing to report
         appendLog("SCAN ERROR: " .. tostring(err))
         preview.Text = "Scan failed; no eggs were sold. See log."
         return false
     end
     State.BagEggs = eggs
     reconcilePendingSellUids(eggs)
-    local uids, unknownSkipped, missingUidSkipped = getSellableEggUids(eggs)
+    local uids, unknownSkipped, missingUidSkipped = getSellableEggUidsCached(eggs)
     updatePreview()
     if shouldLog then
         appendLog(string.format("Scan complete: %d unplaced eggs; eligible=%d; unverified/unknown/hard-kept=%d; missing UID=%d.",
             #eggs, #uids, unknownCount or unknownSkipped, missingUidCount or missingUidSkipped))
         local heldCount = 0
         for _, egg in ipairs(eggs) do
-            if (egg.RarityVerified ~= true or isHardKeepName(egg)) and heldCount < 8 then
+            local hardKeepEgg = egg.HardKeep
+            if hardKeepEgg == nil then hardKeepEgg = isHardKeepName(egg) end
+            if (egg.RarityVerified ~= true or hardKeepEgg) and heldCount < 8 then
                 heldCount = heldCount + 1
                 local guess = egg.InferredRarity and egg.InferredRarity ~= "Unknown"
                     and ("; name-only guess=" .. egg.InferredRarity) or ""
@@ -1277,7 +1289,7 @@ startBtn.MouseButton1Click:Connect(function()
                 if scanned then
                     consecutiveScanFailures = 0
                     if State.AutoSellActive and State.AutoSellToken == token then
-                        local candidates, unknownCount, missingUidCount = getSellableEggUids(State.BagEggs)
+                        local candidates, unknownCount, missingUidCount = getSellableEggUidsCached(State.BagEggs)
                         local eggUids = {}
                         local pendingCount = 0
                         for _, uid in ipairs(candidates) do
@@ -1300,16 +1312,30 @@ startBtn.MouseButton1Click:Connect(function()
                             end
                         else
                             lastNoEligibleState = nil
-                            local callOk, callErr = pcall(function()
-                                Remotes.SellSelection:FireServer({ Eggs = eggUids, Assets = {} })
-                            end)
-                            if callOk then
-                                local sentAt = os.clock()
-                                for _, uid in ipairs(eggUids) do pendingSellUids[uid] = sentAt end
-                                appendLog(string.format("SellSelection request sent for %d egg(s) below %s. Unknown/hard-kept=%d; missing UID kept=%d; pending confirmation=%d.", #eggUids, State.SellBelowRarity, unknownCount, missingUidCount, pendingCount))
-                            else
-                                appendLog("SELL ERROR: " .. tostring(callErr))
+                            local BATCH_SIZE = 100
+                            local totalBatches = math.ceil(#eggUids / BATCH_SIZE)
+                            local sentCount = 0
+                            for b = 1, totalBatches do
+                                if not guiAlive or not State.AutoSellActive or State.AutoSellToken ~= token then break end
+                                local sIdx = (b - 1) * BATCH_SIZE + 1
+                                local eIdx = math.min(#eggUids, b * BATCH_SIZE)
+                                local chunk = {}
+                                for i = sIdx, eIdx do table.insert(chunk, eggUids[i]) end
+
+                                local callOk, callErr = pcall(function()
+                                    Remotes.SellSelection:FireServer({ Eggs = chunk, Assets = {} })
+                                end)
+                                if callOk then
+                                    local sentAt = os.clock()
+                                    for _, uid in ipairs(chunk) do pendingSellUids[uid] = sentAt end
+                                    sentCount = sentCount + #chunk
+                                else
+                                    appendLog("SELL ERROR: " .. tostring(callErr))
+                                end
+                                if b < totalBatches then task.wait(0.1) end
                             end
+                            appendLog(string.format("SellSelection request sent for %d egg(s) below %s in %d batch(es). Unknown/hard-kept=%d; missing UID kept=%d.",
+                                sentCount, State.SellBelowRarity, totalBatches, unknownCount, missingUidCount))
                         end
                     end
                 else
@@ -1323,7 +1349,9 @@ startBtn.MouseButton1Click:Connect(function()
 
                 local waitUntil = os.clock() + waitDuration
                 while guiAlive and State.AutoSellActive and State.AutoSellToken == token and os.clock() < waitUntil do
-                    task.wait(math.min(0.25, math.max(0.01, waitUntil - os.clock())))
+                    local rem = math.max(0, math.ceil(waitUntil - os.clock()))
+                    updatePreview(rem)
+                    task.wait(math.min(1.0, math.max(0.05, waitUntil - os.clock())))
                 end
             end
         end
@@ -1331,6 +1359,7 @@ startBtn.MouseButton1Click:Connect(function()
             State.AutoSellActive = false
             if startBtn and startBtn.Parent then startBtn.Text = "▶ START LOOP" end
             appendLog("Auto-sell loop stopped.")
+            updatePreview()
         end
     end)
 end)
@@ -1340,6 +1369,7 @@ stopBtn.MouseButton1Click:Connect(function()
         State.AutoSellActive = false
         State.AutoSellToken = State.AutoSellToken + 1
         appendLog("Stop requested.")
+        updatePreview()
     end
     startBtn.Text = "▶ START LOOP"
 end)
@@ -1364,12 +1394,7 @@ local function cleanup()
     State.AutoSellActive = false
     State.AutoSellToken = State.AutoSellToken + 1
     if dragInputConnection then pcall(function() dragInputConnection:Disconnect() end) end
-    if rarityEventConnection then
-        pcall(function() rarityEventConnection:Disconnect() end)
-        rarityEventConnection = nil
-    end
     table.clear(rarityByUid)
-    table.clear(rarityCacheOrder)
     table.clear(pendingSellUids)
     _G.StandaloneAutoSell_Cleanup = nil
     if gui and gui.Parent then pcall(function() gui:Destroy() end) end
