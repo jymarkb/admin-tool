@@ -1358,7 +1358,9 @@ local savedWalkSpeed = 16.0
 pcall(function()
     local ch = LocalPlayer and LocalPlayer.Character
     local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-    if hum and hum.WalkSpeed > 0 then savedWalkSpeed = hum.WalkSpeed end
+    if hum and hum.WalkSpeed > 0 and hum.WalkSpeed < 100 then
+        savedWalkSpeed = hum.WalkSpeed
+    end
 end)
 
 -- Filter Selection State
@@ -2724,6 +2726,11 @@ local function getCarryingStatus()
         return true, name
     end
 
+    local held, heldName = isHoldingEgg()
+    if held then
+        return true, heldName or "Egg"
+    end
+
     if hwCarryState and hwCarryState.isCarrying then
         local hwHolding, hwName = hwCarryState.isCarrying()
         if hwHolding then
@@ -2739,7 +2746,10 @@ updateActivityStatus = function()
     local activeSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
 
     if activityStatusLabel then
-        if isCarrying then
+        if not velocityEnabled then
+            activityStatusLabel.Text = "Status: Velocity Disabled (Normal WalkSpeed)"
+            activityStatusLabel.TextColor3 = Color3.fromRGB(160, 170, 190)
+        elseif isCarrying then
             local dispName = eggName or "Egg"
             activityStatusLabel.Text = string.format("Status: Carrying %s (%d studs/s)", dispName, activeSpeed)
             activityStatusLabel.TextColor3 = Color3.fromRGB(255, 205, 90)
@@ -2841,8 +2851,9 @@ local function stopWalking()
         if hum then
             hum:Move(Vector3.zero, false)
             if hrp then hum.WalkToPoint = hrp.Position end
-            if not velocityEnabled and savedWalkSpeed then
-                hum.WalkSpeed = savedWalkSpeed
+            if not velocityEnabled then
+                local normalSpeed = (savedWalkSpeed and savedWalkSpeed < 100) and savedWalkSpeed or 16.0
+                hum.WalkSpeed = normalSpeed
             end
         end
         if hrp then hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0) end
@@ -2883,6 +2894,7 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onF
 
     task.spawn(function()
         local t0 = os.clock()
+        local lastMoveTo = t0
         while activeWalkToken == myTok do
             -- Safety timeout (if player gets stuck or path takes > 45s)
             if os.clock() - t0 > 45.0 then
@@ -2897,6 +2909,15 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onF
             if not (hum and hrp and hum.Health > 0) then
                 task.wait(0.1)
             else
+                -- If velocity is disabled, re-issue MoveTo periodically for smooth native pathing
+                if not velocityEnabled then
+                    local now = os.clock()
+                    if now - lastMoveTo >= 0.25 then
+                        lastMoveTo = now
+                        pcall(function() hum:MoveTo(targetPos) end)
+                    end
+                end
+
                 -- 1. State / Target Validation checks
                 -- Walking to an egg and target egg already secured: stop walking to egg
                 if activeWalkUid ~= "SAFE_ZONE" and (weAreCarrying and carryUid == activeWalkUid) then
@@ -3091,6 +3112,11 @@ local function updateVelocityPhysics()
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not (hum and hrp and hrp.Parent and hum.Health > 0) then return end
 
+    -- When Velocity is disabled, do not inject custom velocity or override WalkSpeed
+    if not velocityEnabled then
+        return
+    end
+
     local isCarrying = getCarryingStatus()
     local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
 
@@ -3135,8 +3161,6 @@ local function updateVelocityPhysics()
     end
 
     -- Case 2: Regular Velocity Physics for manual player free-roam (WASD)
-    if not velocityEnabled then return end
-
     if hum.MoveDirection.Magnitude > 0.05 then
         local dir = hum.MoveDirection.Unit
         hrp.AssemblyLinearVelocity = Vector3.new(
@@ -3159,7 +3183,8 @@ local function disableVelocity()
     local char = LocalPlayer and LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then
-        pcall(function() hum.WalkSpeed = savedWalkSpeed end)
+        local normalSpeed = (savedWalkSpeed and savedWalkSpeed < 100) and savedWalkSpeed or 16.0
+        pcall(function() hum.WalkSpeed = normalSpeed end)
     end
     updateActivityStatus()
 end
@@ -3167,13 +3192,19 @@ end
 local function enableVelocity()
     local char = LocalPlayer and LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum and hum.WalkSpeed > 0 then
+    if hum and hum.WalkSpeed > 0 and hum.WalkSpeed < 100 then
         savedWalkSpeed = hum.WalkSpeed
     end
     velocityEnabled = true
     velToggleBtn.Text = "[ON] Velocity"
     velToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 135, 75)
     velToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+
+    if hum then
+        local isCarrying = getCarryingStatus()
+        local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
+        pcall(function() hum.WalkSpeed = targetSpeed end)
+    end
     updateActivityStatus()
 end
 
@@ -3208,7 +3239,11 @@ addConnection(RunService.Heartbeat:Connect(updateVelocityPhysics))
 addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
     local hum = newChar:WaitForChild("Humanoid", 5)
     if hum and not velocityEnabled then
-        savedWalkSpeed = hum.WalkSpeed
+        if hum.WalkSpeed > 0 and hum.WalkSpeed < 100 then
+            savedWalkSpeed = hum.WalkSpeed
+        else
+            savedWalkSpeed = 16.0
+        end
     end
     weAreCarrying = false
     carryUid = nil
@@ -3311,9 +3346,16 @@ executeInstantRecovery = function(reason)
         hum:ChangeState(Enum.HumanoidStateType.Running)
     end)
 
-    local curTargetSpeed = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or math.max(savedWalkSpeed or 16, 16)
-    if hum.WalkSpeed < 16.0 then
-        hum.WalkSpeed = curTargetSpeed
+    local normalSpeed = (savedWalkSpeed and savedWalkSpeed < 100) and savedWalkSpeed or 16.0
+    local curTargetSpeed = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or normalSpeed
+    if velocityEnabled then
+        if hum.WalkSpeed ~= curTargetSpeed then
+            hum.WalkSpeed = curTargetSpeed
+        end
+    else
+        if hum.WalkSpeed < 16.0 or hum.WalkSpeed >= 100 then
+            hum.WalkSpeed = normalSpeed
+        end
     end
 
     enablePlayerControls()
@@ -5415,7 +5457,7 @@ halloweenEngine.walkViaDropZoneToSafeZone = function(onComplete)
         if hrp then
             hrp.Anchored = false
             local diff = Vector3.new(halloweenEngine.dropPos.X - hrp.Position.X, 0, halloweenEngine.dropPos.Z - hrp.Position.Z)
-            if diff.Magnitude > 0.1 then
+            if diff.Magnitude > 0.1 and velocityEnabled then
                 local dir = diff.Unit
                 hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
             end
@@ -5428,7 +5470,7 @@ halloweenEngine.walkViaDropZoneToSafeZone = function(onComplete)
             local hrp = currChar and currChar:FindFirstChild("HumanoidRootPart")
             if hrp then
                 local diff = Vector3.new(halloweenEngine.safeZone.X - hrp.Position.X, 0, halloweenEngine.safeZone.Z - hrp.Position.Z)
-                if diff.Magnitude > 0.1 then
+                if diff.Magnitude > 0.1 and velocityEnabled then
                     local dir = diff.Unit
                     hrp.AssemblyLinearVelocity = Vector3.new(dir.X * baseCarrySpeed, hrp.AssemblyLinearVelocity.Y, dir.Z * baseCarrySpeed)
                 end
@@ -5987,11 +6029,17 @@ renderHalloweenEggs = function()
             -- Mark the list dirty only when the world actually changes, instead of
             -- rebuilding it 3.3x/s just in case.
             if halloweenEngine and halloweenEngine.hwHookedFolder ~= worldEggs then
+                if halloweenEngine.hwFolderConns then
+                    for _, c in ipairs(halloweenEngine.hwFolderConns) do pcall(function() c:Disconnect() end) end
+                    table.clear(halloweenEngine.hwFolderConns)
+                else
+                    halloweenEngine.hwFolderConns = {}
+                end
                 halloweenEngine.hwHookedFolder = worldEggs
-                addConnection(worldEggs.ChildAdded:Connect(function()
+                table.insert(halloweenEngine.hwFolderConns, worldEggs.ChildAdded:Connect(function()
                     halloweenEngine.hwListDirty = true
                 end))
-                addConnection(worldEggs.ChildRemoved:Connect(function()
+                table.insert(halloweenEngine.hwFolderConns, worldEggs.ChildRemoved:Connect(function()
                     halloweenEngine.hwListDirty = true
                 end))
             end
@@ -6926,7 +6974,8 @@ local function fullCleanup()
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if hum then
             hum:Move(Vector3.zero, false)
-            if savedWalkSpeed then hum.WalkSpeed = savedWalkSpeed end
+            local normalSpeed = (savedWalkSpeed and savedWalkSpeed < 100) and savedWalkSpeed or 16.0
+            pcall(function() hum.WalkSpeed = normalSpeed end)
         end
     end)
     disconnectAll()
@@ -6935,6 +6984,12 @@ local function fullCleanup()
             pcall(function() conn:Disconnect() end)
         end
         table.clear(recoveryConnections)
+    end
+    if halloweenEngine and halloweenEngine.hwFolderConns then
+        for _, conn in ipairs(halloweenEngine.hwFolderConns) do
+            pcall(function() conn:Disconnect() end)
+        end
+        table.clear(halloweenEngine.hwFolderConns)
     end
 
     if screenGui and screenGui.Parent then
