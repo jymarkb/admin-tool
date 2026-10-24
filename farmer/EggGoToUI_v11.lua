@@ -2573,13 +2573,28 @@ do
     Instance.new("UICorner", toggleNoclipBtn).CornerRadius = UDim.new(0, 5)
 
     local noclipActive = false
+    local noclipParts = {}
+
+    local function refreshNoclipParts()
+        table.clear(noclipParts)
+        local ch = LocalPlayer and LocalPlayer.Character
+        if not ch then return end
+        for _, desc in ipairs(ch:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                table.insert(noclipParts, desc)
+            end
+        end
+    end
 
     local function setNoclip(enabled)
         noclipActive = enabled
         toggleNoclipBtn.Text = noclipActive and "ON" or "OFF"
         toggleNoclipBtn.BackgroundColor3 = noclipActive and Color3.fromRGB(35, 135, 75) or Color3.fromRGB(45, 50, 65)
         toggleNoclipBtn.TextColor3 = noclipActive and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-        if not noclipActive then
+        if noclipActive then
+            refreshNoclipParts()
+        else
+            table.clear(noclipParts)
             pcall(function()
                 local ch = LocalPlayer and LocalPlayer.Character
                 if ch and ch:FindFirstChild("HumanoidRootPart") then
@@ -2593,12 +2608,17 @@ do
         setNoclip(not noclipActive)
     end))
 
+    local lastNoclipRefresh = 0
     addConnection(RunService.Stepped:Connect(function()
         if not noclipActive then return end
-        local ch = LocalPlayer and LocalPlayer.Character
-        if not ch then return end
-        for _, part in ipairs(ch:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
+        local now = os.clock()
+        if #noclipParts == 0 or (now - lastNoclipRefresh > 2.0) then
+            lastNoclipRefresh = now
+            refreshNoclipParts()
+        end
+        for i = 1, #noclipParts do
+            local part = noclipParts[i]
+            if part and part.Parent and part.CanCollide then
                 part.CanCollide = false
             end
         end
@@ -2910,25 +2930,43 @@ do
     end
 end
 
-local function getCarryingStatus()
+local lastCarryingCheck = 0
+local cachedCarryingStatus = false
+local cachedCarryingName = nil
+
+local function getCarryingStatus(force)
+    local now = os.clock()
+    if not force and (now - lastCarryingCheck < 0.25) then
+        return cachedCarryingStatus, cachedCarryingName
+    end
+    lastCarryingCheck = now
+
     if weAreCarrying then
         local rec = carryUid and eggCacheByUid[carryUid]
         local name = rec and (rec.DisplayName or rec.AssetCategory or rec.Name) or carryUid or "Egg"
+        cachedCarryingStatus = true
+        cachedCarryingName = name
         return true, name
     end
 
     local held, heldName = isHoldingEgg()
     if held then
-        return true, heldName or "Egg"
+        cachedCarryingStatus = true
+        cachedCarryingName = heldName or "Egg"
+        return true, cachedCarryingName
     end
 
     if hwCarryState and hwCarryState.isCarrying then
         local hwHolding, hwName = hwCarryState.isCarrying()
         if hwHolding then
-            return true, hwName or "Halloween Egg"
+            cachedCarryingStatus = true
+            cachedCarryingName = hwName or "Halloween Egg"
+            return true, cachedCarryingName
         end
     end
 
+    cachedCarryingStatus = false
+    cachedCarryingName = nil
     return false, nil
 end
 
@@ -3329,6 +3367,12 @@ local function updateVelocityPhysics()
         return
     end
 
+    -- Idle early exit: if not auto-walking and player is standing still (e.g. fishing, idle, paused), skip physics entirely
+    local isMoving = (hum.MoveDirection.Magnitude > 0.05)
+    if not activeWalkTarget and not isMoving then
+        return
+    end
+
     local isCarrying = getCarryingStatus()
     local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
 
@@ -3459,6 +3503,9 @@ addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
     end
     weAreCarrying = false
     carryUid = nil
+    lastCarryingCheck = 0
+    cachedCarryingStatus = false
+    cachedCarryingName = nil
     if hwCarryState then
         hwCarryState.active = false
         hwCarryState.name = nil
@@ -3601,7 +3648,7 @@ bindRecoveryCharacter = function(char)
     if not (hum and hrp) then return end
 
     local function registerMotor(obj)
-        if obj:IsA("Motor6D") then
+        if obj:IsA("Motor6D") and not obj:FindFirstAncestorWhichIsA("Tool") and not obj:FindFirstAncestorWhichIsA("Accessory") then
             table.insert(recoveryJoints, obj)
             local conn = obj:GetPropertyChangedSignal("Enabled"):Connect(function()
                 if RECOVERY_CONFIG and RECOVERY_CONFIG.Enabled and not obj.Enabled then
@@ -4329,6 +4376,31 @@ end
 
 -- The resolver below walks attributes, children and descendants, so cache its
 -- answer per model. Weak keys: a recycled egg model does not pin memory.
+local hwTemplateSignatures = nil
+local function getTemplateSignatures()
+    if hwTemplateSignatures then return hwTemplateSignatures end
+    pcall(function()
+        local eggAssets = ReplicatedStorage:FindFirstChild("Assets")
+            and ReplicatedStorage.Assets:FindFirstChild("Models")
+            and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
+        if not eggAssets then return end
+        local sigs = {}
+        for _, tModel in ipairs(eggAssets:GetChildren()) do
+            if tModel:IsA("Model") then
+                local childrenSet = {}
+                for _, tc in ipairs(tModel:GetChildren()) do
+                    childrenSet[tc.Name:lower()] = true
+                end
+                table.insert(sigs, { Name = tModel.Name, Children = childrenSet })
+            end
+        end
+        if #sigs > 0 then
+            hwTemplateSignatures = sigs
+        end
+    end)
+    return hwTemplateSignatures
+end
+
 local function resolveHwEggName(eggInst)
     -- 1. Check direct attributes: PreparedSourceName is the primary live attribute
     local srcName = eggInst:GetAttribute("PreparedSourceName")
@@ -4401,10 +4473,8 @@ local function resolveHwEggName(eggInst)
 
     -- 6. Speculative template match against ReplicatedStorage.Assets.Models.Eggs ONLY for unnamed/generic models
     local okMatch, matchedName = pcall(function()
-        local eggAssets = ReplicatedStorage:FindFirstChild("Assets")
-            and ReplicatedStorage.Assets:FindFirstChild("Models")
-            and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
-        if not eggAssets then return nil end
+        local sigs = getTemplateSignatures()
+        if not sigs then return nil end
         local liveChildren = {}
         local genericPartNames = {
             hitbox = true, part = true, meshpart = true, model = true,
@@ -4423,16 +4493,14 @@ local function resolveHwEggName(eggInst)
         if nonGenericCount == 0 then return nil end
 
         local bestName, bestCount = nil, 0
-        for _, tModel in ipairs(eggAssets:GetChildren()) do
-            if tModel:IsA("Model") then
-                local matchCount = 0
-                for _, tc in ipairs(tModel:GetChildren()) do
-                    if liveChildren[tc.Name:lower()] then matchCount = matchCount + 1 end
-                end
-                if matchCount > bestCount then
-                    bestCount = matchCount
-                    bestName = tModel.Name
-                end
+        for _, sig in ipairs(sigs) do
+            local matchCount = 0
+            for childName in pairs(sig.Children) do
+                if liveChildren[childName] then matchCount = matchCount + 1 end
+            end
+            if matchCount > bestCount then
+                bestCount = matchCount
+                bestName = sig.Name
             end
         end
         return (bestCount >= 2) and bestName or nil
@@ -4506,6 +4574,10 @@ halloweenEngine = {
         halloweenEngine.lastNightResetAt = now
         halloweenEngine.nightResetGraceUntil = now + grace
         halloweenEngine.cachedWorldEggs = nil
+        if halloweenEngine.nameCache then
+            table.clear(halloweenEngine.nameCache)
+        end
+        lastCarryingCheck = 0
         if halloweenEngine.fishing then
             halloweenEngine.fishing.needsRecovery = true
             -- Drop cached remotes so they are resolved again on the next cycle.
@@ -4899,22 +4971,38 @@ halloweenEngine = {
         end,
 
         getRemote = function(name)
+            local f = halloweenEngine.fishing
+            if f and f.remoteCache and f.remoteCache[name] then
+                local cached = f.remoteCache[name]
+                if cached.Parent then return cached end
+            end
             local net = ReplicatedStorage:FindFirstChild("Packages")
                 and ReplicatedStorage.Packages:FindFirstChild("Networking")
             if net then
                 local r = net:FindFirstChild(name)
-                if r then return r end
+                if r then
+                    if f then
+                        if not f.remoteCache then f.remoteCache = {} end
+                        f.remoteCache[name] = r
+                    end
+                    return r
+                end
             end
             local found = ReplicatedStorage:FindFirstChild(name, true)
-            if found then return found end
-            pcall(function()
-                for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
-                    if d.Name == name or d.Name:lower() == name:lower() then
-                        found = d
-                        break
+            if not found then
+                pcall(function()
+                    for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
+                        if d.Name == name or d.Name:lower() == name:lower() then
+                            found = d
+                            break
+                        end
                     end
-                end
-            end)
+                end)
+            end
+            if found and f then
+                if not f.remoteCache then f.remoteCache = {} end
+                f.remoteCache[name] = found
+            end
             return found
         end,
 
@@ -5995,13 +6083,34 @@ halloweenEngine.tpAction = function(eggData, onComplete)
             end
         end
 
-        -- Trigger any nearby proximity prompts on dropped models
+        -- Trigger any nearby proximity prompts on dropped models (targeted scan: egg model + WorldEggs folder + spatial query)
         pcall(function()
-            for _, obj in ipairs(Workspace:GetChildren()) do
-                if obj:IsA("Model") and obj ~= ch then
+            if model and model.Parent then
+                for _, pr in ipairs(model:GetDescendants()) do
+                    if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
+                        triggerProximityPrompt(pr)
+                    end
+                end
+            end
+            local wFolder = halloweenEngine and halloweenEngine.cachedWorldEggs
+            if wFolder and wFolder.Parent then
+                for _, obj in ipairs(wFolder:GetChildren()) do
                     local p = getHwEggPos(obj)
                     if p and (p - halloweenEngine.dropPos).Magnitude <= 15 then
                         for _, pr in ipairs(obj:GetDescendants()) do
+                            if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
+                                triggerProximityPrompt(pr)
+                            end
+                        end
+                    end
+                end
+            end
+            if workspace.GetPartBoundsInRadius then
+                local nearbyParts = workspace:GetPartBoundsInRadius(halloweenEngine.dropPos, 15)
+                for _, part in ipairs(nearbyParts) do
+                    local m = part:FindFirstAncestorWhichIsA("Model")
+                    if m and m ~= ch then
+                        for _, pr in ipairs(part:GetChildren()) do
                             if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
                                 triggerProximityPrompt(pr)
                             end
