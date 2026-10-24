@@ -80,15 +80,18 @@ local RARITY_COLORS = {
     ["Secret"]    = Color3.fromRGB(220, 50,  50),
     ["Eternal"]   = Color3.fromRGB(180, 90,  255),
     ["Divine"]    = Color3.fromRGB(255, 190, 70),
+    ["Brainrot"]  = Color3.fromRGB(240, 60,  180),
+    ["1%"]        = Color3.fromRGB(255, 105, 180),
 }
 
 local RARITY_RANK = {
     ["Common"] = 1, ["Uncommon"] = 2, ["Rare"] = 3, ["Epic"] = 4, ["Legendary"] = 5,
     ["Mythic"] = 6, ["Cosmic"] = 7, ["Secret"] = 8, ["Eternal"] = 9, ["Divine"] = 10,
+    ["Brainrot"] = 11, ["1%"] = 12,
 }
 
 local RARITY_ORDER = {
-    "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret", "Eternal", "Divine"
+    "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret", "Eternal", "Divine", "Brainrot", "1%"
 }
 
 -- 13 Canonical World Biomes (Structured hierarchy for easy tracking and manual updates)
@@ -100,12 +103,12 @@ local BIOME_EGG_CATALOG = {
         Species = {
             { Name = "Chicken", Rarity = "Common" },
             { Name = "Dog", Rarity = "Common" },
-            { Name = "Bird", Rarity = "Uncommon" },
-            { Name = "Burrowing Owl", Rarity = "Rare", Aliases = { "Owl" } },
+            { Name = "Bird", Rarity = "Uncommon", Aliases = { "DesertLark" } },
+            { Name = "Owl", Rarity = "Rare", Aliases = { "Burrowing Owl" } },
             { Name = "Raccoon", Rarity = "Rare" },
-            { Name = "Fox", Rarity = "Epic", Aliases = { "Mire Fox" } },
             { Name = "Bear", Rarity = "Epic" },
-            { Name = "Brr Brr Patapim", Rarity = "Legendary" },
+            { Name = "Fox", Rarity = "Epic", Aliases = { "Mire Fox" } },
+            { Name = "Brr", Rarity = "Legendary", Aliases = { "Brr Brr Patapim" } },
         }
     },
     {
@@ -116,7 +119,7 @@ local BIOME_EGG_CATALOG = {
             { Name = "Duckling", Rarity = "Common" },
             { Name = "Catfish", Rarity = "Uncommon" },
             { Name = "Turtle", Rarity = "Rare" },
-            { Name = "Trulimero Trulicina", Rarity = "Epic" },
+            { Name = "Trulimero", Rarity = "Epic", Aliases = { "Trulimero Trulicina" } },
             { Name = "Swan", Rarity = "Epic" },
             { Name = "Axolotl", Rarity = "Legendary", Aliases = { "Dream Axolotl" } },
             { Name = "Leviathan", Rarity = "Cosmic" },
@@ -127,24 +130,24 @@ local BIOME_EGG_CATALOG = {
         EggNames = { "Desert Egg" },
         Species = {
             { Name = "Jerboa", Rarity = "Common" },
-            { Name = "Fennec", Rarity = "Uncommon", Aliases = { "FennecFox" } },
+            { Name = "Fennec", Rarity = "Uncommon", Aliases = { "FennecFox", "Fennec Fox" } },
             { Name = "Camel", Rarity = "Rare" },
-            { Name = "Tob Tobi Tob Tob", Rarity = "Epic", Aliases = { "Tob Tobi", "TobTobi" } },
+            { Name = "Tob Tobi", Rarity = "Epic", Aliases = { "Tob Tobi Tob Tob", "TobTobi" } },
             { Name = "Snake", Rarity = "Legendary", Aliases = { "Rattlesnake" } },
             { Name = "Sand Spider", Rarity = "Mythic" },
             { Name = "Scorpion", Rarity = "Mythic", Aliases = { "DeathstalkerScorpion" } },
-            { Name = "Royal Sphinx", Rarity = "Cosmic" },
+            { Name = "Royal Sphinx", Rarity = "Cosmic", Aliases = { "Irihorus" } },
         }
     },
     {
         Biome = "Jungle",
         EggNames = { "Jungle Egg" },
         Species = {
-            { Name = "Chimpanzee", Rarity = "Rare" },
             { Name = "Toucan", Rarity = "Rare" },
+            { Name = "Chimpanzee", Rarity = "Rare" },
             { Name = "Crocodile", Rarity = "Epic" },
             { Name = "Gorilla", Rarity = "Legendary" },
-            { Name = "Orangutini Ananassini", Rarity = "Legendary" },
+            { Name = "Orangutini", Rarity = "Legendary", Aliases = { "Orangutini Ananassini" } },
             { Name = "Spider", Rarity = "Mythic" },
             { Name = "Tiger", Rarity = "Mythic" },
             { Name = "King Snake", Rarity = "Secret", Aliases = { "Warden" } },
@@ -171,8 +174,8 @@ local BIOME_EGG_CATALOG = {
             { Name = "Lava Gecko", Rarity = "Rare", Aliases = { "Ash Gecko" } },
             { Name = "Lava Frog", Rarity = "Epic", Aliases = { "Lava frog" } },
             { Name = "Flaming Bull", Rarity = "Legendary" },
-            { Name = "Chillin Chilli", Rarity = "Mythic" },
             { Name = "Lava Iguana", Rarity = "Legendary" },
+            { Name = "Chillin Chilli", Rarity = "Mythic" },
             { Name = "Cerberus", Rarity = "Secret" },
             { Name = "Phoenix", Rarity = "Eternal" },
             { Name = "Lava Dragon", Rarity = "Eternal", Aliases = { "Dragon" } },
@@ -197,13 +200,13 @@ local BIOME_EGG_CATALOG = {
         EggNames = { "Prehistoric Egg" },
         Species = {
             { Name = "Dodo", Rarity = "Rare" },
-            { Name = "Pterodactyl", Rarity = "Legendary" },
-            { Name = "Ankylosaurus", Rarity = "Mythic" },
+            { Name = "Ptero", Rarity = "Legendary", Aliases = { "Pterodactyl" } },
+            { Name = "Anky", Rarity = "Mythic", Aliases = { "Ankylosaurus" } },
+            { Name = "Tri", Rarity = "Cosmic", Aliases = { "Triceratops" } },
             { Name = "Bronto", Rarity = "Cosmic" },
-            { Name = "Triceratops", Rarity = "Cosmic" },
+            { Name = "Trala", Rarity = "Secret", Aliases = { "Tralaledon" } },
             { Name = "TRex", Rarity = "Secret", Aliases = { "TyrannosaurusRex", "T-Rex" } },
-            { Name = "Tralaledon", Rarity = "Secret" },
-            { Name = "Mosasaurus", Rarity = "Eternal" },
+            { Name = "Mosas", Rarity = "Eternal", Aliases = { "Mosasaurus" } },
         }
     },
     {
@@ -213,10 +216,10 @@ local BIOME_EGG_CATALOG = {
             { Name = "Centapede", Rarity = "Epic" },
             { Name = "Cosmic Gecko", Rarity = "Legendary", Aliases = { "Galaxy Gecko" } },
             { Name = "Cosmic Gorilla", Rarity = "Mythic", Aliases = { "Cyclops Gorilla" } },
-            { Name = "La Vacca Saturno Saturnita", Rarity = "Cosmic" },
+            { Name = "La Vacca", Rarity = "Cosmic", Aliases = { "La Vacca Saturno Saturnita" } },
             { Name = "Cosmic Dragon", Rarity = "Secret", Aliases = { "Cave Dragon" } },
-            { Name = "Cosmic Skeleton Boss", Rarity = "Secret", Aliases = { "Alien Skeleton Boss" } },
-            { Name = "Eternal Lunar Dragon", Rarity = "Eternal" },
+            { Name = "Skeleton Boss", Rarity = "Secret", Aliases = { "Alien Skeleton Boss", "Cosmic Skeleton Boss" } },
+            { Name = "Lunar Dragon", Rarity = "Eternal", Aliases = { "Eternal Lunar Dragon" } },
             { Name = "Unicorn", Rarity = "Divine" },
         }
     },
@@ -227,19 +230,31 @@ local BIOME_EGG_CATALOG = {
             { Name = "Crane", Rarity = "Epic" },
             { Name = "Salamander", Rarity = "Legendary" },
             { Name = "Red Panda", Rarity = "Mythic" },
-            { Name = "Snowy Owl", Rarity = "Cosmic" },
             { Name = "Koi", Rarity = "Cosmic" },
+            { Name = "Snowy Owl", Rarity = "Cosmic" },
             { Name = "Stag", Rarity = "Secret" },
             { Name = "Oni Tiger", Rarity = "Eternal" },
             { Name = "Kitsune", Rarity = "Divine" },
         }
     },
     {
+        Biome = "Brainrot Event",
+        EggNames = { "Brainrot Egg" },
+        Species = {
+            { Name = "Tung Tung Sahur", Rarity = "Brainrot" },
+            { Name = "Bananita Dolphinita", Rarity = "Brainrot" },
+            { Name = "Belula Beluga", Rarity = "Brainrot" },
+            { Name = "Mangolini Parrochini", Rarity = "Brainrot" },
+            { Name = "Bomboclat Crocolat", Rarity = "Brainrot" },
+            { Name = "Strawberry Elephant", Rarity = "Brainrot" },
+        }
+    },
+    {
         Biome = "Titan Temple",
         EggNames = { "Titan Temple Egg" },
         Species = {
-            { Name = "Spideron", Rarity = "Legendary", Aliases = { "Kaiju Spider", "Kaiju" } },
-            { Name = "Crustacia", Rarity = "Legendary", Aliases = { "Crab" } },
+            { Name = "Crustcia", Rarity = "Legendary", Aliases = { "Crustacia", "Crab" } },
+            { Name = "Spiderod", Rarity = "Legendary", Aliases = { "Spideron", "Kaiju Spider", "Kaiju" } },
             { Name = "Bladehide", Rarity = "Mythic", Aliases = { "Blade Head" } },
             { Name = "Mantaris", Rarity = "Cosmic", Aliases = { "Mantis" } },
             { Name = "Rhinotaur", Rarity = "Cosmic", Aliases = { "Rhino" } },
@@ -250,9 +265,8 @@ local BIOME_EGG_CATALOG = {
     },
     {
         Biome = "Light & Dark",
-        EggNames = { "Angels & Demons Egg", "Angels Egg", "Demons Egg", "Light Egg", "Dark Egg" },
+        EggNames = { "Angels & Demons Egg", "Angels Egg", "Demons Egg", "Light Egg", "Dark Egg", "Angel Eggs", "Demon Eggs" },
         Species = {
-            -- Light / Angels
             { Name = "Light Dove", Rarity = "Legendary", Aliases = { "Dove" } },
             { Name = "Winged Lamb", Rarity = "Mythic", Aliases = { "Lamb" } },
             { Name = "Sacred Moth", Rarity = "Cosmic", Aliases = { "Moth" } },
@@ -261,13 +275,12 @@ local BIOME_EGG_CATALOG = {
             { Name = "Centaur", Rarity = "Secret" },
             { Name = "Pegasus", Rarity = "Eternal" },
             { Name = "ArchAngel", Rarity = "Divine" },
-            -- Dark / Demons
             { Name = "Flame Sprite", Rarity = "Legendary" },
             { Name = "Toro", Rarity = "Mythic" },
-            { Name = "Imp", Rarity = "Cosmic" },
             { Name = "Demon Hound", Rarity = "Cosmic" },
+            { Name = "Imp", Rarity = "Cosmic" },
             { Name = "Gargoyle", Rarity = "Secret", Aliases = { "Dark Gargoyle" } },
-            { Name = "RazorFang", Rarity = "Secret" },
+            { Name = "Razor Fang", Rarity = "Secret", Aliases = { "RazorFang" } },
             { Name = "Skeleton Horse", Rarity = "Eternal" },
             { Name = "World Burner", Rarity = "Divine" },
         }
@@ -278,10 +291,8 @@ local BIOME_EGG_CATALOG = {
         Species = {
             { Name = "Prism Gecko", Rarity = "Legendary" },
             { Name = "Petal Beetle", Rarity = "Mythic", Aliases = { "Cosmic Beetle Blue", "Cosmic Beetle" } },
-            { Name = "Cosmic Beetle Blue", Rarity = "Mythic", Aliases = { "Petal Beetle", "Cosmic Beetle" } },
             { Name = "Enchanted Bluejay", Rarity = "Mythic" },
             { Name = "Astral Jackalope", Rarity = "Cosmic", Aliases = { "Spirit Hare", "Jackalope" } },
-            { Name = "Spirit Hare", Rarity = "Cosmic", Aliases = { "Astral Jackalope", "Jackalope" } },
             { Name = "Spirit Panda", Rarity = "Cosmic" },
             { Name = "Starry Fox", Rarity = "Secret", Aliases = { "Cosmic Fox" } },
             { Name = "Celestial Sunlion", Rarity = "Eternal", Aliases = { "Sunlion" } },
@@ -289,169 +300,165 @@ local BIOME_EGG_CATALOG = {
         }
     },
     {
-        Biome = "Halloween",
-        EggNames = { "Halloween Egg", "Hooded Gerbil Egg", "Toadstool Egg", "Patchwork Imp Egg", "Halloween Dimension Egg", "Candy Corn Egg" },
+        Biome = "Halloween Dimension",
+        EggNames = { "Halloween Egg", "Halloween Dimension Egg", "Whiskers Egg", "Jesterpop Egg", "Candlefang Egg", "Hooded Gerbil Egg", "Toadstool Egg", "Halloween Royal Mimic Egg", "Candy Corn Egg" },
         Species = {
+            { Name = "Whiskers", Rarity = "Epic" },
+            { Name = "Halloween Dimension Egg", Rarity = "Legendary" },
+            { Name = "Jesterpop", Rarity = "Legendary" },
+            { Name = "Hooded Gerbil", Rarity = "Legendary", Aliases = { "Halloween Egg", "Halloween" } },
+            { Name = "Halloween Royal Mimic Egg", Rarity = "Legendary", Aliases = { "Halloween Royal Mimic", "Royal Mimic", "Mimic Chest", "Mimic Chest Egg" } },
+            { Name = "Mimic Chest", Rarity = "Legendary", Aliases = { "Mimic Chest Egg", "Halloween Royal Mimic Egg", "Halloween Royal Mimic", "Royal Mimic" } },
+            { Name = "Halloween Dimension Egg", Rarity = "Mythic" },
+            { Name = "Candlefang", Rarity = "Mythic" },
+            { Name = "Toadstool", Rarity = "Mythic", Aliases = { "Rotshroom", "Rotshroom Egg" } },
+            { Name = "Crowshade", Rarity = "Mythic" },
+            { Name = "Halloween Dimension Egg", Rarity = "Cosmic" },
+            { Name = "Spirit Knight", Rarity = "Cosmic", Aliases = { "SpiritKnight" } },
+            { Name = "Patchwork Imp", Rarity = "Cosmic", Aliases = { "Quilted Imp Egg", "Quilted Imp" } },
+            { Name = "Haunted Scorpio", Rarity = "Cosmic" },
+            { Name = "Hexed Pumpkin", Rarity = "Cosmic" },
+            { Name = "Graveyard Brute", Rarity = "Secret" },
+            { Name = "Halloween Dimension Egg", Rarity = "Secret" },
+            { Name = "Ghost Reaper", Rarity = "Eternal" },
+            { Name = "Halloween Dimension Egg", Rarity = "Eternal" },
+            { Name = "Candy Corn Egg", Rarity = "Legendary", Aliases = { "Candy Corn" } },
             { Name = "Mummy Egg", Rarity = "Epic", Aliases = { "Mummy" } },
             { Name = "Ghost Fish Egg", Rarity = "Epic", Aliases = { "Ghost Fish" } },
             { Name = "Witch Pumpkin Egg", Rarity = "Legendary", Aliases = { "Witch Pumpkin" } },
             { Name = "Zombified Halloween Egg", Rarity = "Mythic", Aliases = { "Zombified Halloween" } },
-            { Name = "Halloween Dimension Egg", Rarity = "Cosmic", Aliases = { "Halloween Dimension" } },
             { Name = "Halloween Boss Egg", Rarity = "Cosmic", Aliases = { "Halloween Boss" } },
-
-            { Name = "Candy Corn Egg", Rarity = "Legendary", Aliases = { "Candy Corn" } },
-            { Name = "Whiskers Egg", Rarity = "Epic", Aliases = { "Whiskers" } },
             { Name = "Jester Egg", Rarity = "Legendary", Aliases = { "Jester" } },
-            { Name = "Jesterpop Egg", Rarity = "Legendary", Aliases = { "Jesterpop" } },
-            { Name = "Candlefang Egg", Rarity = "Mythic", Aliases = { "Candlefang" } },
-            { Name = "Spirit Knight Egg", Rarity = "Cosmic", Aliases = { "Spirit Knight", "SpiritKnight" } },
             { Name = "Witch Crow Egg", Rarity = "Cosmic", Aliases = { "Witch Crow" } },
-            { Name = "Graveyard Brute Egg", Rarity = "Secret", Aliases = { "Graveyard Brute" } },
-            { Name = "Ghost Reaper Egg", Rarity = "Eternal", Aliases = { "Ghost Reaper" } },
-
-            { Name = "Hooded Gerbil Egg", Rarity = "Legendary", Aliases = { "Hooded Gerbil", "Halloween Egg", "Halloween" } },
-            { Name = "Toadstool Egg", Rarity = "Mythic", Aliases = { "Toadstool", "Rotshroom", "Rotshroom Egg" } },
-            { Name = "Patchwork Imp Egg", Rarity = "Cosmic", Aliases = { "Quilted Imp Egg", "Quilted Imp", "Patchwork Imp" } },
-            { Name = "Haunted Scorpio Egg", Rarity = "Cosmic", Aliases = { "Haunted Scorpio" } },
             { Name = "BloodBloom Egg", Rarity = "Secret", Aliases = { "BloodBloom" } },
             { Name = "Shelltide Voyager Egg", Rarity = "Eternal", Aliases = { "Shelltide Voyager" } },
-
-            { Name = "Halloween Royal Mimic Egg", Rarity = "Legendary", Aliases = { "Halloween Royal Mimic", "Royal Mimic" } },
-            { Name = "Crowshade Egg", Rarity = "Mythic", Aliases = { "Crowshade" } },
-            { Name = "Hexed Pumpkin Egg", Rarity = "Cosmic", Aliases = { "Hexed Pumpkin" } },
             { Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } },
             { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong" } },
             { Name = "Voidseer Pumpkin Egg", Rarity = "Divine", Aliases = { "Voidseer Pumpkin" } },
-            { Name = "Pumpkin Golem", Rarity = "Secret", Aliases = { "Pumpkin Golem Egg" } }
+            { Name = "Pumpkin Golem", Rarity = "Secret", Aliases = { "Pumpkin Golem Egg" } },
+        }
+    },
+    {
+        Biome = "Monster Eggs",
+        EggNames = { "Monster Egg" },
+        Species = {
+            { Name = "Monster Egg (Scorpio)", Rarity = "Legendary", Aliases = { "Scorpio" } },
+            { Name = "Monster Egg (Froggo)", Rarity = "Mythic", Aliases = { "Froggo" } },
+            { Name = "Monster Egg (Crawler)", Rarity = "Cosmic", Aliases = { "Crawler" } },
+            { Name = "Monster Egg (Crocodon)", Rarity = "Secret", Aliases = { "Crocodon" } },
+            { Name = "Monster Egg (Krakenoid)", Rarity = "Eternal", Aliases = { "Krakenoid" } },
+            { Name = "Monster Egg (Dreadscale)", Rarity = "Divine", Aliases = { "Dreadscale" } },
+            { Name = "Monster Egg (Mecha Scorpio)", Rarity = "1%", Aliases = { "Mecha Scorpio" } },
+            { Name = "Monster Egg (Mecha Froggo)", Rarity = "1%", Aliases = { "Mecha Froggo" } },
+            { Name = "Monster Egg (Mecha Crawler)", Rarity = "1%", Aliases = { "Mecha Crawler" } },
+            { Name = "Monster Egg (Mecha Crocodon)", Rarity = "1%", Aliases = { "Mecha Crocodon" } },
+            { Name = "Monster Egg (Mecha Krakenoid)", Rarity = "1%", Aliases = { "Mecha Krakenoid" } },
+            { Name = "Monster Egg (Mecha Dreadscale)", Rarity = "1%", Aliases = { "Mecha Dreadscale" } },
+        }
+    },
+    {
+        Biome = "Void Eggs",
+        EggNames = { "Void Egg", "Riftborn Egg", "Riftbeasts Egg", "Shattered Rift Egg" },
+        Species = {
+            { Name = "Riftborn Egg (Rift Eye)", Rarity = "Legendary", Aliases = { "Rift Eye" } },
+            { Name = "Riftborn Egg (Voidmaw)", Rarity = "Mythic", Aliases = { "Voidmaw" } },
+            { Name = "Riftborn Egg (Ventinal)", Rarity = "Cosmic", Aliases = { "Ventinal" } },
+            { Name = "Riftborn Egg (Wendigo)", Rarity = "Secret", Aliases = { "Wendigo" } },
+            { Name = "Riftborn Egg (World Eater)", Rarity = "Eternal", Aliases = { "World Eater" } },
+            { Name = "Riftbeasts Egg (Void Angler)", Rarity = "Legendary", Aliases = { "Void Angler" } },
+            { Name = "Riftbeasts Egg (Riftwing)", Rarity = "Mythic", Aliases = { "Riftwing" } },
+            { Name = "Riftbeasts Egg (Dreadclaw)", Rarity = "Cosmic", Aliases = { "Dreadclaw" } },
+            { Name = "Riftbeasts Egg (Mawbreaker)", Rarity = "Secret", Aliases = { "Mawbreaker" } },
+            { Name = "Riftbeasts Egg (Void Serpent)", Rarity = "Eternal", Aliases = { "Void Serpent" } },
+            { Name = "Shattered Rift Egg (Shardling)", Rarity = "Mythic", Aliases = { "Shardling" } },
+            { Name = "Shattered Rift Egg (Shattered Ram)", Rarity = "Cosmic", Aliases = { "Shattered Ram" } },
+            { Name = "Shattered Rift Egg (Shardwing)", Rarity = "Secret", Aliases = { "Shardwing" } },
+            { Name = "Shattered Rift Egg (Shattered Drake)", Rarity = "Eternal", Aliases = { "Shattered Drake" } },
+            { Name = "Shattered Rift Egg (Shattered Colossus)", Rarity = "Divine", Aliases = { "Shattered Colossus" } },
+        }
+    },
+    {
+        Biome = "Luminous Eggs",
+        EggNames = { "Luminous Egg" },
+        Species = {
+            { Name = "Luminous Egg (Spike)", Rarity = "Legendary", Aliases = { "Spike" } },
+            { Name = "Luminous Egg (Spirit Manta)", Rarity = "Mythic", Aliases = { "Spirit Manta" } },
+            { Name = "Luminous Egg (Abyss Shark)", Rarity = "Cosmic", Aliases = { "Abyss Shark" } },
+            { Name = "Luminous Egg (Electric Eel)", Rarity = "Secret", Aliases = { "Electric Eel" } },
+            { Name = "Luminous Egg (Terra Snapper)", Rarity = "Eternal", Aliases = { "Terra Snapper" } },
+            { Name = "Luminous Egg (Cthulhu)", Rarity = "Divine", Aliases = { "Cthulhu" } },
+            { Name = "Luminous Egg (Luminous Spike)", Rarity = "1%", Aliases = { "Luminous Spike" } },
+            { Name = "Luminous Egg (Luminous Spirit Manta)", Rarity = "1%", Aliases = { "Luminous Spirit Manta" } },
+            { Name = "Luminous Egg (Luminous Abyss Shark)", Rarity = "1%", Aliases = { "Luminous Abyss Shark" } },
+            { Name = "Luminous Egg (Luminous Electric Eel)", Rarity = "1%", Aliases = { "Luminous Electric Eel" } },
+            { Name = "Luminous Egg (Luminous Terra Snapper)", Rarity = "1%", Aliases = { "Luminous Terra Snapper" } },
+            { Name = "Luminous Egg (Luminous Cthulhu)", Rarity = "1%", Aliases = { "Luminous Cthulhu" } },
+        }
+    },
+    {
+        Biome = "Dr. Scramble's Laboratory",
+        EggNames = { "Biohazard Egg", "Experimental Pets Egg", "Unstable DNA Egg" },
+        Species = {
+            { Name = "Biohazard Egg (Toxic Rat)", Rarity = "Mythic", Aliases = { "Toxic Rat" } },
+            { Name = "Experimental Pets Egg (Wheel Hamster)", Rarity = "Mythic", Aliases = { "Wheel Hamster" } },
+            { Name = "Unstable DNA Egg (Frogfly)", Rarity = "Mythic", Aliases = { "Frogfly" } },
+            { Name = "Biohazard Egg (Radcoon)", Rarity = "Cosmic", Aliases = { "Radcoon" } },
+            { Name = "Experimental Pets Egg (Stacked Turtle)", Rarity = "Cosmic", Aliases = { "Stacked Turtle" } },
+            { Name = "Unstable DNA Egg (Spiderpig)", Rarity = "Cosmic", Aliases = { "Spiderpig" } },
+            { Name = "Biohazard Egg (Toucax)", Rarity = "Cosmic", Aliases = { "Toucax" } },
+            { Name = "Experimental Pets Egg (Three Headed Chicken)", Rarity = "Cosmic", Aliases = { "Three Headed Chicken" } },
+            { Name = "Unstable DNA Egg (Sharkodile)", Rarity = "Secret", Aliases = { "Sharkodile" } },
+            { Name = "Biohazard Egg (Nuceodile)", Rarity = "Secret", Aliases = { "Nuceodile" } },
+            { Name = "Experimental Pets Egg (Eyeball Crab)", Rarity = "Secret", Aliases = { "Eyeball Crab" } },
+            { Name = "Unstable DNA Egg (Rhinobear)", Rarity = "Eternal", Aliases = { "Rhinobear" } },
+            { Name = "Biohazard Egg (Nuclear Mantis)", Rarity = "Eternal", Aliases = { "Nuclear Mantis" } },
+            { Name = "Experimental Pets Egg (Deadstinger)", Rarity = "Eternal", Aliases = { "Deadstinger" } },
+            { Name = "Unstable DNA Egg (Octophant)", Rarity = "Divine", Aliases = { "Octophant" } },
+        }
+    },
+    {
+        Biome = "Dr. Scramble's Experiments",
+        EggNames = { "Experiment #001 Egg", "Nibbles Egg" },
+        Species = {
+            { Name = "Experiment #001", Rarity = "Secret" },
+            { Name = "Nibbles", Rarity = "Cosmic" },
+        }
+    },
+    {
+        Biome = "Extinction Eggs",
+        EggNames = { "Extinction Egg" },
+        Species = {
+            { Name = "Extinction Egg (Glyptodon)", Rarity = "Legendary", Aliases = { "Glyptodon" } },
+            { Name = "Extinction Egg (Terrorbird)", Rarity = "Mythic", Aliases = { "Terrorbird" } },
+            { Name = "Extinction Egg (Giant Sloth)", Rarity = "Cosmic", Aliases = { "Giant Sloth" } },
+            { Name = "Extinction Egg (Dunkleosteus)", Rarity = "Secret", Aliases = { "Dunkleosteus" } },
+            { Name = "Extinction Egg (Skeletal Glyptodon)", Rarity = "Secret", Aliases = { "Skeletal Glyptodon" } },
+            { Name = "Extinction Egg (Skeletal Terrorbird)", Rarity = "Secret", Aliases = { "Skeletal Terrorbird" } },
+            { Name = "Extinction Egg (Skeletal Giant Sloth)", Rarity = "Secret", Aliases = { "Skeletal Giant Sloth" } },
+            { Name = "Extinction Egg (Gigantus)", Rarity = "Eternal", Aliases = { "Gigantus" } },
+            { Name = "Extinction Egg (Skeletal Dunkleosteus)", Rarity = "Eternal", Aliases = { "Skeletal Dunkleosteus" } },
+            { Name = "Extinction Egg (Skeletal Gigantus)", Rarity = "Eternal", Aliases = { "Skeletal Gigantus" } },
+            { Name = "Extinction Egg (Sabertooth)", Rarity = "Divine", Aliases = { "Sabertooth" } },
+            { Name = "Extinction Egg (Skeletal Sabertooth)", Rarity = "Divine", Aliases = { "Skeletal Sabertooth" } },
+        }
+    },
+    {
+        Biome = "Racing Event Eggs",
+        EggNames = { "Racing Egg", "Race Egg", "Seahorse Egg" },
+        Species = {
+            { Name = "Seahorse", Rarity = "Legendary", Aliases = { "Race Seahorse" } },
+            { Name = "Race Lizard", Rarity = "Rare" },
+            { Name = "Race Bird", Rarity = "Cosmic" },
+            { Name = "Race Cheetah", Rarity = "Secret" },
+            { Name = "Engine Snail", Rarity = "Eternal" },
         }
     },
     {
         Biome = "Ungrouped",
         EggNames = { "Event Egg", "Special Egg" },
         Species = {
-            { Name = "Spiderpig", Rarity = "Cosmic" },
-            { Name = "Three Headed Chicken", Rarity = "Cosmic" },
-            -- Toxic Wasteland Event
-            { Name = "Toxic Rat", Rarity = "Common" },
-            { Name = "Radcoon", Rarity = "Common" },
-            { Name = "Toxic Hedgehog", Rarity = "Rare" },
-            { Name = "Toxic Crocodile", Rarity = "Epic" },
-            { Name = "Sharkodile", Rarity = "Legendary" },
-            { Name = "Rhinobear", Rarity = "Mythic" },
-            { Name = "Toucax", Rarity = "Mythic" },
-            { Name = "Nuceodille", Rarity = "Eternal" },
-            { Name = "Nuclear Mantis", Rarity = "Divine" },
-            -- Void & Rift Event
-            { Name = "Rift Eye", Rarity = "Legendary" },
-            { Name = "Void Angler", Rarity = "Legendary" },
-            { Name = "Riftwing", Rarity = "Mythic" },
-            { Name = "Shardling", Rarity = "Mythic" },
-            { Name = "Voidmaw", Rarity = "Mythic" },
-            { Name = "Dreadclaw", Rarity = "Cosmic" },
-            { Name = "Shattered Ram", Rarity = "Cosmic" },
-            { Name = "Ventinal", Rarity = "Cosmic" },
-            { Name = "Nibbles #013", Rarity = "Cosmic" },
-            { Name = "Mawbreaker", Rarity = "Secret" },
-            { Name = "Shardwing", Rarity = "Secret" },
-            { Name = "Wendigo", Rarity = "Secret" },
-            { Name = "Abyss Overlord", Rarity = "Secret" },
-            { Name = "Experiment #001", Rarity = "Secret" },
-            { Name = "Ember Dragon", Rarity = "Secret" },
-            { Name = "Scorched Dragon", Rarity = "Secret", Aliases = { "ScorchedDragon" } },
-            { Name = "Shattered Drake", Rarity = "Eternal" },
-            { Name = "Void Serpent", Rarity = "Eternal" },
-            { Name = "Void Dragon", Rarity = "Eternal" },
-            { Name = "World Eater", Rarity = "Eternal" },
-            { Name = "Shattered Colossus", Rarity = "Divine" },
-            { Name = "Aetheron", Rarity = "Divine" },
-            { Name = "Equinox", Rarity = "Eternal" },
-            { Name = "Baby Aurora Dragon", Rarity = "Legendary" },
-            { Name = "Shadow Dragon", Rarity = "Mythic" },
-            { Name = "Drilla", Rarity = "Cosmic" },
-            { Name = "Basilisk", Rarity = "Cosmic" },
-            -- Mecha Event
-            { Name = "Scorpio", Rarity = "Legendary", Aliases = { "Mecha Scorpio" } },
-            { Name = "Froggo", Rarity = "Mythic", Aliases = { "Mecha Froggo" } },
-            { Name = "Crawler", Rarity = "Cosmic", Aliases = { "Mecha Crawler" } },
-            { Name = "Crocodon", Rarity = "Secret", Aliases = { "Mecha Crocodon" } },
-            { Name = "Krakenoid", Rarity = "Eternal", Aliases = { "Mecha Krakenoid" } },
-            { Name = "Dreadscale", Rarity = "Divine", Aliases = { "Mecha Dreadscale" } },
-            -- Luminous Depths Event
-            { Name = "Spike", Rarity = "Legendary", Aliases = { "Luminous Spike" } },
-            { Name = "Spirit Manta", Rarity = "Mythic", Aliases = { "Luminous Spirit Manta" } },
-            { Name = "Abyss Shark", Rarity = "Cosmic", Aliases = { "Luminous Abyss Shark" } },
-            { Name = "Electric Eel", Rarity = "Secret", Aliases = { "Luminous Electric Eel" } },
-            { Name = "Terra Snapper", Rarity = "Eternal", Aliases = { "Luminous Terra Snapper" } },
-            { Name = "Cthulhu", Rarity = "Divine", Aliases = { "Luminous Cthulhu" } },
-            -- Meme & Special Event
-            { Name = "Tung Tung Sahur", Rarity = "Rare" },
-            { Name = "Bananita Dolphinita", Rarity = "Epic" },
-            { Name = "Belula Beluga", Rarity = "Mythic" },
-            { Name = "Mangolini Parrochini", Rarity = "Cosmic" },
-            { Name = "Bomboclat Crocolat", Rarity = "Secret" },
-            { Name = "Strawberry Elephant", Rarity = "Eternal" },
-            -- Other Discovered / Legacy Event Species
-            { Name = "Stacked Turtle", Rarity = "Rare" },
-            { Name = "DesertLark", Rarity = "Rare" },
-            { Name = "Uncoiled Armadillo", Rarity = "Epic" },
-            { Name = "Ringlord", Rarity = "Secret" },
-            { Name = "Eye Bat", Rarity = "Rare" },
-            { Name = "Citadel Snail", Rarity = "Epic" },
-            { Name = "Ascended Vermilion Phoenix", Rarity = "Divine" },
-            { Name = "Hellhound", Rarity = "Legendary" },
-            { Name = "Balrog", Rarity = "Eternal" },
-            { Name = "Archdemon Dragon", Rarity = "Divine" },
-            { Name = "Riptide Octopus", Rarity = "Eternal" },
-            { Name = "Depths Riptide Octopus", Rarity = "Divine" },
-            { Name = "Frogfly", Rarity = "Rare" },
-            { Name = "Wheel Hamster", Rarity = "Rare" },
-            -- Machine / Fusion / Laboratory Event
-            { Name = "Biohazard Egg", Rarity = "Secret", Aliases = { "Biohazard" } },
-            { Name = "Experiment Egg", Rarity = "Secret" },
-            { Name = "LimitedExperimentEgg", Rarity = "Secret", Aliases = { "Limited Experiment Egg" } },
-            { Name = "LimitedTimeExperimentPet", Rarity = "Secret" },
-            { Name = "Pink Dragon Experiment", Rarity = "Eternal" },
-            { Name = "Extinction Egg", Rarity = "Eternal", Aliases = { "Extinction" } },
-            { Name = "Boss Egg", Rarity = "Cosmic" },
-            { Name = "Crystal Egg", Rarity = "Rare" },
-            { Name = "Depths Egg", Rarity = "Rare" },
-            { Name = "Depths Reroll Egg", Rarity = "Mythic" },
-            { Name = "Shattered Rift Egg", Rarity = "Cosmic" },
-            { Name = "Riftborn Egg", Rarity = "Mythic" },
-            { Name = "Riftbeasts Egg", Rarity = "Legendary" },
-            { Name = "Shelltide Voyager Egg", Rarity = "Cosmic", Aliases = { "Shelltide Voyager" } },
-            { Name = "Skeletal Egg", Rarity = "Rare", Aliases = { "Skeletal" } },
-            { Name = "Unstable", Rarity = "Secret" },
-            -- Scramble / Mecha / Meme Event Additions
-            { Name = "Mecha Egg", Rarity = "Legendary" },
-            { Name = "Mecha Scrambler", Rarity = "Cosmic" },
-            { Name = "67", Rarity = "Rare" },
-            { Name = "67 OP", Rarity = "Epic" },
-            { Name = "Amethyst Runebear", Rarity = "Legendary" },
-            { Name = "Amethyst Runebear OP", Rarity = "Mythic" },
-            { Name = "Toxic Hedgehog OP", Rarity = "Legendary" },
-            { Name = "Octophant", Rarity = "Divine" },
-            -- Mount / Race Rally Event
-            { Name = "Race Bird", Rarity = "Uncommon" },
-            { Name = "Race Cheetah", Rarity = "Rare" },
-            { Name = "Race Lizard", Rarity = "Uncommon" },
-            { Name = "Race Seahorse", Rarity = "Rare" },
-            { Name = "Ostrich", Rarity = "Rare" },
-            { Name = "Ostrich OP", Rarity = "Epic" },
-            -- World / Special / Boss Additions
-            { Name = "Mushroom Egg", Rarity = "Rare", Aliases = { "Mushroom" } },
-            { Name = "Banjo Firefly", Rarity = "Rare" },
-            { Name = "Engine Snail", Rarity = "Epic" },
-            { Name = "Monster Egg", Rarity = "Mythic" },
-            { Name = "Monstrous Egg", Rarity = "Secret" },
-            { Name = "Ring Guard", Rarity = "Secret" },
-            { Name = "Irihorus", Rarity = "Cosmic" },
-            { Name = "Starry Wolf", Rarity = "Secret" },
-            { Name = "World Spirit", Rarity = "Divine" },
-            { Name = "Drill Monster", Rarity = "Cosmic" },
-            { Name = "Demon Imp", Rarity = "Cosmic" },
         }
-    }
+    },
 }
 
 -- Fast lookup indexes
@@ -459,12 +466,23 @@ local SPECIES_INFO, SPECIES_INFO_BY_BIOME, EGG_ALIASES = {}, {}, {}
 
 local function normalizeSpecies(name)
     if not name or type(name) ~= "string" then return "" end
-    local str = name:lower():gsub("^%b[]%s*", ""):gsub("%s*%b()%s*$", "")
+    local str = name:lower():gsub("^%b[]%s*", "")
+    str = str:gsub("%s*%(x%d+%)%s*$", ""):gsub("%s*%(%d+%%%)%s*$", ""):gsub("%s*%(%+%d+%)%s*$", "")
     for _, prefix in ipairs({ "rainbow", "golden", "silver", "gold", "shiny" }) do
         str = str:gsub("^" .. prefix .. "%s+", "")
     end
     str = str:gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
     return str
+end
+
+local function isGenericEggName(name)
+    if not name or type(name) ~= "string" then return true end
+    local clean = normalizeSpecies(name)
+    if clean == "" or clean == "egg" or clean == "field" or clean == "field egg" or clean == "forest egg"
+        or clean == "unknown" or clean == "slot" or clean:find("^field%s*egg") or clean:find("^forest%s*egg") then
+        return true
+    end
+    return false
 end
 
 -- Populate indexes
@@ -482,10 +500,24 @@ for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
             Biome       = biomeData.Biome,
             IsCataloged = true,
         }
-        if not SPECIES_INFO[canonicalNorm] then
+        if canonicalNorm ~= "" and not SPECIES_INFO[canonicalNorm] then
             SPECIES_INFO[canonicalNorm] = record
         end
-        SPECIES_INFO_BY_BIOME[biomeData.Biome][canonicalNorm] = record
+        if canonicalNorm ~= "" then
+            SPECIES_INFO_BY_BIOME[biomeData.Biome][canonicalNorm] = record
+        end
+
+        local inner = spec.Name:match("%((.-)%)")
+        if inner then
+            local innerNorm = normalizeSpecies(inner)
+            if innerNorm ~= "" then
+                if not SPECIES_INFO[innerNorm] then
+                    SPECIES_INFO[innerNorm] = record
+                end
+                SPECIES_INFO_BY_BIOME[biomeData.Biome][innerNorm] = record
+                EGG_ALIASES[innerNorm] = canonicalNorm
+            end
+        end
 
         if spec.Aliases then
             for _, alias in ipairs(spec.Aliases) do
@@ -500,9 +532,23 @@ for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
             end
         end
     end
+
+    if biomeData.Biome == "Light & Dark" then
+        if not SPECIES_INFO_BY_BIOME["Angel Eggs"] then SPECIES_INFO_BY_BIOME["Angel Eggs"] = {} end
+        if not SPECIES_INFO_BY_BIOME["Demon Eggs"] then SPECIES_INFO_BY_BIOME["Demon Eggs"] = {} end
+        for k, v in pairs(SPECIES_INFO_BY_BIOME["Light & Dark"]) do
+            if v.DisplayName:find("Dove") or v.DisplayName:find("Lamb") or v.DisplayName:find("Moth") or v.DisplayName:find("Peacock") or v.DisplayName:find("Jellyfish") or v.DisplayName:find("Centaur") or v.DisplayName:find("Pegasus") or v.DisplayName:find("ArchAngel") then
+                SPECIES_INFO_BY_BIOME["Angel Eggs"][k] = v
+            else
+                SPECIES_INFO_BY_BIOME["Demon Eggs"][k] = v
+            end
+        end
+    end
+    if biomeData.Biome == "Halloween Dimension" then
+        SPECIES_INFO_BY_BIOME["Halloween"] = SPECIES_INFO_BY_BIOME["Halloween Dimension"]
+    end
 end
 
--- Species lookup and matching helpers
 local function getSpeciesInfo(name, biomeFilter)
     local clean = normalizeSpecies(name)
     if clean == "" then return nil end
@@ -1377,7 +1423,9 @@ end)
 -- Filter Selection State
 local BIOME_ORDER = {
     "Forest", "Lake", "Desert", "Jungle", "Snow", "Volcano", "Abyss Ocean",
-    "Prehistoric", "Cosmic", "Cherry Blossom", "Titan Temple", "Light & Dark", "Enchanted Forest", "Ungrouped"
+    "Prehistoric", "Cosmic", "Cherry Blossom", "Brainrot Event", "Titan Temple", "Light & Dark", "Angel Eggs", "Demon Eggs", "Enchanted Forest",
+    "Halloween Dimension", "Monster Eggs", "Void Eggs", "Luminous Eggs",
+    "Dr. Scramble's Laboratory", "Dr. Scramble's Experiments", "Extinction Eggs", "Racing Event Eggs", "Ungrouped"
 }
 
 local ALL_SPECIES_LIST = {}
@@ -1385,6 +1433,7 @@ local seenSpecies = {}
 
 local function registerDynamicSpecies(rawName, defaultBiome, defaultRarity)
     if not rawName or type(rawName) ~= "string" or rawName == "" then return false end
+    if isGenericEggName(rawName) then return false end
     local clean = normalizeSpecies(rawName)
     if clean == "" then return false end
 
@@ -1449,7 +1498,7 @@ local function registerDynamicSpecies(rawName, defaultBiome, defaultRarity)
     return false
 end
 
--- Pre-populate catalog species
+-- Pre-populate catalog species (Exact canonical species, aliases preserved for lookup)
 do
     for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
         for _, spec in ipairs(biomeData.Species) do
@@ -1463,21 +1512,6 @@ do
                     Rank      = RARITY_RANK[spec.Rarity] or 0,
                     SearchKey = (spec.Name .. " " .. biomeData.Biome .. " " .. spec.Rarity):lower(),
                 })
-            end
-            if spec.Aliases then
-                for _, alias in ipairs(spec.Aliases) do
-                    local aliasClean = normalizeSpecies(alias)
-                    if aliasClean ~= "" and not seenSpecies[aliasClean] then
-                        seenSpecies[aliasClean] = true
-                        table.insert(ALL_SPECIES_LIST, {
-                            Name      = alias,
-                            Biome     = biomeData.Biome,
-                            Rarity    = spec.Rarity,
-                            Rank      = RARITY_RANK[spec.Rarity] or 0,
-                            SearchKey = (alias .. " " .. biomeData.Biome .. " " .. spec.Rarity):lower(),
-                        })
-                    end
-                end
             end
         end
     end
@@ -1522,7 +1556,12 @@ end
 local function isBiomeAllowed(b)
     if selectedBiomes["All"] then return true end
     if next(selectedBiomes) == nil then return false end
-    return selectedBiomes[b] == true
+    if selectedBiomes[b] == true then return true end
+    if b == "Light & Dark" and (selectedBiomes["Angel Eggs"] or selectedBiomes["Demon Eggs"]) then return true end
+    if (b == "Angel Eggs" or b == "Demon Eggs") and selectedBiomes["Light & Dark"] then return true end
+    if b == "Halloween Dimension" and selectedBiomes["Halloween"] then return true end
+    if b == "Halloween" and selectedBiomes["Halloween Dimension"] then return true end
+    return false
 end
 
 local function isEggAllowed(disp, raw, info)
@@ -2574,7 +2613,7 @@ local eggCacheByUid = {}
 local rarityByUid = {}
 local cardPool = {}
 local emptyNoticeLabel = nil
-local listDirty, isFetchingSnapshot, snapshotSyncDebounce = false, false, false
+local listDirty, isFetchingSnapshot = false, false
 
 local function getNetRemote(name)
     local ok, res = pcall(function()
@@ -2602,12 +2641,21 @@ local function getEggPosition(r, uid)
         if slots then
             local sl = slots:FindFirstChild(u)
             if sl then
-                if sl:IsA("BasePart") and sl.Position.Magnitude > 10 then return sl.Position end
+                if sl:IsA("BasePart") and sl.Position.Magnitude > 10 then
+                    if typeof(r) == "table" then r.BoundsCFrame = sl.CFrame end
+                    return sl.Position
+                end
                 if sl:IsA("Model") then
                     local p = sl.PrimaryPart and sl.PrimaryPart.Position
-                    if p and p.Magnitude > 10 then return p end
-                    local ok, piv = pcall(function() return sl:GetPivot().Position end)
-                    if ok and piv and piv.Magnitude > 10 then return piv end
+                    if p and p.Magnitude > 10 then
+                        if typeof(r) == "table" then r.BoundsCFrame = sl.PrimaryPart.CFrame end
+                        return p
+                    end
+                    local ok, piv = pcall(sl.GetPivot, sl)
+                    if ok and piv and piv.Position.Magnitude > 10 then
+                        if typeof(r) == "table" then r.BoundsCFrame = piv end
+                        return piv.Position
+                    end
                 end
             end
         end
@@ -2615,12 +2663,21 @@ local function getEggPosition(r, uid)
         if eggs then
             local em = eggs:FindFirstChild(u)
             if em then
-                if em:IsA("BasePart") and em.Position.Magnitude > 10 then return em.Position end
+                if em:IsA("BasePart") and em.Position.Magnitude > 10 then
+                    if typeof(r) == "table" then r.BoundsCFrame = em.CFrame end
+                    return em.Position
+                end
                 if em:IsA("Model") then
                     local p = em.PrimaryPart and em.PrimaryPart.Position
-                    if p and p.Magnitude > 10 then return p end
-                    local ok, piv = pcall(function() return em:GetPivot().Position end)
-                    if ok and piv and piv.Magnitude > 10 then return piv end
+                    if p and p.Magnitude > 10 then
+                        if typeof(r) == "table" then r.BoundsCFrame = em.PrimaryPart.CFrame end
+                        return p
+                    end
+                    local ok, piv = pcall(em.GetPivot, em)
+                    if ok and piv and piv.Position.Magnitude > 10 then
+                        if typeof(r) == "table" then r.BoundsCFrame = piv end
+                        return piv.Position
+                    end
                 end
             end
         end
@@ -2651,7 +2708,7 @@ local function resolveEggFields(r, uid, charPos)
     local serverRarity = r.RarityId or r.Rarity or (r.Attributes and r.Attributes.Rarity) or rarityByUid[uid]
     local pos = getEggPosition(r, uid)
 
-    local searchArea = rawArea
+    local searchArea = rawArea or (typeof(r) == "table" and r.CachedArea)
     if not searchArea or searchArea == "" or searchArea == "Unknown" then
         if pos then
             local x = pos.X
@@ -2669,23 +2726,29 @@ local function resolveEggFields(r, uid, charPos)
             elseif x >= 5200 and x < 6100 then searchArea = "Light & Dark"
             elseif x >= 6100 and x < 7500 then searchArea = "Enchanted Forest"
             end
+            if searchArea and typeof(r) == "table" then
+                r.CachedArea = searchArea
+            end
         end
         if rawName:lower() == "shark" and serverRarity == "Secret" then
             searchArea = "Titan Temple"
         end
     end
 
-    local info = getSpeciesInfo(r.DisplayName, searchArea)
-        or getSpeciesInfo(r.AssetCategory, searchArea)
-        or getSpeciesInfo(r.Name, searchArea)
-        or getSpeciesInfo(rawName, searchArea)
-        or getSpeciesInfo(rawName)
+    local info = nil
+    if rawName and not isGenericEggName(rawName) then
+        info = getSpeciesInfo(r.DisplayName, searchArea)
+            or getSpeciesInfo(r.AssetCategory, searchArea)
+            or getSpeciesInfo(r.Name, searchArea)
+            or getSpeciesInfo(rawName, searchArea)
+            or getSpeciesInfo(rawName)
+    end
 
-    local disp = (info and info.DisplayName) or r.DisplayName or r.AssetCategory or rawName
+    local disp = (info and info.DisplayName) or (not isGenericEggName(rawName) and rawName) or nil
     local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown") and serverRarity or ((info and info.Rarity) or "Unknown")
 
-    -- Fallback: If name is generic (e.g. "Field", "Field Egg", "Egg") but rarity is known, deduce from catalog
-    local isGeneric = (disp == "Egg" or disp == "Field Egg" or disp == "Field" or disp:lower():find("field") ~= nil or not info)
+    -- Fallback: If name is unknown/generic but rarity & area are known, deduce from catalog
+    local isGeneric = (not disp or disp == "" or isGenericEggName(disp) or not info)
     if isGeneric and rarity and rarity ~= "Unknown" then
         if searchArea and SPECIES_INFO_BY_BIOME[searchArea] then
             for _, cand in pairs(SPECIES_INFO_BY_BIOME[searchArea]) do
@@ -2708,6 +2771,15 @@ local function resolveEggFields(r, uid, charPos)
                 end
                 if info then break end
             end
+        end
+    end
+
+    -- If still no display name, provide clean area label without polluting record
+    if not disp or disp == "" or isGenericEggName(disp) then
+        if searchArea and searchArea ~= "Unknown" and searchArea ~= "" then
+            disp = searchArea .. " Egg"
+        else
+            disp = "Egg"
         end
     end
 
@@ -2865,29 +2937,39 @@ updateActivityStatus = function()
     local activeSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
 
     if activityStatusLabel then
+        local newText, newColor
         if not velocityEnabled then
-            activityStatusLabel.Text = "Status: Velocity Disabled (Normal WalkSpeed)"
-            activityStatusLabel.TextColor3 = Color3.fromRGB(160, 170, 190)
+            newText = "Status: Velocity Disabled (Normal WalkSpeed)"
+            newColor = Color3.fromRGB(160, 170, 190)
         elseif isCarrying then
             local dispName = eggName or "Egg"
-            activityStatusLabel.Text = string.format("Status: Carrying %s (%d studs/s)", dispName, activeSpeed)
-            activityStatusLabel.TextColor3 = Color3.fromRGB(255, 205, 90)
+            newText = string.format("Status: Carrying %s (%d studs/s)", dispName, activeSpeed)
+            newColor = Color3.fromRGB(255, 205, 90)
         else
-            activityStatusLabel.Text = string.format("Status: Not Carrying | Free Movement (%d studs/s)", activeSpeed)
-            activityStatusLabel.TextColor3 = Color3.fromRGB(150, 185, 230)
+            newText = string.format("Status: Not Carrying | Free Movement (%d studs/s)", activeSpeed)
+            newColor = Color3.fromRGB(150, 185, 230)
+        end
+        if activityStatusLabel.Text ~= newText then
+            activityStatusLabel.Text = newText
+            activityStatusLabel.TextColor3 = newColor
         end
     end
 
     if velLiveLabel then
+        local newVelText, newVelColor
         if velocityEnabled then
             local char = LocalPlayer and LocalPlayer.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             local isMoving = hum and hum.MoveDirection.Magnitude > 0.05
-            velLiveLabel.Text = string.format("Vel: %d", isMoving and activeSpeed or 0)
-            velLiveLabel.TextColor3 = isMoving and Color3.fromRGB(100, 240, 255) or Color3.fromRGB(150, 200, 240)
+            newVelText = string.format("Vel: %d", isMoving and activeSpeed or 0)
+            newVelColor = isMoving and Color3.fromRGB(100, 240, 255) or Color3.fromRGB(150, 200, 240)
         else
-            velLiveLabel.Text = "Vel: OFF"
-            velLiveLabel.TextColor3 = Color3.fromRGB(130, 140, 160)
+            newVelText = "Vel: OFF"
+            newVelColor = Color3.fromRGB(130, 140, 160)
+        end
+        if velLiveLabel.Text ~= newVelText then
+            velLiveLabel.Text = newVelText
+            velLiveLabel.TextColor3 = newVelColor
         end
     end
 end
@@ -4187,11 +4269,18 @@ renderFarmableEggs = function()
         local distText = itemData.Distance < 90000 and string.format(" • %dm", math.floor(itemData.Distance)) or ""
         local rarColor = RARITY_COLORS[itemData.Rarity] or Color3.fromRGB(150, 150, 150)
 
-        poolItem.nameLabel.Text = itemData.DisplayName
-        poolItem.subLabel.Text = itemData.Biome .. " • " .. itemData.Rarity .. stateTag .. distText
-        poolItem.subLabel.TextColor3 = rarColor
-        poolItem.accent.BackgroundColor3 = rarColor
-        poolItem.card.Visible = true
+        local subText = itemData.Biome .. " • " .. itemData.Rarity .. stateTag .. distText
+        if poolItem.nameLabel.Text ~= itemData.DisplayName then
+            poolItem.nameLabel.Text = itemData.DisplayName
+        end
+        if poolItem.subLabel.Text ~= subText then
+            poolItem.subLabel.Text = subText
+            poolItem.subLabel.TextColor3 = rarColor
+            poolItem.accent.BackgroundColor3 = rarColor
+        end
+        if not poolItem.card.Visible then
+            poolItem.card.Visible = true
+        end
     end
 
     -- Hide any extra pooled cards beyond active count
@@ -6776,8 +6865,6 @@ local function syncAreaEggSlotsESP()
             if type(rawSrc) == "string" and rawSrc ~= "" then
                 local base = rawSrc:match("([^%.]+)$") or rawSrc
                 species = base:gsub("(%l)(%u)", "%1 %2")
-            elseif uid:find("Forest:Slot") then
-                species = "Forest Egg"
             else
                 local attrSpecies = child:GetAttribute("DisplayName") or child:GetAttribute("Species") or child:GetAttribute("AssetCategory")
                 if attrSpecies then
@@ -6793,14 +6880,21 @@ local function syncAreaEggSlotsESP()
                 end
             end
 
+            if species and isGenericEggName(species) then
+                species = nil
+            end
+
             local existing = eggCacheByUid[uid]
             if not existing then
                 existing = {
                     Uid = uid,
                     State = "Slot",
                     BoundsCFrame = cf,
-                    DisplayName = species or "Field Egg",
                 }
+                if species then
+                    existing.DisplayName = species
+                    existing.AssetCategory = species
+                end
                 eggCacheByUid[uid] = existing
             else
                 if cf and cf.Position.Magnitude > 10 then existing.BoundsCFrame = cf end
@@ -6898,11 +6992,11 @@ local function syncEggSnapshot()
 end
 
 local function scheduleSnapshotSync(delaySec)
-    if snapshotSyncDebounce then return end
-    snapshotSyncDebounce = true
-    task.delay(delaySec or 1.5, function()
-        snapshotSyncDebounce = false
-        syncEggSnapshot()
+    if isFetchingSnapshot then return end
+    task.delay(delaySec or 30.0, function()
+        if not _G.EggGoToUI_Stop then
+            pcall(syncEggSnapshot)
+        end
     end)
 end
 
@@ -7064,8 +7158,6 @@ local function startPushMonitor()
                 if type(rawSrc) == "string" and rawSrc ~= "" then
                     local base = rawSrc:match("([^%.]+)$") or rawSrc
                     species = base:gsub("(%l)(%u)", "%1 %2")
-                elseif uid:find("Forest:Slot") then
-                    species = "Forest Egg"
                 else
                     local attrSpecies = child:GetAttribute("DisplayName") or child:GetAttribute("Species") or child:GetAttribute("AssetCategory")
                     if attrSpecies then
@@ -7080,14 +7172,22 @@ local function startPushMonitor()
                         end
                     end
                 end
+
+                if species and isGenericEggName(species) then
+                    species = nil
+                end
+
                 local existing = eggCacheByUid[uid]
                 if not existing then
                     existing = {
                         Uid = uid,
                         State = "Slot",
                         BoundsCFrame = cf,
-                        DisplayName = species or "Field Egg",
                     }
+                    if species then
+                        existing.DisplayName = species
+                        existing.AssetCategory = species
+                    end
                     eggCacheByUid[uid] = existing
                 else
                     if cf and cf.Position.Magnitude > 10 then existing.BoundsCFrame = cf end
@@ -7101,9 +7201,6 @@ local function startPushMonitor()
                     if eggDropList and eggDropList.Visible and rebuildEggDropdownItems then
                         rebuildEggDropdownItems()
                     end
-                end
-                if scheduleSnapshotSync then
-                    scheduleSnapshotSync(1.5)
                 end
                 requestListUpdate()
             end
@@ -7188,10 +7285,10 @@ end)
 
 -- Background initialization (Workspace ESP & Push Monitor + 30s Overworld safety fallback)
 task.spawn(function()
-    task.wait(0.5)
+    task.wait(0.2)
     startPushMonitor()
-    pcall(syncAreaEggSlotsESP)
-    pcall(syncEggSnapshot)
+    pcall(syncEggSnapshot) -- Immediate server snapshot hydration on initial start
+    pcall(syncAreaEggSlotsESP) -- Supplement with local 3D positions
 
     while not _G.EggGoToUI_Stop do
         task.wait(30.0)
