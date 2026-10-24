@@ -447,10 +447,7 @@ local BIOME_EGG_CATALOG = {
 }
 
 -- Fast lookup indexes
-local SPECIES_INFO = {}
-local SPECIES_INFO_BY_BIOME = {}
-local EGG_ALIASES  = {}
-local EGG_TO_BIOME = {}
+local SPECIES_INFO, SPECIES_INFO_BY_BIOME, EGG_ALIASES, EGG_TO_BIOME = {}, {}, {}, {}
 
 local function normalizeSpecies(name)
     if not name or type(name) ~= "string" then return "" end
@@ -2941,18 +2938,51 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onF
                     local rec = eggCacheByUid[activeWalkUid]
                     local myId = tostring(LocalPlayer and LocalPlayer.UserId or "")
                     if rec.State == "Claimed" or (rec.CarrierUserId and tostring(rec.CarrierUserId) ~= myId) then
-                        stopWalking()
                         if autoReturnActive and autoReturnTargetUid == activeWalkUid then
                             if rec.State == "Claimed" and (rec.CarrierUserId and tostring(rec.CarrierUserId) == myId) then
+                                stopWalking()
                                 handleEggDelivered(activeWalkUid)
+                                return
                             else
-                                autoReturnActive = false
-                                autoReturnTargetUid = nil
-                                returnTripInProgress = false
-                                print("[EggGoTo v11] Target egg was taken by another player.")
+                                eggCacheByUid[activeWalkUid] = nil
+                                local nextEgg, nextUid, nextPos = nil, nil, nil
+                                for cUid, cEgg in pairs(eggCacheByUid) do
+                                    if isFarmableEgg(cEgg) and cUid ~= activeWalkUid then
+                                        local p = getEggPosition(cEgg, cUid)
+                                        if p then
+                                            nextEgg = cEgg
+                                            nextUid = cUid
+                                            nextPos = p
+                                            break
+                                        end
+                                    end
+                                end
+                                if nextEgg and nextPos then
+                                    activeWalkUid = nextUid
+                                    autoReturnTargetUid = nextUid
+                                    targetPos = nextPos
+                                    activeWalkTarget = nextPos
+                                    if activityStatusLabel then
+                                        activityStatusLabel.Text = "Status: Target egg snatched by rival - pivoting..."
+                                        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+                                    end
+                                    pcall(function() hum:MoveTo(nextPos) end)
+                                else
+                                    stopWalking()
+                                    autoReturnActive = false
+                                    autoReturnTargetUid = nil
+                                    returnTripInProgress = false
+                                    if activityStatusLabel then
+                                        activityStatusLabel.Text = "Status: Target egg taken by another player"
+                                        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+                                    end
+                                    return
+                                end
                             end
+                        else
+                            stopWalking()
+                            return
                         end
-                        return
                     end
 
                     -- Live refresh target position if egg shifted
@@ -2991,12 +3021,20 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onF
                     return
                 end
 
-                -- 3. Anti-stuck watchdog: hop over small bumps if blocked
+                -- 3. Anti-stuck watchdog: hop over small bumps or lateral nudge if blocked
                 if walkLastPos and (Vector3.new(curPos.X - walkLastPos.X, 0, curPos.Z - walkLastPos.Z)).Magnitude < 0.5 then
                     walkStuckFrames = walkStuckFrames + 1
-                    if walkStuckFrames >= 3 then
-                        walkStuckFrames = 0
+                    if walkStuckFrames == 3 then
                         pcall(function() hum.Jump = true end)
+                    elseif walkStuckFrames >= 6 then
+                        walkStuckFrames = 0
+                        pcall(function()
+                            hum.Jump = true
+                            local rightVec = Vector3.new(-(targetPos.Z - curPos.Z), 0, targetPos.X - curPos.X)
+                            if rightVec.Magnitude > 0.1 then
+                                hrp.CFrame = hrp.CFrame + (rightVec.Unit * 3.5)
+                            end
+                        end)
                     end
                 else
                     walkStuckFrames = 0
@@ -6605,6 +6643,68 @@ local function exportEggListJson()
     end
 end
 
+-- Local Workspace ESP sync (Pure client-side RAM read, 0 network calls, 0 latency)
+local function syncAreaEggSlotsESP()
+    local container = Workspace:FindFirstChild("AreaEggSlotsClient")
+    if not container then return false end
+
+    local newSpeciesDiscovered = false
+    local currentUids = {}
+
+    for _, child in ipairs(container:GetChildren()) do
+        local uid = child.Name
+        if uid and uid ~= "" then
+            currentUids[uid] = true
+            local cf = nil
+            if child:IsA("BasePart") then
+                cf = child.CFrame
+            elseif child:IsA("Model") then
+                local ok, piv = pcall(function() return child:GetPivot() end)
+                if ok and piv then cf = piv end
+                if not cf and child.PrimaryPart then cf = child.PrimaryPart.CFrame end
+            end
+
+            local rawSrc = child:GetAttribute("PreparedSourceName")
+            local species = nil
+            if type(rawSrc) == "string" and rawSrc ~= "" then
+                local base = rawSrc:match("([^%.]+)$") or rawSrc
+                species = base:gsub("(%l)(%u)", "%1 %2")
+            elseif uid:find("Forest:Slot") then
+                species = "Forest Egg"
+            end
+
+            local existing = eggCacheByUid[uid]
+            if not existing then
+                eggCacheByUid[uid] = {
+                    Uid = uid,
+                    State = "Slot",
+                    BoundsCFrame = cf,
+                    DisplayName = species or "Field Egg",
+                }
+            else
+                if cf then existing.BoundsCFrame = cf end
+                if species then existing.DisplayName = species end
+            end
+
+            if species and registerDynamicSpecies and registerDynamicSpecies(species, nil, nil) then
+                newSpeciesDiscovered = true
+            end
+        end
+    end
+
+    if newSpeciesDiscovered then
+        table.sort(ALL_SPECIES_LIST, function(a, b)
+            return a.Name:lower() < b.Name:lower()
+        end)
+        if eggDropList and eggDropList.Visible and rebuildEggDropdownItems then
+            rebuildEggDropdownItems()
+        end
+    end
+
+    requestListUpdate()
+    return true
+end
+
 -- Server snapshot reconciliation (Non-blocking with re-entrancy guard)
 local function syncEggSnapshot()
     if isFetchingSnapshot then return end
@@ -6709,13 +6809,39 @@ local function startPushMonitor()
                 end
             elseif state == "Carried" and payload.CarrierUserId and tostring(payload.CarrierUserId) ~= myUidStr then
                 if autoReturnActive and autoReturnTargetUid == u then
-                    stopWalking()
-                    autoReturnActive = false
-                    autoReturnTargetUid = nil
-                    returnTripInProgress = false
-                    if activityStatusLabel then
-                        activityStatusLabel.Text = "Status: Target egg taken by another player"
-                        activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+                    eggCacheByUid[u] = nil
+                    local nextEgg, nextUid, nextPos = nil, nil, nil
+                    for cUid, cEgg in pairs(eggCacheByUid) do
+                        if isFarmableEgg(cEgg) and cUid ~= u then
+                            local p = getEggPosition(cEgg, cUid)
+                            if p then
+                                nextEgg = cEgg
+                                nextUid = cUid
+                                nextPos = p
+                                break
+                            end
+                        end
+                    end
+                    if nextEgg and nextPos then
+                        autoReturnTargetUid = nextUid
+                        if activityStatusLabel then
+                            activityStatusLabel.Text = "Status: Target egg snatched by rival - pivoting..."
+                            activityStatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+                        end
+                        walkToTarget(nextPos, 45.0, function()
+                            handleEggArrival(nextUid)
+                        end, function()
+                            stopWalking()
+                        end)
+                    else
+                        stopWalking()
+                        autoReturnActive = false
+                        autoReturnTargetUid = nil
+                        returnTripInProgress = false
+                        if activityStatusLabel then
+                            activityStatusLabel.Text = "Status: Target egg taken by another player"
+                            activityStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+                        end
                     end
                 end
             elseif state == "Dropped" and autoReturnActive and autoReturnTargetUid == u then
@@ -6796,13 +6922,85 @@ local function startPushMonitor()
                     if returnTripInProgress then
                         handleEggDelivered(u)
                     else
-                        stopWalking()
-                        autoReturnActive = false
-                        autoReturnTargetUid = nil
-                        returnTripInProgress = false
+                        eggCacheByUid[u] = nil
+                        local nextEgg, nextUid, nextPos = nil, nil, nil
+                        for cUid, cEgg in pairs(eggCacheByUid) do
+                            if isFarmableEgg(cEgg) and cUid ~= u then
+                                local p = getEggPosition(cEgg, cUid)
+                                if p then
+                                    nextEgg = cEgg
+                                    nextUid = cUid
+                                    nextPos = p
+                                    break
+                                end
+                            end
+                        end
+                        if nextEgg and nextPos then
+                            autoReturnTargetUid = nextUid
+                            if activityStatusLabel then
+                                activityStatusLabel.Text = "Status: Target egg expired - pivoting..."
+                                activityStatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+                            end
+                            walkToTarget(nextPos, 45.0, function()
+                                handleEggArrival(nextUid)
+                            end, function()
+                                stopWalking()
+                            end)
+                        else
+                            stopWalking()
+                            autoReturnActive = false
+                            autoReturnTargetUid = nil
+                            returnTripInProgress = false
+                        end
                     end
                 end
                 eggCacheByUid[u] = nil
+                requestListUpdate()
+            end
+        end))
+    end
+
+    -- Hook AreaEggSlotsClient for native 0ms local ESP events
+    local slotsContainer = Workspace:FindFirstChild("AreaEggSlotsClient")
+    if slotsContainer then
+        addConnection(slotsContainer.ChildAdded:Connect(function(child)
+            local uid = child.Name
+            if uid and uid ~= "" then
+                local cf = nil
+                if child:IsA("BasePart") then cf = child.CFrame
+                elseif child:IsA("Model") then
+                    local ok, piv = pcall(function() return child:GetPivot() end)
+                    if ok and piv then cf = piv end
+                    if not cf and child.PrimaryPart then cf = child.PrimaryPart.CFrame end
+                end
+                local rawSrc = child:GetAttribute("PreparedSourceName")
+                local species = nil
+                if type(rawSrc) == "string" and rawSrc ~= "" then
+                    local base = rawSrc:match("([^%.]+)$") or rawSrc
+                    species = base:gsub("(%l)(%u)", "%1 %2")
+                elseif uid:find("Forest:Slot") then
+                    species = "Forest Egg"
+                end
+                eggCacheByUid[uid] = {
+                    Uid = uid,
+                    State = "Slot",
+                    BoundsCFrame = cf,
+                    DisplayName = species or "Field Egg",
+                }
+                if species and registerDynamicSpecies and registerDynamicSpecies(species, nil, nil) then
+                    table.sort(ALL_SPECIES_LIST, function(a, b) return a.Name:lower() < b.Name:lower() end)
+                    if eggDropList and eggDropList.Visible and rebuildEggDropdownItems then
+                        rebuildEggDropdownItems()
+                    end
+                end
+                requestListUpdate()
+            end
+        end))
+
+        addConnection(slotsContainer.ChildRemoved:Connect(function(child)
+            local uid = child.Name
+            if uid and uid ~= "" and eggCacheByUid[uid] and eggCacheByUid[uid].State == "Slot" then
+                eggCacheByUid[uid] = nil
                 requestListUpdate()
             end
         end))
@@ -6876,14 +7074,13 @@ task.spawn(function()
     end
 end)
 
--- Background periodic sync (Fallback safety loop, push monitor handles 0ms live events)
+-- Background initialization (Workspace ESP & Push Monitor; snapshot is only a 1-time fallback)
 task.spawn(function()
     task.wait(0.5)
     startPushMonitor()
-    syncEggSnapshot()
-
-    while not _G.EggGoToUI_Stop do
-        task.wait(6.0)
+    local okEsp = pcall(syncAreaEggSlotsESP)
+    -- If AreaEggSlotsClient is not present on this game instance, fall back to initial snapshot
+    if not okEsp or not Workspace:FindFirstChild("AreaEggSlotsClient") then
         pcall(syncEggSnapshot)
     end
 end)
