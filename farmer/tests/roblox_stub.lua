@@ -256,6 +256,8 @@ knownMethods = {
         self.Parent = nil
     end,
     GetPivot = function(self) return CFrame.new(self._position or Vector3.new(0, 0, 0)) end,
+    IsKeyDown = function(self, key) return false end,          -- UserInputService
+    GetMouseDelta = function(self) return Vector2Stub end,
     GetAttribute = function(self, k) return (self._attrs or {})[k] end,
     SetAttribute = function(self, k, v)
         self._attrs = self._attrs or {}
@@ -285,7 +287,9 @@ knownMethods = {
     MoveTo = function(self, pos)
         local char = self.Parent
         local root = char and knownMethods.FindFirstChild(char, "HumanoidRootPart")
-        if root and pos then root._position = pos end
+        if not root or not pos then return end
+        if Stub.pinned and Stub.pinned[root] then return end              -- frozen on purpose
+        root._position = pos
     end,
     EquipTool = function(self, tool)
         local char = self.Parent
@@ -486,6 +490,7 @@ Instance.new = function(class, parent)
             end
             if k == "Name" then rawset(t, "_name", v); Stub.registry[v] = t; return end
             if k == "Position" or k == "CFrame" then
+                if Stub.pinned and Stub.pinned[t] then return end   -- movement frozen on purpose
                 if type(v) == "table" and v.Position then rawset(t, "_position", v.Position)
                 elseif type(v) == "table" and v.X then rawset(t, "_position", v) end
                 return

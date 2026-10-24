@@ -2849,13 +2849,20 @@ local function stopWalking()
     end)
 end
 
-local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
+-- `onFail` (optional) runs when the walk gives up: invalid target or the 45 s
+-- safety timeout. Without it a caller that reschedules itself from `onArrived`
+-- would stop forever the first time a walk could not finish (night reset, dead
+-- character, unreachable spot).
+local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onFail)
     if typeof(targetPos) == "CFrame" then
         targetPos = targetPos.Position
     elseif typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
         targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
     end
-    if typeof(targetPos) ~= "Vector3" then return end
+    if typeof(targetPos) ~= "Vector3" then
+        if onFail then task.spawn(onFail) end
+        return
+    end
 
     activeWalkToken = (activeWalkToken or 0) + 1
     local myTok = activeWalkToken
@@ -2880,7 +2887,8 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
             -- Safety timeout (if player gets stuck or path takes > 45s)
             if os.clock() - t0 > 45.0 then
                 stopWalking()
-                break
+                if onFail then task.spawn(onFail) end
+                return
             end
 
             local char = LocalPlayer and LocalPlayer.Character
@@ -4252,6 +4260,11 @@ halloweenEngine = {
 
     -- Sub-module: auto farm (Divine -> Eternal -> Secret priority; finishes when no eggs match filter)
     autoFarm = {
+        -- Watchdog: last time a farm cycle started. The cycle chain is a set of
+        -- delayed callbacks, so this is the only reliable sign that it is alive.
+        lastCycleAt = 0,
+        watchdogEvery = 2.0,
+        watchdogStall = 75.0,
         findTarget = function()
             local charPos = nil
             pcall(function()
@@ -4362,6 +4375,30 @@ halloweenEngine = {
             task.spawn(function()
                 halloweenEngine.autoFarm.runNextCycle(currentToken)
             end)
+
+            -- Belt and braces: if any future path strands the chain (an error in a
+            -- delayed callback, a walk with no failure branch, ...) restart it
+            -- instead of leaving the farm idle until the user notices.
+            task.spawn(function()
+                local farm = halloweenEngine.autoFarm
+                while halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == currentToken do
+                    task.wait(farm.watchdogEvery or 2.0)
+                    if not (halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == currentToken) then
+                        break
+                    end
+                    local idleFor = os.clock() - (farm.lastCycleAt or 0)
+                    if idleFor > (farm.watchdogStall or 75.0) then
+                        farm.lastCycleAt = os.clock()
+                        print(string.format("[EggGoTo v11] Auto farm watchdog: no cycle for %.0fs (status: %s), restarting.",
+                            idleFor, tostring(lblFarmStatus and lblFarmStatus.Text or "?")))
+                        pcall(stopWalking)
+                        hwPickupToken = (hwPickupToken or 0) + 1
+                        task.spawn(function()
+                            pcall(farm.runNextCycle, currentToken)
+                        end)
+                    end
+                end
+            end)
         end,
 
         stop = function(reason)
@@ -4394,6 +4431,7 @@ halloweenEngine = {
             if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
                 return
             end
+            halloweenEngine.autoFarm.lastCycleAt = os.clock()
 
             local inGrace, remaining = halloweenEngine.isNightResetActive()
             if inGrace then
@@ -4405,6 +4443,26 @@ halloweenEngine = {
                     lblFarmStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
                 end
                 task.delay(0.5, function()
+                    if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                        return
+                    end
+                    halloweenEngine.autoFarm.runNextCycle(token)
+                end)
+                return
+            end
+
+            -- A night reset respawns the character. Starting a cycle while there is
+            -- no living body makes every walk below wait on a corpse and, before
+            -- onFail existed, stranded the whole farm until the user pressed OFF/ON.
+            local charNow = LocalPlayer and LocalPlayer.Character
+            local humNow = charNow and charNow:FindFirstChildOfClass("Humanoid")
+            local rootNow = charNow and charNow:FindFirstChild("HumanoidRootPart")
+            if not (humNow and rootNow and humNow.Health > 0) then
+                if lblFarmStatus then
+                    lblFarmStatus.Text = "Status: Waiting for character to respawn..."
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(220, 180, 70)
+                end
+                task.delay(0.25, function()
                     if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
                         return
                     end
@@ -5377,6 +5435,15 @@ halloweenEngine.walkViaDropZoneToSafeZone = function(onComplete)
             end
         end)
 
+        local function giveUp()
+            if hwCarryState then
+                hwCarryState.active = false
+                hwCarryState.name = nil
+            end
+            updateActivityStatus()
+            if onComplete then onComplete(false) end
+        end
+
         walkToTarget(halloweenEngine.safeZone, 6.0, function()
             pcall(function()
                 local currChar = LocalPlayer and LocalPlayer.Character
@@ -5389,8 +5456,10 @@ halloweenEngine.walkViaDropZoneToSafeZone = function(onComplete)
             end
             updateActivityStatus()
             if onComplete then onComplete(true) end
-        end, "HW_SAFEZONE", 8.0)
-    end, "HW_DROPZONE", 8.0)
+        end, "HW_SAFEZONE", 8.0, giveUp)
+    end, "HW_DROPZONE", 8.0, function()
+        if onComplete then onComplete(false) end
+    end)
 end
 
 halloweenEngine.tpAction = function(eggData, onComplete)
@@ -5717,6 +5786,15 @@ halloweenEngine.tpAction = function(eggData, onComplete)
             end
         end)
 
+        local function giveUpSafeZone()
+            if hwCarryState then
+                hwCarryState.active = false
+                hwCarryState.name = nil
+            end
+            updateActivityStatus()
+            if onComplete then onComplete(false) end
+        end
+
         walkToTarget(halloweenEngine.safeZone, 6.0, function()
             pcall(function()
                 local currChar = LocalPlayer and LocalPlayer.Character
@@ -5729,7 +5807,7 @@ halloweenEngine.tpAction = function(eggData, onComplete)
             end
             updateActivityStatus()
             if onComplete then onComplete(true) end
-        end, "HW_SAFEZONE", 8.0)
+        end, "HW_SAFEZONE", 8.0, giveUpSafeZone)
     end)
 end
 
