@@ -791,7 +791,9 @@ local hwEmptyNotice
 local hwRarityBtn
 local hwRarityDropList
 local hwRarityDd
-local selectedHwRarities = { ["Divine"] = true, ["Eternal"] = true, ["Secret"] = true }
+-- "New Update" is a real filter entry (not force-shown), so the live list and the
+-- auto-farm agree on which eggs are farmable. It stays selected by default.
+local selectedHwRarities = { ["New Update"] = true, ["Divine"] = true, ["Eternal"] = true, ["Secret"] = true }
 local renderHalloweenEggs
 local hwAutoPickBtn
 local hwAutoPickEnabled = false
@@ -1030,7 +1032,7 @@ do
     -- Halloween Rarity Dropdown List
     hwRarityDropList = Instance.new("Frame")
     hwRarityDropList.Name = "HwRarityDropList"
-    hwRarityDropList.Size = UDim2.new(1, 0, 0, 256)
+    hwRarityDropList.Size = UDim2.new(1, 0, 0, 280)
     hwRarityDropList.Position = UDim2.new(0, 0, 0, 26)
     hwRarityDropList.BackgroundColor3 = Color3.fromRGB(24, 20, 34)
     hwRarityDropList.BorderSizePixel = 0
@@ -1089,6 +1091,8 @@ do
     local hwRarityBtns = {}
     local refreshHwRarityButtons
     local updateHwRarityBtnText
+    -- Halloween-only filter rows: the catalog rarities plus the uncatalogued bucket.
+    local RARITY_ROWS = { "New Update", table.unpack(RARITY_ORDER) }
 
     updateHwRarityBtnText = function(isOpen)
         local arrow = isOpen and "▲" or "▼"
@@ -1097,7 +1101,7 @@ do
             return
         end
         local list = {}
-        for _, r in ipairs(RARITY_ORDER) do
+        for _, r in ipairs(RARITY_ROWS) do
             if selectedHwRarities[r] then table.insert(list, r) end
         end
         if #list == 0 then
@@ -1110,7 +1114,7 @@ do
     end
 
     refreshHwRarityButtons = function()
-        for _, r in ipairs(RARITY_ORDER) do
+        for _, r in ipairs(RARITY_ROWS) do
             local on = selectedHwRarities["All"] == true or selectedHwRarities[r] == true
             local b = hwRarityBtns[r]
             if b then
@@ -1120,14 +1124,14 @@ do
         end
     end
 
-    for i, r in ipairs(RARITY_ORDER) do
+    for i, r in ipairs(RARITY_ROWS) do
         local b = Instance.new("TextButton")
         b.Name = "HwRarity_" .. r
         b.Size = UDim2.new(1, 0, 0, 20)
         b.LayoutOrder = i
         b.BackgroundColor3 = Color3.fromRGB(32, 28, 44)
         b.Text = "[X] " .. r
-        b.TextColor3 = RARITY_COLORS[r] or Color3.fromRGB(220, 230, 255)
+        b.TextColor3 = RARITY_COLORS[r] or (r == "New Update" and Color3.fromRGB(235, 150, 60)) or Color3.fromRGB(220, 230, 255)
         b.TextSize = 11
         b.Font = Enum.Font.GothamBold
         b.TextXAlignment = Enum.TextXAlignment.Left
@@ -1149,10 +1153,10 @@ do
                 selectedHwRarities[r] = true
             end
             local totalChecked = 0
-            for _, checkR in ipairs(RARITY_ORDER) do
+            for _, checkR in ipairs(RARITY_ROWS) do
                 if selectedHwRarities[checkR] then totalChecked = totalChecked + 1 end
             end
-            if totalChecked == #RARITY_ORDER then
+            if totalChecked == #RARITY_ROWS then
                 selectedHwRarities = { ["All"] = true }
             end
             updateHwRarityBtnText(true)
@@ -2845,13 +2849,20 @@ local function stopWalking()
     end)
 end
 
-local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
+-- `onFail` (optional) runs when the walk gives up: invalid target or the 45 s
+-- safety timeout. Without it a caller that reschedules itself from `onArrived`
+-- would stop forever the first time a walk could not finish (night reset, dead
+-- character, unreachable spot).
+local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onFail)
     if typeof(targetPos) == "CFrame" then
         targetPos = targetPos.Position
     elseif typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
         targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
     end
-    if typeof(targetPos) ~= "Vector3" then return end
+    if typeof(targetPos) ~= "Vector3" then
+        if onFail then task.spawn(onFail) end
+        return
+    end
 
     activeWalkToken = (activeWalkToken or 0) + 1
     local myTok = activeWalkToken
@@ -2876,7 +2887,8 @@ local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist)
             -- Safety timeout (if player gets stuck or path takes > 45s)
             if os.clock() - t0 > 45.0 then
                 stopWalking()
-                break
+                if onFail then task.spawn(onFail) end
+                return
             end
 
             local char = LocalPlayer and LocalPlayer.Character
@@ -4042,9 +4054,9 @@ local function resolveCanonicalHwName(raw)
     return s
 end
 
-local function getHwEggName(eggInst)
-    if not eggInst then return "Hooded Gerbil Egg" end
-
+-- The resolver below walks attributes, children and descendants, so cache its
+-- answer per model. Weak keys: a recycled egg model does not pin memory.
+local function resolveHwEggName(eggInst)
     -- 1. Check direct attributes: PreparedSourceName is the primary live attribute
     local srcName = eggInst:GetAttribute("PreparedSourceName")
         or eggInst:GetAttribute("DisplayName")
@@ -4159,6 +4171,24 @@ local function getHwEggName(eggInst)
     return resolveCanonicalHwName(eggInst.Name) or eggInst.Name
 end
 
+local function getHwEggName(eggInst)
+    if not eggInst then return "Hooded Gerbil Egg" end
+
+    local eng = halloweenEngine
+    local cache = eng and eng.nameCache
+    local srcAttr = eggInst:GetAttribute("PreparedSourceName")
+    if cache then
+        local hit = cache[eggInst]
+        if hit and hit.src == srcAttr then return hit.name end
+    end
+
+    local name = resolveHwEggName(eggInst)
+    if cache then
+        cache[eggInst] = { src = srcAttr, name = name }
+    end
+    return name
+end
+
 local function getHwEggColor(eggInst, eggDisplayName)
     local n = eggDisplayName and eggDisplayName:lower() or eggInst.Name:lower()
     local info = SPECIES_INFO[n] or (getSpeciesInfo and getSpeciesInfo(n))
@@ -4182,6 +4212,15 @@ halloweenEngine = {
     nightResetTriggered = false,
     nightResetGraceUntil = nil,
     lastNightResetAt = nil,
+    -- Rarity bucket for eggs that are not in the catalog yet.
+    newRarity = "New Update",
+    -- model -> { src, name }; avoids re-resolving names on every render/scan.
+    nameCache = setmetatable({}, { __mode = "k" }),
+    -- live-list render throttle state
+    hwListDirty = true,
+    hwLastRenderAt = 0,
+    hwRenderEvery = 1.0,
+    hwHookedFolder = nil,
 
     triggerNightReset = function(duration)
         local now = os.clock()
@@ -4189,13 +4228,18 @@ halloweenEngine = {
         if halloweenEngine.lastNightResetAt and (now - halloweenEngine.lastNightResetAt < 45.0) then
             return
         end
-        local grace = duration or 15.0
+        local grace = duration or 12.0
         halloweenEngine.nightResetTriggered = true
         halloweenEngine.lastNightResetAt = now
         halloweenEngine.nightResetGraceUntil = now + grace
         halloweenEngine.cachedWorldEggs = nil
-        if halloweenEngine.fishing and halloweenEngine.fishing.running then
-            halloweenEngine.fishing.stop("Night Reset")
+        if halloweenEngine.fishing then
+            halloweenEngine.fishing.needsRecovery = true
+            -- Drop cached remotes so they are resolved again on the next cycle.
+            halloweenEngine.fishing.reHold, halloweenEngine.fishing.rfCast, halloweenEngine.fishing.rfReel = nil, nil, nil
+            if halloweenEngine.fishing.running then
+                halloweenEngine.fishing.stop("Night Reset")
+            end
         end
         if halloweenEngine.autoFarmEnabled and lblFarmStatus then
             lblFarmStatus.Text = string.format("Status: Night Reset (Spawning %.1fs/16s)...", grace)
@@ -4216,6 +4260,11 @@ halloweenEngine = {
 
     -- Sub-module: auto farm (Divine -> Eternal -> Secret priority; finishes when no eggs match filter)
     autoFarm = {
+        -- Watchdog: last time a farm cycle started. The cycle chain is a set of
+        -- delayed callbacks, so this is the only reliable sign that it is alive.
+        lastCycleAt = 0,
+        watchdogEvery = 2.0,
+        watchdogStall = 75.0,
         findTarget = function()
             local charPos = nil
             pcall(function()
@@ -4261,56 +4310,22 @@ halloweenEngine = {
             end)
 
             local candidates = {}
+            local scanned = 0
             for _, egg in ipairs(rawEggModels) do
-                if egg.Name:lower():find("holder") then
-                    continue
-                end
-                if egg:GetAttribute("HalloweenEggCanPickUp") == false then
-                    continue
-                end
-
-                local p = getHwEggPos(egg)
-                if p then
-                    local eggName = getHwEggName(egg)
-                    if eggName:lower():find("holder") then
-                        continue
-                    end
-                    local d = charPos and (p - charPos).Magnitude or 99999
-                    local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
-                    if (egg.Name:lower() == "egg" or eggName:lower() == "egg") and not info then
-                        continue
-                    end
-                    if eggName:lower() == "halloween egg" or eggName:lower() == "halloweenegg" or eggName:lower() == "halloween" then
-                        continue
-                    end
-
-                    local zone = egg:GetAttribute("Zone")
-                    local isCataloged = (info ~= nil and info.IsCataloged == true)
-                    local rarName = (isCataloged and info.Rarity) or egg:GetAttribute("Rarity") or "New Update"
-
-                    local matches = false
-                    if selectedHwRarities and (selectedHwRarities["All"] or selectedHwRarities[rarName]) then
-                        matches = true
-                    end
-
-                    if matches then
-                        local rank = (isCataloged and info and info.Rank) or (RARITY_RANK[rarName] or 0)
-                        table.insert(candidates, {
-                            Model     = egg,
-                            Name      = eggName,
-                            Position  = p,
-                            Distance  = d,
-                            Zone      = tonumber(zone) or 99,
-                            Rank      = rank,
-                            Rarity    = rarName,
-                            Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
-                        })
+                local entry = halloweenEngine.classifyEgg(egg, charPos)
+                if entry then
+                    scanned = scanned + 1
+                    if halloweenEngine.rarityMatches(entry.Rarity) then
+                        table.insert(candidates, entry)
                     end
                 end
             end
 
+            -- Second return value lets callers tell "no eggs on the map" apart from
+            -- "eggs exist but the rarity filter excludes all of them".
+            local stats = { scanned = scanned, matched = #candidates }
             if #candidates == 0 then
-                return nil
+                return nil, stats
             end
 
             -- Priority order: Highest Rarity Rank (Divine: 10 -> Eternal: 9 -> Secret: 8), then closest distance
@@ -4324,7 +4339,7 @@ halloweenEngine = {
                 return tostring(a.Uid) < tostring(b.Uid)
             end)
 
-            return candidates[1]
+            return candidates[1], stats
         end,
 
         start = function()
@@ -4360,6 +4375,30 @@ halloweenEngine = {
             task.spawn(function()
                 halloweenEngine.autoFarm.runNextCycle(currentToken)
             end)
+
+            -- Belt and braces: if any future path strands the chain (an error in a
+            -- delayed callback, a walk with no failure branch, ...) restart it
+            -- instead of leaving the farm idle until the user notices.
+            task.spawn(function()
+                local farm = halloweenEngine.autoFarm
+                while halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == currentToken do
+                    task.wait(farm.watchdogEvery or 2.0)
+                    if not (halloweenEngine.autoFarmEnabled and halloweenEngine.autoFarmToken == currentToken) then
+                        break
+                    end
+                    local idleFor = os.clock() - (farm.lastCycleAt or 0)
+                    if idleFor > (farm.watchdogStall or 75.0) then
+                        farm.lastCycleAt = os.clock()
+                        print(string.format("[EggGoTo v11] Auto farm watchdog: no cycle for %.0fs (status: %s), restarting.",
+                            idleFor, tostring(lblFarmStatus and lblFarmStatus.Text or "?")))
+                        pcall(stopWalking)
+                        hwPickupToken = (hwPickupToken or 0) + 1
+                        task.spawn(function()
+                            pcall(farm.runNextCycle, currentToken)
+                        end)
+                    end
+                end
+            end)
         end,
 
         stop = function(reason)
@@ -4392,6 +4431,7 @@ halloweenEngine = {
             if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
                 return
             end
+            halloweenEngine.autoFarm.lastCycleAt = os.clock()
 
             local inGrace, remaining = halloweenEngine.isNightResetActive()
             if inGrace then
@@ -4411,8 +4451,28 @@ halloweenEngine = {
                 return
             end
 
+            -- A night reset respawns the character. Starting a cycle while there is
+            -- no living body makes every walk below wait on a corpse and, before
+            -- onFail existed, stranded the whole farm until the user pressed OFF/ON.
+            local charNow = LocalPlayer and LocalPlayer.Character
+            local humNow = charNow and charNow:FindFirstChildOfClass("Humanoid")
+            local rootNow = charNow and charNow:FindFirstChild("HumanoidRootPart")
+            if not (humNow and rootNow and humNow.Health > 0) then
+                if lblFarmStatus then
+                    lblFarmStatus.Text = "Status: Waiting for character to respawn..."
+                    lblFarmStatus.TextColor3 = Color3.fromRGB(220, 180, 70)
+                end
+                task.delay(0.25, function()
+                    if not halloweenEngine.autoFarmEnabled or halloweenEngine.autoFarmToken ~= token then
+                        return
+                    end
+                    halloweenEngine.autoFarm.runNextCycle(token)
+                end)
+                return
+            end
+
             -- 1. Auto Farm: check for target egg matching rarity filter
-            local targetEgg = halloweenEngine.autoFarm.findTarget()
+            local targetEgg, scan = halloweenEngine.autoFarm.findTarget()
             if targetEgg then
                 if halloweenEngine.fishing and halloweenEngine.fishing.running then
                     halloweenEngine.fishing.stop("Egg Detected")
@@ -4439,12 +4499,24 @@ halloweenEngine = {
             end
 
             -- 2. No target egg: Wait 3s before transitioning to continuous fishing
+            -- Distinguish "nothing on the map" from "everything is filtered out", otherwise
+            -- the farm reports "done" while the live list still shows farmable-looking eggs.
+            local scanned = scan and scan.scanned or 0
             if lblFarmStatus then
-                lblFarmStatus.Text = "Status: Waiting 3s before fishing..."
+                if scanned > 0 then
+                    lblFarmStatus.Text = string.format("Status: %d egg(s) in world, none match filter - fishing", scanned)
+                else
+                    lblFarmStatus.Text = "Status: Waiting 3s before fishing..."
+                end
                 lblFarmStatus.TextColor3 = Color3.fromRGB(220, 180, 70)
             end
             if halloweenEngine.fishing and halloweenEngine.fishing.log then
-                halloweenEngine.fishing.log("Auto Farm phase done (no matching eggs). Waiting 3s, then Auto Fishing...")
+                if scanned > 0 then
+                    halloweenEngine.fishing.log(string.format(
+                        "Auto Farm phase done: %d egg(s) in world but none match the rarity filter. Waiting 3s, then Auto Fishing...", scanned))
+                else
+                    halloweenEngine.fishing.log("Auto Farm phase done (no matching eggs). Waiting 3s, then Auto Fishing...")
+                end
             end
 
             task.spawn(function()
@@ -4511,6 +4583,31 @@ halloweenEngine = {
         reHold = nil,
         rfCast = nil,
         rfReel = nil,
+        -- Set by triggerNightReset; forces one full rod/remote reset before the
+        -- next cast, because an interrupted cycle leaves both sides out of sync.
+        needsRecovery = false,
+        -- Id of a cast that was never reeled (cycle cancelled by a night reset).
+        -- The server keeps that session open and answers the next Cast with
+        -- nil + "Hold on..." until it is closed.
+        pendingFishId = nil,
+        castMaxAttempts = 4,
+
+        logDirty = false,
+        logFlushedAt = -1,
+        refreshLog = function()
+            local f = halloweenEngine.fishing
+            if not f.logDirty then return end
+            f.logDirty = false
+            f.logFlushedAt = os.clock()
+            if not (hwLogLabel and hwLogLabel.Parent) then return end
+            pcall(function()
+                hwLogLabel.Text = table.concat(f.logLines, "\n")
+                local sc = hwLogLabel.Parent
+                if sc and sc:IsA("ScrollingFrame") then
+                    sc.CanvasPosition = Vector2.new(0, 99999)
+                end
+            end)
+        end,
 
         log = function(msg)
             local line = os.date("%H:%M:%S") .. " " .. tostring(msg)
@@ -4518,17 +4615,13 @@ halloweenEngine = {
             if #halloweenEngine.fishing.logLines > 50 then
                 table.remove(halloweenEngine.fishing.logLines, 1)
             end
-            if hwLogLabel and hwLogLabel.Parent then
-                pcall(function()
-                    hwLogLabel.Text = table.concat(halloweenEngine.fishing.logLines, "\n")
-                end)
+            -- Rebuilding the label means a concat of the whole buffer plus a
+            -- layout pass; coalesce bursts into at most ~4 refreshes per second.
+            local f = halloweenEngine.fishing
+            f.logDirty = true
+            if (os.clock() - (f.logFlushedAt or -1)) >= 0.25 then
+                f.refreshLog()
             end
-            pcall(function()
-                local sc = hwLogLabel and hwLogLabel.Parent
-                if sc and sc:IsA("ScrollingFrame") then
-                    sc.CanvasPosition = Vector2.new(0, 99999)
-                end
-            end)
             print("[HW-Fishing] " .. line)
         end,
 
@@ -4585,6 +4678,72 @@ halloweenEngine = {
                 end
             end
             return nil, false
+        end,
+
+        -- A cast whose reel never returned true stays open on the server, and every
+        -- following Cast is answered with nil + "Hold on...". Close it explicitly.
+        -- Keep the id until the server confirms, so a rejected close is retried.
+        closePendingCast = function()
+            local f = halloweenEngine.fishing
+            if not f.pendingFishId then return false end
+            local rfReel = f.rfReel or f.getRemote("RF/Fishing/Reel")
+            if not rfReel then return false end
+
+            local id = f.pendingFishId
+            local closed = false
+            -- "Caught" closes an interrupted (still biting) cast; "Cancel" is the
+            -- fallback for a cast whose reel was already rejected.
+            for _, action in ipairs({ "Caught", "Cancel" }) do
+                local ok, res = pcall(function()
+                    return rfReel:InvokeServer(id, action, f.clicks)
+                end)
+                f.log(string.format("Closing pending cast Id=%s (%s) -> ok=%s res=%s",
+                    tostring(id), action, tostring(ok), tostring(res)))
+                if ok and res == true then
+                    closed = true
+                    break
+                end
+            end
+
+            if closed then
+                f.pendingFishId = nil
+            else
+                f.log(string.format("Pending cast Id=%s could not be closed; will retry", tostring(id)))
+            end
+            return closed
+        end,
+
+        -- Reset everything that a night reset can invalidate: cached remote refs
+        -- (a re-streamed RemoteFunction never answers again), rod equip state and
+        -- distance to the fishing spot. Call before casting after a reset, and
+        -- once as a retry path when Cast returns nil.
+        recoverRodState = function(cancelCheck, skipHold)
+            local f = halloweenEngine.fishing
+            f.reHold, f.rfCast, f.rfReel = nil, nil, nil
+            f.initRemotes()
+
+            -- Close a cast left open by the interrupted cycle; otherwise the server
+            -- keeps answering Cast with nil + "Hold on...".
+            f.closePendingCast()
+
+            f.walkToSpot(cancelCheck)
+
+            local ch = LocalPlayer and LocalPlayer.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if hum then
+                pcall(function() hum:UnequipTools() end)
+                task.wait(0.2)
+            end
+            f.ensureRodEquipped()
+            f.faceTarget()
+
+            if not skipHold then
+                local reHold = f.reHold or f.getRemote("RE/Fishing/Hold")
+                if reHold then
+                    pcall(function() reHold:FireServer() end)
+                end
+                task.wait(f.holdDelay)
+            end
         end,
 
         ensureRodEquipped = function()
@@ -4707,6 +4866,18 @@ halloweenEngine = {
             local spot = halloweenEngine.fishing.spotPos
             local castP = halloweenEngine.fishing.castPos
 
+            -- A night reset interrupts Hold/Cast mid-flight; the server then rejects the
+            -- next Cast with nil. Reset rod + remote state once before casting again.
+            if halloweenEngine.fishing.needsRecovery then
+                halloweenEngine.fishing.needsRecovery = false
+                halloweenEngine.fishing.log("Night reset detected -> resetting rod & remote state before casting.")
+                halloweenEngine.fishing.recoverRodState(cancelCheck, true)
+                if cancelCheck and cancelCheck() then
+                    if onComplete then onComplete(false) end
+                    return
+                end
+            end
+
             -- Safety drift check: if bumped > 10 studs away from spot, walk back
             local ch = LocalPlayer and LocalPlayer.Character
             local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
@@ -4777,25 +4948,84 @@ halloweenEngine = {
                 lblFishStatus.TextColor3 = Color3.fromRGB(160, 200, 255)
             end
 
-            local rfCast = halloweenEngine.fishing.rfCast or halloweenEngine.fishing.getRemote("RF/Fishing/Cast")
-            if not rfCast then
-                halloweenEngine.fishing.log("ERROR: RF/Fishing/Cast remote NOT FOUND in ReplicatedStorage!")
-                if lblFishStatus then
-                    lblFishStatus.Text = "Status: RF/Fishing/Cast not found"
-                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+            local castResults, castOk, castData
+            local maxAttempts = halloweenEngine.fishing.castMaxAttempts or 4
+            local retryWaits = { 1.0, 2.0, 4.0 }
+            for castAttempt = 1, maxAttempts do
+                local rfCast = halloweenEngine.fishing.rfCast or halloweenEngine.fishing.getRemote("RF/Fishing/Cast")
+                if not rfCast then
+                    halloweenEngine.fishing.log("ERROR: RF/Fishing/Cast remote NOT FOUND in ReplicatedStorage!")
+                    if lblFishStatus then
+                        lblFishStatus.Text = "Status: RF/Fishing/Cast not found"
+                        lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
+                    end
+                    task.wait(2.0)
+                    if onComplete then onComplete(false) end
+                    return
                 end
-                task.wait(2.0)
-                if onComplete then onComplete(false) end
-                return
-            end
 
-            halloweenEngine.fishing.log(string.format("Casting power=%.3f Target=(%.1f, %.1f, %.1f)", power, castP.X, castP.Y, castP.Z))
-            -- Pack all InvokeServer results so a nil response can be distinguished
-            -- from an exception and logged with the relevant cast context.
-            local castResults = table.pack(pcall(function()
-                return rfCast:InvokeServer(power, castP)
-            end))
-            local castOk, castData = castResults[1], castResults[2]
+                halloweenEngine.fishing.log(string.format("Casting power=%.3f Target=(%.1f, %.1f, %.1f) attempt=%d",
+                    power, castP.X, castP.Y, castP.Z, castAttempt))
+                -- Pack all InvokeServer results so a nil response can be distinguished
+                -- from an exception and logged with the relevant cast context.
+                castResults = table.pack(pcall(function()
+                    return rfCast:InvokeServer(power, castP)
+                end))
+                castOk, castData = castResults[1], castResults[2]
+                local serverMsg = castResults[3]
+
+                if castOk and type(castData) == "table" and castData.Id then
+                    -- Keep the id: if this cycle is cancelled before the reel, the
+                    -- server session has to be closed on the next one.
+                    halloweenEngine.fishing.pendingFishId = castData.Id
+                    break
+                end
+
+                if castAttempt >= maxAttempts then
+                    break
+                end
+
+                local waitFor = retryWaits[math.min(castAttempt, #retryWaits)]
+                if halloweenEngine.fishing.pendingFishId and halloweenEngine.fishing.closePendingCast() then
+                    -- Session closed: the refusal was caused by it, so do not burn
+                    -- the full backoff before trying again.
+                    waitFor = 0.25
+                end
+                if serverMsg ~= nil then
+                    -- The server refuses with a reason ("Hold on..."): it is busy,
+                    -- not broken. Re-hold and wait longer instead of tearing down
+                    -- the rod, and surface the message so it is never lost again.
+                    halloweenEngine.fishing.log(string.format(
+                        "Cast refused by server (%q) -> re-holding, retry %d/%d in %.1fs",
+                        tostring(serverMsg), castAttempt + 1, maxAttempts, waitFor))
+                else
+                    halloweenEngine.fishing.log(string.format(
+                        "Cast returned no fish -> resetting rod state and retrying (%d/%d) in %.1fs",
+                        castAttempt + 1, maxAttempts, waitFor))
+                end
+
+                if lblFishStatus then
+                    lblFishStatus.Text = string.format("Status: Cast busy (retry %d/%d)...", castAttempt + 1, maxAttempts)
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+                end
+
+                if castAttempt == 1 then
+                    -- First miss after a reset: reset rod/remote state once.
+                    halloweenEngine.fishing.recoverRodState(cancelCheck, false)
+                else
+                    -- Later misses are the server still being busy: just re-hold.
+                    local reHold = halloweenEngine.fishing.reHold
+                        or halloweenEngine.fishing.getRemote("RE/Fishing/Hold")
+                    if reHold then pcall(function() reHold:FireServer() end) end
+                    task.wait(halloweenEngine.fishing.holdDelay)
+                end
+                task.wait(waitFor)
+
+                if cancelCheck and cancelCheck() then
+                    if onComplete then onComplete(false) end
+                    return
+                end
+            end
 
             if not castOk then
                 halloweenEngine.fishing.log("Cast EXCEPTION -> " .. tostring(castData))
@@ -4814,9 +5044,12 @@ halloweenEngine = {
                     table.insert(returnDetails, string.format("%d:%s=%s", i - 1, typeof(castResults[i]), tostring(castResults[i])))
                 end
                 local returnSummary = #returnDetails > 0 and table.concat(returnDetails, ", ") or "no return values"
-                local failReason = castData == nil and "server returned nil (InvokeServer did not throw)" or "invalid response (missing Id)"
+                local serverMsg = castResults[3]
+                local failReason = serverMsg ~= nil
+                    and string.format("server refused: %q", tostring(serverMsg))
+                    or (castData == nil and "server returned nil (InvokeServer did not throw)" or "invalid response (missing Id)")
                 halloweenEngine.fishing.log(string.format(
-                    "Cast FAILED -> %s; returnCount=%d; returns={%s}; power=%.3f; rodEquipped=%s; Char=(%.1f, %.1f, %.1f); Target=(%.1f, %.1f, %.1f)",
+                    "Cast FAILED after retry -> %s; returnCount=%d; returns={%s}; power=%.3f; rodEquipped=%s; Char=(%.1f, %.1f, %.1f); Target=(%.1f, %.1f, %.1f)",
                     failReason, math.max(0, castResults.n - 1), returnSummary, power, tostring(rodOk),
                     cp.X, cp.Y, cp.Z, castP.X, castP.Y, castP.Z
                 ))
@@ -4895,6 +5128,7 @@ halloweenEngine = {
             end
 
             if success then
+                halloweenEngine.fishing.pendingFishId = nil
                 halloweenEngine.fishing.catchCount = (halloweenEngine.fishing.catchCount or 0) + 1
                 local itemText = halloweenEngine.fishing.formatReward(caughtItem)
                 if lblFishStatus then
@@ -4902,6 +5136,12 @@ halloweenEngine = {
                     lblFishStatus.TextColor3 = Color3.fromRGB(100, 255, 140)
                 end
             else
+                -- Rejected reel leaves the cast open server-side: keep the id so the
+                -- next cycle / cast retry can close it instead of spiralling on
+                -- "Hold on...".
+                halloweenEngine.fishing.pendingFishId = fishId
+                halloweenEngine.fishing.log(string.format(
+                    "Reel failed -> cast Id=%s kept pending for close", tostring(fishId)))
                 if lblFishStatus then
                     lblFishStatus.Text = "Status: Reel failed after retries"
                     lblFishStatus.TextColor3 = Color3.fromRGB(255, 100, 80)
@@ -5061,14 +5301,28 @@ halloweenEngine = {
             halloweenEngine.fishing.token = (halloweenEngine.fishing.token or 0) + 1
             halloweenEngine.fishing.running = false
 
+            -- When the Auto Farm is driving fishing, a stop (night reset, egg detected)
+            -- is a pause, not a user-facing OFF. Keep the row honest about that.
+            local farmDriven = halloweenEngine.autoFarmEnabled == true
             if hwAutoFishBtn then
-                hwAutoFishBtn.Text = "OFF"
-                hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
-                hwAutoFishBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+                if farmDriven then
+                    hwAutoFishBtn.Text = "AUTO"
+                    hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 90, 135)
+                    hwAutoFishBtn.TextColor3 = Color3.new(1, 1, 1)
+                else
+                    hwAutoFishBtn.Text = "OFF"
+                    hwAutoFishBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+                    hwAutoFishBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+                end
             end
             if lblFishStatus then
-                lblFishStatus.Text = reason and ("Status: " .. reason) or "Status: Idle"
-                lblFishStatus.TextColor3 = Color3.fromRGB(150, 160, 180)
+                if farmDriven and reason == "Night Reset" then
+                    lblFishStatus.Text = "Status: Night Reset (paused, resumes with farm)"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(255, 215, 0)
+                else
+                    lblFishStatus.Text = reason and ("Status: " .. reason) or "Status: Idle"
+                    lblFishStatus.TextColor3 = Color3.fromRGB(150, 160, 180)
+                end
             end
             halloweenEngine.fishing.log("Auto Fishing stopped: " .. tostring(reason or "Manual"))
         end,
@@ -5080,6 +5334,48 @@ halloweenEngine = {
         version = "1.0",
     },
 }
+
+-- Single source of truth for "is this a Halloween egg the panel can show/farm".
+-- Both renderHalloweenEggs and autoFarm.findTarget classify through here, so the
+-- list can never show an egg that the farm refuses to target.
+halloweenEngine.classifyEgg = function(egg, charPos)
+    if not egg or egg.Name:lower():find("holder") then return nil end
+    if egg:GetAttribute("HalloweenEggCanPickUp") == false then return nil end
+
+    local p = getHwEggPos(egg)
+    if not p then return nil end
+
+    local eggName = getHwEggName(egg)
+    local lowerName = eggName:lower()
+    if lowerName:find("holder") then return nil end
+    -- Placeholder models named "Egg"/"Halloween Egg" carry no species information
+    if lowerName == "egg" or lowerName == "halloween egg" or lowerName == "halloweenegg" or lowerName == "halloween" then
+        return nil
+    end
+
+    local info = getSpeciesInfo and getSpeciesInfo(eggName) or nil
+    local isCataloged = (info ~= nil and info.IsCataloged == true)
+    local rarity = (isCataloged and info.Rarity) or egg:GetAttribute("Rarity") or halloweenEngine.newRarity
+    local zone = egg:GetAttribute("Zone")
+
+    return {
+        Model       = egg,
+        Name        = eggName,
+        Position    = p,
+        Distance    = charPos and (p - charPos).Magnitude or 99999,
+        Zone        = tonumber(zone) or 99,
+        Rank        = (isCataloged and info.Rank) or RARITY_RANK[rarity] or 0,
+        Rarity      = rarity,
+        IsCataloged = isCataloged,
+        Uid         = egg:GetAttribute("HalloweenEggUid") or egg.Name,
+        Color       = getHwEggColor(egg, eggName),
+    }
+end
+
+halloweenEngine.rarityMatches = function(rarity)
+    if not selectedHwRarities then return false end
+    return selectedHwRarities["All"] == true or selectedHwRarities[rarity] == true
+end
 
 -- Serialize the complete Hold -> Cast -> Bite Wait -> Reel sequence.
 -- A second loop may request a cycle, but it must not issue overlapping fishing remotes.
@@ -5139,6 +5435,15 @@ halloweenEngine.walkViaDropZoneToSafeZone = function(onComplete)
             end
         end)
 
+        local function giveUp()
+            if hwCarryState then
+                hwCarryState.active = false
+                hwCarryState.name = nil
+            end
+            updateActivityStatus()
+            if onComplete then onComplete(false) end
+        end
+
         walkToTarget(halloweenEngine.safeZone, 6.0, function()
             pcall(function()
                 local currChar = LocalPlayer and LocalPlayer.Character
@@ -5151,8 +5456,10 @@ halloweenEngine.walkViaDropZoneToSafeZone = function(onComplete)
             end
             updateActivityStatus()
             if onComplete then onComplete(true) end
-        end, "HW_SAFEZONE", 8.0)
-    end, "HW_DROPZONE", 8.0)
+        end, "HW_SAFEZONE", 8.0, giveUp)
+    end, "HW_DROPZONE", 8.0, function()
+        if onComplete then onComplete(false) end
+    end)
 end
 
 halloweenEngine.tpAction = function(eggData, onComplete)
@@ -5479,6 +5786,15 @@ halloweenEngine.tpAction = function(eggData, onComplete)
             end
         end)
 
+        local function giveUpSafeZone()
+            if hwCarryState then
+                hwCarryState.active = false
+                hwCarryState.name = nil
+            end
+            updateActivityStatus()
+            if onComplete then onComplete(false) end
+        end
+
         walkToTarget(halloweenEngine.safeZone, 6.0, function()
             pcall(function()
                 local currChar = LocalPlayer and LocalPlayer.Character
@@ -5491,7 +5807,7 @@ halloweenEngine.tpAction = function(eggData, onComplete)
             end
             updateActivityStatus()
             if onComplete then onComplete(true) end
-        end, "HW_SAFEZONE", 8.0)
+        end, "HW_SAFEZONE", 8.0, giveUpSafeZone)
     end)
 end
 
@@ -5668,6 +5984,17 @@ renderHalloweenEggs = function()
             for _, egg in ipairs(worldEggs:GetChildren()) do
                 addEggCandidate(egg)
             end
+            -- Mark the list dirty only when the world actually changes, instead of
+            -- rebuilding it 3.3x/s just in case.
+            if halloweenEngine and halloweenEngine.hwHookedFolder ~= worldEggs then
+                halloweenEngine.hwHookedFolder = worldEggs
+                addConnection(worldEggs.ChildAdded:Connect(function()
+                    halloweenEngine.hwListDirty = true
+                end))
+                addConnection(worldEggs.ChildRemoved:Connect(function()
+                    halloweenEngine.hwListDirty = true
+                end))
+            end
         end
 
         local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
@@ -5686,67 +6013,20 @@ renderHalloweenEggs = function()
     end)
 
     for _, egg in ipairs(rawEggModels) do
-        if egg.Name:lower():find("holder") then
-            continue
-        end
-        local canPick = egg:GetAttribute("HalloweenEggCanPickUp")
-        if canPick == false then
-            continue
-        end
-        local p = getHwEggPos(egg)
-        if p then
-            local eggName = getHwEggName(egg)
-            if eggName:lower():find("holder") then
-                continue
-            end
-            local d = charPos and (p - charPos).Magnitude or 99999
-            local info = SPECIES_INFO[eggName:lower()] or (getSpeciesInfo and getSpeciesInfo(eggName:lower()))
-            -- Exclude placeholder models named 'Egg' from PT2 or anywhere if they are holders/placeholders
-            if (egg.Name:lower() == "egg" or eggName:lower() == "egg") and not info then
-                continue
-            end
-            if eggName:lower() == "halloween egg" or eggName:lower() == "halloweenegg" or eggName:lower() == "halloween" then
-                continue
-            end
-
+        -- Same classifier and same filter rule as autoFarm.findTarget, so the list
+        -- never shows an egg that the auto-farm would refuse to target.
+        local entry = halloweenEngine.classifyEgg(egg, charPos)
+        if entry and halloweenEngine.rarityMatches(entry.Rarity) then
             local zone = egg:GetAttribute("Zone")
             local zoneName = zone and string.format("Zone %s", tostring(zone))
                 or egg:GetAttribute("AreaId")
                 or egg:GetAttribute("Biome")
                 or "WorldEggs"
 
-            local isCataloged = (info ~= nil and info.IsCataloged == true)
-            local rarName = (isCataloged and info.Rarity) or egg:GetAttribute("Rarity") or "New Update"
-
-            -- Rarity Filter:
-            -- Eggs not tracked in group or listed in any of our catalog will be flagged as new update,
-            -- so even if they do not match the rarity filter they should default to showing.
-            local matchesRarity = false
-            if selectedHwRarities and (selectedHwRarities["All"] or selectedHwRarities[rarName]) then
-                matchesRarity = true
-            end
-            if not isCataloged then
-                matchesRarity = true
-            end
-
-            if not matchesRarity then
-                continue
-            end
-
-            local tagUpdate = not isCataloged and " • [New Update]" or ""
-            local subLabel = string.format("%s • %s%s • %d studs", zoneName, rarName, tagUpdate, math.floor(d))
-
-            table.insert(eggList, {
-                Model     = egg,
-                Name      = eggName,
-                Position  = p,
-                Distance  = d,
-                SubLabel  = subLabel,
-                Color     = getHwEggColor(egg, eggName),
-                Zone      = tonumber(zone) or 99,
-                Rank      = (isCataloged and info and info.Rank) or (RARITY_RANK[rarName] or 99),
-                Uid       = egg:GetAttribute("HalloweenEggUid") or egg.Name,
-            })
+            local tagUpdate = not entry.IsCataloged and " • [New Update]" or ""
+            entry.SubLabel = string.format("%s • %s%s • %d studs",
+                zoneName, entry.Rarity, tagUpdate, math.floor(entry.Distance))
+            table.insert(eggList, entry)
         end
     end
 
@@ -5789,14 +6069,45 @@ renderHalloweenEggs = function()
     for idx, eggData in ipairs(eggList) do
         local poolItem = getOrCreateHwCard(idx)
         poolItem.data = eggData
-        poolItem.nameLabel.Text = eggData.Name
-        poolItem.subLabel.Text = eggData.SubLabel
-        poolItem.accent.BackgroundColor3 = eggData.Color
-        poolItem.card.Visible = true
+        -- Only write the GUI properties that actually changed: every extra write
+        -- is a property-changed notification plus a layout invalidation.
+        if poolItem.lastName ~= eggData.Name then
+            poolItem.lastName = eggData.Name
+            poolItem.nameLabel.Text = eggData.Name
+        end
+        if poolItem.lastSub ~= eggData.SubLabel then
+            poolItem.lastSub = eggData.SubLabel
+            poolItem.subLabel.Text = eggData.SubLabel
+        end
+        if poolItem.lastColor ~= eggData.Color then
+            poolItem.lastColor = eggData.Color
+            poolItem.accent.BackgroundColor3 = eggData.Color
+        end
+        if poolItem.card.Visible ~= true then
+            poolItem.card.Visible = true
+        end
     end
 
     for idx = count + 1, #hwCardPool do
-        hwCardPool[idx].card.Visible = false
+        local poolItem = hwCardPool[idx]
+        if poolItem.lastSub ~= nil then
+            poolItem.lastSub = nil
+            poolItem.lastName = nil
+            poolItem.lastColor = nil
+        end
+        if poolItem.card.Visible then
+            poolItem.card.Visible = false
+        end
+    end
+
+    -- Keep the pool bounded: a one-off 100-egg burst must not pin ~700 instances
+    -- for the rest of the session.
+    local POOL_MAX = 150
+    while #hwCardPool > POOL_MAX do
+        local extra = table.remove(hwCardPool)
+        if extra and extra.card then
+            pcall(function() extra.card:Destroy() end)
+        end
     end
 end
 
@@ -5858,31 +6169,29 @@ local function findBestHwPickupTarget()
     local maxPickupDist = 45
 
     for _, egg in ipairs(rawEggModels) do
-        if egg.Name:lower():find("holder") then
-            continue
-        end
-        if egg:GetAttribute("HalloweenEggCanPickUp") == false then
-            continue
-        end
-
-        local p = getHwEggPos(egg)
-        if p then
-            local dist = (p - charPos).Magnitude
-            if dist <= maxPickupDist then
-                local score = scoreHwTarget(p, dist)
-                if score > highestScore then
-                    local eggName = getHwEggName(egg)
-                    if not eggName:lower():find("holder") then
-                        highestScore = score
-                        local pr = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        bestTarget = {
-                            Model    = egg,
-                            Name     = eggName,
-                            Position = p,
-                            Distance = dist,
-                            Uid      = egg:GetAttribute("HalloweenEggUid") or egg.Name,
-                            Prompt   = (pr and isCarryPrompt(pr)) and pr or nil
-                        }
+        -- Guards are combined (instead of `continue`) so this file also loads in
+        -- stock Lua, which the long-run test harness relies on.
+        if not egg.Name:lower():find("holder")
+            and egg:GetAttribute("HalloweenEggCanPickUp") ~= false then
+            local p = getHwEggPos(egg)
+            if p then
+                local dist = (p - charPos).Magnitude
+                if dist <= maxPickupDist then
+                    local score = scoreHwTarget(p, dist)
+                    if score > highestScore then
+                        local eggName = getHwEggName(egg)
+                        if not eggName:lower():find("holder") then
+                            highestScore = score
+                            local pr = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            bestTarget = {
+                                Model    = egg,
+                                Name     = eggName,
+                                Position = p,
+                                Distance = dist,
+                                Uid      = egg:GetAttribute("HalloweenEggUid") or egg.Name,
+                                Prompt   = (pr and isCarryPrompt(pr)) and pr or nil
+                            }
+                        end
                     end
                 end
             end
@@ -6399,7 +6708,7 @@ local function startPushMonitor()
             local cd = tonumber(val) or (typeof(val) == "table" and tonumber(val.Countdown or val.Time or val.Seconds))
             if cd and cd <= 1 then
                 if halloweenEngine and halloweenEngine.triggerNightReset then
-                    halloweenEngine.triggerNightReset(15.0)
+                    halloweenEngine.triggerNightReset(12.0)
                 end
             end
         end))
@@ -6463,7 +6772,7 @@ local function startPushMonitor()
             local isNight = (cur >= 18 or cur < 6)
             if wasDay and isNight then
                 if halloweenEngine and halloweenEngine.triggerNightReset then
-                    halloweenEngine.triggerNightReset(15.0)
+                    halloweenEngine.triggerNightReset(12.0)
                 end
             end
         end))
@@ -6492,8 +6801,20 @@ task.spawn(function()
             pcall(renderFarmableEggs)
         end
 
+        if halloweenEngine and halloweenEngine.fishing and halloweenEngine.fishing.logDirty then
+            pcall(halloweenEngine.fishing.refreshLog)
+        end
+
+        -- Rebuild the live list only when the world changed (folder hooks / filter
+        -- changes) or at 1 Hz, instead of unconditionally every 0.3 s tick.
         if tabHalloween and tabHalloween.Visible and renderHalloweenEggs then
-            pcall(renderHalloweenEggs)
+            local now = os.clock()
+            local every = halloweenEngine.hwRenderEvery or 1.0
+            if halloweenEngine.hwListDirty or (now - (halloweenEngine.hwLastRenderAt or 0)) >= every then
+                halloweenEngine.hwListDirty = false
+                halloweenEngine.hwLastRenderAt = now
+                pcall(renderHalloweenEggs)
+            end
         end
 
         -- Instant Recovery gentle safety fallback (0.3s throttled = 0 CPU cost)
@@ -6542,6 +6863,8 @@ local function switchTab(tabName)
     if tabName == "Eggs" then
         requestListUpdate()
     elseif tabName == "Halloween" then
+        halloweenEngine.hwListDirty = false
+        halloweenEngine.hwLastRenderAt = os.clock()
         if renderHalloweenEggs then pcall(renderHalloweenEggs) end
     end
 end
