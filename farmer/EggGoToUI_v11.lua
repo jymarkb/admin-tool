@@ -277,9 +277,11 @@ local BIOME_EGG_CATALOG = {
         EggNames = { "Enchanted Forest Egg" },
         Species = {
             { Name = "Prism Gecko", Rarity = "Legendary" },
-            { Name = "Petal Beetle", Rarity = "Mythic", Aliases = { "Cosmic Beetle Blue" } },
+            { Name = "Petal Beetle", Rarity = "Mythic", Aliases = { "Cosmic Beetle Blue", "Cosmic Beetle" } },
+            { Name = "Cosmic Beetle Blue", Rarity = "Mythic", Aliases = { "Petal Beetle", "Cosmic Beetle" } },
             { Name = "Enchanted Bluejay", Rarity = "Mythic" },
-            { Name = "Astral Jackalope", Rarity = "Cosmic", Aliases = { "Jackalope", "Spirit Hare" } },
+            { Name = "Astral Jackalope", Rarity = "Cosmic", Aliases = { "Spirit Hare", "Jackalope" } },
+            { Name = "Spirit Hare", Rarity = "Cosmic", Aliases = { "Astral Jackalope", "Jackalope" } },
             { Name = "Spirit Panda", Rarity = "Cosmic" },
             { Name = "Starry Fox", Rarity = "Secret", Aliases = { "Cosmic Fox" } },
             { Name = "Celestial Sunlion", Rarity = "Eternal", Aliases = { "Sunlion" } },
@@ -319,13 +321,16 @@ local BIOME_EGG_CATALOG = {
             { Name = "Hexed Pumpkin Egg", Rarity = "Cosmic", Aliases = { "Hexed Pumpkin" } },
             { Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } },
             { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong" } },
-            { Name = "Voidseer Pumpkin Egg", Rarity = "Divine", Aliases = { "Voidseer Pumpkin" } }
+            { Name = "Voidseer Pumpkin Egg", Rarity = "Divine", Aliases = { "Voidseer Pumpkin" } },
+            { Name = "Pumpkin Golem", Rarity = "Secret", Aliases = { "Pumpkin Golem Egg" } }
         }
     },
     {
         Biome = "Ungrouped",
         EggNames = { "Event Egg", "Special Egg" },
         Species = {
+            { Name = "Spiderpig", Rarity = "Cosmic" },
+            { Name = "Three Headed Chicken", Rarity = "Cosmic" },
             -- Toxic Wasteland Event
             { Name = "Toxic Rat", Rarity = "Common" },
             { Name = "Radcoon", Rarity = "Common" },
@@ -425,6 +430,7 @@ local BIOME_EGG_CATALOG = {
             { Name = "Amethyst Runebear", Rarity = "Legendary" },
             { Name = "Amethyst Runebear OP", Rarity = "Mythic" },
             { Name = "Toxic Hedgehog OP", Rarity = "Legendary" },
+            { Name = "Octophant", Rarity = "Divine" },
             -- Mount / Race Rally Event
             { Name = "Race Bird", Rarity = "Uncommon" },
             { Name = "Race Cheetah", Rarity = "Rare" },
@@ -487,6 +493,9 @@ for _, biomeData in ipairs(BIOME_EGG_CATALOG) do
                 if aliasNorm ~= "" then
                     SPECIES_INFO_BY_BIOME[biomeData.Biome][aliasNorm] = record
                     EGG_ALIASES[aliasNorm] = canonicalNorm
+                    if not SPECIES_INFO[aliasNorm] then
+                        SPECIES_INFO[aliasNorm] = record
+                    end
                 end
             end
         end
@@ -505,7 +514,15 @@ local function getSpeciesInfo(name, biomeFilter)
         local bTable = SPECIES_INFO_BY_BIOME["Titan Temple"]
         if bTable and bTable["mutant shark"] then return bTable["mutant shark"] end
     end
-    return SPECIES_INFO[clean]
+    if SPECIES_INFO[clean] then return SPECIES_INFO[clean] end
+    local canonical = EGG_ALIASES[clean]
+    if canonical and SPECIES_INFO[canonical] then
+        return SPECIES_INFO[canonical]
+    end
+    for _, bTable in pairs(SPECIES_INFO_BY_BIOME) do
+        if bTable[clean] then return bTable[clean] end
+    end
+    return nil
 end
 
 -- Keep legacy lookup helpers in a local scope so they don't consume registers
@@ -1371,7 +1388,24 @@ local function registerDynamicSpecies(rawName, defaultBiome, defaultRarity)
     local clean = normalizeSpecies(rawName)
     if clean == "" then return false end
 
-    local existing = SPECIES_INFO[clean]
+    local existing = getSpeciesInfo(rawName, defaultBiome) or SPECIES_INFO[clean]
+    if existing and existing.IsCataloged then
+        local disp = existing.DisplayName or rawName
+        local cleanDisp = normalizeSpecies(disp)
+        if not seenSpecies[cleanDisp] then
+            seenSpecies[cleanDisp] = true
+            table.insert(ALL_SPECIES_LIST, {
+                Name      = disp,
+                Biome     = existing.Biome or defaultBiome or "Ungrouped",
+                Rarity    = existing.Rarity,
+                Rank      = existing.Rank or (RARITY_RANK[existing.Rarity] or 1),
+                SearchKey = (disp .. " " .. (existing.Biome or "") .. " " .. existing.Rarity):lower(),
+            })
+            return true
+        end
+        return false
+    end
+
     local disp = (existing and existing.DisplayName) or rawName
     local biome = (existing and existing.Biome) or defaultBiome
     if not biome or biome == "" or biome == "Unknown" then
@@ -1382,7 +1416,7 @@ local function registerDynamicSpecies(rawName, defaultBiome, defaultRarity)
         end
     end
     local isCataloged = (existing and existing.IsCataloged == true)
-    local rarity = (isCataloged and existing.Rarity) or defaultRarity or (biome == "Halloween" and "New Update" or "Common")
+    local rarity = (isCataloged and existing.Rarity) or defaultRarity or (biome == "Halloween" and "New Update" or "Unknown")
     local rank = (isCataloged and existing.Rank) or (RARITY_RANK[rarity] or (rarity == "New Update" and 99 or 1))
 
     local record = existing or {
@@ -1429,6 +1463,21 @@ do
                     Rank      = RARITY_RANK[spec.Rarity] or 0,
                     SearchKey = (spec.Name .. " " .. biomeData.Biome .. " " .. spec.Rarity):lower(),
                 })
+            end
+            if spec.Aliases then
+                for _, alias in ipairs(spec.Aliases) do
+                    local aliasClean = normalizeSpecies(alias)
+                    if aliasClean ~= "" and not seenSpecies[aliasClean] then
+                        seenSpecies[aliasClean] = true
+                        table.insert(ALL_SPECIES_LIST, {
+                            Name      = alias,
+                            Biome     = biomeData.Biome,
+                            Rarity    = spec.Rarity,
+                            Rank      = RARITY_RANK[spec.Rarity] or 0,
+                            SearchKey = (alias .. " " .. biomeData.Biome .. " " .. spec.Rarity):lower(),
+                        })
+                    end
+                end
             end
         end
     end
