@@ -859,6 +859,229 @@ local setHwAutoPick
 local setUtilityAutoPick
 local startHalloweenAutoPickup, executeHwPickupSpam, pickupHwEgg, hwPickupToken = nil, nil, nil, 0
 
+-- Shared Dropdown Open/Close Controller
+local openDropdown = nil
+
+local function closeCurrentDropdown()
+    if openDropdown then
+        openDropdown.list.Visible = false
+        if openDropdown.updateBtnText then
+            openDropdown.updateBtnText(false)
+        end
+        openDropdown = nil
+    end
+end
+
+local function toggleDropdown(dd)
+    if openDropdown == dd then
+        closeCurrentDropdown()
+    else
+        closeCurrentDropdown()
+        openDropdown = dd
+        dd.list.Visible = true
+        if dd.onOpen then dd.onOpen() end
+        if dd.updateBtnText then dd.updateBtnText(true) end
+    end
+end
+
+local function isInsideGui(guiObj, pos)
+    if not (guiObj and guiObj.Visible) then return false end
+    local ok, a = pcall(function() return guiObj.AbsolutePosition end)
+    local ok2, s = pcall(function() return guiObj.AbsoluteSize end)
+    if not (ok and ok2 and a and s) then return false end
+    return pos.X >= a.X and pos.X <= a.X + s.X and pos.Y >= a.Y and pos.Y <= a.Y + s.Y
+end
+
+addConnection(UserInputService.InputBegan:Connect(function(input)
+    if not openDropdown then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    local p = input.Position
+    if not isInsideGui(openDropdown.btn, p) and not isInsideGui(openDropdown.list, p) then
+        closeCurrentDropdown()
+    end
+end))
+
+local function createFilterDropdown(cfg)
+    local dropList = Instance.new("Frame")
+    dropList.Name = (cfg.title or "Filter") .. "DropList"
+    dropList.Size = cfg.size or UDim2.new(1, 0, 0, 260)
+    dropList.Position = cfg.pos or UDim2.new(0, 0, 0, 28)
+    dropList.BackgroundColor3 = cfg.bgColor or Color3.fromRGB(24, 29, 42)
+    dropList.BorderSizePixel = 0
+    dropList.ZIndex = cfg.zIndex or 50
+    dropList.ClipsDescendants = true
+    dropList.Visible = false
+    dropList.Parent = cfg.parent
+    Instance.new("UICorner", dropList).CornerRadius = UDim.new(0, 6)
+
+    local stroke = Instance.new("UIStroke", dropList)
+    stroke.Color = cfg.strokeColor or Color3.fromRGB(60, 85, 130)
+    stroke.Thickness = 1
+
+    local quickRow = Instance.new("Frame")
+    quickRow.Size = UDim2.new(1, -6, 0, 22)
+    quickRow.Position = UDim2.new(0, 3, 0, 3)
+    quickRow.BackgroundTransparency = 1
+    quickRow.ZIndex = (cfg.zIndex or 50) + 1
+    quickRow.Parent = dropList
+
+    local allBtn = Instance.new("TextButton")
+    allBtn.Size = UDim2.new(0.5, -2, 1, 0)
+    allBtn.Position = UDim2.new(0, 0, 0, 0)
+    allBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 150)
+    allBtn.Text = "All"
+    allBtn.TextColor3 = Color3.new(1, 1, 1)
+    allBtn.TextSize = 11
+    allBtn.Font = Enum.Font.GothamBold
+    allBtn.ZIndex = (cfg.zIndex or 50) + 2
+    allBtn.Parent = quickRow
+    Instance.new("UICorner", allBtn).CornerRadius = UDim.new(0, 4)
+
+    local noneBtn = Instance.new("TextButton")
+    noneBtn.Size = UDim2.new(0.5, -2, 1, 0)
+    noneBtn.Position = UDim2.new(0.5, 2, 0, 0)
+    noneBtn.BackgroundColor3 = Color3.fromRGB(110, 45, 45)
+    noneBtn.Text = "None"
+    noneBtn.TextColor3 = Color3.new(1, 1, 1)
+    noneBtn.TextSize = 11
+    noneBtn.Font = Enum.Font.GothamBold
+    noneBtn.ZIndex = (cfg.zIndex or 50) + 2
+    noneBtn.Parent = quickRow
+    Instance.new("UICorner", noneBtn).CornerRadius = UDim.new(0, 4)
+
+    local itemsContainer
+    if cfg.scrollable then
+        local scroll = Instance.new("ScrollingFrame")
+        scroll.Size = UDim2.new(1, -6, 1, -29)
+        scroll.Position = UDim2.new(0, 3, 0, 27)
+        scroll.BackgroundTransparency = 1
+        scroll.ScrollBarThickness = 3
+        scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scroll.ZIndex = (cfg.zIndex or 50) + 1
+        scroll.Parent = dropList
+        itemsContainer = scroll
+    else
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -6, 1, -29)
+        frame.Position = UDim2.new(0, 3, 0, 27)
+        frame.BackgroundTransparency = 1
+        frame.ZIndex = (cfg.zIndex or 50) + 1
+        frame.Parent = dropList
+        itemsContainer = frame
+    end
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 2)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = itemsContainer
+
+    local itemBtns = {}
+
+    local function updateBtnText(isOpen)
+        local arrow = isOpen and "▲" or "▼"
+        local sel = cfg.getSelected()
+        if sel["All"] then
+            cfg.btn.Text = cfg.title .. ": All " .. arrow
+            return
+        end
+        local list = {}
+        for _, it in ipairs(cfg.items) do
+            if sel[it] then table.insert(list, it) end
+        end
+        if #list == 0 then
+            cfg.btn.Text = cfg.title .. ": None " .. arrow
+        elseif #list == 1 then
+            cfg.btn.Text = cfg.title .. ": " .. list[1] .. " " .. arrow
+        else
+            cfg.btn.Text = string.format("%s: %s +%d %s", cfg.title, list[1], #list - 1, arrow)
+        end
+    end
+
+    local function refreshButtons()
+        local sel = cfg.getSelected()
+        for _, it in ipairs(cfg.items) do
+            local on = sel["All"] == true or sel[it] == true
+            local b = itemBtns[it]
+            if b then
+                b.BackgroundColor3 = on and Color3.fromRGB(48, 80, 125) or (cfg.itemBg or Color3.fromRGB(32, 38, 52))
+                b.Text = (on and "[X] " or "[ ] ") .. it
+            end
+        end
+    end
+
+    for i, it in ipairs(cfg.items) do
+        local b = Instance.new("TextButton")
+        b.Name = (cfg.title or "Item") .. "_" .. it
+        b.Size = UDim2.new(1, cfg.scrollable and -4 or 0, 0, 20)
+        b.LayoutOrder = i
+        b.BackgroundColor3 = cfg.itemBg or Color3.fromRGB(32, 38, 52)
+        b.Text = "[X] " .. it
+        local col = (cfg.colorMap and cfg.colorMap[it]) or Color3.fromRGB(220, 230, 255)
+        if it == "New Update" and (not cfg.colorMap or not cfg.colorMap[it]) then
+            col = Color3.fromRGB(235, 150, 60)
+        end
+        b.TextColor3 = col
+        b.TextSize = 11
+        b.Font = Enum.Font.GothamBold
+        b.TextXAlignment = Enum.TextXAlignment.Left
+        b.ZIndex = (cfg.zIndex or 50) + 2
+        b.Parent = itemsContainer
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+        local pad = Instance.new("UIPadding")
+        pad.PaddingLeft = UDim.new(0, 6)
+        pad.Parent = b
+        itemBtns[it] = b
+
+        b.MouseButton1Click:Connect(function()
+            local sel = cfg.getSelected()
+            if sel["All"] then sel = {} end
+            if sel[it] then sel[it] = nil else sel[it] = true end
+            local totalChecked = 0
+            for _, checkIt in ipairs(cfg.items) do
+                if sel[checkIt] then totalChecked = totalChecked + 1 end
+            end
+            if totalChecked == #cfg.items then
+                sel = { ["All"] = true }
+            end
+            cfg.setSelected(sel)
+            updateBtnText(true)
+            refreshButtons()
+            if cfg.onChanged then cfg.onChanged() end
+        end)
+    end
+
+    allBtn.MouseButton1Click:Connect(function()
+        cfg.setSelected({ ["All"] = true })
+        updateBtnText(true)
+        refreshButtons()
+        if cfg.onChanged then cfg.onChanged() end
+    end)
+
+    noneBtn.MouseButton1Click:Connect(function()
+        cfg.setSelected({})
+        updateBtnText(true)
+        refreshButtons()
+        if cfg.onChanged then cfg.onChanged() end
+    end)
+
+    local dd = {
+        btn = cfg.btn,
+        list = dropList,
+        onOpen = refreshButtons,
+        updateBtnText = updateBtnText,
+    }
+
+    cfg.btn.MouseButton1Click:Connect(function() toggleDropdown(dd) end)
+
+    if not cfg.skipInitialUpdate then
+        updateBtnText(false)
+    end
+    refreshButtons()
+
+    return dd
+end
+
 -- Halloween Panel: Auto-Pickup, Rarity Filter & Live List Scrolling Container
 do
     -- Auto Farm Engine Row (Two-Column: Text Left, Toggle Right - Placeholder)
@@ -1087,164 +1310,24 @@ do
     Instance.new("UICorner", hwRarityBtn).CornerRadius = UDim.new(0, 5)
 
     -- Halloween Rarity Dropdown List
-    hwRarityDropList = Instance.new("Frame")
-    hwRarityDropList.Name = "HwRarityDropList"
-    hwRarityDropList.Size = UDim2.new(1, 0, 0, 280)
-    hwRarityDropList.Position = UDim2.new(0, 0, 0, 26)
-    hwRarityDropList.BackgroundColor3 = Color3.fromRGB(24, 20, 34)
-    hwRarityDropList.BorderSizePixel = 0
-    hwRarityDropList.ZIndex = 50
-    hwRarityDropList.ClipsDescendants = true
-    hwRarityDropList.Visible = false
-    hwRarityDropList.Parent = hwFilterFrame
-    Instance.new("UICorner", hwRarityDropList).CornerRadius = UDim.new(0, 6)
-    local hwRStroke = Instance.new("UIStroke", hwRarityDropList)
-    hwRStroke.Color = Color3.fromRGB(90, 55, 120)
-    hwRStroke.Thickness = 1
-
-    local hwRarityQuickRow = Instance.new("Frame")
-    hwRarityQuickRow.Size = UDim2.new(1, -6, 0, 22)
-    hwRarityQuickRow.Position = UDim2.new(0, 3, 0, 3)
-    hwRarityQuickRow.BackgroundTransparency = 1
-    hwRarityQuickRow.ZIndex = 51
-    hwRarityQuickRow.Parent = hwRarityDropList
-
-    local hwRarityAllBtn = Instance.new("TextButton")
-    hwRarityAllBtn.Size = UDim2.new(0.5, -2, 1, 0)
-    hwRarityAllBtn.Position = UDim2.new(0, 0, 0, 0)
-    hwRarityAllBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 150)
-    hwRarityAllBtn.Text = "All"
-    hwRarityAllBtn.TextColor3 = Color3.new(1, 1, 1)
-    hwRarityAllBtn.TextSize = 11
-    hwRarityAllBtn.Font = Enum.Font.GothamBold
-    hwRarityAllBtn.ZIndex = 52
-    hwRarityAllBtn.Parent = hwRarityQuickRow
-    Instance.new("UICorner", hwRarityAllBtn).CornerRadius = UDim.new(0, 4)
-
-    local hwRarityNoneBtn = Instance.new("TextButton")
-    hwRarityNoneBtn.Size = UDim2.new(0.5, -2, 1, 0)
-    hwRarityNoneBtn.Position = UDim2.new(0.5, 2, 0, 0)
-    hwRarityNoneBtn.BackgroundColor3 = Color3.fromRGB(110, 45, 45)
-    hwRarityNoneBtn.Text = "None"
-    hwRarityNoneBtn.TextColor3 = Color3.new(1, 1, 1)
-    hwRarityNoneBtn.TextSize = 11
-    hwRarityNoneBtn.Font = Enum.Font.GothamBold
-    hwRarityNoneBtn.ZIndex = 52
-    hwRarityNoneBtn.Parent = hwRarityQuickRow
-    Instance.new("UICorner", hwRarityNoneBtn).CornerRadius = UDim.new(0, 4)
-
-    local hwRarityItemsContainer = Instance.new("Frame")
-    hwRarityItemsContainer.Size = UDim2.new(1, -6, 1, -29)
-    hwRarityItemsContainer.Position = UDim2.new(0, 3, 0, 27)
-    hwRarityItemsContainer.BackgroundTransparency = 1
-    hwRarityItemsContainer.ZIndex = 51
-    hwRarityItemsContainer.Parent = hwRarityDropList
-
-    local hwRLayout = Instance.new("UIListLayout")
-    hwRLayout.Padding = UDim.new(0, 2)
-    hwRLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    hwRLayout.Parent = hwRarityItemsContainer
-
-    local hwRarityBtns = {}
-    local refreshHwRarityButtons
-    local updateHwRarityBtnText
-    -- Halloween-only filter rows: the catalog rarities plus the uncatalogued bucket.
     local RARITY_ROWS = { "New Update", table.unpack(RARITY_ORDER) }
-
-    updateHwRarityBtnText = function(isOpen)
-        local arrow = isOpen and "▲" or "▼"
-        if selectedHwRarities["All"] then
-            hwRarityBtn.Text = "Rarity: All " .. arrow
-            return
-        end
-        local list = {}
-        for _, r in ipairs(RARITY_ROWS) do
-            if selectedHwRarities[r] then table.insert(list, r) end
-        end
-        if #list == 0 then
-            hwRarityBtn.Text = "Rarity: None " .. arrow
-        elseif #list == 1 then
-            hwRarityBtn.Text = "Rarity: " .. list[1] .. " " .. arrow
-        else
-            hwRarityBtn.Text = string.format("Rarity: %s +%d %s", list[1], #list - 1, arrow)
-        end
-    end
-
-    refreshHwRarityButtons = function()
-        for _, r in ipairs(RARITY_ROWS) do
-            local on = selectedHwRarities["All"] == true or selectedHwRarities[r] == true
-            local b = hwRarityBtns[r]
-            if b then
-                b.BackgroundColor3 = on and Color3.fromRGB(48, 80, 125) or Color3.fromRGB(32, 28, 44)
-                b.Text = (on and "[X] " or "[ ] ") .. r
-            end
-        end
-    end
-
-    for i, r in ipairs(RARITY_ROWS) do
-        local b = Instance.new("TextButton")
-        b.Name = "HwRarity_" .. r
-        b.Size = UDim2.new(1, 0, 0, 20)
-        b.LayoutOrder = i
-        b.BackgroundColor3 = Color3.fromRGB(32, 28, 44)
-        b.Text = "[X] " .. r
-        b.TextColor3 = RARITY_COLORS[r] or (r == "New Update" and Color3.fromRGB(235, 150, 60)) or Color3.fromRGB(220, 230, 255)
-        b.TextSize = 11
-        b.Font = Enum.Font.GothamBold
-        b.TextXAlignment = Enum.TextXAlignment.Left
-        b.ZIndex = 52
-        b.Parent = hwRarityItemsContainer
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-        local pad = Instance.new("UIPadding")
-        pad.PaddingLeft = UDim.new(0, 6)
-        pad.Parent = b
-        hwRarityBtns[r] = b
-
-        b.MouseButton1Click:Connect(function()
-            if selectedHwRarities["All"] then
-                selectedHwRarities = {}
-            end
-            if selectedHwRarities[r] then
-                selectedHwRarities[r] = nil
-            else
-                selectedHwRarities[r] = true
-            end
-            local totalChecked = 0
-            for _, checkR in ipairs(RARITY_ROWS) do
-                if selectedHwRarities[checkR] then totalChecked = totalChecked + 1 end
-            end
-            if totalChecked == #RARITY_ROWS then
-                selectedHwRarities = { ["All"] = true }
-            end
-            updateHwRarityBtnText(true)
-            refreshHwRarityButtons()
-            if renderHalloweenEggs then pcall(renderHalloweenEggs) end
-        end)
-    end
-
-    hwRarityAllBtn.MouseButton1Click:Connect(function()
-        selectedHwRarities = { ["All"] = true }
-        updateHwRarityBtnText(true)
-        refreshHwRarityButtons()
-        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
-    end)
-
-    hwRarityNoneBtn.MouseButton1Click:Connect(function()
-        selectedHwRarities = {}
-        updateHwRarityBtnText(true)
-        refreshHwRarityButtons()
-        if renderHalloweenEggs then pcall(renderHalloweenEggs) end
-    end)
-
-    hwRarityDd = {
+    hwRarityDd = createFilterDropdown({
+        parent = hwFilterFrame,
         btn = hwRarityBtn,
-        list = hwRarityDropList,
-        onOpen = function() refreshHwRarityButtons() end,
-        updateBtnText = updateHwRarityBtnText,
-    }
-
-    updateHwRarityBtnText(false)
-    refreshHwRarityButtons()
+        title = "Rarity",
+        items = RARITY_ROWS,
+        getSelected = function() return selectedHwRarities end,
+        setSelected = function(v) selectedHwRarities = v end,
+        onChanged = function() if renderHalloweenEggs then pcall(renderHalloweenEggs) end end,
+        size = UDim2.new(1, 0, 0, 280),
+        pos = UDim2.new(0, 0, 0, 26),
+        bgColor = Color3.fromRGB(24, 20, 34),
+        strokeColor = Color3.fromRGB(90, 55, 120),
+        itemBg = Color3.fromRGB(32, 28, 44),
+        colorMap = RARITY_COLORS,
+        skipInitialUpdate = true,
+    })
+    hwRarityDropList = hwRarityDd.list
 
     -- Scrolling Frame for detected Halloween eggs (Directly below rarity filter)
     hwEggListScroll = Instance.new("ScrollingFrame")
@@ -1835,291 +1918,33 @@ do
 end
 
 -- Dropdown Lists Container
-local rarityList = Instance.new("Frame")
-rarityList.Name = "RarityDropList"
-rarityList.Size = UDim2.new(0.5, -3, 0, 256)
-rarityList.Position = UDim2.new(0, 0, 0, 28)
-rarityList.BackgroundColor3 = Color3.fromRGB(24, 29, 42)
-rarityList.BorderSizePixel = 0
-rarityList.ZIndex = 50
-rarityList.ClipsDescendants = true
-rarityList.Visible = false
-rarityList.Parent = filterFrame
-Instance.new("UICorner", rarityList).CornerRadius = UDim.new(0, 6)
-do
-    local s = Instance.new("UIStroke", rarityList)
-    s.Color = Color3.fromRGB(60, 85, 130); s.Thickness = 1
-end
+local rarityDd = createFilterDropdown({
+    parent = filterFrame,
+    btn = rarityBtn,
+    title = "Rarity",
+    items = RARITY_ORDER,
+    getSelected = function() return selectedRarities end,
+    setSelected = function(v) selectedRarities = v end,
+    onChanged = function() if renderFarmableEggs then renderFarmableEggs() end end,
+    size = UDim2.new(0.5, -3, 0, 256),
+    pos = UDim2.new(0, 0, 0, 28),
+    colorMap = RARITY_COLORS,
+})
+local rarityList = rarityDd.list
 
-local rarityQuickRow = Instance.new("Frame")
-rarityQuickRow.Size = UDim2.new(1, -6, 0, 22)
-rarityQuickRow.Position = UDim2.new(0, 3, 0, 3)
-rarityQuickRow.BackgroundTransparency = 1
-rarityQuickRow.ZIndex = 51
-rarityQuickRow.Parent = rarityList
-
-local rarityAllBtn = Instance.new("TextButton")
-rarityAllBtn.Size = UDim2.new(0.5, -2, 1, 0)
-rarityAllBtn.Position = UDim2.new(0, 0, 0, 0)
-rarityAllBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 150)
-rarityAllBtn.Text = "All"
-rarityAllBtn.TextColor3 = Color3.new(1, 1, 1)
-rarityAllBtn.TextSize = 11; rarityAllBtn.Font = Enum.Font.GothamBold
-rarityAllBtn.ZIndex = 52; rarityAllBtn.Parent = rarityQuickRow
-Instance.new("UICorner", rarityAllBtn).CornerRadius = UDim.new(0, 4)
-
-local rarityNoneBtn = Instance.new("TextButton")
-rarityNoneBtn.Size = UDim2.new(0.5, -2, 1, 0)
-rarityNoneBtn.Position = UDim2.new(0.5, 2, 0, 0)
-rarityNoneBtn.BackgroundColor3 = Color3.fromRGB(110, 45, 45)
-rarityNoneBtn.Text = "None"
-rarityNoneBtn.TextColor3 = Color3.new(1, 1, 1)
-rarityNoneBtn.TextSize = 11; rarityNoneBtn.Font = Enum.Font.GothamBold
-rarityNoneBtn.ZIndex = 52; rarityNoneBtn.Parent = rarityQuickRow
-Instance.new("UICorner", rarityNoneBtn).CornerRadius = UDim.new(0, 4)
-
-local rarityItemsContainer = Instance.new("Frame")
-rarityItemsContainer.Size = UDim2.new(1, -6, 1, -29)
-rarityItemsContainer.Position = UDim2.new(0, 3, 0, 27)
-rarityItemsContainer.BackgroundTransparency = 1
-rarityItemsContainer.ZIndex = 51
-rarityItemsContainer.Parent = rarityList
-
-do
-    local l = Instance.new("UIListLayout")
-    l.Padding = UDim.new(0, 2); l.SortOrder = Enum.SortOrder.LayoutOrder
-    l.Parent = rarityItemsContainer
-end
-
-local rarityBtns = {}
-local refreshRarityButtons
-local updateRarityBtnText
-
-updateRarityBtnText = function(isOpen)
-    local arrow = isOpen and "▲" or "▼"
-    if selectedRarities["All"] then
-        rarityBtn.Text = "Rarity: All " .. arrow
-        return
-    end
-    local list = {}
-    for _, r in ipairs(RARITY_ORDER) do
-        if selectedRarities[r] then table.insert(list, r) end
-    end
-    if #list == 0 then
-        rarityBtn.Text = "Rarity: None " .. arrow
-    elseif #list == 1 then
-        rarityBtn.Text = "Rarity: " .. list[1] .. " " .. arrow
-    else
-        rarityBtn.Text = string.format("Rarity: %s +%d %s", list[1], #list - 1, arrow)
-    end
-end
-
-refreshRarityButtons = function()
-    for _, r in ipairs(RARITY_ORDER) do
-        local on = selectedRarities["All"] == true or selectedRarities[r] == true
-        local b = rarityBtns[r]
-        if b then
-            b.BackgroundColor3 = on and Color3.fromRGB(48, 80, 125) or Color3.fromRGB(32, 38, 52)
-            b.Text = (on and "[X] " or "[ ] ") .. r
-        end
-    end
-end
-
-for i, r in ipairs(RARITY_ORDER) do
-    local b = Instance.new("TextButton")
-    b.Name = "Rarity_" .. r
-    b.Size = UDim2.new(1, 0, 0, 20)
-    b.LayoutOrder = i
-    b.BackgroundColor3 = Color3.fromRGB(32, 38, 52)
-    b.Text = "[X] " .. r
-    b.TextColor3 = RARITY_COLORS[r] or Color3.fromRGB(220, 230, 255)
-    b.TextSize = 11; b.Font = Enum.Font.GothamBold
-    b.TextXAlignment = Enum.TextXAlignment.Left
-    b.ZIndex = 52; b.Parent = rarityItemsContainer
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-    local pad = Instance.new("UIPadding"); pad.PaddingLeft = UDim.new(0, 6); pad.Parent = b
-    rarityBtns[r] = b
-
-    b.MouseButton1Click:Connect(function()
-        if selectedRarities["All"] then
-            selectedRarities = {}
-        end
-        if selectedRarities[r] then
-            selectedRarities[r] = nil
-        else
-            selectedRarities[r] = true
-        end
-        local totalChecked = 0
-        for _, checkR in ipairs(RARITY_ORDER) do
-            if selectedRarities[checkR] then totalChecked = totalChecked + 1 end
-        end
-        if totalChecked == #RARITY_ORDER then
-            selectedRarities = { ["All"] = true }
-        end
-        updateRarityBtnText(true)
-        refreshRarityButtons()
-        if renderFarmableEggs then renderFarmableEggs() end
-    end)
-end
-
-rarityAllBtn.MouseButton1Click:Connect(function()
-    selectedRarities = { ["All"] = true }
-    updateRarityBtnText(true)
-    refreshRarityButtons()
-    if renderFarmableEggs then renderFarmableEggs() end
-end)
-
-rarityNoneBtn.MouseButton1Click:Connect(function()
-    selectedRarities = {}
-    updateRarityBtnText(true)
-    refreshRarityButtons()
-    if renderFarmableEggs then renderFarmableEggs() end
-end)
-
--- Biome Dropdown List
-local biomeList = Instance.new("Frame")
-biomeList.Name = "BiomeDropList"
-biomeList.Size = UDim2.new(0.5, -3, 0, 240)
-biomeList.Position = UDim2.new(0.5, 3, 0, 28)
-biomeList.BackgroundColor3 = Color3.fromRGB(24, 29, 42)
-biomeList.BorderSizePixel = 0
-biomeList.ZIndex = 50
-biomeList.ClipsDescendants = true
-biomeList.Visible = false
-biomeList.Parent = filterFrame
-Instance.new("UICorner", biomeList).CornerRadius = UDim.new(0, 6)
-do
-    local s = Instance.new("UIStroke", biomeList)
-    s.Color = Color3.fromRGB(60, 85, 130); s.Thickness = 1
-end
-
-local biomeQuickRow = Instance.new("Frame")
-biomeQuickRow.Size = UDim2.new(1, -6, 0, 22)
-biomeQuickRow.Position = UDim2.new(0, 3, 0, 3)
-biomeQuickRow.BackgroundTransparency = 1
-biomeQuickRow.ZIndex = 51
-biomeQuickRow.Parent = biomeList
-
-local biomeAllBtn = Instance.new("TextButton")
-biomeAllBtn.Size = UDim2.new(0.5, -2, 1, 0)
-biomeAllBtn.Position = UDim2.new(0, 0, 0, 0)
-biomeAllBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 150)
-biomeAllBtn.Text = "All"
-biomeAllBtn.TextColor3 = Color3.new(1, 1, 1)
-biomeAllBtn.TextSize = 11; biomeAllBtn.Font = Enum.Font.GothamBold
-biomeAllBtn.ZIndex = 52; biomeAllBtn.Parent = biomeQuickRow
-Instance.new("UICorner", biomeAllBtn).CornerRadius = UDim.new(0, 4)
-
-local biomeNoneBtn = Instance.new("TextButton")
-biomeNoneBtn.Size = UDim2.new(0.5, -2, 1, 0)
-biomeNoneBtn.Position = UDim2.new(0.5, 2, 0, 0)
-biomeNoneBtn.BackgroundColor3 = Color3.fromRGB(110, 45, 45)
-biomeNoneBtn.Text = "None"
-biomeNoneBtn.TextColor3 = Color3.new(1, 1, 1)
-biomeNoneBtn.TextSize = 11; biomeNoneBtn.Font = Enum.Font.GothamBold
-biomeNoneBtn.ZIndex = 52; biomeNoneBtn.Parent = biomeQuickRow
-Instance.new("UICorner", biomeNoneBtn).CornerRadius = UDim.new(0, 4)
-
-local biomeScroll = Instance.new("ScrollingFrame")
-biomeScroll.Size = UDim2.new(1, -6, 1, -29)
-biomeScroll.Position = UDim2.new(0, 3, 0, 27)
-biomeScroll.BackgroundTransparency = 1
-biomeScroll.ScrollBarThickness = 3
-biomeScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-biomeScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-biomeScroll.ZIndex = 51
-biomeScroll.Parent = biomeList
-
-do
-    local l = Instance.new("UIListLayout")
-    l.Padding = UDim.new(0, 2); l.SortOrder = Enum.SortOrder.LayoutOrder
-    l.Parent = biomeScroll
-end
-
-local biomeBtns = {}
-local refreshBiomeButtons
-local updateBiomeBtnText
-
-updateBiomeBtnText = function(isOpen)
-    local arrow = isOpen and "▲" or "▼"
-    if selectedBiomes["All"] then
-        biomeBtn.Text = "Biome: All " .. arrow
-        return
-    end
-    local list = {}
-    for _, b in ipairs(BIOME_ORDER) do
-        if selectedBiomes[b] then table.insert(list, b) end
-    end
-    if #list == 0 then
-        biomeBtn.Text = "Biome: None " .. arrow
-    elseif #list == 1 then
-        biomeBtn.Text = "Biome: " .. list[1] .. " " .. arrow
-    else
-        biomeBtn.Text = string.format("Biome: %s +%d %s", list[1], #list - 1, arrow)
-    end
-end
-
-refreshBiomeButtons = function()
-    for _, bName in ipairs(BIOME_ORDER) do
-        local on = selectedBiomes["All"] == true or selectedBiomes[bName] == true
-        local b = biomeBtns[bName]
-        if b then
-            b.BackgroundColor3 = on and Color3.fromRGB(48, 80, 125) or Color3.fromRGB(32, 38, 52)
-            b.Text = (on and "[X] " or "[ ] ") .. bName
-        end
-    end
-end
-
-for i, bName in ipairs(BIOME_ORDER) do
-    local b = Instance.new("TextButton")
-    b.Name = "Biome_" .. bName
-    b.Size = UDim2.new(1, -4, 0, 20)
-    b.LayoutOrder = i
-    b.BackgroundColor3 = Color3.fromRGB(32, 38, 52)
-    b.Text = "[X] " .. bName
-    b.TextColor3 = Color3.fromRGB(220, 230, 255)
-    b.TextSize = 11; b.Font = Enum.Font.GothamBold
-    b.TextXAlignment = Enum.TextXAlignment.Left
-    b.ZIndex = 52; b.Parent = biomeScroll
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-    local pad = Instance.new("UIPadding"); pad.PaddingLeft = UDim.new(0, 6); pad.Parent = b
-    biomeBtns[bName] = b
-
-    b.MouseButton1Click:Connect(function()
-        if selectedBiomes["All"] then
-            selectedBiomes = {}
-        end
-        if selectedBiomes[bName] then
-            selectedBiomes[bName] = nil
-        else
-            selectedBiomes[bName] = true
-        end
-        local totalChecked = 0
-        for _, checkB in ipairs(BIOME_ORDER) do
-            if selectedBiomes[checkB] then totalChecked = totalChecked + 1 end
-        end
-        if totalChecked == #BIOME_ORDER then
-            selectedBiomes = { ["All"] = true }
-        end
-        updateBiomeBtnText(true)
-        refreshBiomeButtons()
-        if renderFarmableEggs then renderFarmableEggs() end
-    end)
-end
-
-biomeAllBtn.MouseButton1Click:Connect(function()
-    selectedBiomes = { ["All"] = true }
-    updateBiomeBtnText(true)
-    refreshBiomeButtons()
-    if renderFarmableEggs then renderFarmableEggs() end
-end)
-
-biomeNoneBtn.MouseButton1Click:Connect(function()
-    selectedBiomes = {}
-    updateBiomeBtnText(true)
-    refreshBiomeButtons()
-    if renderFarmableEggs then renderFarmableEggs() end
-end)
+local biomeDd = createFilterDropdown({
+    parent = filterFrame,
+    btn = biomeBtn,
+    title = "Biome",
+    items = BIOME_ORDER,
+    getSelected = function() return selectedBiomes end,
+    setSelected = function(v) selectedBiomes = v end,
+    onChanged = function() if renderFarmableEggs then renderFarmableEggs() end end,
+    size = UDim2.new(0.5, -3, 0, 240),
+    pos = UDim2.new(0.5, 3, 0, 28),
+    scrollable = true,
+})
+local biomeList = biomeDd.list
 
 -- Egg Dropdown List
 local eggDropList = Instance.new("Frame")
@@ -2338,75 +2163,16 @@ eggNoneBtn.MouseButton1Click:Connect(function()
     if renderFarmableEggs then renderFarmableEggs() end
 end)
 
--- Dropdown Open/Close Controller
-local openDropdown = nil
-
-local function closeCurrentDropdown()
-    if openDropdown then
-        openDropdown.list.Visible = false
-        if openDropdown.updateBtnText then
-            openDropdown.updateBtnText(false)
-        end
-        openDropdown = nil
-    end
-end
-
-local function toggleDropdown(dd)
-    if openDropdown == dd then
-        closeCurrentDropdown()
-    else
-        closeCurrentDropdown()
-        openDropdown = dd
-        dd.list.Visible = true
-        if dd.onOpen then dd.onOpen() end
-        if dd.updateBtnText then dd.updateBtnText(true) end
-    end
-end
-
+-- Dropdown Wiring for Egg species
 do
-    local rarityDd = {
-        btn = rarityBtn,
-        list = rarityList,
-        onOpen = function() refreshRarityButtons() end,
-        updateBtnText = updateRarityBtnText,
-    }
-    local biomeDd = {
-        btn = biomeBtn,
-        list = biomeList,
-        onOpen = function() refreshBiomeButtons() end,
-        updateBtnText = updateBiomeBtnText,
-    }
     local eggDd = {
         btn = eggBtn,
         list = eggDropList,
         onOpen = function() rebuildEggDropdownItems() end,
         updateBtnText = updateEggBtnText,
     }
-
-    rarityBtn.MouseButton1Click:Connect(function() toggleDropdown(rarityDd) end)
-    biomeBtn.MouseButton1Click:Connect(function() toggleDropdown(biomeDd) end)
     eggBtn.MouseButton1Click:Connect(function() toggleDropdown(eggDd) end)
-    if hwRarityBtn and hwRarityDd then
-        hwRarityBtn.MouseButton1Click:Connect(function() toggleDropdown(hwRarityDd) end)
-    end
 end
-
-local function isInsideGui(guiObj, pos)
-    if not (guiObj and guiObj.Visible) then return false end
-    local ok, a = pcall(function() return guiObj.AbsolutePosition end)
-    local ok2, s = pcall(function() return guiObj.AbsoluteSize end)
-    if not (ok and ok2 and a and s) then return false end
-    return pos.X >= a.X and pos.X <= a.X + s.X and pos.Y >= a.Y and pos.Y <= a.Y + s.Y
-end
-
-addConnection(UserInputService.InputBegan:Connect(function(input)
-    if not openDropdown then return end
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-    local p = input.Position
-    if not isInsideGui(openDropdown.btn, p) and not isInsideGui(openDropdown.list, p) then
-        closeCurrentDropdown()
-    end
-end))
 
 -- Scrolling Egg List
 local eggListScroll = Instance.new("ScrollingFrame")
@@ -2580,7 +2346,7 @@ do
         local ch = LocalPlayer and LocalPlayer.Character
         if not ch then return end
         for _, desc in ipairs(ch:GetDescendants()) do
-            if desc:IsA("BasePart") then
+            if desc:IsA("BasePart") and not desc:FindFirstAncestorWhichIsA("Tool") then
                 table.insert(noclipParts, desc)
             end
         end
@@ -2612,7 +2378,8 @@ do
     addConnection(RunService.Stepped:Connect(function()
         if not noclipActive then return end
         local now = os.clock()
-        if #noclipParts == 0 or (now - lastNoclipRefresh > 2.0) then
+        local firstPart = noclipParts[1]
+        if #noclipParts == 0 or not (firstPart and firstPart.Parent) or (now - lastNoclipRefresh > 2.0) then
             lastNoclipRefresh = now
             refreshNoclipParts()
         end
@@ -2859,7 +2626,7 @@ end
 local hwCarryState = {
     active = false,
     name = nil,
-    backpackEggs = {},
+    backpackEggs = setmetatable({}, { __mode = "k" }),
     isCarrying = nil,
 }
 
@@ -2870,25 +2637,29 @@ do
         end
     end
 
-    pcall(function()
-        local bp = LocalPlayer and LocalPlayer:FindFirstChild("Backpack")
+    local backpackChildConn = nil
+    local function hookBackpack(bp)
+        if backpackChildConn then
+            pcall(function() backpackChildConn:Disconnect() end)
+            backpackChildConn = nil
+        end
         if bp then
             for _, t in ipairs(bp:GetChildren()) do
                 recordBackpackTool(t)
             end
-            addConnection(bp.ChildAdded:Connect(recordBackpackTool))
+            backpackChildConn = bp.ChildAdded:Connect(recordBackpackTool)
+            addConnection(backpackChildConn)
         end
+    end
+
+    pcall(function()
+        hookBackpack(LocalPlayer and LocalPlayer:FindFirstChild("Backpack"))
     end)
 
     if LocalPlayer then
         addConnection(LocalPlayer.ChildAdded:Connect(function(c)
             if c.Name == "Backpack" then
-                pcall(function()
-                    for _, t in ipairs(c:GetChildren()) do
-                        recordBackpackTool(t)
-                    end
-                end)
-                addConnection(c.ChildAdded:Connect(recordBackpackTool))
+                pcall(function() hookBackpack(c) end)
             end
         end))
     end
@@ -3099,17 +2870,23 @@ local function stopWalking()
     end)
 end
 
+local function toVector3(pos)
+    if not pos then return nil end
+    if typeof(pos) == "Vector3" then return pos end
+    if typeof(pos) == "CFrame" then return pos.Position end
+    if typeof(pos) == "table" and pos.X and pos.Y and pos.Z then
+        return Vector3.new(pos.X, pos.Y, pos.Z)
+    end
+    return nil
+end
+
 -- `onFail` (optional) runs when the walk gives up: invalid target or the 45 s
 -- safety timeout. Without it a caller that reschedules itself from `onArrived`
 -- would stop forever the first time a walk could not finish (night reset, dead
 -- character, unreachable spot).
 local function walkToTarget(targetPos, arriveDist, onArrived, uid, snapDist, onFail)
-    if typeof(targetPos) == "CFrame" then
-        targetPos = targetPos.Position
-    elseif typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
-        targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
-    end
-    if typeof(targetPos) ~= "Vector3" then
+    targetPos = toVector3(targetPos)
+    if not targetPos then
         if onFail then task.spawn(onFail) end
         return
     end
@@ -3811,6 +3588,29 @@ local function applyReachAssist(targetPos)
     return false
 end
 
+local function checkAndApplyReachAssist(targetPos, hasSnapped)
+    if hasSnapped or not targetPos then return hasSnapped end
+    local char = LocalPlayer and LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local dist = root and (targetPos - root.Position).Magnitude or 999
+    if dist <= 3.5 then
+        return true
+    elseif dist <= 35.0 then
+        if applyReachAssist(targetPos) then return true end
+    end
+    return hasSnapped
+end
+
+local function calculateTargetScore(pos, dist, charPos, charLook, camPos, camLook)
+    local dir = dist > 0.01 and (pos - charPos).Unit or charLook
+    local charDot = charLook:Dot(dir)
+    local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
+    local camDot = camLook:Dot(camDir)
+    local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
+    if dist <= 6 then score = score + 3 end
+    return score
+end
+
 local function getBestFocusedTarget()
     if weAreCarrying then return nil end
     local char = LocalPlayer and LocalPlayer.Character
@@ -3827,13 +3627,7 @@ local function getBestFocusedTarget()
     local maxDist = (PICKUP_CONFIG and PICKUP_CONFIG.ReachAssist and PICKUP_CONFIG.MaxReachDistance) or 16
 
     local function scoreTarget(pos, dist)
-        local dir = dist > 0.01 and (pos - charPos).Unit or charLook
-        local charDot = charLook:Dot(dir)
-        local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
-        local camDot = camLook:Dot(camDir)
-        local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
-        if dist <= 6 then score = score + 3 end
-        return score
+        return calculateTargetScore(pos, dist, charPos, charLook, camPos, camLook)
     end
 
     -- 1. Scan from eggCacheByUid
@@ -4005,17 +3799,8 @@ startAutoPickupSpam = function(initialTarget)
         while autoPickupToken == myTok and PICKUP_CONFIG and PICKUP_CONFIG.Enabled and (os.clock() - tStart < maxDuration) do
             local target = getBestFocusedTarget() or initialTarget
             if target then
-                if not hasSnapped and PICKUP_CONFIG.ReachAssist and target.Position then
-                    local char = LocalPlayer and LocalPlayer.Character
-                    local root = char and char:FindFirstChild("HumanoidRootPart")
-                    local dist = root and (target.Position - root.Position).Magnitude or 999
-                    if dist <= 3.5 then
-                        hasSnapped = true
-                    elseif dist <= (PICKUP_CONFIG.MaxReachDistance or 35) then
-                        if applyReachAssist(target.Position) then
-                            hasSnapped = true
-                        end
-                    end
+                if PICKUP_CONFIG and PICKUP_CONFIG.ReachAssist and target.Position then
+                    hasSnapped = checkAndApplyReachAssist(target.Position, hasSnapped)
                 end
                 executePickupSpam(target)
             end
@@ -4088,99 +3873,103 @@ requestListUpdate = function()
     listDirty = true
 end
 
+local function createPooledCard(idx, parentScroll, cardPrefix, bgColor, defaultAccent, onTpClicked, onGetClicked)
+    local card = Instance.new("Frame")
+    card.Name = cardPrefix .. tostring(idx)
+    card.Size = UDim2.new(1, -8, 0, 34)
+    card.BackgroundColor3 = bgColor
+    card.BorderSizePixel = 0
+    card.LayoutOrder = idx
+    card.Parent = parentScroll
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+    local accent = Instance.new("Frame")
+    accent.Name = "Accent"
+    accent.Size = UDim2.new(0, 3, 1, -6)
+    accent.Position = UDim2.new(0, 4, 0, 3)
+    accent.BackgroundColor3 = defaultAccent or Color3.fromRGB(60, 120, 200)
+    accent.BorderSizePixel = 0
+    accent.Parent = card
+    Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 2)
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, -92, 0, 16)
+    nameLabel.Position = UDim2.new(0, 12, 0, 2)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = Color3.fromRGB(235, 242, 255)
+    nameLabel.TextSize = 11.5
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    nameLabel.Parent = card
+
+    local subLabel = Instance.new("TextLabel")
+    subLabel.Name = "SubLabel"
+    subLabel.Size = UDim2.new(1, -92, 0, 13)
+    subLabel.Position = UDim2.new(0, 12, 0, 18)
+    subLabel.BackgroundTransparency = 1
+    subLabel.TextColor3 = Color3.fromRGB(160, 175, 205)
+    subLabel.TextSize = 10
+    subLabel.Font = Enum.Font.Gotham
+    subLabel.TextXAlignment = Enum.TextXAlignment.Left
+    subLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    subLabel.Parent = card
+
+    local tpBtn = Instance.new("TextButton")
+    tpBtn.Name = "TpBtn"
+    tpBtn.Size = UDim2.new(0, 34, 0, 22)
+    tpBtn.Position = UDim2.new(1, -80, 0.5, -11)
+    tpBtn.BackgroundColor3 = Color3.fromRGB(42, 60, 95)
+    tpBtn.Text = "TP"
+    tpBtn.TextColor3 = Color3.fromRGB(200, 220, 255)
+    tpBtn.TextSize = 10.5
+    tpBtn.Font = Enum.Font.GothamBold
+    tpBtn.Parent = card
+    Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 4)
+
+    local getBtn = Instance.new("TextButton")
+    getBtn.Name = "GetBtn"
+    getBtn.Size = UDim2.new(0, 38, 0, 22)
+    getBtn.Position = UDim2.new(1, -42, 0.5, -11)
+    getBtn.BackgroundColor3 = Color3.fromRGB(40, 130, 80)
+    getBtn.Text = "Get"
+    getBtn.TextColor3 = Color3.new(1, 1, 1)
+    getBtn.TextSize = 10.5
+    getBtn.Font = Enum.Font.GothamBold
+    getBtn.Parent = card
+    Instance.new("UICorner", getBtn).CornerRadius = UDim.new(0, 4)
+
+    local item = {
+        card      = card,
+        accent    = accent,
+        nameLabel = nameLabel,
+        subLabel  = subLabel,
+        tpBtn     = tpBtn,
+        getBtn    = getBtn,
+        data      = nil,
+    }
+
+    addConnection(tpBtn.MouseButton1Click:Connect(function()
+        if item.data and onTpClicked then onTpClicked(item.data) end
+    end))
+    addConnection(getBtn.MouseButton1Click:Connect(function()
+        if item.data and onGetClicked then onGetClicked(item.data) end
+    end))
+
+    return item
+end
+
 local function getOrCreateCard(idx)
     local item = cardPool[idx]
     if not item then
-        local card = Instance.new("Frame")
-        card.Name = "Card_" .. tostring(idx)
-        card.Size = UDim2.new(1, -8, 0, 34)
-        card.BackgroundColor3 = Color3.fromRGB(26, 30, 40)
-        card.BorderSizePixel = 0
-        card.LayoutOrder = idx
-        card.Parent = eggListScroll
-        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
-
-        local accent = Instance.new("Frame")
-        accent.Name = "Accent"
-        accent.Size = UDim2.new(0, 3, 1, -6)
-        accent.Position = UDim2.new(0, 4, 0, 3)
-        accent.BorderSizePixel = 0
-        accent.Parent = card
-        Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 2)
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Name = "NameLabel"
-        nameLabel.Size = UDim2.new(1, -90, 0, 16)
-        nameLabel.Position = UDim2.new(0, 12, 0, 2)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.TextColor3 = Color3.fromRGB(230, 240, 255)
-        nameLabel.TextSize = 11.5
-        nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        nameLabel.Parent = card
-
-        local subLabel = Instance.new("TextLabel")
-        subLabel.Name = "SubLabel"
-        subLabel.Size = UDim2.new(1, -90, 0, 13)
-        subLabel.Position = UDim2.new(0, 12, 0, 18)
-        subLabel.BackgroundTransparency = 1
-        subLabel.TextSize = 10
-        subLabel.Font = Enum.Font.Gotham
-        subLabel.TextXAlignment = Enum.TextXAlignment.Left
-        subLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        subLabel.Parent = card
-
-        -- TP Button: Teleports to egg coordinates
-        local tpBtn = Instance.new("TextButton")
-        tpBtn.Name = "TpBtn"
-        tpBtn.Size = UDim2.new(0, 34, 0, 22)
-        tpBtn.Position = UDim2.new(1, -78, 0.5, -11)
-        tpBtn.BackgroundColor3 = Color3.fromRGB(42, 60, 95)
-        tpBtn.Text = "TP"
-        tpBtn.TextColor3 = Color3.fromRGB(200, 220, 255)
-        tpBtn.TextSize = 10.5
-        tpBtn.Font = Enum.Font.GothamBold
-        tpBtn.Parent = card
-        Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 4)
-
-        -- Get Button: Placeholder for egg retrieval
-        local getBtn = Instance.new("TextButton")
-        getBtn.Name = "GetBtn"
-        getBtn.Size = UDim2.new(0, 38, 0, 22)
-        getBtn.Position = UDim2.new(1, -40, 0.5, -11)
-        getBtn.BackgroundColor3 = Color3.fromRGB(40, 130, 80)
-        getBtn.Text = "Get"
-        getBtn.TextColor3 = Color3.new(1, 1, 1)
-        getBtn.TextSize = 10.5
-        getBtn.Font = Enum.Font.GothamBold
-        getBtn.Parent = card
-        Instance.new("UICorner", getBtn).CornerRadius = UDim.new(0, 4)
-
-        item = {
-            card      = card,
-            accent    = accent,
-            nameLabel = nameLabel,
-            subLabel  = subLabel,
-            tpBtn     = tpBtn,
-            getBtn    = getBtn,
-            data      = nil,
-        }
-
-        addConnection(tpBtn.MouseButton1Click:Connect(function()
+        item = createPooledCard(idx, eggListScroll, "Card_", Color3.fromRGB(26, 30, 40), nil, function(eggData)
             stopWalking()
             autoReturnActive = false
             autoReturnTargetUid = nil
             returnTripInProgress = false
-            local eggData = item.data
-            if not eggData then return end
-            local targetPos = eggData.Position or getEggPosition(eggData.Record, eggData.Uid)
+            local targetPos = toVector3(eggData.Position or getEggPosition(eggData.Record, eggData.Uid))
             if not targetPos then return end
-            if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
-            if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
-                targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
-            end
-            if typeof(targetPos) ~= "Vector3" then return end
             pcall(function()
                 local ch = LocalPlayer and LocalPlayer.Character
                 local root = ch and ch:FindFirstChild("HumanoidRootPart")
@@ -4189,36 +3978,18 @@ local function getOrCreateCard(idx)
                     root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
                 end
             end)
-        end))
-
-        addConnection(getBtn.MouseButton1Click:Connect(function()
-            local eggData = item.data
-            if not eggData then return end
-
-            -- Automatically unequip any tool so character can freely run to target
+        end, function(eggData)
+            stopWalking()
+            local targetPos = toVector3(eggData.Position or getEggPosition(eggData.Record, eggData.Uid))
+            if not targetPos then return end
             pcall(function()
-                local char = LocalPlayer and LocalPlayer.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                local ch = LocalPlayer and LocalPlayer.Character
+                local hum = ch and ch:FindFirstChildOfClass("Humanoid")
                 if hum then hum:UnequipTools() end
             end)
-            weAreCarrying = false
-            carryUid = nil
-            local targetPos = eggData.Position or getEggPosition(eggData.Record, eggData.Uid)
-            if not targetPos then
-                warn("[EggGoTo v11] Target position could not be resolved for", eggData.DisplayName, eggData.Uid)
-                return
-            end
-            if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
-            if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
-                targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
-            end
-            if typeof(targetPos) ~= "Vector3" then return end
-
-            -- Arm Auto-Return Engine for this egg retrieval
             autoReturnActive = true
             autoReturnTargetUid = eggData.Uid
             returnTripInProgress = false
-
             walkToTarget(targetPos, 3.5, function()
                 local pickupTarget = {
                     Uid = eggData.Uid,
@@ -4228,8 +3999,7 @@ local function getOrCreateCard(idx)
                 executePickupSpam(pickupTarget)
                 startAutoPickupSpam(pickupTarget)
             end, eggData.Uid, 8.0)
-        end))
-
+        end)
         cardPool[idx] = item
     end
     return item
@@ -4944,9 +4714,12 @@ halloweenEngine = {
             if not f.logDirty then return end
             f.logDirty = false
             f.logFlushedAt = os.clock()
-            if not (hwLogLabel and hwLogLabel.Parent) then return end
+            if not (screenGui and screenGui.Parent and main and main.Visible and tabHalloween and tabHalloween.Visible and hwLogLabel and hwLogLabel.Parent) then return end
             pcall(function()
-                hwLogLabel.Text = table.concat(f.logLines, "\n")
+                local fullText = table.concat(f.logLines, "\n")
+                if hwLogLabel.Text ~= fullText then
+                    hwLogLabel.Text = fullText
+                end
                 local sc = hwLogLabel.Parent
                 if sc and sc:IsA("ScrollingFrame") then
                     sc.CanvasPosition = Vector2.new(0, 99999)
@@ -4960,14 +4733,11 @@ halloweenEngine = {
             if #halloweenEngine.fishing.logLines > 50 then
                 table.remove(halloweenEngine.fishing.logLines, 1)
             end
-            -- Rebuilding the label means a concat of the whole buffer plus a
-            -- layout pass; coalesce bursts into at most ~4 refreshes per second.
             local f = halloweenEngine.fishing
             f.logDirty = true
-            if (os.clock() - (f.logFlushedAt or -1)) >= 0.25 then
+            if (os.clock() - (f.logFlushedAt or -1)) >= 1.0 then
                 f.refreshLog()
             end
-            print("[HW-Fishing] " .. line)
         end,
 
         getRemote = function(name)
@@ -5832,16 +5602,8 @@ halloweenEngine.tpAction = function(eggData, onComplete)
     stopWalking()
 
     local model = eggData.Model
-    local targetPos = (model and getHwEggPos(model)) or eggData.Position
+    local targetPos = toVector3((model and getHwEggPos(model)) or eggData.Position)
     if not targetPos then
-        if onComplete then onComplete(false) end
-        return
-    end
-    if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
-    if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
-        targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
-    end
-    if typeof(targetPos) ~= "Vector3" then
         if onComplete then onComplete(false) end
         return
     end
@@ -6198,95 +5960,11 @@ local hwCardPool = {}
 local function getOrCreateHwCard(idx)
     local item = hwCardPool[idx]
     if not item then
-        local card = Instance.new("Frame")
-        card.Name = "HwCard_" .. tostring(idx)
-        card.Size = UDim2.new(1, -6, 0, 34)
-        card.BackgroundColor3 = Color3.fromRGB(26, 22, 34)
-        card.BorderSizePixel = 0
-        card.LayoutOrder = idx
-        card.Parent = hwEggListScroll
-        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
-
-        local accent = Instance.new("Frame")
-        accent.Name = "Accent"
-        accent.Size = UDim2.new(0, 3, 1, -6)
-        accent.Position = UDim2.new(0, 4, 0, 3)
-        accent.BackgroundColor3 = Color3.fromRGB(220, 110, 30)
-        accent.BorderSizePixel = 0
-        accent.Parent = card
-        Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 2)
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Name = "NameLabel"
-        nameLabel.Size = UDim2.new(1, -95, 0, 16)
-        nameLabel.Position = UDim2.new(0, 12, 0, 2)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.TextColor3 = Color3.fromRGB(255, 235, 210)
-        nameLabel.TextSize = 11.5
-        nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        nameLabel.Parent = card
-
-        local subLabel = Instance.new("TextLabel")
-        subLabel.Name = "SubLabel"
-        subLabel.Size = UDim2.new(1, -95, 0, 13)
-        subLabel.Position = UDim2.new(0, 12, 0, 18)
-        subLabel.BackgroundTransparency = 1
-        subLabel.TextColor3 = Color3.fromRGB(180, 170, 195)
-        subLabel.TextSize = 10
-        subLabel.Font = Enum.Font.Gotham
-        subLabel.TextXAlignment = Enum.TextXAlignment.Left
-        subLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        subLabel.Parent = card
-
-        local tpBtn = Instance.new("TextButton")
-        tpBtn.Name = "TpBtn"
-        tpBtn.Size = UDim2.new(0, 36, 0, 22)
-        tpBtn.Position = UDim2.new(1, -84, 0.5, -11)
-        tpBtn.BackgroundColor3 = Color3.fromRGB(45, 55, 85)
-        tpBtn.Text = "TP"
-        tpBtn.TextColor3 = Color3.fromRGB(210, 225, 255)
-        tpBtn.TextSize = 10.5
-        tpBtn.Font = Enum.Font.GothamBold
-        tpBtn.Parent = card
-        Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 4)
-
-        local getBtn = Instance.new("TextButton")
-        getBtn.Name = "GetBtn"
-        getBtn.Size = UDim2.new(0, 40, 0, 22)
-        getBtn.Position = UDim2.new(1, -44, 0.5, -11)
-        getBtn.BackgroundColor3 = Color3.fromRGB(180, 85, 25)
-        getBtn.Text = "Get"
-        getBtn.TextColor3 = Color3.new(1, 1, 1)
-        getBtn.TextSize = 10.5
-        getBtn.Font = Enum.Font.GothamBold
-        getBtn.Parent = card
-        Instance.new("UICorner", getBtn).CornerRadius = UDim.new(0, 4)
-
-        item = {
-            card      = card,
-            accent    = accent,
-            nameLabel = nameLabel,
-            subLabel  = subLabel,
-            tpBtn     = tpBtn,
-            getBtn    = getBtn,
-            data      = nil,
-        }
-
-        -- TP Action: Teleport to egg + staging drop/SafeZone workflow
-        addConnection(tpBtn.MouseButton1Click:Connect(function()
-            local eggData = item.data
-            if eggData and halloweenEngine and halloweenEngine.tpAction then
+        item = createPooledCard(idx, hwEggListScroll, "HwCard_", Color3.fromRGB(26, 22, 34), Color3.fromRGB(220, 110, 30), function(eggData)
+            if halloweenEngine and halloweenEngine.tpAction then
                 halloweenEngine.tpAction(eggData)
             end
-        end))
-
-        -- GET Action: Walk toward egg using velocity engine and pick it up
-        addConnection(getBtn.MouseButton1Click:Connect(function()
-            local eggData = item.data
-            if not eggData then return end
-
+        end, function(eggData)
             pcall(function()
                 local ch = LocalPlayer and LocalPlayer.Character
                 local hum = ch and ch:FindFirstChildOfClass("Humanoid")
@@ -6298,13 +5976,8 @@ local function getOrCreateHwCard(idx)
             end)
 
             local model = eggData.Model
-            local targetPos = (model and getHwEggPos(model)) or eggData.Position
+            local targetPos = toVector3((model and getHwEggPos(model)) or eggData.Position)
             if not targetPos then return end
-            if typeof(targetPos) == "CFrame" then targetPos = targetPos.Position end
-            if typeof(targetPos) == "table" and targetPos.X and targetPos.Y and targetPos.Z then
-                targetPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
-            end
-            if typeof(targetPos) ~= "Vector3" then return end
 
             local uid = eggData.Uid or (model and model:GetAttribute("HalloweenEggUid")) or (model and model.Name) or "HW_EGG"
 
@@ -6320,8 +5993,7 @@ local function getOrCreateHwCard(idx)
                     end
                 end)
             end, "HW_" .. tostring(uid), 8.0)
-        end))
-
+        end)
         hwCardPool[idx] = item
     end
     return item
@@ -6516,13 +6188,7 @@ local function findBestHwPickupTarget()
     local camLook = cam and cam.CFrame.LookVector or charLook
 
     local function scoreHwTarget(pos, dist)
-        local toTarget = (pos - charPos).Unit
-        local charDot = charLook:Dot(toTarget)
-        local camDir = ((pos - camPos).Magnitude > 0.01) and (pos - camPos).Unit or camLook
-        local camDot = camLook:Dot(camDir)
-        local score = (math.max(0, camDot) * 2.2 + math.max(0, charDot) * 1.2 + 0.3) / (dist + 0.5)
-        if dist <= 6 then score = score + 3 end
-        return score
+        return calculateTargetScore(pos, dist, charPos, charLook, camPos, camLook)
     end
 
     local rawEggModels = {}
@@ -6688,17 +6354,8 @@ pickupHwEgg = function(eggData, onSecured)
                 end
             end
 
-            if livePos and not hasSnapped then
-                local char = LocalPlayer and LocalPlayer.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                local dist = root and (livePos - root.Position).Magnitude or 999
-                if dist <= 3.5 then
-                    hasSnapped = true
-                elseif dist <= 35 then
-                    if applyReachAssist(livePos) then
-                        hasSnapped = true
-                    end
-                end
+            if livePos then
+                hasSnapped = checkAndApplyReachAssist(livePos, hasSnapped)
             end
 
             local pr = model and model.Parent and model:FindFirstChildWhichIsA("ProximityPrompt", true)
@@ -6751,20 +6408,9 @@ startHalloweenAutoPickup = function()
 
             local target = findBestHwPickupTarget()
             if target then
-                -- Reach Assist: Instant snap to egg on first detection within 35 studs
-                if not hasSnapped and target.Position then
-                    local char = LocalPlayer and LocalPlayer.Character
-                    local root = char and char:FindFirstChild("HumanoidRootPart")
-                    local dist = root and (target.Position - root.Position).Magnitude or 999
-                    if dist <= 3.5 then
-                        hasSnapped = true
-                    elseif dist <= 35 then
-                        if applyReachAssist(target.Position) then
-                            hasSnapped = true
-                        end
-                    end
+                if target.Position then
+                    hasSnapped = checkAndApplyReachAssist(target.Position, hasSnapped)
                 end
-
                 executeHwPickupSpam(target)
 
                 if target.Model and target.Model.Parent then
@@ -6780,87 +6426,11 @@ startHalloweenAutoPickup = function()
 end
 
 -- ============================================================================
--- FULL EGG LIST JSON EXPORTER (For diagnostics, rarity audits & alias mapping)
+-- FULL EGG LIST JSON EXPORTER (For diagnostics & rarity audits)
 -- ============================================================================
 
 local exportEggListJson
 do
-    local function copyToClipboard(str)
-        local ok = false
-        if typeof(setclipboard) == "function" then
-            ok = pcall(setclipboard, str)
-        end
-        if not ok and typeof(toclipboard) == "function" then
-            ok = pcall(toclipboard, str)
-        end
-        return ok
-    end
-
-    local function sanitizeForJson(val, depth)
-        depth = depth or 0
-        if depth > 6 then return tostring(val) end
-        if val == nil then return nil end
-
-        local t = typeof(val)
-        if t == "string" or t == "number" or t == "boolean" then
-            return val
-        elseif t == "Vector3" then
-            return {
-                X = math.floor(val.X * 10 + 0.5) / 10,
-                Y = math.floor(val.Y * 10 + 0.5) / 10,
-                Z = math.floor(val.Z * 10 + 0.5) / 10,
-            }
-        elseif t == "CFrame" then
-            local p = val.Position
-            return {
-                X = math.floor(p.X * 10 + 0.5) / 10,
-                Y = math.floor(p.Y * 10 + 0.5) / 10,
-                Z = math.floor(p.Z * 10 + 0.5) / 10,
-            }
-        elseif t == "Color3" then
-            return {
-                R = math.floor(val.R * 255 + 0.5),
-                G = math.floor(val.G * 255 + 0.5),
-                B = math.floor(val.B * 255 + 0.5),
-            }
-        elseif t == "Instance" then
-            return {
-                ClassName = val.ClassName,
-                Name = val.Name,
-            }
-        elseif t == "EnumItem" then
-            return tostring(val)
-        elseif t == "table" then
-            local count = 0
-            for _ in pairs(val) do
-                count = count + 1
-            end
-            local isDenseArray = (count > 0)
-            if isDenseArray then
-                for i = 1, count do
-                    if val[i] == nil then
-                        isDenseArray = false
-                        break
-                    end
-                end
-            end
-
-            local clean = {}
-            if isDenseArray then
-                for i = 1, count do
-                    clean[i] = sanitizeForJson(val[i], depth + 1)
-                end
-            else
-                for k, v in pairs(val) do
-                    clean[tostring(k)] = sanitizeForJson(v, depth + 1)
-                end
-            end
-            return clean
-        else
-            return tostring(val)
-        end
-    end
-
     exportEggListJson = function()
         local charPos = nil
         pcall(function()
@@ -6879,72 +6449,38 @@ do
 
         for uid, r in pairs(eggCacheByUid) do
             exportData.totalCached = exportData.totalCached + 1
-
             local rawName, info, disp, serverRarity, rarity, rank, biome, pos, dist = resolveEggFields(r, uid, charPos)
-
-            local raritySource = "fallback_unknown"
-            if serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown" then
-                raritySource = "server"
-            elseif info and info.Rarity then
-                raritySource = "catalog"
-            end
-
             local eggItem = {
                 uid = tostring(uid),
                 displayName = disp,
                 rawName = rawName,
-                assetCategory = r.AssetCategory,
-                speciesMatched = (info ~= nil),
-                matchedSpeciesName = info and info.DisplayName or nil,
-                serverRarityId = serverRarity,
-                catalogRarity = info and info.Rarity or nil,
                 finalRarity = rarity,
-                raritySource = raritySource,
+                serverRarityId = serverRarity,
                 rank = rank,
                 biome = biome,
                 state = r.State or "Slot",
-                carrierUserId = r.CarrierUserId,
                 isFarmable = isFarmableEgg(r),
-                position = pos and {
-                    X = math.floor(pos.X * 10 + 0.5) / 10,
-                    Y = math.floor(pos.Y * 10 + 0.5) / 10,
-                    Z = math.floor(pos.Z * 10 + 0.5) / 10,
-                } or nil,
-                distance = dist and (math.floor(dist * 10 + 0.5) / 10) or nil,
-                rawRecord = sanitizeForJson(r),
+                distance = dist and math.floor(dist * 10 + 0.5) / 10 or nil,
             }
-
             table.insert(exportData.allEggs, eggItem)
-            if eggItem.isFarmable then
-                table.insert(exportData.farmableEggs, eggItem)
-            end
+            if eggItem.isFarmable then table.insert(exportData.farmableEggs, eggItem) end
         end
 
         exportData.totalFarmable = #exportData.farmableEggs
-
-        -- Sort farmable eggs: highest rank first, then distance
         table.sort(exportData.farmableEggs, function(a, b)
             if a.rank ~= b.rank then return a.rank > b.rank end
             return (a.distance or 99999) < (b.distance or 99999)
         end)
 
-        local okJson, jsonStr = pcall(function()
-            return HttpService:JSONEncode(exportData)
-        end)
-
+        local okJson, jsonStr = pcall(function() return HttpService:JSONEncode(exportData) end)
         if okJson and jsonStr then
-            local okClip = copyToClipboard(jsonStr)
-            print(string.format("[EggGoTo v11] Exported JSON (%d total, %d farmable, %d bytes) | Clipboard: %s",
-                exportData.totalCached,
-                exportData.totalFarmable,
-                #jsonStr,
-                tostring(okClip)
-            ))
+            pcall(function()
+                if typeof(setclipboard) == "function" then setclipboard(jsonStr)
+                elseif typeof(toclipboard) == "function" then toclipboard(jsonStr) end
+            end)
             return true, exportData.totalFarmable
-        else
-            warn("[EggGoTo v11] JSONEncode failed: " .. tostring(jsonStr))
-            return false, 0
         end
+        return false, 0
     end
 end
 
@@ -7090,6 +6626,7 @@ local function syncEggSnapshot()
                 for u in pairs(eggCacheByUid) do
                     if not currentUids[u] then
                         eggCacheByUid[u] = nil
+                        rarityByUid[u] = nil
                     end
                 end
 
@@ -7244,6 +6781,7 @@ local function startPushMonitor()
                     end
                 end
                 eggCacheByUid[u] = nil
+                rarityByUid[u] = nil
                 requestListUpdate()
             end
         end))
@@ -7319,6 +6857,7 @@ local function startPushMonitor()
             local uid = child.Name
             if uid and uid ~= "" and eggCacheByUid[uid] and eggCacheByUid[uid].State == "Slot" then
                 eggCacheByUid[uid] = nil
+                rarityByUid[uid] = nil
                 requestListUpdate()
             end
         end))
@@ -7369,12 +6908,13 @@ task.spawn(function()
             pcall(halloweenEngine.fishing.refreshLog)
         end
 
-        -- Rebuild the live list only when the world changed (folder hooks / filter
-        -- changes) or at 1 Hz, instead of unconditionally every 0.3 s tick.
+        -- Rebuild the live list event-driven when the world changed (folder hooks / filter
+        -- changes). When idle or fishing, use a relaxed 15s fallback to eliminate 1 Hz DOM churn.
         if tabHalloween and tabHalloween.Visible and renderHalloweenEggs then
             local now = os.clock()
-            local every = halloweenEngine.hwRenderEvery or 1.0
-            if halloweenEngine.hwListDirty or (now - (halloweenEngine.hwLastRenderAt or 0)) >= every then
+            local isFishing = halloweenEngine and halloweenEngine.fishing and halloweenEngine.fishing.running
+            local fallback = isFishing and 30.0 or (halloweenEngine.hwRenderEvery or 15.0)
+            if halloweenEngine.hwListDirty or (now - (halloweenEngine.hwLastRenderAt or 0)) >= fallback then
                 halloweenEngine.hwListDirty = false
                 halloweenEngine.hwLastRenderAt = now
                 pcall(renderHalloweenEggs)
@@ -7435,6 +6975,10 @@ local function switchTab(tabName)
         halloweenEngine.hwListDirty = false
         halloweenEngine.hwLastRenderAt = os.clock()
         if renderHalloweenEggs then pcall(renderHalloweenEggs) end
+        if halloweenEngine.fishing and halloweenEngine.fishing.refreshLog then
+            halloweenEngine.fishing.logDirty = true
+            pcall(halloweenEngine.fishing.refreshLog)
+        end
     end
 end
 
