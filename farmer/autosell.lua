@@ -594,7 +594,10 @@ local function appendLog(message)
     local line = os.date("%H:%M:%S") .. " " .. tostring(message)
     table.insert(logLines, line)
     while #logLines > 80 do table.remove(logLines, 1) end
-    print("[StandaloneAutoSell] " .. line)
+    local isError = tostring(message):find("ERROR") ~= nil
+    if isError then
+        print("[StandaloneAutoSell] " .. line)
+    end
     if logBox and logBox.Parent then
         local first = math.max(1, #logLines - 8)
         local visible = {}
@@ -1569,7 +1572,8 @@ startBtn.MouseButton1Click:Connect(function()
                 while guiAlive and State.AutoSellActive and State.AutoSellToken == token and os.clock() < waitUntil do
                     local rem = math.max(0, math.ceil(waitUntil - os.clock()))
                     updatePreview(rem)
-                    task.wait(math.min(1.0, math.max(0.05, waitUntil - os.clock())))
+                    local step = (rem <= 5) and 1.0 or math.min(5.0, math.max(1.0, waitUntil - os.clock()))
+                    task.wait(step)
                 end
             end
         end
