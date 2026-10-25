@@ -91,7 +91,7 @@ local RARITY_RANK = {
 }
 
 local RARITY_ORDER = {
-    "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret", "Eternal", "Divine", "Brainrot", "1%"
+    "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret", "Eternal", "Divine"
 }
 
 -- 13 Canonical World Biomes (Structured hierarchy for easy tracking and manual updates)
@@ -1475,10 +1475,8 @@ local returnTripInProgress = false
 
 -- Fast Pickup Configuration & State
 local PICKUP_CONFIG = {
-    Enabled          = true,
-    ReachAssist      = true,
-    MaxReachDistance = 35,
-    SpamBurstCount   = 8,
+    Enabled        = true,
+    SpamBurstCount = 4,
 }
 local autoPickupToken = 0
 
@@ -1490,6 +1488,7 @@ local RECOVERY_CONFIG = {
 
 -- Velocity & Speed State (Default: Disabled)
 local velocityEnabled = false
+local isCarrying = false
 local weAreCarrying = false
 local carryUid = nil
 local baseGoSpeed = 360
@@ -1503,12 +1502,10 @@ pcall(function()
     end
 end)
 
--- Filter Selection State
+-- Filter Selection State (13 Canonical Farmable World Biomes)
 local BIOME_ORDER = {
     "Forest", "Lake", "Desert", "Jungle", "Snow", "Volcano", "Abyss Ocean",
-    "Prehistoric", "Cosmic", "Cherry Blossom", "Brainrot Event", "Titan Temple", "Light & Dark", "Angel Eggs", "Demon Eggs", "Enchanted Forest",
-    "Halloween Dimension", "Monster Eggs", "Void Eggs", "Luminous Eggs",
-    "Dr. Scramble's Laboratory", "Dr. Scramble's Experiments", "Extinction Eggs", "Racing Event Eggs", "Ungrouped"
+    "Prehistoric", "Cosmic", "Cherry Blossom", "Titan Temple", "Light & Dark", "Enchanted Forest"
 }
 
 local ALL_SPECIES_LIST = {}
@@ -1663,8 +1660,8 @@ activityStatusLabel.Name = "ActivityStatusLabel"
 activityStatusLabel.Size = UDim2.new(1, -16, 0, 16)
 activityStatusLabel.Position = UDim2.new(0, 8, 0, 4)
 activityStatusLabel.BackgroundTransparency = 1
-activityStatusLabel.Text = "Status: Not Carrying | Free Movement (330 studs/s)"
-activityStatusLabel.TextColor3 = Color3.fromRGB(150, 185, 230)
+activityStatusLabel.Text = "Status: Velocity Disabled (Normal WalkSpeed)"
+activityStatusLabel.TextColor3 = Color3.fromRGB(160, 170, 190)
 activityStatusLabel.TextSize = 11
 activityStatusLabel.Font = Enum.Font.GothamBold
 activityStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1722,7 +1719,7 @@ do
     goBox.Position = UDim2.new(0, 24, 0, 0)
     goBox.BackgroundTransparency = 1
     goBox.Text = tostring(baseGoSpeed)
-    goBox.PlaceholderText = "330"
+    goBox.PlaceholderText = "360"
     goBox.TextColor3 = Color3.new(1, 1, 1)
     goBox.TextSize = 11
     goBox.Font = Enum.Font.GothamBold
@@ -1758,7 +1755,7 @@ do
     carryBox.Position = UDim2.new(0, 36, 0, 0)
     carryBox.BackgroundTransparency = 1
     carryBox.Text = tostring(baseCarrySpeed)
-    carryBox.PlaceholderText = "280"
+    carryBox.PlaceholderText = "310"
     carryBox.TextColor3 = Color3.new(1, 1, 1)
     carryBox.TextSize = 11
     carryBox.Font = Enum.Font.GothamBold
@@ -1832,31 +1829,10 @@ local biomeBtn = Instance.new("TextButton")
 local eggBtn = Instance.new("TextButton")
 
 do
-    local listHeader = Instance.new("Frame")
-    listHeader.Name = "ListHeader"
-    listHeader.Size = UDim2.new(1, -16, 0, 26)
-    listHeader.Position = UDim2.new(0, 8, 0, 82)
-    listHeader.BackgroundColor3 = Color3.fromRGB(26, 32, 46)
-    listHeader.BorderSizePixel = 0
-    listHeader.Parent = tabEggs
-    Instance.new("UICorner", listHeader).CornerRadius = UDim.new(0, 6)
-
-    local listHeaderTitle = Instance.new("TextLabel")
-    listHeaderTitle.Name = "HeaderTitle"
-    listHeaderTitle.Size = UDim2.new(1, -20, 1, 0)
-    listHeaderTitle.Position = UDim2.new(0, 10, 0, 0)
-    listHeaderTitle.BackgroundTransparency = 1
-    listHeaderTitle.Text = "Farmable Eggs"
-    listHeaderTitle.TextColor3 = Color3.fromRGB(220, 230, 255)
-    listHeaderTitle.TextSize = 12
-    listHeaderTitle.Font = Enum.Font.GothamBold
-    listHeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-    listHeaderTitle.Parent = listHeader
-
-    -- 4. Dropdown Filter Bar
+    -- 4. Dropdown Filter Bar (Shifted up to row 82)
     filterFrame.Name = "FilterFrame"
     filterFrame.Size = UDim2.new(1, -16, 0, 58)
-    filterFrame.Position = UDim2.new(0, 8, 0, 112)
+    filterFrame.Position = UDim2.new(0, 8, 0, 82)
     filterFrame.BackgroundTransparency = 1
     filterFrame.BorderSizePixel = 0
     filterFrame.ClipsDescendants = false
@@ -2174,11 +2150,11 @@ do
     eggBtn.MouseButton1Click:Connect(function() toggleDropdown(eggDd) end)
 end
 
--- Scrolling Egg List
+-- Scrolling Egg List (Shifted up to 144)
 local eggListScroll = Instance.new("ScrollingFrame")
 eggListScroll.Name = "EggListScroll"
-eggListScroll.Size = UDim2.new(1, -16, 1, -180)
-eggListScroll.Position = UDim2.new(0, 8, 0, 174)
+eggListScroll.Size = UDim2.new(1, -16, 1, -150)
+eggListScroll.Position = UDim2.new(0, 8, 0, 144)
 eggListScroll.BackgroundTransparency = 1
 eggListScroll.BorderSizePixel = 0
 eggListScroll.ScrollBarThickness = 4
@@ -2246,7 +2222,6 @@ do
     setUtilityAutoPick = function(enabled, syncOther)
         if PICKUP_CONFIG then
             PICKUP_CONFIG.Enabled = enabled
-            PICKUP_CONFIG.ReachAssist = enabled
         end
         if togglePickupBtn then
             togglePickupBtn.Text = enabled and "ON" or "OFF"
@@ -2705,44 +2680,43 @@ local lastCarryingCheck = 0
 local cachedCarryingStatus = false
 local cachedCarryingName = nil
 
-local function getCarryingStatus(force)
-    local now = os.clock()
-    if not force and (now - lastCarryingCheck < 0.25) then
-        return cachedCarryingStatus, cachedCarryingName
+local function setCarryingState(carrying, eggName)
+    isCarrying = carrying
+    weAreCarrying = carrying
+    if not carrying then
+        carryUid = nil
+        cachedCarryingName = nil
+    elseif eggName then
+        cachedCarryingName = eggName
     end
-    lastCarryingCheck = now
-
-    if weAreCarrying then
-        local rec = carryUid and eggCacheByUid[carryUid]
-        local name = rec and (rec.DisplayName or rec.AssetCategory or rec.Name) or carryUid or "Egg"
-        cachedCarryingStatus = true
-        cachedCarryingName = name
-        return true, name
-    end
-
-    local held, heldName = isHoldingEgg()
-    if held then
-        cachedCarryingStatus = true
-        cachedCarryingName = heldName or "Egg"
-        return true, cachedCarryingName
-    end
-
-    if hwCarryState and hwCarryState.isCarrying then
-        local hwHolding, hwName = hwCarryState.isCarrying()
-        if hwHolding then
-            cachedCarryingStatus = true
-            cachedCarryingName = hwName or "Halloween Egg"
-            return true, cachedCarryingName
+    if velocityEnabled then
+        local char = LocalPlayer and LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
+            pcall(function() hum.WalkSpeed = targetSpeed end)
         end
     end
+    updateActivityStatus()
+end
 
-    cachedCarryingStatus = false
-    cachedCarryingName = nil
+local function getCarryingStatus(force)
+    if isCarrying or weAreCarrying then
+        local name = cachedCarryingName
+        if not name and carryUid and eggCacheByUid and eggCacheByUid[carryUid] then
+            local rec = eggCacheByUid[carryUid]
+            name = rec and (rec.DisplayName or rec.AssetCategory or rec.Name) or carryUid
+        end
+        return true, name or "Egg"
+    end
+    if hwCarryState and hwCarryState.active then
+        return true, hwCarryState.name or "Halloween Egg"
+    end
     return false, nil
 end
 
 updateActivityStatus = function()
-    local isCarrying, eggName = getCarryingStatus()
+    local isC, eggName = getCarryingStatus()
     local activeSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
 
     if activityStatusLabel then
@@ -2751,11 +2725,11 @@ updateActivityStatus = function()
             newText = "Status: Velocity Disabled (Normal WalkSpeed)"
             newColor = Color3.fromRGB(160, 170, 190)
         elseif isCarrying then
-            local dispName = eggName or "Egg"
-            newText = string.format("Status: Carrying %s (%d studs/s)", dispName, activeSpeed)
+            local dispName = eggName or cachedCarryingName or "Egg"
+            newText = string.format("Status: Carrying %s (%d studs/s)", dispName, baseCarrySpeed)
             newColor = Color3.fromRGB(255, 205, 90)
         else
-            newText = string.format("Status: Not Carrying | Free Movement (%d studs/s)", activeSpeed)
+            newText = string.format("Status: Not Carrying | Free Movement (%d studs/s)", baseGoSpeed)
             newColor = Color3.fromRGB(150, 185, 230)
         end
         if activityStatusLabel.Text ~= newText then
@@ -3042,8 +3016,7 @@ handleEggDelivered = function(uid)
     autoReturnActive = false
     autoReturnTargetUid = nil
     returnTripInProgress = false
-    weAreCarrying = false
-    carryUid = nil
+    setCarryingState(false)
     stopWalking()
     pcall(function()
         local char = LocalPlayer and LocalPlayer.Character
@@ -3059,6 +3032,7 @@ handleEggDropped = function(u, payload)
     if not autoReturnActive then return end
     if activeWalkUid == u then return end
     returnTripInProgress = false
+    setCarryingState(false)
     stopWalking()
 
     local dropPos = nil
@@ -3124,8 +3098,7 @@ startReturnTrip = function()
         autoReturnActive = false
         autoReturnTargetUid = nil
         returnTripInProgress = false
-        weAreCarrying = false
-        carryUid = nil
+        setCarryingState(false)
         if activityStatusLabel then
             activityStatusLabel.Text = "Status: Arrived at SafeZone with Egg"
             activityStatusLabel.TextColor3 = Color3.fromRGB(120, 240, 160)
@@ -3150,7 +3123,6 @@ local function updateVelocityPhysics()
         return
     end
 
-    local isCarrying = getCarryingStatus()
     local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
 
     -- Case 1: Active Auto-Walk (Walking to Egg or Returning to SafeZone)
@@ -3234,7 +3206,6 @@ local function enableVelocity()
     velToggleBtn.TextColor3 = Color3.new(1, 1, 1)
 
     if hum then
-        local isCarrying = getCarryingStatus()
         local targetSpeed = isCarrying and baseCarrySpeed or baseGoSpeed
         pcall(function() hum.WalkSpeed = targetSpeed end)
     end
@@ -3255,6 +3226,11 @@ addConnection(goBox.FocusLost:Connect(function()
         baseGoSpeed = math.clamp(math.floor(val), 16, 500)
     end
     goBox.Text = tostring(baseGoSpeed)
+    local char = LocalPlayer and LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and velocityEnabled and not isCarrying then
+        pcall(function() hum.WalkSpeed = baseGoSpeed end)
+    end
     updateActivityStatus()
 end))
 
@@ -3264,6 +3240,11 @@ addConnection(carryBox.FocusLost:Connect(function()
         baseCarrySpeed = math.clamp(math.floor(val), 16, 500)
     end
     carryBox.Text = tostring(baseCarrySpeed)
+    local char = LocalPlayer and LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and velocityEnabled and isCarrying then
+        pcall(function() hum.WalkSpeed = baseCarrySpeed end)
+    end
     updateActivityStatus()
 end))
 
@@ -3278,8 +3259,7 @@ addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
             savedWalkSpeed = 16.0
         end
     end
-    weAreCarrying = false
-    carryUid = nil
+    setCarryingState(false)
     lastCarryingCheck = 0
     cachedCarryingStatus = false
     cachedCarryingName = nil
@@ -3359,6 +3339,7 @@ executeInstantRecovery = function(reason)
     end
 
     clearRagdollAttributes()
+    setCarryingState(false)
 
     if #recoveryJoints > 0 then
         for _, motor in ipairs(recoveryJoints) do
@@ -3383,7 +3364,7 @@ executeInstantRecovery = function(reason)
     end)
 
     local normalSpeed = (savedWalkSpeed and savedWalkSpeed < 100) and savedWalkSpeed or 16.0
-    local curTargetSpeed = velocityEnabled and (getCarryingStatus() and baseCarrySpeed or baseGoSpeed) or normalSpeed
+    local curTargetSpeed = velocityEnabled and (isCarrying and baseCarrySpeed or baseGoSpeed) or normalSpeed
     if velocityEnabled then
         if hum.WalkSpeed ~= curTargetSpeed then
             hum.WalkSpeed = curTargetSpeed
@@ -3493,6 +3474,26 @@ bindRecoveryCharacter = function(char)
         end
     end)
     table.insert(recoveryConnections, attrConn2)
+
+    local toolAddConn = char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            local tName = child.Name
+            if not (tName:find("Rod") or tName:find("Net") or tName:find("Bat") or tName:find("Weapon") or tName:find("Sword")) then
+                setCarryingState(true, tName)
+            end
+        end
+    end)
+    table.insert(recoveryConnections, toolAddConn)
+
+    local toolRemConn = char.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") then
+            local tName = child.Name
+            if not (tName:find("Rod") or tName:find("Net") or tName:find("Bat") or tName:find("Weapon") or tName:find("Sword")) then
+                setCarryingState(false)
+            end
+        end
+    end)
+    table.insert(recoveryConnections, toolRemConn)
 end
 
 if LocalPlayer and LocalPlayer.Character then
@@ -3795,26 +3796,22 @@ startAutoPickupSpam = function(initialTarget)
     task.spawn(function()
         local tStart = os.clock()
         local maxDuration = 1.5
-        local hasSnapped = false
         while autoPickupToken == myTok and PICKUP_CONFIG and PICKUP_CONFIG.Enabled and (os.clock() - tStart < maxDuration) do
-            local target = getBestFocusedTarget() or initialTarget
+            local target = initialTarget or getBestFocusedTarget()
             if target then
-                if PICKUP_CONFIG and PICKUP_CONFIG.ReachAssist and target.Position then
-                    hasSnapped = checkAndApplyReachAssist(target.Position, hasSnapped)
-                end
                 executePickupSpam(target)
             end
-            if isHoldingEgg() or weAreCarrying then
+            if weAreCarrying then
                 if autoReturnActive and autoReturnTargetUid then
                     task.delay(0.2, function()
-                        if autoReturnActive and (weAreCarrying or isHoldingEgg()) then
+                        if autoReturnActive and weAreCarrying then
                             startReturnTrip()
                         end
                     end)
                 end
                 break
             end
-            task.wait(0.035)
+            task.wait(0.05)
         end
     end)
 end
@@ -4047,9 +4044,6 @@ renderFarmableEggs = function()
         return a.Distance < b.Distance
     end)
 
-    if listHeaderTitle then
-        listHeaderTitle.Text = string.format("Farmable Eggs (%d)", #farmableList)
-    end
 
     if #farmableList == 0 then
         if not emptyNoticeLabel then
@@ -6663,16 +6657,13 @@ local function startPushMonitor()
             local state = payload.State
             local myUidStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
             if payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr and state == "Carried" then
-                weAreCarrying = true
                 carryUid = u
-                updateActivityStatus()
+                setCarryingState(true, payload.DisplayName or payload.AssetCategory or payload.Name)
                 if autoReturnActive and autoReturnTargetUid == u then
                     startReturnTrip()
                 end
             elseif (state == "Claimed" or state == "Dropped") and carryUid == u then
-                weAreCarrying = false
-                carryUid = nil
-                updateActivityStatus()
+                setCarryingState(false)
                 if autoReturnActive and autoReturnTargetUid == u then
                     if state == "Dropped" then
                         handleEggDropped(u, payload)
@@ -6762,9 +6753,7 @@ local function startPushMonitor()
             local u = typeof(payload) == "table" and tostring(payload.Uid or "") or tostring(payload or "")
             if u ~= "" then
                 if carryUid == u then
-                    weAreCarrying = false
-                    carryUid = nil
-                    updateActivityStatus()
+                    setCarryingState(false)
                 end
                 if autoReturnActive and autoReturnTargetUid == u then
                     if returnTripInProgress then
