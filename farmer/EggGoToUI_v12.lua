@@ -514,7 +514,13 @@ Config.Pickup = {
     DirectPickupDist  = 7.0,
 }
 
--- 1.5 UI Theme & Window Dimensions
+-- 1.5 Trap Evade Configuration (Complete Trap Neutralization)
+Config.TrapEvade = {
+    Enabled          = true,
+    NeutralizeHitbox = true,
+}
+
+-- 1.6 UI Theme & Window Dimensions
 Config.UI = {
     WindowSize     = UDim2.new(0, 380, 0, 520),
     TitleBarHeight = 36,
@@ -566,6 +572,7 @@ UI.Elements = {
     TogglePickupBtn    = nil,
     ToggleRecoveryBtn  = nil,
     ToggleNoclipBtn    = nil,
+    ToggleTrapEvadeBtn = nil,
     UtilityCopyJsonBtn = nil,
 }
 
@@ -1240,11 +1247,44 @@ UI.build = function()
     Instance.new("UICorner", toggleNcBtn).CornerRadius = UDim.new(0, 5)
     UI.Elements.ToggleNoclipBtn = toggleNcBtn
 
-    -- Row 2.4.4: Diagnostic Export Row
+    -- Row 2.4.4: Trap Evade Row
+    local rowTrap = Instance.new("Frame")
+    rowTrap.Name = "RowTrapEvade"
+    rowTrap.Size = UDim2.new(1, -16, 0, 36)
+    rowTrap.Position = UDim2.new(0, 8, 0, 136)
+    rowTrap.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+    rowTrap.Parent = tabUtility
+    Instance.new("UICorner", rowTrap).CornerRadius = UDim.new(0, 6)
+
+    local lblTT = Instance.new("TextLabel")
+    lblTT.Size = UDim2.new(1, -80, 1, 0)
+    lblTT.Position = UDim2.new(0, 12, 0, 0)
+    lblTT.BackgroundTransparency = 1
+    lblTT.Text = "Trap Evade"
+    lblTT.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblTT.Font = Enum.Font.GothamBold
+    lblTT.TextSize = 12
+    lblTT.TextXAlignment = Enum.TextXAlignment.Left
+    lblTT.Parent = rowTrap
+
+    local toggleTrapBtn = Instance.new("TextButton")
+    toggleTrapBtn.Name = "ToggleTrapEvadeBtn"
+    toggleTrapBtn.Size = UDim2.new(0, 56, 0, 24)
+    toggleTrapBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    toggleTrapBtn.BackgroundColor3 = Config.TrapEvade.Enabled and theme.GreenOn or theme.GrayOff
+    toggleTrapBtn.Text = Config.TrapEvade.Enabled and "ON" or "OFF"
+    toggleTrapBtn.TextColor3 = Config.TrapEvade.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    toggleTrapBtn.Font = Enum.Font.GothamBold
+    toggleTrapBtn.TextSize = 11
+    toggleTrapBtn.Parent = rowTrap
+    Instance.new("UICorner", toggleTrapBtn).CornerRadius = UDim.new(0, 5)
+    UI.Elements.ToggleTrapEvadeBtn = toggleTrapBtn
+
+    -- Row 2.4.5: Diagnostic Export Row
     local rowExp = Instance.new("Frame")
     rowExp.Name = "RowExportJson"
     rowExp.Size = UDim2.new(1, -16, 0, 36)
-    rowExp.Position = UDim2.new(0, 8, 0, 136)
+    rowExp.Position = UDim2.new(0, 8, 0, 178)
     rowExp.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
     rowExp.Parent = tabUtility
     Instance.new("UICorner", rowExp).CornerRadius = UDim.new(0, 6)
@@ -2144,7 +2184,174 @@ Engine.Recovery.bindCharacter = function(char)
     table.insert(Engine.Recovery.Connections, attrConn2)
 end
 
--- 4.4 Fast Pickup Engine
+-- 4.4 Trap Evade & Neutralization Engine
+Engine.Traps = {
+    ActiveTraps = {},
+}
+
+Engine.Traps.isTrapCandidate = function(inst)
+    if not (inst and inst.Parent) then return false end
+    local nm = inst.Name:lower()
+    return inst.Name == "PlayerTrap" or nm:find("trap", 1, true)
+end
+
+Engine.Traps.register = function(child)
+    if not (child and child.Parent) then return end
+    if not Engine.Traps.isTrapCandidate(child) then return end
+    if Engine.Traps.ActiveTraps[child] then return end
+
+    local pos = nil
+    if child:IsA("BasePart") then
+        pos = child.Position
+    elseif child:IsA("Model") then
+        local okP, p = pcall(function() return child:GetPivot().Position end)
+        pos = (okP and p and p.Magnitude > 1) and p or (child.PrimaryPart and child.PrimaryPart.Position or nil)
+    end
+
+    local hb = child:FindFirstChild("Hitbox")
+    local origCF = (hb and hb:IsA("BasePart")) and hb.CFrame or nil
+
+    local record = {
+        Instance = child,
+        Hitbox = hb,
+        OrigHitboxCF = origCF,
+        Position = pos,
+        Neutralized = false,
+        Connections = {},
+    }
+    Engine.Traps.ActiveTraps[child] = record
+
+    if Config.TrapEvade.Enabled and Config.TrapEvade.NeutralizeHitbox then
+        Engine.Traps.neutralize(child)
+    end
+
+    local cAdd = child.ChildAdded:Connect(function(sub)
+        if sub:IsA("BasePart") then
+            if not record.Position or record.Position.Magnitude <= 1 then
+                record.Position = sub.Position
+            end
+            if sub.Name == "Hitbox" or sub.Name:lower():find("hitbox", 1, true) then
+                record.Hitbox = sub
+                if not record.OrigHitboxCF then record.OrigHitboxCF = sub.CFrame end
+            end
+            if Config.TrapEvade.Enabled and Config.TrapEvade.NeutralizeHitbox then
+                Engine.Traps.neutralize(child)
+            end
+        end
+    end)
+
+    local cAnc = child.AncestryChanged:Connect(function(_, parent)
+        if not parent or not child:IsDescendantOf(Workspace) then
+            Engine.Traps.unregister(child)
+        end
+    end)
+
+    record.Connections = { cAdd, cAnc }
+end
+
+Engine.Traps.unregister = function(child)
+    local rec = Engine.Traps.ActiveTraps[child]
+    if rec then
+        if rec.Connections then
+            for _, c in ipairs(rec.Connections) do
+                pcall(function() c:Disconnect() end)
+            end
+        end
+        Engine.Traps.ActiveTraps[child] = nil
+    end
+end
+
+Engine.Traps.neutralize = function(child)
+    if not (child and child.Parent) then return end
+    local record = Engine.Traps.ActiveTraps[child]
+    if record and record.Neutralized then return end
+    pcall(function()
+        local parts = {}
+        if child:IsA("BasePart") then
+            table.insert(parts, child)
+        end
+        for _, desc in ipairs(child:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                table.insert(parts, desc)
+            end
+        end
+
+        for _, p in ipairs(parts) do
+            p.CanTouch = false
+            p.CanCollide = false
+            p.CanQuery = false
+            local pName = p.Name:lower()
+            if pName == "hitbox" or pName:find("hitbox", 1, true) or pName:find("trigger", 1, true) then
+                local curCF = p.CFrame
+                if curCF.Y > -100 then
+                    if record and not record.OrigHitboxCF then
+                        record.OrigHitboxCF = curCF
+                    end
+                    p.CFrame = CFrame.new(curCF.X, -500, curCF.Z)
+                end
+            end
+        end
+        if record then record.Neutralized = true end
+    end)
+end
+
+Engine.Traps.restore = function(child)
+    if not (child and child.Parent) then return end
+    local record = Engine.Traps.ActiveTraps[child]
+    pcall(function()
+        local parts = {}
+        if child:IsA("BasePart") then
+            table.insert(parts, child)
+        end
+        for _, desc in ipairs(child:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                table.insert(parts, desc)
+            end
+        end
+
+        for _, p in ipairs(parts) do
+            p.CanTouch = true
+            p.CanCollide = true
+            p.CanQuery = true
+            local pName = p.Name:lower()
+            if pName == "hitbox" or pName:find("hitbox", 1, true) or pName:find("trigger", 1, true) then
+                if record and record.OrigHitboxCF then
+                    p.CFrame = record.OrigHitboxCF
+                end
+            end
+        end
+        if record then record.Neutralized = false end
+    end)
+end
+
+Engine.Traps.init = function()
+    local function hookTransient(transient)
+        if not transient then return end
+        for _, c in ipairs(transient:GetChildren()) do
+            if Engine.Traps.isTrapCandidate(c) then
+                Engine.Traps.register(c)
+            end
+        end
+        addConnection(transient.ChildAdded:Connect(function(c)
+            if Engine.Traps.isTrapCandidate(c) then
+                Engine.Traps.register(c)
+            end
+        end))
+        addConnection(transient.ChildRemoved:Connect(function(c)
+            Engine.Traps.unregister(c)
+        end))
+    end
+
+    hookTransient(Workspace:FindFirstChild("Transient"))
+
+    addConnection(Workspace.ChildAdded:Connect(function(c)
+        if c.Name == "Transient" then
+            hookTransient(c)
+        end
+    end))
+end
+
+-- 4.5 Fast Pickup Engine
 Engine.Pickup = {}
 
 Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
@@ -3119,6 +3326,11 @@ end
 Engine.Loops = {}
 
 Engine.Loops.start = function()
+    -- Initialize Trap Evade supervisor
+    if Engine.Traps and Engine.Traps.init then
+        pcall(Engine.Traps.init)
+    end
+
     -- Install zero-wait metamethod hooks if executor supports hookmetamethod
     if Engine.Recovery.installHooks then
         pcall(Engine.Recovery.installHooks)
@@ -3332,6 +3544,20 @@ Engine.Cleanup = function()
     end
     table.clear(Engine.Recovery.Connections)
 
+    if Engine.Traps then
+        if Engine.Traps.ActiveTraps then
+            for inst in pairs(Engine.Traps.ActiveTraps) do
+                if inst.Parent then Engine.Traps.restore(inst) end
+            end
+            for _, rec in pairs(Engine.Traps.ActiveTraps) do
+                if rec.Connections then
+                    for _, c in ipairs(rec.Connections) do pcall(function() c:Disconnect() end) end
+                end
+            end
+            table.clear(Engine.Traps.ActiveTraps)
+        end
+    end
+
     pcall(function()
         if hum and hum.Parent then
             hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed
@@ -3459,6 +3685,34 @@ addConnection(UI.Elements.ToggleNoclipBtn.MouseButton1Click:Connect(function()
         end)
     end
 end))
+
+-- Trap Evade Toggle Button
+if UI.Elements.ToggleTrapEvadeBtn then
+    local function updateTrapBtn()
+        local en = Config.TrapEvade.Enabled
+        UI.Elements.ToggleTrapEvadeBtn.Text = en and "ON" or "OFF"
+        UI.Elements.ToggleTrapEvadeBtn.BackgroundColor3 = en and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
+        UI.Elements.ToggleTrapEvadeBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+
+    addConnection(UI.Elements.ToggleTrapEvadeBtn.MouseButton1Click:Connect(function()
+        Config.TrapEvade.Enabled = not Config.TrapEvade.Enabled
+        updateTrapBtn()
+        if Config.TrapEvade.Enabled then
+            if Engine.Traps and Engine.Traps.ActiveTraps then
+                for inst in pairs(Engine.Traps.ActiveTraps) do
+                    if inst.Parent then Engine.Traps.neutralize(inst) end
+                end
+            end
+        else
+            if Engine.Traps and Engine.Traps.ActiveTraps then
+                for inst in pairs(Engine.Traps.ActiveTraps) do
+                    if inst.Parent then Engine.Traps.restore(inst) end
+                end
+            end
+        end
+    end))
+end
 
 -- Copy JSON Buttons
 local function handleCopyJson(btn)
