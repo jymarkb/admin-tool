@@ -1322,17 +1322,6 @@ UI.getOrCreateCard = function(idx)
     tagRarity.Parent = card
     Instance.new("UICorner", tagRarity).CornerRadius = UDim.new(0, 3)
 
-    local distLbl = Instance.new("TextLabel")
-    distLbl.Name = "Distance"
-    distLbl.Size = UDim2.new(0, 60, 0, 16)
-    distLbl.Position = UDim2.new(0, 154, 0, 26)
-    distLbl.BackgroundTransparency = 1
-    distLbl.Font = Enum.Font.Gotham
-    distLbl.TextSize = 10
-    distLbl.TextColor3 = Color3.fromRGB(140, 160, 190)
-    distLbl.TextXAlignment = Enum.TextXAlignment.Left
-    distLbl.Parent = card
-
     local tpBtn = Instance.new("TextButton")
     tpBtn.Name = "TpBtn"
     tpBtn.Size = UDim2.new(0, 52, 0, 26)
@@ -1362,7 +1351,6 @@ UI.getOrCreateCard = function(idx)
         titleLbl  = titleLbl,
         tagBiome  = tagBiome,
         tagRarity = tagRarity,
-        distLbl   = distLbl,
         tpBtn     = tpBtn,
         walkBtn   = walkBtn,
         data      = nil,
@@ -3303,7 +3291,6 @@ UI.renderFarmableEggs = function()
         poolItem.tagRarity.Text = itemData.Rarity
         local col = Config.Taxonomy.RarityColors[itemData.Rarity] or Color3.fromRGB(200, 200, 200)
         poolItem.tagRarity.BackgroundColor3 = col
-        poolItem.distLbl.Text = string.format("%dm", math.floor(itemData.Distance))
         poolItem.card.Visible = true
     end
 
@@ -3572,30 +3559,6 @@ local function bindLifecycle(newChar)
             end
         end))
     end
-
-    addConnection(newChar.ChildAdded:Connect(function(child)
-        if child:IsA("Tool") then
-            local nm = child.Name:lower()
-            if nm:find("egg") or child:GetAttribute("IsEgg") == true then
-                task.defer(function()
-                    Engine.Velocity.setCarry(true)
-                end)
-            end
-        end
-    end))
-
-    addConnection(newChar.ChildRemoved:Connect(function(child)
-        if Engine.State.IsCarry and child:IsA("Tool") then
-            local nm = child.Name:lower()
-            if nm:find("egg") or child:GetAttribute("IsEgg") == true then
-                task.defer(function()
-                    if Engine.State.IsCarry then
-                        Engine.Velocity.setCarry(false)
-                    end
-                end)
-            end
-        end
-    end))
 
     task.spawn(function()
         task.wait(0.2)
