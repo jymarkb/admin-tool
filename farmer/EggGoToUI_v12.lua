@@ -565,9 +565,11 @@ UI.Elements = {
     Sidebar            = nil,
     TabBtnEggs         = nil,
     TabBtnUtility      = nil,
+    TabBtnHalloween    = nil,
     ContentContainer   = nil,
     TabEggs            = nil,
     TabUtility         = nil,
+    TabHalloween       = nil,
 
     -- TabEggs Elements
     ActivityStatus     = nil,
@@ -922,6 +924,20 @@ UI.build = function()
     tabBtnUtility.Parent = sidebar
     Instance.new("UICorner", tabBtnUtility).CornerRadius = UDim.new(0, 6)
     UI.Elements.TabBtnUtility = tabBtnUtility
+
+    -- Sidebar Button 3: Halloween
+    local tabBtnHalloween = Instance.new("TextButton")
+    tabBtnHalloween.Name = "TabBtnHalloween"
+    tabBtnHalloween.Size = UDim2.new(0, 34, 0, 34)
+    tabBtnHalloween.Position = UDim2.new(0.5, -17, 0, 94)
+    tabBtnHalloween.BackgroundColor3 = theme.TabIdle
+    tabBtnHalloween.Text = "🎃"
+    tabBtnHalloween.TextColor3 = Color3.fromRGB(150, 170, 200)
+    tabBtnHalloween.TextSize = 18
+    tabBtnHalloween.Font = Enum.Font.GothamBold
+    tabBtnHalloween.Parent = sidebar
+    Instance.new("UICorner", tabBtnHalloween).CornerRadius = UDim.new(0, 6)
+    UI.Elements.TabBtnHalloween = tabBtnHalloween
 
     -- Content Area Container (Right of Sidebar)
     local contentContainer = Instance.new("Frame")
@@ -1425,6 +1441,29 @@ UI.build = function()
     toggleBfBtn.Parent = rowBf
     Instance.new("UICorner", toggleBfBtn).CornerRadius = UDim.new(0, 5)
     UI.Elements.ToggleButterflyBtn = toggleBfBtn
+
+    -- 2.5 Panel 3: TabHalloween (Zero logic, simple hello)
+    local tabHalloween = Instance.new("Frame")
+    tabHalloween.Name = "TabHalloween"
+    tabHalloween.Size = UDim2.new(1, 0, 1, 0)
+    tabHalloween.Position = UDim2.new(0, 0, 0, 0)
+    tabHalloween.BackgroundTransparency = 1
+    tabHalloween.BorderSizePixel = 0
+    tabHalloween.Visible = false
+    tabHalloween.Parent = contentContainer
+    UI.Elements.TabHalloween = tabHalloween
+
+    local helloLabel = Instance.new("TextLabel")
+    helloLabel.Name = "HelloLabel"
+    helloLabel.Size = UDim2.new(1, -20, 0, 40)
+    helloLabel.Position = UDim2.new(0, 10, 0, 20)
+    helloLabel.BackgroundTransparency = 1
+    helloLabel.Text = "Hello"
+    helloLabel.TextColor3 = Color3.fromRGB(255, 180, 100)
+    helloLabel.Font = Enum.Font.GothamBold
+    helloLabel.TextSize = 18
+    helloLabel.TextXAlignment = Enum.TextXAlignment.Center
+    helloLabel.Parent = tabHalloween
 end
 
 -- Card Pool Factory (Zero-Allocation DOM Recycling)
@@ -3965,10 +4004,17 @@ local function switchTab(tabName)
     UI.ActiveTab = tabName
     UI.Elements.TabEggs.Visible = (tabName == "Eggs")
     UI.Elements.TabUtility.Visible = (tabName == "Utility")
+    if UI.Elements.TabHalloween then
+        UI.Elements.TabHalloween.Visible = (tabName == "Halloween")
+    end
     UI.Elements.TabBtnEggs.BackgroundColor3 = (tabName == "Eggs") and Config.UI.Theme.TabActive or Config.UI.Theme.TabIdle
     UI.Elements.TabBtnEggs.TextColor3 = (tabName == "Eggs") and Color3.new(1, 1, 1) or Color3.fromRGB(150, 170, 200)
     UI.Elements.TabBtnUtility.BackgroundColor3 = (tabName == "Utility") and Config.UI.Theme.TabActive or Config.UI.Theme.TabIdle
     UI.Elements.TabBtnUtility.TextColor3 = (tabName == "Utility") and Color3.new(1, 1, 1) or Color3.fromRGB(150, 170, 200)
+    if UI.Elements.TabBtnHalloween then
+        UI.Elements.TabBtnHalloween.BackgroundColor3 = (tabName == "Halloween") and Config.UI.Theme.TabActive or Config.UI.Theme.TabIdle
+        UI.Elements.TabBtnHalloween.TextColor3 = (tabName == "Halloween") and Color3.new(1, 1, 1) or Color3.fromRGB(150, 170, 200)
+    end
     if tabName == "Eggs" then
         Engine.State.ListDirty = true
         if UI.renderFarmableEggs then pcall(UI.renderFarmableEggs) end
@@ -3977,6 +4023,9 @@ end
 
 addConnection(UI.Elements.TabBtnEggs.MouseButton1Click:Connect(function() switchTab("Eggs") end))
 addConnection(UI.Elements.TabBtnUtility.MouseButton1Click:Connect(function() switchTab("Utility") end))
+if UI.Elements.TabBtnHalloween then
+    addConnection(UI.Elements.TabBtnHalloween.MouseButton1Click:Connect(function() switchTab("Halloween") end))
+end
 
 addConnection(UI.Elements.MenuToggleBtn.MouseButton1Click:Connect(function()
     UI.closeCurrentDropdown()
