@@ -474,7 +474,7 @@ Config.Velocity = {
     MinSpeed          = 16,
     MaxSpeed          = 500,
     DefaultWalkSpeed  = 16.0,
-    TargetSnapDist    = 8.0,
+    TargetSnapDist    = 60.0,
     SafeZonePosition  = Vector3.new(530.332, 70.724, -399.111),
 }
 
@@ -1487,8 +1487,13 @@ Helpers.applyReachAssist = function(targetPos)
     if not (hrp and hrp.Parent and targetPos) then return false end
     local dist = (hrp.Position - targetPos).Magnitude
     if dist <= 35.0 then
-        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
-        Engine.State.LastGoodCFrame = hrp.CFrame
+        if Engine.Travel and Engine.Travel.teleportTo then
+            return Engine.Travel.teleportTo(targetPos)
+        end
+        pcall(function()
+            hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
+            Engine.State.LastGoodCFrame = hrp.CFrame
+        end)
         return true
     end
     return false
@@ -2258,7 +2263,7 @@ Engine.Travel.stopWalking = function()
             hum:Move(Vector3.zero, false)
             if hrp and hrp.Parent then hum.WalkToPoint = hrp.Position end
             if not Engine.State.VelocityEnabled then
-                hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed
+                hum.WalkSpeed = math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0)
             end
         end
         if hrp and hrp.Parent then
@@ -2267,10 +2272,32 @@ Engine.Travel.stopWalking = function()
     end)
 end
 
+-- Reusable Simple Teleport Logic (Admin Abuse TP, Reach Assist & 60-Stud Snap Teleport)
+Engine.Travel.teleportTo = function(targetPos)
+    if not (hrp and hrp.Parent and targetPos) then return false end
+    local ok = pcall(function()
+        local targetY = targetPos.Y
+        if math.abs(hrp.Position.Y - targetPos.Y) <= 4 then
+            targetY = hrp.Position.Y
+        else
+            targetY = targetPos.Y + 2.5
+        end
+        local rot = hrp.CFrame - hrp.CFrame.Position
+        hrp.CFrame = CFrame.new(targetPos.X, targetY, targetPos.Z) * rot
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        Engine.State.LastGoodCFrame = hrp.CFrame
+        if hum and hum.Parent then
+            hum:Move(Vector3.zero, false)
+        end
+    end)
+    return ok
+end
+
 Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, snapDist)
     if not targetPos then return end
     arriveDist = arriveDist or 4.0
-    snapDist = snapDist or Config.Velocity.TargetSnapDist
+    snapDist = snapDist or Config.Velocity.TargetSnapDist or 60.0
 
     Engine.State.ActiveWalkToken = Engine.State.ActiveWalkToken + 1
     local myToken = Engine.State.ActiveWalkToken
@@ -2285,33 +2312,37 @@ Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, sna
             local flatDelta = Vector3.new(targetPos.X - currentPos.X, 0, targetPos.Z - currentPos.Z)
             local dist = flatDelta.Magnitude
 
-            if dist <= arriveDist or dist <= snapDist then
+            -- 60 studs teleport snap towards egg/location to stop and not overpass the target
+            if dist <= snapDist or dist <= arriveDist then
+                Engine.Travel.teleportTo(targetPos)
                 Engine.Travel.stopWalking()
                 if onArrived then task.spawn(onArrived) end
                 break
             end
 
-            hum:Move(flatDelta.Unit, false)
+            -- Normal walk logic: Ensure walkspeed is valid when velocity speed is off
+            if not Engine.State.VelocityEnabled and hum.WalkSpeed < 16.0 then
+                hum.WalkSpeed = math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0)
+            end
+
+            if flatDelta.Magnitude > 0.1 then
+                hum:Move(flatDelta.Unit, false)
+                hum:MoveTo(targetPos)
+            end
+
             task.wait(0.03)
         end
     end)
 end
 
 Engine.Travel.teleportToEgg = function(itemData)
-    if not itemData then return end
-    local pos = itemData.Position
-    if not pos then return end
-
+    if not itemData or not itemData.Position then return false end
     Engine.Travel.stopWalking()
-    if hrp and hrp.Parent then
-        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3.0, 0))
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        Engine.State.LastGoodCFrame = hrp.CFrame
-    end
-
-    if itemData.Uid then
+    local ok = Engine.Travel.teleportTo(itemData.Position)
+    if ok and itemData.Uid then
         Engine.Pickup.carryEgg(itemData.Uid, 6)
     end
+    return ok
 end
 
 Engine.Travel.walkToEgg = function(itemData)
@@ -2320,7 +2351,7 @@ Engine.Travel.walkToEgg = function(itemData)
         if itemData.Uid then
             Engine.Pickup.carryEgg(itemData.Uid, 6)
         end
-    end, itemData.Uid)
+    end, itemData.Uid, 60.0)
 end
 
 Engine.Travel.startReturnTrip = function()
@@ -2385,7 +2416,7 @@ Engine.Travel.handleEggDropped = function(u, payload)
     Engine.Travel.walkToTarget(dropPos, 3.5, function()
         Engine.Pickup.carryEgg(u, 8)
         Engine.Pickup.startAutoPickupSpam()
-    end, u, 8.0)
+    end, u, 60.0)
 end
 
 Engine.Travel.handleEggDelivered = function(uid)
