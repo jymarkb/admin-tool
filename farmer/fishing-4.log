@@ -1,0 +1,40 @@
+23:06:27 START pressed
+23:06:29 Reel attempt 1 failed → Char=(-5791.7, -200.0, -7353.0) ok=true ret1=false
+23:06:29 Reel attempt 2 failed → Char=(-5791.7, -200.0, -7353.0) ok=true ret1=false
+23:06:30 Reel attempt 3 failed → Char=(-5791.7, -200.0, -7353.0) ok=true ret1=false
+23:06:30 REEL FAILED after retries
+23:06:30 Drifted from fishing spot, walking back...
+23:06:31 ----- CYCLE START Char=(-5694.2, -203.7, -7371.2) -----
+23:06:31 Casting power=0.967 Target=(-5668.5, -206.5, -7368.9)
+23:06:31 Cast FAILED → nil
+23:06:31 Retrying in 2s...
+23:06:33 ----- CYCLE START Char=(-5694.2, -203.7, -7371.2) -----
+23:06:33 Casting power=0.987 Target=(-5668.5, -206.5, -7368.9)
+23:06:33 Cast OK → Id=535 Wait=3.3386321718248686
+23:06:33 Waiting 3.52s  Id=535
+23:06:37 Reel attempt 1 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:37 Reel attempt 2 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:38 Reel attempt 3 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:38 REEL FAILED after retries
+23:06:38 ----- CYCLE START Char=(-5694.2, -203.7, -7371.2) -----
+23:06:38 Casting power=0.969 Target=(-5668.5, -206.5, -7368.9)
+23:06:38 Cast OK → Id=536 Wait=4.537917026564345
+23:06:38 Waiting 4.72s  Id=536
+23:06:44 Reel attempt 1 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:44 Reel attempt 2 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:45 Reel attempt 3 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:45 REEL FAILED after retries
+23:06:45 ----- CYCLE START Char=(-5694.2, -203.7, -7371.2) -----
+23:06:45 Casting power=0.969 Target=(-5668.5, -206.5, -7368.9)
+23:06:45 Cast OK → Id=537 Wait=2.5870822135364606
+23:06:45 Waiting 2.77s  Id=537
+23:06:48 Reel attempt 1 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:48 Reel attempt 2 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:49 Reel attempt 3 failed → Char=(-5694.2, -203.7, -7371.2) ok=true ret1=false
+23:06:49 REEL FAILED after retries
+23:06:49 ----- CYCLE START Char=(-5694.2, -203.7, -7371.2) -----
+23:06:49 STOP pressed
+23:06:49 Casting power=0.974 Target=(-5668.5, -206.5, -7368.9)
+23:06:49 Manual Cast Captured → Char=(-5694.2, -203.7, -7371.2) Cast=(-5668.5, -206.5, -7368.9) Power=0.974
+23:06:49 Cast FAILED → Unable to cast Vector3 to bool
+23:06:49 Retrying in 2s...

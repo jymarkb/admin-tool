@@ -1,0 +1,16 @@
+Hook active. Fish manually to capture data.
+------------------------------
+FireServer -> RE/Fishing/Hold
+  args: none
+  return: nil
+------------------------------
+InvokeServer -> RF/Fishing/Cast
+  [1] 0.9889347590069519
+  [2] (-5667.5, -206.5, -7363.7)
+  return: {Luck=1.1525495565756374, Id=439, Mode="Fish", Perfect=false, Wait=2.2920175819573476}, nil
+------------------------------
+InvokeServer -> RF/Fishing/Reel
+  [1] 439
+  [2] "Caught"
+  [3] 13
+  return: true, {OneIn=38, Rarity="Epic", Amount=1, Id="Whiskers", Kind="Egg", Icon="rbxassetid://119650588660114", DisplayName="Whiskers Egg"}

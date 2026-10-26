@@ -1,0 +1,147 @@
+[01:18:07] Egg Snapshot & Edge-Case Scanner initialized.
+[01:18:07] ==================================================
+[01:18:07] >>> AUDITING RF/EggWorld/AskFieldEggSnapshot...
+[01:18:07] [+] AskFieldEggSnapshot responded in 176.1 ms
+[01:18:07] Top-Level Return Keys: { Records, ServerTime }
+[01:18:07]   RareSpawns: none or not a table
+[01:18:07]   Total Active Records: 64
+[01:18:07]   States: Nest/Slot=64, Dropped=0, Carried=0, Claimed=0
+[01:18:07]   Biomes: Abyss Ocean:5 | Cherry Blossom:5 | Cosmic:4 | Desert:5 | Enchanted Forest:5 | Forest:5 | Jungle:5 | Lake:5 | Light Dark:5 | Prehistoric:5 | Snow:5 | Titan Temple:5 | Volcano:5
+[01:18:07]   --- Sample Records (First 3) ---
+[01:18:07]     [1] UID: 84a98ebd5c... | Category: Polar Bear | Area: Snow | State: Slot | Pos: (1492.4, 69.4, -310.7) | Mutations: none
+[01:18:07]     [2] UID: bbcc09ee67... | Category: Crane | Area: Cherry Blossom | State: Slot | Pos: (4024.3, 68.3, -393.0) | Mutations: none
+[01:18:07]     [3] UID: e470a71ac0... | Category: Prism Gecko | Area: Enchanted Forest | State: Slot | Pos: (6700.8, 69.7, -353.8) | Mutations: none
+[01:18:07] ==================================================
+[01:18:07] [EdgeCaseMonitor] Listening for Night Resets, Admin Abuse Events, & Wave Spawns...
+[01:18:09] ⚠️ [ALERT RAISED] table: 0x4bfadc7734f0ec22
+[01:18:12] ⚡ [EGG SHIFTED] Uid=84a98ebd... -> State=Slot Area=Snow
+[01:18:12] ⚡ [EGG SHIFTED] Uid=bbcc09ee... -> State=Slot Area=Cherry Blossom
+[01:18:12] ⚡ [EGG SHIFTED] Uid=e470a71a... -> State=Slot Area=Enchanted Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=cc177710... -> State=Slot Area=Snow
+[01:18:12] ⚡ [EGG SHIFTED] Uid=e6f2c6e8... -> State=Slot Area=Lake
+[01:18:12] ⚡ [EGG SHIFTED] Uid=3a7de248... -> State=Slot Area=Jungle
+[01:18:12] ⚡ [EGG SHIFTED] Uid=b8569324... -> State=Slot Area=Titan Temple
+[01:18:12] ⚡ [EGG SHIFTED] Uid=0f72d2c5... -> State=Slot Area=Abyss Ocean
+[01:18:12] ⚡ [EGG SHIFTED] Uid=003c3b7f... -> State=Slot Area=Jungle
+[01:18:12] ⚡ [EGG SHIFTED] Uid=fc96f0fc... -> State=Slot Area=Lake
+[01:18:12] ⚡ [EGG SHIFTED] Uid=295db904... -> State=Slot Area=Prehistoric
+[01:18:12] ⚡ [EGG SHIFTED] Uid=f280ba4e... -> State=Slot Area=Light Dark
+[01:18:12] ⚡ [EGG SHIFTED] Uid=87be5e97... -> State=Slot Area=Volcano
+[01:18:12] ⚡ [EGG SHIFTED] Uid=5e7dbb6e... -> State=Slot Area=Desert
+[01:18:12] ⚡ [EGG SHIFTED] Uid=f0848824... -> State=Slot Area=Lake
+[01:18:12] ⚡ [EGG SHIFTED] Uid=3c577fee... -> State=Slot Area=Lake
+[01:18:12] ⚡ [EGG SHIFTED] Uid=15c96b2a... -> State=Slot Area=Enchanted Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=2ac6ed9c... -> State=Slot Area=Lake
+[01:18:12] ⚡ [EGG SHIFTED] Uid=e21d01f3... -> State=Slot Area=Light Dark
+[01:18:12] ⚡ [EGG SHIFTED] Uid=2738dbbb... -> State=Slot Area=Volcano
+[01:18:12] ⚡ [EGG SHIFTED] Uid=2120a1a1... -> State=Slot Area=Light Dark
+[01:18:12] ⚡ [EGG SHIFTED] Uid=4550e21d... -> State=Slot Area=Cosmic
+[01:18:12] ⚡ [EGG SHIFTED] Uid=739d50c9... -> State=Slot Area=Abyss Ocean
+[01:18:12] ⚡ [EGG SHIFTED] Uid=d581dd38... -> State=Slot Area=Prehistoric
+[01:18:12] ⚡ [EGG SHIFTED] Uid=80537b14... -> State=Slot Area=Cosmic
+[01:18:12] ⚡ [EGG SHIFTED] Uid=200081c5... -> State=Slot Area=Prehistoric
+[01:18:12] ⚡ [EGG SHIFTED] Uid=94467ad5... -> State=Slot Area=Enchanted Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=c319a884... -> State=Slot Area=Enchanted Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=855a2469... -> State=Slot Area=Cherry Blossom
+[01:18:12] ⚡ [EGG SHIFTED] Uid=bc905b8e... -> State=Slot Area=Cosmic
+[01:18:12] ⚡ [EGG SHIFTED] Uid=53700983... -> State=Slot Area=Titan Temple
+[01:18:12] ⚡ [EGG SHIFTED] Uid=94d30d07... -> State=Slot Area=Volcano
+[01:18:12] ⚡ [EGG SHIFTED] Uid=22f2cbe3... -> State=Slot Area=Abyss Ocean
+[01:18:12] ⚡ [EGG SHIFTED] Uid=00bb9e6f... -> State=Slot Area=Titan Temple
+[01:18:12] ⚡ [EGG SHIFTED] Uid=277611c5... -> State=Slot Area=Light Dark
+[01:18:12] ⚡ [EGG SHIFTED] Uid=7733f731... -> State=Slot Area=Cherry Blossom
+[01:18:12] ⚡ [EGG SHIFTED] Uid=5ef92c6f... -> State=Slot Area=Cherry Blossom
+[01:18:12] ⚡ [EGG SHIFTED] Uid=65bb1020... -> State=Slot Area=Volcano
+[01:18:12] ⚡ [EGG SHIFTED] Uid=7b6235dd... -> State=Slot Area=Cosmic
+[01:18:12] ⚡ [EGG SHIFTED] Uid=6c5a3293... -> State=Slot Area=Desert
+[01:18:12] ⚡ [EGG SHIFTED] Uid=74cf0034... -> State=Slot Area=Cherry Blossom
+[01:18:12] ⚡ [EGG SHIFTED] Uid=5d5e5b75... -> State=Slot Area=Jungle
+[01:18:12] ⚡ [EGG SHIFTED] Uid=e3379cf5... -> State=Slot Area=Jungle
+[01:18:12] ⚡ [EGG SHIFTED] Uid=97b4403b... -> State=Slot Area=Enchanted Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=5f981527... -> State=Slot Area=Desert
+[01:18:12] 💨 [EGG GONE / DESPAWN] Uid: a72046e2...
+[01:18:12] ⚡ [EGG SHIFTED] Uid=04dc4915... -> State=Slot Area=Abyss Ocean
+[01:18:12] ⚡ [EGG SHIFTED] Uid=b5729265... -> State=Slot Area=Desert
+[01:18:12] ⚡ [EGG SHIFTED] Uid=775a9489... -> State=Slot Area=Volcano
+[01:18:12] ⚡ [EGG SHIFTED] Uid=3b4aafd6... -> State=Slot Area=Snow
+[01:18:12] ⚡ [EGG SHIFTED] Uid=a8ebc641... -> State=Slot Area=Snow
+[01:18:12] ⚡ [EGG SHIFTED] Uid=517f104f... -> State=Slot Area=Abyss Ocean
+[01:18:12] ⚡ [EGG SHIFTED] Uid=52b9705a... -> State=Slot Area=Light Dark
+[01:18:12] ⚡ [EGG SHIFTED] Uid=4aa11ce2... -> State=Slot Area=Prehistoric
+[01:18:12] ⚡ [EGG SHIFTED] Uid=0182deb4... -> State=Slot Area=Snow
+[01:18:12] ⚡ [EGG SHIFTED] Uid=c1f207cf... -> State=Slot Area=Titan Temple
+[01:18:12] ⚡ [EGG SHIFTED] Uid=863c9bb0... -> State=Slot Area=Jungle
+[01:18:12] ⚡ [EGG SHIFTED] Uid=db147e8d... -> State=Slot Area=Desert
+[01:18:12] ⚡ [EGG SHIFTED] Uid=42543281... -> State=Slot Area=Prehistoric
+[01:18:12] ⚡ [EGG SHIFTED] Uid=26f17bfe... -> State=Slot Area=Titan Temple
+[01:18:12] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:12] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:17] ⚠️ [ALERT RAISED] table: 0x5faa0801cf95348a
+[01:18:18] ⚡ [EGG SHIFTED] Uid=84a98ebd... -> State=Slot Area=Snow
+[01:18:18] ⚡ [EGG SHIFTED] Uid=bbcc09ee... -> State=Slot Area=Cherry Blossom
+[01:18:18] ⚡ [EGG SHIFTED] Uid=e470a71a... -> State=Slot Area=Enchanted Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=cc177710... -> State=Slot Area=Snow
+[01:18:18] ⚡ [EGG SHIFTED] Uid=e6f2c6e8... -> State=Slot Area=Lake
+[01:18:18] ⚡ [EGG SHIFTED] Uid=3a7de248... -> State=Slot Area=Jungle
+[01:18:18] ⚡ [EGG SHIFTED] Uid=b8569324... -> State=Slot Area=Titan Temple
+[01:18:18] ⚡ [EGG SHIFTED] Uid=0f72d2c5... -> State=Slot Area=Abyss Ocean
+[01:18:18] ⚡ [EGG SHIFTED] Uid=003c3b7f... -> State=Slot Area=Jungle
+[01:18:18] ⚡ [EGG SHIFTED] Uid=fc96f0fc... -> State=Slot Area=Lake
+[01:18:18] ⚡ [EGG SHIFTED] Uid=295db904... -> State=Slot Area=Prehistoric
+[01:18:18] ⚡ [EGG SHIFTED] Uid=f280ba4e... -> State=Slot Area=Light Dark
+[01:18:18] ⚡ [EGG SHIFTED] Uid=87be5e97... -> State=Slot Area=Volcano
+[01:18:18] ⚡ [EGG SHIFTED] Uid=5e7dbb6e... -> State=Slot Area=Desert
+[01:18:18] ⚡ [EGG SHIFTED] Uid=f0848824... -> State=Slot Area=Lake
+[01:18:18] ⚡ [EGG SHIFTED] Uid=3c577fee... -> State=Slot Area=Lake
+[01:18:18] ⚡ [EGG SHIFTED] Uid=15c96b2a... -> State=Slot Area=Enchanted Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=2ac6ed9c... -> State=Slot Area=Lake
+[01:18:18] ⚡ [EGG SHIFTED] Uid=e21d01f3... -> State=Slot Area=Light Dark
+[01:18:18] ⚡ [EGG SHIFTED] Uid=2738dbbb... -> State=Slot Area=Volcano
+[01:18:18] ⚡ [EGG SHIFTED] Uid=2120a1a1... -> State=Slot Area=Light Dark
+[01:18:18] ⚡ [EGG SHIFTED] Uid=4550e21d... -> State=Slot Area=Cosmic
+[01:18:18] ⚡ [EGG SHIFTED] Uid=739d50c9... -> State=Slot Area=Abyss Ocean
+[01:18:18] ⚡ [EGG SHIFTED] Uid=d581dd38... -> State=Slot Area=Prehistoric
+[01:18:18] ⚡ [EGG SHIFTED] Uid=80537b14... -> State=Slot Area=Cosmic
+[01:18:18] ⚡ [EGG SHIFTED] Uid=200081c5... -> State=Slot Area=Prehistoric
+[01:18:18] ⚡ [EGG SHIFTED] Uid=94467ad5... -> State=Slot Area=Enchanted Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=c319a884... -> State=Slot Area=Enchanted Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=855a2469... -> State=Slot Area=Cherry Blossom
+[01:18:18] ⚡ [EGG SHIFTED] Uid=bc905b8e... -> State=Slot Area=Cosmic
+[01:18:18] ⚡ [EGG SHIFTED] Uid=53700983... -> State=Slot Area=Titan Temple
+[01:18:18] ⚡ [EGG SHIFTED] Uid=94d30d07... -> State=Slot Area=Volcano
+[01:18:18] ⚡ [EGG SHIFTED] Uid=22f2cbe3... -> State=Slot Area=Abyss Ocean
+[01:18:18] ⚡ [EGG SHIFTED] Uid=00bb9e6f... -> State=Slot Area=Titan Temple
+[01:18:18] ⚡ [EGG SHIFTED] Uid=277611c5... -> State=Slot Area=Light Dark
+[01:18:18] ⚡ [EGG SHIFTED] Uid=7733f731... -> State=Slot Area=Cherry Blossom
+[01:18:18] ⚡ [EGG SHIFTED] Uid=5ef92c6f... -> State=Slot Area=Cherry Blossom
+[01:18:18] ⚡ [EGG SHIFTED] Uid=65bb1020... -> State=Slot Area=Volcano
+[01:18:18] ⚡ [EGG SHIFTED] Uid=7b6235dd... -> State=Slot Area=Cosmic
+[01:18:18] ⚡ [EGG SHIFTED] Uid=6c5a3293... -> State=Slot Area=Desert
+[01:18:18] ⚡ [EGG SHIFTED] Uid=74cf0034... -> State=Slot Area=Cherry Blossom
+[01:18:18] ⚡ [EGG SHIFTED] Uid=5d5e5b75... -> State=Slot Area=Jungle
+[01:18:18] ⚡ [EGG SHIFTED] Uid=e3379cf5... -> State=Slot Area=Jungle
+[01:18:18] ⚡ [EGG SHIFTED] Uid=97b4403b... -> State=Slot Area=Enchanted Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=5f981527... -> State=Slot Area=Desert
+[01:18:18] 💨 [EGG GONE / DESPAWN] Uid: a72046e2...
+[01:18:18] ⚡ [EGG SHIFTED] Uid=04dc4915... -> State=Slot Area=Abyss Ocean
+[01:18:18] ⚡ [EGG SHIFTED] Uid=b5729265... -> State=Slot Area=Desert
+[01:18:18] ⚡ [EGG SHIFTED] Uid=775a9489... -> State=Slot Area=Volcano
+[01:18:18] ⚡ [EGG SHIFTED] Uid=3b4aafd6... -> State=Slot Area=Snow
+[01:18:18] ⚡ [EGG SHIFTED] Uid=a8ebc641... -> State=Slot Area=Snow
+[01:18:18] ⚡ [EGG SHIFTED] Uid=517f104f... -> State=Slot Area=Abyss Ocean
+[01:18:18] ⚡ [EGG SHIFTED] Uid=52b9705a... -> State=Slot Area=Light Dark
+[01:18:18] ⚡ [EGG SHIFTED] Uid=4aa11ce2... -> State=Slot Area=Prehistoric
+[01:18:18] ⚡ [EGG SHIFTED] Uid=0182deb4... -> State=Slot Area=Snow
+[01:18:18] ⚡ [EGG SHIFTED] Uid=c1f207cf... -> State=Slot Area=Titan Temple
+[01:18:18] ⚡ [EGG SHIFTED] Uid=863c9bb0... -> State=Slot Area=Jungle
+[01:18:18] ⚡ [EGG SHIFTED] Uid=db147e8d... -> State=Slot Area=Desert
+[01:18:18] ⚡ [EGG SHIFTED] Uid=42543281... -> State=Slot Area=Prehistoric
+[01:18:18] ⚡ [EGG SHIFTED] Uid=26f17bfe... -> State=Slot Area=Titan Temple
+[01:18:18] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest
+[01:18:18] ⚡ [EGG SHIFTED] Uid=FirstAre... -> State=Slot Area=Forest

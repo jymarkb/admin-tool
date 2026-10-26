@@ -1,0 +1,68 @@
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+FireServer -> ReplicatedStorage.Packages.Networking.RE/Fishing/Hold
+Arguments:
+  none
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/Fishing/Cast
+Arguments:
+  [1] = 0.8325735830003396
+  [2] = -5669.20166015625, -206.51837158203125, -7369.97705078125
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/Fishing/Reel
+Arguments:
+  [1] = 424
+  [2] = "Caught"
+  [3] = 16
+
+
+  ==============================
+FireServer -> ReplicatedStorage.Packages.Networking.RE/Fishing/Hold
+Arguments:
+  none
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/Fishing/Cast
+Arguments:
+  [1] = 0.9267103199963458
+  [2] = -5666.06201171875, -206.51837158203125, -7362.15185546875
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/Fishing/Reel
+Arguments:
+  [1] = 432
+  [2] = "Caught"
+  [3] = 11
+==============================
+InvokeServer -> ReplicatedStorage.Packages.Networking.RF/TrainEvent/Action
+Arguments:
+  [1] = "Status"

@@ -1,0 +1,2209 @@
+==================================================
+STEAL A EGG - TARGETED DISCOVERY SCANNER
+MODE: READ-ONLY
+NO REMOTES INVOKED
+TIMESTAMP: 2026-10-21T13:48:12Z
+==================================================
+
+===== LOCAL PLAYER =====
+Player: mackyhohohoho
+UserId: 9521640019
+Character: mackyhohohoho
+
+===== PLAYER ATTRIBUTES =====
+AreaId = Lake
+CashPackAmount1 = 24000
+CashPackAmount2 = 200000
+CashPackAmount3 = 800000
+CashPackAmount4 = 4000000
+CashPackAmount5 = 8000000
+CashPackGroup = Control
+CashPackQuoteRevision = 1
+CashPacksReady = true
+EnchantedTreeUnlocked = true
+FriendsInServer = 0
+HalloweenDelivered = 1
+HalloweenTransition = 1331:reveal:in
+InHalloweenDimension = true
+JoinTick = 1792589050.885919
+MonetizationAvatarMarketplaceValue = 0
+MonetizationLuckyGamepassOwned = false
+MonetizationRobuxSpentTotal = 0
+MonetizationX2MoneyGamepassOwned = false
+ProfileReady = true
+ScrambleCountdownReturningPlayer = true
+ShopVersionChanged = true
+__UG = true
+__UG_FIRST_SESSION = false
+__UG_NEW = false
+
+===== CHARACTER =====
+Character: Workspace.mackyhohohoho
+Character attributes: (none)
+Humanoid properties:
+    WalkSpeed = 229.5044403076172
+    JumpPower = 50.14500427246094
+    JumpHeight = 7.199999809265137
+    Health = 100 / 100
+    HipHeight = 2.0979037284851074
+    PlatformStand = false
+    Sit = false
+
+===== LEADERSTATS =====
+Money/s = 926395313593 [NumberValue]
+Speed = 579157831322 [NumberValue]
+
+===== IMPORTANT PLAYER VALUES =====
+Players.mackyhohohoho.leaderstats.Money/s = 926395313593
+Players.mackyhohohoho.leaderstats.Speed = 579157831322
+
+===== CURRENT STATE =====
+AreaId = Lake
+ProfileReady = true
+IsOnTreadmill not found
+
+===== NETWORKING OVERVIEW =====
+Accept [RemoteEvent]
+AdEggBoostConfigResult [RemoteEvent]
+AdGrowthBoostResult [RemoteEvent]
+AdResult [RemoteEvent]
+AskAdGrowthBoost [RemoteFunction]
+BeeLauncherRemote [RemoteEvent]
+CmdrEvent [RemoteEvent]
+CmdrFunction [RemoteFunction]
+Data [RemoteEvent]
+Emit [RemoteEvent]
+Fps [RemoteEvent]
+GetPlacementInfo [RemoteFunction]
+LibMPDevice [RemoteEvent]
+LibMPFrame [RemoteEvent]
+LibMPRequired [RemoteEvent]
+LibMPRequiring [RemoteEvent]
+LiveRequest [RemoteEvent]
+LiveResponse [RemoteEvent]
+LogTelemetry [RemoteEvent]
+LogTelemetry [RemoteEvent]
+RE/Alerts/Raise [RemoteEvent]
+RE/AwayEarnings/Redeemed [RemoteEvent]
+RE/AwayEarnings/SummaryRefreshed [RemoteEvent]
+RE/BanjoCricket/Aim [RemoteEvent]
+RE/BanjoCricket/BridgeFormed [RemoteEvent]
+RE/BanjoCricket/Effect [RemoteEvent]
+RE/BanjoCricket/Squish [RemoteEvent]
+RE/BatSwing/Trigger [RemoteEvent]
+RE/BeanstalkEvent/AskCatchFirefly [RemoteEvent]
+RE/BeanstalkEvent/AskClaimReward [RemoteEvent]
+RE/BeanstalkEvent/AskFinishEscape [RemoteEvent]
+RE/BeanstalkEvent/AskFinishFlight [RemoteEvent]
+RE/BeanstalkEvent/AskLaunch [RemoteEvent]
+RE/BeanstalkEvent/AskPour [RemoteEvent]
+RE/BeanstalkEvent/AskSlideCrash [RemoteEvent]
+RE/BeanstalkEvent/AskStartTimer [RemoteEvent]
+RE/BeanstalkEvent/AskStealEgg [RemoteEvent]
+RE/Bloomery/AskStrikeTree [RemoteEvent]
+RE/Bloomery/CutsceneOpened [RemoteEvent]
+RE/Bloomery/PetalsGathered [RemoteEvent]
+RE/BossEvent/BlackHoleHit [RemoteEvent]
+RE/BossEvent/BossDamaged [RemoteEvent]
+RE/BossEvent/HazardHit [RemoteEvent]
+RE/BossEvent/HealthShifted [RemoteEvent]
+RE/BossEvent/StateShifted [RemoteEvent]
+RE/BossEvent/Vfx [RemoteEvent]
+RE/Broadcasts/FlashUserId [RemoteEvent]
+RE/Broadcasts/RaiseNotice [RemoteEvent]
+RE/Butterflies/Announce [RemoteEvent]
+RE/Butterflies/Escaped [RemoteEvent]
+RE/Butterflies/NetClaimed [RemoteEvent]
+RE/Butterflies/Removed [RemoteEvent]
+RE/Butterflies/Spawned [RemoteEvent]
+RE/ChatFeed/Post [RemoteEvent]
+RE/DanceGadget/AskDance [RemoteEvent]
+RE/DanceGadget/AttachEffect [RemoteEvent]
+RE/DanceGadget/DetachEffect [RemoteEvent]
+RE/DanceGadget/EmitSfx [RemoteEvent]
+RE/EggCapture/CutsceneBegan [RemoteEvent]
+RE/EggCapture/StandingsRefreshed [RemoteEvent]
+RE/EggWorld/FieldEggBatchShifted [RemoteEvent]
+RE/EggWorld/FieldEggCarry [RemoteEvent]
+RE/EggWorld/FieldEggCycleCountdown [RemoteEvent]
+RE/EggWorld/FieldEggGone [RemoteEvent]
+RE/EggWorld/FieldEggRaritiesShown [RemoteEvent]
+RE/EggWorld/FieldEggRedeemVerdict [RemoteEvent]
+RE/EggWorld/FieldEggShifted [RemoteEvent]
+RE/EggWorld/OwnerDropped [RemoteEvent]
+RE/EggWorld/OwnerShifted [RemoteEvent]
+RE/EnchantedTree/Transition [RemoteEvent]
+RE/Fishing/Cancel [RemoteEvent]
+RE/Fishing/Hold [RemoteEvent]
+RE/FuseBiome/PortalTransition [RemoteEvent]
+RE/GearSatchel/Gained [RemoteEvent]
+RE/GearSatchel/Lost [RemoteEvent]
+RE/GhostBoss/Defeated [RemoteEvent]
+RE/GhostBoss/Suction [RemoteEvent]
+RE/Gifting/Completed [RemoteEvent]
+RE/Gifting/PromptFinished [RemoteEvent]
+RE/Gifting/Received [RemoteEvent]
+RE/GravityDisruptor/AskPlace [RemoteEvent]
+RE/GravityDisruptor/Burst [RemoteEvent]
+RE/GuardOnboarding/LiveStateShifted [RemoteEvent]
+RE/GuardPatrol/EnabledShifted [RemoteEvent]
+RE/GuardPatrol/ForestHandoff [RemoteEvent]
+RE/GuardPatrol/ForestStrike [RemoteEvent]
+RE/GuardPatrol/Rouse [RemoteEvent]
+RE/GuardPatrol/SpeedTollOffer [RemoteEvent]
+RE/GuardPatrol/SpeedTollWarning [RemoteEvent]
+RE/GunGadget/AskDischarge [RemoteEvent]
+RE/GunGadget/DropCaster [RemoteEvent]
+RE/HalloweenDimension/MonsterHit [RemoteEvent]
+RE/Homestead/AskBaseTierRaise [RemoteEvent]
+RE/Homestead/AskLobbyHop [RemoteEvent]
+RE/Homestead/AskNearbyPurchase [RemoteEvent]
+RE/Homestead/BaseTierRaised [RemoteEvent]
+RE/Homestead/DimBaseOutline [RemoteEvent]
+RE/Homestead/LitBaseOutline [RemoteEvent]
+RE/Homestead/StateShifted [RemoteEvent]
+RE/IdleRescue/AskRescueHop [RemoteEvent]
+RE/IdleRescue/SubmitIdleFlag [RemoteEvent]
+RE/IslandWars/Moment [RemoteEvent]
+RE/IslandWars/OutroFinished [RemoteEvent]
+RE/IslandWars/State [RemoteEvent]
+RE/IslandWars/Use [RemoteEvent]
+RE/LaserGadget/AskDischarge [RemoteEvent]
+RE/LaserGadget/EmitBeam [RemoteEvent]
+RE/LaserGadget/EmitSfx [RemoteEvent]
+RE/Leaderboards/Updated [RemoteEvent]
+RE/Lifecycle/BeginShutdown [RemoteEvent]
+RE/LightVsDarkness/AskClaimMilestone [RemoteEvent]
+RE/LightVsDarkness/AskCollectPowerUp [RemoteEvent]
+RE/LightVsDarkness/AskCollectRing [RemoteEvent]
+RE/LightVsDarkness/AskSelectTeam [RemoteEvent]
+RE/LightVsDarkness/PowerUpCollected [RemoteEvent]
+RE/LightVsDarkness/PowerUpsCleared [RemoteEvent]
+RE/LightVsDarkness/PowerUpsDropped [RemoteEvent]
+RE/LightVsDarkness/PowerUpsSky [RemoteEvent]
+RE/LightVsDarkness/RingCollected [RemoteEvent]
+RE/LightVsDarkness/RingRespawned [RemoteEvent]
+RE/LightVsDarkness/RingsCleared [RemoteEvent]
+RE/LightVsDarkness/RingsSpawned [RemoteEvent]
+RE/LightVsDarkness/ScoreChanged [RemoteEvent]
+RE/LightVsDarkness/Struck [RemoteEvent]
+RE/LimitedTimePopups/ShowLimitedTimePopup [RemoteEvent]
+RE/Limpness/WriteLimpness [RemoteEvent]
+RE/LiveEvents/Began [RemoteEvent]
+RE/LiveEvents/Ended [RemoteEvent]
+RE/LuckWindow/StateRefreshed [RemoteEvent]
+RE/MagnetGadget/AskTug [RemoteEvent]
+RE/MagnetGadget/EmitBeam [RemoteEvent]
+RE/MagnetGadget/EmitTargetFx [RemoteEvent]
+RE/MagnetGadget/HaltBeam [RemoteEvent]
+RE/MagnetGadget/HaltTargetFx [RemoteEvent]
+RE/MegaphoneGadget/CloseEffectWindow [RemoteEvent]
+RE/MegaphoneGadget/EmitFx [RemoteEvent]
+RE/MegaphoneGadget/EmitSfx [RemoteEvent]
+RE/MegaphoneGadget/OpenEffectWindow [RemoteEvent]
+RE/MegaphoneGadget/Rouse [RemoteEvent]
+RE/MineTrap/AskPlace [RemoteEvent]
+RE/MineTrap/AttachOutline [RemoteEvent]
+RE/MineTrap/TrapSet [RemoteEvent]
+RE/MonsterEvent/PlaySFX [RemoteEvent]
+RE/MonsterEvent/WinPartsUpdated [RemoteEvent]
+RE/MonsterEvent/WinsUpdated [RemoteEvent]
+RE/MonsterParasite/AskFullChargeReset [RemoteEvent]
+RE/MonsterParasite/AskGrowthSwap [RemoteEvent]
+RE/MonsterParasite/ChestOpened [RemoteEvent]
+RE/MonsterParasite/EventStateShifted [RemoteEvent]
+RE/MonsterParasite/FeedSettled [RemoteEvent]
+RE/MonsterParasite/StateShifted [RemoteEvent]
+RE/MountRace/AskLeave [RemoteEvent]
+RE/MountRace/OutroFinished [RemoteEvent]
+RE/MountRace/PowerUp [RemoteEvent]
+RE/MountRace/PowerUpMoment [RemoteEvent]
+RE/PassGrants/Awarded [RemoteEvent]
+RE/Payouts/Shower [RemoteEvent]
+RE/PenRoster/CoinsGathered [RemoteEvent]
+RE/PenRoster/OwnerDropped [RemoteEvent]
+RE/PenRoster/OwnerShifted [RemoteEvent]
+RE/PetSatchel/SellEveryPet [RemoteEvent]
+RE/PetSatchel/SellPet [RemoteEvent]
+RE/PetSatchel/SellSelection [RemoteEvent]
+RE/PetSatchel/WriteFavourite [RemoteEvent]
+RE/PetWheel/Finish [RemoteEvent]
+RE/Preferences/PreferenceShifted [RemoteEvent]
+RE/ProfileMirror/ProfileDelta [RemoteEvent]
+RE/PumpkinBoss/CannonFire [RemoteEvent]
+RE/PumpkinBoss/Collect [RemoteEvent]
+RE/PumpkinBoss/Drops [RemoteEvent]
+RE/PumpkinBoss/Fx [RemoteEvent]
+RE/PumpkinBoss/Hazard [RemoteEvent]
+RE/PumpkinBoss/HazardHit [RemoteEvent]
+RE/PumpkinBoss/RemoveDrops [RemoteEvent]
+RE/PumpkinBoss/Transition [RemoteEvent]
+RE/RedLightGreenLight/Caught [RemoteEvent]
+RE/RedLightGreenLight/Cover [RemoteEvent]
+RE/Referrals/InviteLanded [RemoteEvent]
+RE/RewardScreen/Show [RemoteEvent]
+RE/Rift/BannerRotated [RemoteEvent]
+RE/RigSync/AskRigWipe [RemoteEvent]
+RE/RigSync/CorrectionBegan [RemoteEvent]
+RE/RigSync/Primed [RemoteEvent]
+RE/RigSync/ProbeSatchel [RemoteEvent]
+RE/RigSync/Refresh [RemoteEvent]
+RE/RigSync/SeedSatchel [RemoteEvent]
+RE/RollbackRewards/ShowNotice [RemoteEvent]
+RE/SammyEvent/AskCollectPickup [RemoteEvent]
+RE/SammyEvent/BomberRow [RemoteEvent]
+RE/SammyEvent/ElephantCharge [RemoteEvent]
+RE/SammyEvent/PickupCollected [RemoteEvent]
+RE/SammyEvent/PickupRespawned [RemoteEvent]
+RE/SammyEvent/PickupsCleared [RemoteEvent]
+RE/SammyEvent/PickupsSpawned [RemoteEvent]
+RE/Scramble/Collect [RemoteEvent]
+RE/Scramble/Drones [RemoteEvent]
+RE/Scramble/Drops [RemoteEvent]
+RE/Scramble/Effect [RemoteEvent]
+RE/Scramble/RemoveDrops [RemoteEvent]
+RE/Scramble/State [RemoteEvent]
+RE/ScrambleBoss/Fx [RemoteEvent]
+RE/ScrambleBoss/Hazard [RemoteEvent]
+RE/ScrambleBoss/HazardHit [RemoteEvent]
+RE/ScrambleBoss/Transition [RemoteEvent]
+RE/ScrambleTradeIn/BannerRotated [RemoteEvent]
+RE/SharedFx/JoltOnce [RemoteEvent]
+RE/ShootingStar/Catch [RemoteEvent]
+RE/ShootingStar/Celebrate [RemoteEvent]
+RE/ShootingStar/Claimed [RemoteEvent]
+RE/ShootingStar/Expired [RemoteEvent]
+RE/ShootingStar/Fall [RemoteEvent]
+RE/ShootingStar/Fed [RemoteEvent]
+RE/ShootingStar/Hold [RemoteEvent]
+RE/ShootingStar/Slipped [RemoteEvent]
+RE/ShootingStar/Wander [RemoteEvent]
+RE/ShrineFusion/Feedback [RemoteEvent]
+RE/ShrineFusion/Ritual [RemoteEvent]
+RE/ShrineFusion/StateChanged [RemoteEvent]
+RE/SoundBus/EmitSound [RemoteEvent]
+RE/StaffConsole/GrantSelfEgg [RemoteEvent]
+RE/StaffConsole/GrantSelfPet [RemoteEvent]
+RE/StaffConsole/GrantVerdict [RemoteEvent]
+RE/StaffConsole/ProbeStaffStatus [RemoteEvent]
+RE/StaffConsole/SpeedPowerVerdict [RemoteEvent]
+RE/StaffConsole/StaffVerdict [RemoteEvent]
+RE/StaffConsole/WipeSelfProfile [RemoteEvent]
+RE/StaffConsole/WipeVerdict [RemoteEvent]
+RE/StaffConsole/WriteSpeedPower [RemoteEvent]
+RE/StaffConsole/WriteWalkSpeed [RemoteEvent]
+RE/Storefront/Awarded [RemoteEvent]
+RE/Storefront/PurchaseRejected [RemoteEvent]
+RE/Storefront/PurchaseSettled [RemoteEvent]
+RE/Storefront/ReceiptCleared [RemoteEvent]
+RE/SwapGadget/AskSwap [RemoteEvent]
+RE/SwapGadget/EmitFx [RemoteEvent]
+RE/SwapGadget/EmitSfx [RemoteEvent]
+RE/Telemetry/SubmitIdleState [RemoteEvent]
+RE/Toasts/Line [RemoteEvent]
+RE/ToolTrigger/Trigger [RemoteEvent]
+RE/Trailwear/WornTrailShifted [RemoteEvent]
+RE/TrainEvent/CaptureState [RemoteEvent]
+RE/TrainEvent/Ghosts [RemoteEvent]
+RE/TrainEvent/State [RemoteEvent]
+RE/TrainEvent/Suction [RemoteEvent]
+RE/TrainEvent/Travel [RemoteEvent]
+RE/TrainEvent/TravelReady [RemoteEvent]
+RE/TrapPlacement/AskPlace [RemoteEvent]
+RE/Treadmill/AssignedBeltShifted [RemoteEvent]
+RE/Treadmill/OverlaySnapshot [RemoteEvent]
+RE/Treadmill/RefreshClipCursor [RemoteEvent]
+RE/Treadmill/RenderStateShifted [RemoteEvent]
+RE/Treadmill/SpeedGained [RemoteEvent]
+RE/Treadmill/SubmitClipView [RemoteEvent]
+RE/Treadmill/ViewStateShifted [RemoteEvent]
+RE/TrexRun/Herd [RemoteEvent]
+RE/TrexRun/Trampled [RemoteEvent]
+RE/TrexRun/Wave [RemoteEvent]
+RE/Trials/Refresh [RemoteEvent]
+RE/Voting/Vote [RemoteEvent]
+RE/Whodunnit/RoundShifted [RemoteEvent]
+RE/ZoneProbe/AnchorForZone [RemoteEvent]
+RF/AwayEarnings/AskCollect [RemoteFunction]
+RF/AwayEarnings/FetchSummary [RemoteFunction]
+RF/AwayEarnings/PendingCheck [RemoteFunction]
+RF/BanjoCricket/AskClaim [RemoteFunction]
+RF/Bloomery/AskBriefingConfirm [RemoteFunction]
+RF/Bloomery/AskCraneReturn [RemoteFunction]
+RF/Bloomery/AskEjectEgg [RemoteFunction]
+RF/Bloomery/AskGatherPetal [RemoteFunction]
+RF/Bloomery/AskHandoff [RemoteFunction]
+RF/Bloomery/AskLoadEgg [RemoteFunction]
+RF/Bloomery/AskMutate [RemoteFunction]
+RF/BossEvent/AskEnter [RemoteFunction]
+RF/BossEvent/AskSnapshot [RemoteFunction]
+RF/BossMastery/AskBuyShopItem [RemoteFunction]
+RF/BossMastery/AskClaimMilestone [RemoteFunction]
+RF/BossMastery/AskUseMutationConsumable [RemoteFunction]
+RF/Butterflies/AskClaimNet [RemoteFunction]
+RF/Butterflies/AskCraftEssence [RemoteFunction]
+RF/Butterflies/AskSwarm [RemoteFunction]
+RF/Butterflies/AskSwing [RemoteFunction]
+RF/Butterflies/AskTradeUp [RemoteFunction]
+RF/Codex/AskRedeem [RemoteFunction]
+RF/Codex/AskRedeemAll [RemoteFunction]
+RF/Codex/AskRedeemLimitedEgg [RemoteFunction]
+RF/Codex/AskWearFieldBat [RemoteFunction]
+RF/EggWorld/AskDoffTool [RemoteFunction]
+RF/EggWorld/AskEggRecord [RemoteFunction]
+RF/EggWorld/AskFieldEggCarry [RemoteFunction]
+RF/EggWorld/AskFieldEggDrop [RemoteFunction]
+RF/EggWorld/AskFieldEggRarityShows [RemoteFunction]
+RF/EggWorld/AskFieldEggSnapshot [RemoteFunction]
+RF/EggWorld/AskFinishHatch [RemoteFunction]
+RF/EggWorld/AskHatch [RemoteFunction]
+RF/EggWorld/AskLiveSnapshot [RemoteFunction]
+RF/EggWorld/AskPlaceEgg [RemoteFunction]
+RF/EggWorld/AskSkipGrowth [RemoteFunction]
+RF/EggWorld/AskWearTool [RemoteFunction]
+RF/Fishing/Cast [RemoteFunction]
+RF/Fishing/Reel [RemoteFunction]
+RF/Fusery/BeginFuse [RemoteFunction]
+RF/Fusery/ConfirmBriefing [RemoteFunction]
+RF/Fusery/EjectPet [RemoteFunction]
+RF/Fusery/FinishReveal [RemoteFunction]
+RF/Fusery/LoadPet [RemoteFunction]
+RF/GhostDogQuest/Abort [RemoteFunction]
+RF/GhostDogQuest/Cast [RemoteFunction]
+RF/GhostDogQuest/Claim [RemoteFunction]
+RF/GhostDogQuest/Collect [RemoteFunction]
+RF/GhostDogQuest/Dive [RemoteFunction]
+RF/GhostDogQuest/Restart [RemoteFunction]
+RF/GhostDogQuest/Surface [RemoteFunction]
+RF/GhostDogQuest/Talk [RemoteFunction]
+RF/Gifting/AskGift [RemoteFunction]
+RF/GroupPerk/RedeemPerk [RemoteFunction]
+RF/GuardOnboarding/AskLiveState [RemoteFunction]
+RF/GuardOnboarding/AskProgressSync [RemoteFunction]
+RF/GuardPatrol/AskEnabled [RemoteFunction]
+RF/HalloweenDimension/AskBuyEgg [RemoteFunction]
+RF/HalloweenDimension/AskCarryEgg [RemoteFunction]
+RF/HalloweenDimension/AskDropEgg [RemoteFunction]
+RF/HalloweenDimension/AskTutorialSeen [RemoteFunction]
+RF/HalloweenManor/Talk [RemoteFunction]
+RF/Haul/FetchAutoSell [RemoteFunction]
+RF/Haul/FetchWearBestStatus [RemoteFunction]
+RF/Haul/OfferFullSatchelSale [RemoteFunction]
+RF/Haul/WearBest [RemoteFunction]
+RF/Haul/WriteAutoSell [RemoteFunction]
+RF/Homestead/AskState [RemoteFunction]
+RF/IslandWars/Fetch [RemoteFunction]
+RF/Leaderboards/Fetch [RemoteFunction]
+RF/LightVsDarkness/FetchPowerUps [RemoteFunction]
+RF/LightVsDarkness/FetchRings [RemoteFunction]
+RF/LightVsDarkness/FetchScore [RemoteFunction]
+RF/LiveEvents/FetchCatalogue [RemoteFunction]
+RF/LiveEvents/FetchRecurringEta [RemoteFunction]
+RF/LiveEvents/FetchRunning [RemoteFunction]
+RF/LiveEvents/FetchScheduled [RemoteFunction]
+RF/LuckWindow/FetchState [RemoteFunction]
+RF/MonsterEvent/GetWinParts [RemoteFunction]
+RF/MonsterEvent/GetWins [RemoteFunction]
+RF/MonsterEvent/RequestTeleport [RemoteFunction]
+RF/MonsterParasite/AskChestClaim [RemoteFunction]
+RF/MonsterParasite/AskChestRevealComplete [RemoteFunction]
+RF/MonsterParasite/AskChestTake [RemoteFunction]
+RF/MonsterParasite/AskFeed [RemoteFunction]
+RF/MonsterParasite/AskSnapshot [RemoteFunction]
+RF/OnboardingQuestline/AskAcknowledge [RemoteFunction]
+RF/OnboardingQuestline/AskClaim [RemoteFunction]
+RF/PenRoster/AskDoff [RemoteFunction]
+RF/PenRoster/AskLiveSnapshot [RemoteFunction]
+RF/PenRoster/AskSale [RemoteFunction]
+RF/PenRoster/AskWear [RemoteFunction]
+RF/PenRoster/AskWearLimit [RemoteFunction]
+RF/PenRoster/ConfirmEquipBestBadge [RemoteFunction]
+RF/PenRoster/ConfirmPetsBadge [RemoteFunction]
+RF/PetMount/Request [RemoteFunction]
+RF/PetWheel/Spin [RemoteFunction]
+RF/Preferences/AskWrite [RemoteFunction]
+RF/ProfileMirror/FetchProfile [RemoteFunction]
+RF/RaceRally/AskBuy [RemoteFunction]
+RF/RaceRally/AskClaimMilestone [RemoteFunction]
+RF/RaceRally/AskEquipRacer [RemoteFunction]
+RF/Rift/AskFinishReveal [RemoteFunction]
+RF/Rift/AskRefresh [RemoteFunction]
+RF/Rift/AskState [RemoteFunction]
+RF/Rift/AskTradeIn [RemoteFunction]
+RF/RigSync/Reconcile [RemoteFunction]
+RF/SammyEvent/FetchPickups [RemoteFunction]
+RF/Scramble/Request [RemoteFunction]
+RF/ScrambleBoss/EnterArena [RemoteFunction]
+RF/ScrambleTradeIn/AskFinishReveal [RemoteFunction]
+RF/ScrambleTradeIn/AskRefresh [RemoteFunction]
+RF/ScrambleTradeIn/AskState [RemoteFunction]
+RF/ScrambleTradeIn/AskTradeIn [RemoteFunction]
+RF/SeasonBanner/FetchState [RemoteFunction]
+RF/SeasonBanner/FlagSeen [RemoteFunction]
+RF/ShootingStar/AskFeed [RemoteFunction]
+RF/ShootingStar/AskState [RemoteFunction]
+RF/ShopCta/FetchState [RemoteFunction]
+RF/ShopCta/FlagSeen [RemoteFunction]
+RF/ShrineFusion/AskState [RemoteFunction]
+RF/ShrineFusion/AskSubmit [RemoteFunction]
+RF/Storefront/AllowPurchase [RemoteFunction]
+RF/Storefront/AskPurchaseOffer [RemoteFunction]
+RF/Storefront/AskServerProbe [RemoteFunction]
+RF/Telemetry/AskIdleHopFlush [RemoteFunction]
+RF/Telemetry/SubmitIdleHop [RemoteFunction]
+RF/Trailwear/AskChoose [RemoteFunction]
+RF/Trailwear/AskDoff [RemoteFunction]
+RF/Trailwear/AskPurchase [RemoteFunction]
+RF/Trailwear/AskWornSnapshot [RemoteFunction]
+RF/TrainEvent/Action [RemoteFunction]
+RF/Treadmill/AskClipFavour [RemoteFunction]
+RF/Treadmill/AskDoff [RemoteFunction]
+RF/Treadmill/AskFavourSnapshot [RemoteFunction]
+RF/Treadmill/AskFriendFavourSnapshot [RemoteFunction]
+RF/Treadmill/AskPostReply [RemoteFunction]
+RF/Treadmill/AskRenderSnapshot [RemoteFunction]
+RF/Treadmill/AskReplyCounts [RemoteFunction]
+RF/Treadmill/AskReplyFavour [RemoteFunction]
+RF/Treadmill/AskReplyPage [RemoteFunction]
+RF/Treadmill/AskSlowToggle [RemoteFunction]
+RF/Treadmill/AskSlowToggleSet [RemoteFunction]
+RF/Treadmill/AskTierRaise [RemoteFunction]
+RF/Treadmill/AskWearStill [RemoteFunction]
+RF/Treadmill/GaugeClipLength [RemoteFunction]
+RF/TrexRun/FetchHerd [RemoteFunction]
+RF/Trials/Fetch [RemoteFunction]
+RF/WispCompanion/Request [RemoteFunction]
+RemoteEvent [RemoteEvent]
+Request [RemoteFunction]
+ShowAd [RemoteEvent]
+Start [RemoteEvent]
+Stop [RemoteEvent]
+Teleport [RemoteEvent]
+TrapRemote [RemoteEvent]
+Update [RemoteEvent]
+Update [RemoteEvent]
+Update [RemoteEvent]
+
+===== EGGWORLD NETWORKING =====
+Packages found: ReplicatedStorage.Packages
+Networking found: ReplicatedStorage.Packages.Networking
+RE: 9 found
+RF: 12 found
+
+===== EGGWORLD RE =====
+RE/EggWorld/FieldEggBatchShifted [RemoteEvent]
+RE/EggWorld/FieldEggCarry [RemoteEvent]
+RE/EggWorld/FieldEggCycleCountdown [RemoteEvent]
+RE/EggWorld/FieldEggGone [RemoteEvent]
+RE/EggWorld/FieldEggRaritiesShown [RemoteEvent]
+RE/EggWorld/FieldEggRedeemVerdict [RemoteEvent]
+RE/EggWorld/FieldEggShifted [RemoteEvent]
+RE/EggWorld/OwnerDropped [RemoteEvent]
+RE/EggWorld/OwnerShifted [RemoteEvent]
+
+===== EGGWORLD RF =====
+RF/EggWorld/AskDoffTool [RemoteFunction]
+RF/EggWorld/AskEggRecord [RemoteFunction]
+RF/EggWorld/AskFieldEggCarry [RemoteFunction]
+RF/EggWorld/AskFieldEggDrop [RemoteFunction]
+RF/EggWorld/AskFieldEggRarityShows [RemoteFunction]
+RF/EggWorld/AskFieldEggSnapshot [RemoteFunction]
+RF/EggWorld/AskFinishHatch [RemoteFunction]
+RF/EggWorld/AskHatch [RemoteFunction]
+RF/EggWorld/AskLiveSnapshot [RemoteFunction]
+RF/EggWorld/AskPlaceEgg [RemoteFunction]
+RF/EggWorld/AskSkipGrowth [RemoteFunction]
+RF/EggWorld/AskWearTool [RemoteFunction]
+
+===== BOSS EVENT NETWORKING =====
+
+===== BOSSEVENT RE =====
+RE/BossEvent/BlackHoleHit [RemoteEvent]
+RE/BossEvent/BossDamaged [RemoteEvent]
+RE/BossEvent/HazardHit [RemoteEvent]
+RE/BossEvent/HealthShifted [RemoteEvent]
+RE/BossEvent/StateShifted [RemoteEvent]
+RE/BossEvent/Vfx [RemoteEvent]
+
+===== BOSSEVENT RF =====
+RF/BossEvent/AskEnter [RemoteFunction]
+RF/BossEvent/AskSnapshot [RemoteFunction]
+
+===== BOSS MASTERY RF =====
+RF/BossMastery/AskBuyShopItem [RemoteFunction]
+RF/BossMastery/AskClaimMilestone [RemoteFunction]
+RF/BossMastery/AskUseMutationConsumable [RemoteFunction]
+
+===== KNOWN EGG ROOTS =====
+[FOUND] ReplicatedStorage.Assets -> Folder
+    BeanstalkEventAssets [Folder]
+    Billboards [Folder]
+    CursedIslandWars [Folder]
+    EggPoof [Part]
+    Extra [Folder]
+    Fishing [Folder]
+    GhostDogQuest [Folder]
+    HalloweenDimension [Folder]
+    Models [Folder]
+    MoneyChange [Frame]
+    MountRace [Folder]
+    Orb [Part]
+    Particles [Folder]
+    SammyEventVisuals [Folder]
+    ScrambleCurrency [Part]
+    ShootingStar [Folder]
+    Sounds [Folder]
+    SpawnLock [Model]
+    SubBiomeBuilds [Folder]
+    ToolEffects [Folder]
+    ToolSounds [Folder]
+    Trails [Folder]
+    TrainEvent [Folder]
+    TrexRunVisuals [Folder]
+    UI [Folder]
+    VFX [Folder]
+
+[FOUND] ReplicatedStorage.Assets.Models -> Folder
+    BuckPiles [Folder]
+    Butterflies [Folder]
+    ClaimArea [Part]
+    EMPCoin [MeshPart]
+    EMPCoinOld [MeshPart]
+    Eggs [Folder]
+    MonsterParasite [Folder]
+    Orbs [Folder]
+    Pointers [Folder]
+    PowerUps [Folder]
+    Rings [Folder]
+    Sakura [Folder]
+    Scramble [Folder]
+    Treadmills [Folder]
+
+[FOUND] ReplicatedStorage.Assets.Models.Eggs -> Folder
+    67 [Model]
+    67 OP [Model]
+    Abomination Kong Egg [Model]
+    Abyss Overlord [Model]
+    Aetheron [Model]
+    Alabaster Whale [Model]
+    Alien Skeleton Boss [Model]
+    Amethyst Runebear [Model]
+    Amethyst Runebear OP [Model]
+    Ankylosaurus [Model]
+    ArchAngel [Model]
+    Archdemon Dragon [Model]
+    Ascended Vermilion Phoenix [Model]
+    Ash Gecko [Model]
+    Astral Jackalope [Model]
+    Baby Aurora Dragon [Model]
+    Balrog [Model]
+    Bananita Dolphinita [Model]
+    Banjo Firefly [Model]
+    Basilisk [Model]
+    Bear [Model]
+    Belula Beluga [Model]
+    Biohazard Egg [Model]
+    Blade Head [Model]
+    BloodBloom Egg [Model]
+    Bomboclat Crocolat [Model]
+    Boss Egg [Model]
+    Bronto [Model]
+    Brr Brr Patapim [Model]
+    Burrowing Owl [Model]
+    Camel [Model]
+    Candlefang Egg [Model]
+    Candy Corn Egg [Model]
+    Catfish [Model]
+    Cave Dragon [Model]
+    Celestial Sunlion [Model]
+    Centapede [Model]
+    Centaur [Model]
+    Cerberus [Model]
+    Chicken [Model]
+    Chillin Chilli [Model]
+    Chimpanzee [Model]
+    Citadel Snail [Model]
+    Colossal Mammoth [Model]
+    Crab [Model]
+    Crane [Model]
+    Crocodile [Model]
+    Crowshade Egg [Model]
+    Crystal Egg [Model]
+    Cyclops Gorilla [Model]
+    Dark Gargoyle [Model]
+    DeathstalkerScorpion [Model]
+    Demon Hound [Model]
+    Demon Imp [Model]
+    Depths Egg [Model]
+    Depths Reroll Egg [Model]
+    DesertLark [Model]
+    Dodo [Model]
+    Dog [Model]
+    Dove [Model]
+    Dragon [Model]
+    Dream Axolotl [Model]
+    Drill Monster [Model]
+    Duckling [Model]
+    El Maja [Model]
+    Ember Dragon [Model]
+    Enchanted Bluejay [Model]
+    Engine Snail [Model]
+    Equinox [Model]
+    Eternal Lunar Dragon [Model]
+    Experiment Egg [Model]
+    Extinction Egg [Model]
+    Eye Bat [Model]
+    FennecFox [Model]
+    Finned Thresher [Model]
+    Flame Sprite [Model]
+    Flaming Bull [Model]
+    Frog [Model]
+    Galaxy Gecko [Model]
+    Ghost Fish [Model]
+    Ghost Fish Egg [Model]
+    Ghost Reaper Egg [Model]
+    Godzilla [Model]
+    Gorilla [Model]
+    Graveyard Brute Egg [Model]
+    Halloween Boss Egg [Model]
+    Halloween Dimension Egg [Model]
+    Halloween Egg [Model]
+    Halloween Royal Mimic Egg [Model]
+    Haunted Scorpio Egg [Model]
+    Hellhound [Model]
+    Hexed Pumpkin Egg [Model]
+    Hooded Gerbil Egg [Model]
+    Ice Dragon [Model]
+    Imp [Model]
+    Irihorus [Model]
+    Jellyfish [Model]
+    Jerboa [Model]
+    Jester Egg [Model]
+    Jesterpop Egg [Model]
+    Kaiju Spider [Model]
+    King Kong [Model]
+    Kitsune [Model]
+    Koi [Model]
+    Kraken [Model]
+    La Vacca Saturno Saturnita [Model]
+    Lamb [Model]
+    Lava Iguana [Model]
+    Lava frog [Model]
+    LimitedExperimentEgg [Model]
+    LimitedTimeExperimentPet [Model]
+    Mammoth [Model]
+    Mangolini Parrochini [Model]
+    Mantis [Model]
+    Mecha Egg [Model]
+    Mecha Scrambler [Model]
+    Mire Fox [Model]
+    Monster Egg [Model]
+    Monstrous Egg [Model]
+    Mosasaurus [Model]
+    Moth [Model]
+    Mummy Egg [Model]
+    Mushroom Egg [Model]
+    Nibbles #013 [Model]
+    Oni Tiger [Model]
+    Orangutini Ananassini [Model]
+    Orca [Model]
+    Ostrich [Model]
+    Ostrich OP [Model]
+    Parrotfish [Model]
+    Patchwork Imp Egg [Model]
+    Peacock [Model]
+    Pegasus [Model]
+    Penguin [Model]
+    Petal Beetle [Model]
+    Pink Dragon Experiment [Model]
+    Polar Bear [Model]
+    Prism Gecko [Model]
+    Pterodactyl [Model]
+    Raccoon [Model]
+    Race Bird [Model]
+    Race Cheetah [Model]
+    Race Lizard [Model]
+    Race Seahorse [Model]
+    Rattlesnake [Model]
+    RazorFang [Model]
+    Red Panda [Model]
+    Rhino [Model]
+    Riftbeasts Egg [Model]
+    Riftborn Egg [Model]
+    Ring Guard [Model]
+    Ringlord [Model]
+    Royal Skywhale [Model]
+    Sabertooth Tiger [Model]
+    Salamander [Model]
+    Sand Spider [Model]
+    ScorchedDragon [Model]
+    Shadow Dragon [Model]
+    Shark [Model]
+    Shattered Rift Egg [Model]
+    Shelltide Voyager Egg [Model]
+    Skeletal Egg [Model]
+    Skeleton Horse [Model]
+    Snowy Owl [Model]
+    Spider [Model]
+    Spirit Knight Egg [Model]
+    Spirit Panda [Model]
+    Stag [Model]
+    Starry Wolf [Model]
+    Strawberry Elephant [Model]
+    Swan [Model]
+    Swordfish [Model]
+    Tiger [Model]
+    Toadstool Egg [Model]
+    Tob Tobi Tob Tob [Model]
+    Toro [Model]
+    Toucan [Model]
+    Toxic Crocodile [Model]
+    Toxic Hedgehog [Model]
+    Toxic Hedgehog OP [Model]
+    Tralaledon [Model]
+    Triceratops [Model]
+    Trulimero Trulicina [Model]
+    Tung Tung Sahur [Model]
+    Turtle [Model]
+    TyrannosaurusRex [Model]
+    Uncoiled Armadillo [Model]
+    Unicorn [Model]
+    Unstable [Model]
+    Void Dragon [Model]
+    Voidseer Pumpkin Egg [Model]
+    Walrus [Model]
+    Warden [Model]
+    Werewolf Egg [Model]
+    Whale Shark [Model]
+    Whiskers Egg [Model]
+    Witch Crow Egg [Model]
+    Witch Pumpkin Egg [Model]
+    World Burner [Model]
+    World Spirit [Model]
+    Yeti [Model]
+    Zombified Halloween Egg [Model]
+
+[FOUND] ReplicatedStorage.Packages -> Folder
+    CameraShaker [ModuleScript]
+    Configs [Folder]
+    FormatNumber [Folder]
+    Input [ModuleScript]
+    InstanceCache [ModuleScript]
+    Log [ModuleScript]
+    Networking [ModuleScript]
+    Observers [ModuleScript]
+    Promise [ModuleScript]
+    Shake [ModuleScript]
+    Signal [ModuleScript]
+    Spring [ModuleScript]
+    Streamable [ModuleScript]
+    TableUtil [ModuleScript]
+    TestEz [ModuleScript]
+    Timer [ModuleScript]
+    TopBarPlus [ModuleScript]
+    Trove [ModuleScript]
+    WaitFor [ModuleScript]
+    _Index [Folder]
+    t [ModuleScript]
+
+===== WORKSPACE TARGETED ROOTS =====
+[FOUND] Workspace.Plots [Folder]
+    1 [Model]
+    2 [Model]
+    3 [Model]
+    4 [Model]
+    5 [Model]
+    6 [Model]
+    7 [Model]
+
+[FOUND] Workspace.Eggs [Folder]
+    (empty)
+
+[FOUND] Workspace.Map [Folder]
+    Decal [Decal]
+
+[FOUND] Workspace.__ClientTreadmillRenders [Folder]
+    TreadmillRender_3 [Tool]
+    TreadmillRender_5 [Tool]
+
+[FOUND] Workspace.ClientRenderedAssets [Folder]
+    10034845785_12be9dfed60a4adba038a3d7917a674a [Model]  -->  (Player UserId: 10034845785 | EggUid: 12be9dfed60a4adba038a3d7917a674a)
+    10034845785_1750f80566e24006ae8cfbf5fef0fd80 [Model]  -->  (Player UserId: 10034845785 | EggUid: 1750f80566e24006ae8cfbf5fef0fd80)
+    10034845785_2fef24b3f680432598e2d6f8f19729fb [Model]  -->  (Player UserId: 10034845785 | EggUid: 2fef24b3f680432598e2d6f8f19729fb)
+    10034845785_3f08471360d14157bef6858fe4695d51 [Model]  -->  (Player UserId: 10034845785 | EggUid: 3f08471360d14157bef6858fe4695d51)
+    10034845785_4d50bc8305eb4b5eb1df155a8ef8c6f6 [Model]  -->  (Player UserId: 10034845785 | EggUid: 4d50bc8305eb4b5eb1df155a8ef8c6f6)
+    10034845785_4e08dc6f9dca4d05969a50f027c5f035 [Model]  -->  (Player UserId: 10034845785 | EggUid: 4e08dc6f9dca4d05969a50f027c5f035)
+    10034845785_5e7239de9ee64acfb46a7904db88c672 [Model]  -->  (Player UserId: 10034845785 | EggUid: 5e7239de9ee64acfb46a7904db88c672)
+    10034845785_8bd5498b89534c6399db9d44f941192e [Model]  -->  (Player UserId: 10034845785 | EggUid: 8bd5498b89534c6399db9d44f941192e)
+    10034845785_93b32278917d4c6895e2c3ed030ddd34 [Model]  -->  (Player UserId: 10034845785 | EggUid: 93b32278917d4c6895e2c3ed030ddd34)
+    10034845785_a950b054bc164984ba1c875d5f27b1cc [Model]  -->  (Player UserId: 10034845785 | EggUid: a950b054bc164984ba1c875d5f27b1cc)
+    10034845785_a9620c3209874bcfbf193d6c0df40b9b [Model]  -->  (Player UserId: 10034845785 | EggUid: a9620c3209874bcfbf193d6c0df40b9b)
+    10034845785_ba5ab51b5449438897c1a92d74ad11d4 [Model]  -->  (Player UserId: 10034845785 | EggUid: ba5ab51b5449438897c1a92d74ad11d4)
+    10034845785_c8519d1c9f564f77af493629eade9ac2 [Model]  -->  (Player UserId: 10034845785 | EggUid: c8519d1c9f564f77af493629eade9ac2)
+    10034845785_da50a37097334dd8a7a2a569b61627f3 [Model]  -->  (Player UserId: 10034845785 | EggUid: da50a37097334dd8a7a2a569b61627f3)
+    10034845785_e3b01ae16e51433b8f5018dbb287dcd2 [Model]  -->  (Player UserId: 10034845785 | EggUid: e3b01ae16e51433b8f5018dbb287dcd2)
+    10034845785_e63410d45be84ec9be9b86526a94b55f [Model]  -->  (Player UserId: 10034845785 | EggUid: e63410d45be84ec9be9b86526a94b55f)
+    10034845785_edb147d672e14538937bb1d4d6cca7cf [Model]  -->  (Player UserId: 10034845785 | EggUid: edb147d672e14538937bb1d4d6cca7cf)
+    10034845785_fe1b6e447f3a4f5b9ac10d8134fc2714 [Model]  -->  (Player UserId: 10034845785 | EggUid: fe1b6e447f3a4f5b9ac10d8134fc2714)
+    7815043254_334f6b5610274635bfa84b1ebcde69da [Model]  -->  (Player UserId: 7815043254 | EggUid: 334f6b5610274635bfa84b1ebcde69da)
+    7815043254_473932b335244ec7b6ae218441aea545 [Model]  -->  (Player UserId: 7815043254 | EggUid: 473932b335244ec7b6ae218441aea545)
+    7815043254_7193c14d413f467a8ecc3961e04674f2 [Model]  -->  (Player UserId: 7815043254 | EggUid: 7193c14d413f467a8ecc3961e04674f2)
+    7815043254_793aec14440a4d35a7371aa3cbe60041 [Model]  -->  (Player UserId: 7815043254 | EggUid: 793aec14440a4d35a7371aa3cbe60041)
+    7815043254_8db611965772475e9d2884ea1f41bb31 [Model]  -->  (Player UserId: 7815043254 | EggUid: 8db611965772475e9d2884ea1f41bb31)
+    7815043254_af67f67f1b2d4d1e96b8f6856b68314c [Model]  -->  (Player UserId: 7815043254 | EggUid: af67f67f1b2d4d1e96b8f6856b68314c)
+    7815043254_b812fb680ea64b39a0cf5e4e7c00e12f [Model]  -->  (Player UserId: 7815043254 | EggUid: b812fb680ea64b39a0cf5e4e7c00e12f)
+    7815043254_c1485f74d9cc4c5d9985a3b116218613 [Model]  -->  (Player UserId: 7815043254 | EggUid: c1485f74d9cc4c5d9985a3b116218613)
+    7815043254_c571e7b5ee2041c7a88975d90eb7b999 [Model]  -->  (Player UserId: 7815043254 | EggUid: c571e7b5ee2041c7a88975d90eb7b999)
+    7815043254_d4a41c607dd4460baf4b06ba98aae61e [Model]  -->  (Player UserId: 7815043254 | EggUid: d4a41c607dd4460baf4b06ba98aae61e)
+    7815043254_d4be674ed25045eea24f2f0839b476bb [Model]  -->  (Player UserId: 7815043254 | EggUid: d4be674ed25045eea24f2f0839b476bb)
+    7815043254_d5f96caec5cc4893b13ebd5955fa9a64 [Model]  -->  (Player UserId: 7815043254 | EggUid: d5f96caec5cc4893b13ebd5955fa9a64)
+    7815043254_e679542abad74f67b5df8b2ccabac8c2 [Model]  -->  (Player UserId: 7815043254 | EggUid: e679542abad74f67b5df8b2ccabac8c2)
+    7815043254_e6bf710a7da44c7fa6290619ea1f28c7 [Model]  -->  (Player UserId: 7815043254 | EggUid: e6bf710a7da44c7fa6290619ea1f28c7)
+    7815043254_fd2106b2168e47f9b60ffa5fee258c65 [Model]  -->  (Player UserId: 7815043254 | EggUid: fd2106b2168e47f9b60ffa5fee258c65)
+    7815043254_ff512f7919ef4f919de67136e9444282 [Model]  -->  (Player UserId: 7815043254 | EggUid: ff512f7919ef4f919de67136e9444282)
+    933119148_00acd7722756401e902ccd2cdc07a812 [Model]  -->  (Player UserId: 933119148 | EggUid: 00acd7722756401e902ccd2cdc07a812)
+    933119148_05193329c61f4d65ac39e8834f0b8a48 [Model]  -->  (Player UserId: 933119148 | EggUid: 05193329c61f4d65ac39e8834f0b8a48)
+    933119148_1b83abe921194219bdd6a317c97609c7 [Model]  -->  (Player UserId: 933119148 | EggUid: 1b83abe921194219bdd6a317c97609c7)
+    933119148_38dda831bc8b4c618328a09aa80b35a1 [Model]  -->  (Player UserId: 933119148 | EggUid: 38dda831bc8b4c618328a09aa80b35a1)
+    933119148_398bed87155142d3bde16afd78f39ab2 [Model]  -->  (Player UserId: 933119148 | EggUid: 398bed87155142d3bde16afd78f39ab2)
+    933119148_42bbe6ec1aa544d9b69ee83aa39ac05a [Model]  -->  (Player UserId: 933119148 | EggUid: 42bbe6ec1aa544d9b69ee83aa39ac05a)
+    933119148_46cfb05810414dffb6c95ea7603503e3 [Model]  -->  (Player UserId: 933119148 | EggUid: 46cfb05810414dffb6c95ea7603503e3)
+    933119148_50e0c2fcc9114c33a0004fd5b00c3913 [Model]  -->  (Player UserId: 933119148 | EggUid: 50e0c2fcc9114c33a0004fd5b00c3913)
+    933119148_63d4ce8f5b194ffd8939cf538856ceaf [Model]  -->  (Player UserId: 933119148 | EggUid: 63d4ce8f5b194ffd8939cf538856ceaf)
+    933119148_68e63d7b53b8449696ee46f170c632db [Model]  -->  (Player UserId: 933119148 | EggUid: 68e63d7b53b8449696ee46f170c632db)
+    933119148_882efa3f008f43eb9f9091f757575c7e [Model]  -->  (Player UserId: 933119148 | EggUid: 882efa3f008f43eb9f9091f757575c7e)
+    933119148_928468aba568444f8b152eb77dc896cb [Model]  -->  (Player UserId: 933119148 | EggUid: 928468aba568444f8b152eb77dc896cb)
+    933119148_a49675b195074351aab3ac744f20ed1e [Model]  -->  (Player UserId: 933119148 | EggUid: a49675b195074351aab3ac744f20ed1e)
+    933119148_a8f5267c62704324a4da88e9b384339f [Model]  -->  (Player UserId: 933119148 | EggUid: a8f5267c62704324a4da88e9b384339f)
+    933119148_e874cb163c0541a38e7ca3351e3521e7 [Model]  -->  (Player UserId: 933119148 | EggUid: e874cb163c0541a38e7ca3351e3521e7)
+    933119148_ecf1ce0260254c8c87e61b03b40f695d [Model]  -->  (Player UserId: 933119148 | EggUid: ecf1ce0260254c8c87e61b03b40f695d)
+    933119148_eda5b5ddcb1945deaad4b65621a74418 [Model]  -->  (Player UserId: 933119148 | EggUid: eda5b5ddcb1945deaad4b65621a74418)
+    9521640019_025ec3d649b34d30a038646e7bcc351f [Model]  -->  (Player UserId: 9521640019 | EggUid: 025ec3d649b34d30a038646e7bcc351f)
+    9521640019_0633d1c02e4547faa689582ab14dc648 [Model]  -->  (Player UserId: 9521640019 | EggUid: 0633d1c02e4547faa689582ab14dc648)
+    9521640019_335289b7fefc49f69c3c469db0fa272e [Model]  -->  (Player UserId: 9521640019 | EggUid: 335289b7fefc49f69c3c469db0fa272e)
+    9521640019_3ecebe130dd1424dab1b44a323cb67c1 [Model]  -->  (Player UserId: 9521640019 | EggUid: 3ecebe130dd1424dab1b44a323cb67c1)
+    9521640019_59c8100a20ec40c6ab6418815fbb62d2 [Model]  -->  (Player UserId: 9521640019 | EggUid: 59c8100a20ec40c6ab6418815fbb62d2)
+    9521640019_7bdefd7c64184895a63c9f71d168e229 [Model]  -->  (Player UserId: 9521640019 | EggUid: 7bdefd7c64184895a63c9f71d168e229)
+    9521640019_83cb43d3bdfe4840965659a6320db8db [Model]  -->  (Player UserId: 9521640019 | EggUid: 83cb43d3bdfe4840965659a6320db8db)
+    9521640019_84aae6f27f02468192c3bc6049fc61c8 [Model]  -->  (Player UserId: 9521640019 | EggUid: 84aae6f27f02468192c3bc6049fc61c8)
+    9521640019_891373eddc3741ebbe640ebe0af88696 [Model]  -->  (Player UserId: 9521640019 | EggUid: 891373eddc3741ebbe640ebe0af88696)
+    9521640019_905be6fbf6f44ca8a1707b88274595d1 [Model]  -->  (Player UserId: 9521640019 | EggUid: 905be6fbf6f44ca8a1707b88274595d1)
+    9521640019_9aca1cb52c8044809795fc0bd52f8a86 [Model]  -->  (Player UserId: 9521640019 | EggUid: 9aca1cb52c8044809795fc0bd52f8a86)
+    9521640019_b6922685bcf849fc95051e454df2c0b8 [Model]  -->  (Player UserId: 9521640019 | EggUid: b6922685bcf849fc95051e454df2c0b8)
+    9521640019_b8b54ab6031e47bf9c84039241d97896 [Model]  -->  (Player UserId: 9521640019 | EggUid: b8b54ab6031e47bf9c84039241d97896)
+    9521640019_bb3655a1e89c44239420f3301cdc24e6 [Model]  -->  (Player UserId: 9521640019 | EggUid: bb3655a1e89c44239420f3301cdc24e6)
+    9521640019_c04c5b9a43b04641a4f68aee7bc9bd62 [Model]  -->  (Player UserId: 9521640019 | EggUid: c04c5b9a43b04641a4f68aee7bc9bd62)
+    9521640019_e6461df1325f40dda3c3157793d7c6f5 [Model]  -->  (Player UserId: 9521640019 | EggUid: e6461df1325f40dda3c3157793d7c6f5)
+    9521640019_e64a7ed5c1c944a79f30d2760a68314c [Model]  -->  (Player UserId: 9521640019 | EggUid: e64a7ed5c1c944a79f30d2760a68314c)
+    9521640019_f78dc489c8e64596b8a48ba80b6b7b23 [Model]  -->  (Player UserId: 9521640019 | EggUid: f78dc489c8e64596b8a48ba80b6b7b23)
+    9521640019_fcfb80e537fa435997b4709119be746c [Model]  -->  (Player UserId: 9521640019 | EggUid: fcfb80e537fa435997b4709119be746c)
+
+[FOUND] Workspace.World [Folder]
+    Areas [Folder]
+    Build [Folder]
+    DeliveryHitbox [Part]
+    GroupReward [Part]
+    HalloweenDimensionPortal [Model]
+    InvisibleRenderSpace [Part]
+    Leaderboards [Folder]
+    Machines [Folder]
+    MapPivot [Part]
+    MonsterParasiteMarkers [Folder]
+    RegularLobby [Model]
+    SecretZones [Folder]
+    Sentries [Folder]
+    TowerEnd [Part]
+
+===== EGG OBJECT DISCOVERY =====
+Scanning root: Workspace
+[Folder] Workspace._Guards
+[Folder] Workspace.Eggs
+[Folder] Workspace.Halloween Eggs PT2
+[Model] Workspace.TrainEventAssets.Map.Landmarks.Spirit Guardian Shrine
+[MeshPart] Workspace.TrainEventAssets.Map.Landmarks.Spirit Guardian Shrine.Hooded Guardian Statue
+[MeshPart] Workspace.TrainEventAssets.Map.Landmarks.Spirit Guardian Shrine.Guardian Spirit Eyes
+[Folder] Workspace.World.Areas.GuardAreas
+[Model] Workspace.World.Areas.GuardAreas.Forest.Nests
+[Model] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Forest.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Forest.ForestGuardAuthored
+[Part] Workspace.World.Areas.GuardAreas.Forest.ForestGuardAuthored.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Forest.Guard
+[Part] Workspace.World.Areas.GuardAreas.Forest.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Abyss Ocean.Guard
+[Part] Workspace.World.Areas.GuardAreas.Abyss Ocean.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Snow.Nests
+[Model] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Snow.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Snow.Guard
+[Part] Workspace.World.Areas.GuardAreas.Snow.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Jungle.Guard
+[Part] Workspace.World.Areas.GuardAreas.Jungle.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Volcano.Guard
+[Part] Workspace.World.Areas.GuardAreas.Volcano.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Desert.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Desert.Guard
+[Part] Workspace.World.Areas.GuardAreas.Desert.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Lake.Nests
+[Model] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Lake.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Lake.Guard
+[Part] Workspace.World.Areas.GuardAreas.Lake.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Prehistoric.Guard
+[Part] Workspace.World.Areas.GuardAreas.Prehistoric.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Titan Temple.Guard
+[Part] Workspace.World.Areas.GuardAreas.Titan Temple.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cosmic.Guard
+[Part] Workspace.World.Areas.GuardAreas.Cosmic.Guard.EggPoint
+[WeldConstraint] Workspace.World.Areas.GuardAreas.Cosmic.Guard.HeadProxy.EggPointWeld
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard
+[Part] Workspace.World.Areas.GuardAreas.Cherry Blossom.Guard.EggPoint
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard
+[Part] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard.EggPoint
+[WeldConstraint] Workspace.World.Areas.GuardAreas.Enchanted Forest.Guard.HeadProxy.EggPointWeld
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggFitBounds
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Nests.NestModel.EggSpotBottom
+[Model] Workspace.World.Areas.GuardAreas.Light Dark.Guard
+[Part] Workspace.World.Areas.GuardAreas.Light Dark.Guard.EggPoint
+[Folder] Workspace.World.Areas.EggCarryBounds
+[Part] Workspace.World.Areas.CaptureTheEggSpawn
+[Part] Workspace.World.Areas.AdminAbuseEggSpawn
+[Model] Workspace.World.Machines.FuseMachine
+[Model] Workspace.World.Machines.FuseMachine.EmitFuse
+[Model] Workspace.World.Machines.FuseMachine.Fuse Machine Model
+[Part] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.038
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.017
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.003
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cylinder.012
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.002
+[MeshPart] Workspace.World.Machines.FuseMachine.Fuse Machine Model.Meshes/Steal an Egg Fuse Machine_Cube.004
+[Folder] Workspace.World.Build.1.COLLISIONS.GUARD NO COLLIDE
+[Folder] Workspace.World.Build.1.COLLISIONS.COLL GUARD
+[Folder] Workspace.World.Build.1.COLLISIONS.COLL GUARD.BOTTOMS (COLL GUARD)
+[Folder] Workspace.World.Build.1.COLLISIONS.COLL GUARD.WALL LEFT (COLL GUARD)
+[Folder] Workspace.World.Build.1.COLLISIONS.COLL GUARD.WALL RIGHT (COLL GUARD)
+[Folder] Workspace.World.Build.1.COLLISIONS.COLL GUARD.WALL FRONT (COLL GUARD)
+[Folder] Workspace.World.Build.FuseBiomeZone
+[Folder] Workspace.World.Build.FuseBiomeLanePortals
+[Folder] Workspace.HalloweenDimension.EggSpawns
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Part] Workspace.HalloweenDimension.EggSpawns.EggSpawn
+[Model] Workspace.HalloweenDimension.BossPortal
+[Folder] Workspace.HalloweenDimension.WorldEggs
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Model] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg
+[WeldConstraint] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Cube.193.EggRootWeld
+[WeldConstraint] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Cube.194.EggRootWeld
+[PointLight] Workspace.HalloweenDimension.WorldEggs.HalloweenEgg.Hitbox.EggGlow
+[Folder] Workspace.HalloweenDimension.EggNests
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggNests.EggNest
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggSpotBottom
+[Part] Workspace.HalloweenDimension.EggNests.EggNest.EggFitBounds
+[Model] Workspace.HalloweenDimension.EggShop
+[Model] Workspace.HalloweenDimension.EggShop.Halloween Dimension Egg
+[ProximityPrompt] Workspace.HalloweenDimension.EggShop.Plinth.EggShopPrompt
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[Folder] Workspace.AreaEggSlotsClient
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5975301_Forest:Slot_004
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5975301_Forest:Slot_005
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5975301_Forest:Slot_002
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5975301_Forest:Slot_001
+[Model] Workspace.AreaEggSlotsClient.FirstAreaEgg_9521640019_5975301_Forest:Slot_003
+[MeshPart] Workspace.AreaEggSlotsClient.d538646de9094f8796df89949d741cc6.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] Workspace.AreaEggSlotsClient.d538646de9094f8796df89949d741cc6.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] Workspace.AreaEggSlotsClient.d538646de9094f8796df89949d741cc6.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] Workspace.AreaEggSlotsClient.d538646de9094f8796df89949d741cc6.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] Workspace.AreaEggSlotsClient.d538646de9094f8796df89949d741cc6.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] Workspace.AreaEggSlotsClient.3230249586b84bd49f721a96d5cf50ac.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] Workspace.AreaEggSlotsClient.3230249586b84bd49f721a96d5cf50ac.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] Workspace.AreaEggSlotsClient.3230249586b84bd49f721a96d5cf50ac.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] Workspace.AreaEggSlotsClient.3230249586b84bd49f721a96d5cf50ac.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] Workspace.AreaEggSlotsClient.3230249586b84bd49f721a96d5cf50ac.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] Workspace.AreaEggSlotsClient.63cd0f95fa2b40019e8547bf0f010dc1.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] Workspace.AreaEggSlotsClient.63cd0f95fa2b40019e8547bf0f010dc1.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] Workspace.AreaEggSlotsClient.63cd0f95fa2b40019e8547bf0f010dc1.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] Workspace.AreaEggSlotsClient.63cd0f95fa2b40019e8547bf0f010dc1.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] Workspace.AreaEggSlotsClient.63cd0f95fa2b40019e8547bf0f010dc1.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] Workspace.AreaEggSlotsClient.b6c44f300e7f4ee685f11b789f077df3.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] Workspace.AreaEggSlotsClient.b6c44f300e7f4ee685f11b789f077df3.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] Workspace.AreaEggSlotsClient.b6c44f300e7f4ee685f11b789f077df3.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] Workspace.AreaEggSlotsClient.b6c44f300e7f4ee685f11b789f077df3.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] Workspace.AreaEggSlotsClient.b6c44f300e7f4ee685f11b789f077df3.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] Workspace.AreaEggSlotsClient.d7a5d34f03dc47feb415e7255ffbf67a.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.008
+[MeshPart] Workspace.AreaEggSlotsClient.d7a5d34f03dc47feb415e7255ffbf67a.Meshes/Steal an Egg Batch 2_Meshesuntitledcube00351.004
+[MeshPart] Workspace.AreaEggSlotsClient.d7a5d34f03dc47feb415e7255ffbf67a.Meshes/Steal an Egg Batch 2_Meshesuntitledcube00151.004
+[Model] Workspace.__ClientTreadmillRenders.TreadmillRender_3.Guardian
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_5.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.064
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_5.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.063
+[MeshPart] Workspace.__ClientTreadmillRenders.TreadmillRender_5.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.007
+[Folder] Workspace.GhostBossVisuals
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[Folder] Workspace.PlacedEggRenders
+[MeshPart] Workspace.PlacedEggRenders.9521640019_4440310a66ce4750828205afef7c61f5.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.005
+[MeshPart] Workspace.PlacedEggRenders.9521640019_4440310a66ce4750828205afef7c61f5.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.007
+[MeshPart] Workspace.PlacedEggRenders.9521640019_4440310a66ce4750828205afef7c61f5.Steal an Egg Batch 2
+[MeshPart] Workspace.PlacedEggRenders.9521640019_4440310a66ce4750828205afef7c61f5.Meshes/Steal an Egg Batch 2_Plane.003
+[MeshPart] Workspace.PlacedEggRenders.9521640019_4440310a66ce4750828205afef7c61f5.Meshes/Steal an Egg Batch 2_Cube.010
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[Folder] Workspace.HalloweenEggHolders
+[Model] Workspace.HalloweenEggHolders.HalloweenEggHolder
+[Model] Workspace.HalloweenEggHolders.HalloweenEggHolder.Egg
+[Weld] Workspace.HalloweenEggHolders.HalloweenEggHolder.Egg.Cube.180.EggGrip
+[Weld] Workspace.HalloweenEggHolders.HalloweenEggHolder.Egg.Cube.181.EggGrip
+[Weld] Workspace.HalloweenEggHolders.HalloweenEggHolder.Egg.Hitbox.EggGrip
+[ProximityPrompt] Workspace.HalloweenEggHolders.PromptPoint.HalloweenEggPrompt
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryHalloweenEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[Highlight] Workspace.d73d3af7c0bb4401aba0760177b5000e.RareAreaEggHighlight
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+[ProximityPrompt] Workspace.SmartPromptPart.CarryAreaEgg
+Egg/Boss matching objects: 486
+
+Scanning root: ReplicatedStorage
+[ModuleScript] ReplicatedStorage.CmdrClient.Types.GuardAreaType
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.globalSpawnRareEgg
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.spawnRareEgg
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.globalEggSizeBoost
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.globalEggLuckBoost
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.resetEggCycle
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.globalProgressEggHatchTime
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.progressEggHatchTime
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.giveEgg
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.giveParasiteEgg
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.giveMonstrousEgg
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.forceBossDefeat
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.giveBossTokens
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.openBossWindow
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.fuseBiomeUnlock
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.skipBossCountdown
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.nextBossEgg
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.spawnScrambleBoss
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.spawnHeavyEgg
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.pumpkinBoss
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.ghostBoss
+[ModuleScript] ReplicatedStorage.CmdrClient.Commands.halloweenBigEgg
+[ModuleScript] ReplicatedStorage.Client.FuseMachineSignals
+[ModuleScript] ReplicatedStorage.Client.ToolGameplayGuard
+[ModuleScript] ReplicatedStorage.Client.AreaEggResetWall
+[ModuleScript] ReplicatedStorage.Client.Notifications.GhostBoss
+[ModuleScript] ReplicatedStorage.Client.FuseMachineMotion
+[ModuleScript] ReplicatedStorage.Client.GuardTutorialPresentation
+[ModuleScript] ReplicatedStorage.Client.EggState
+[ModuleScript] ReplicatedStorage.Data.Assets.Configs.Alien Skeleton Boss
+[ModuleScript] ReplicatedStorage.Data.Assets.Configs.Ring Guard
+[ModuleScript] ReplicatedStorage.Data.Currency.Configs.BossTokens
+[ModuleScript] ReplicatedStorage.Data.AreaEggResetCycle
+[ModuleScript] ReplicatedStorage.Data.LimitedEgg
+[ModuleScript] ReplicatedStorage.Data.GuardTutorialSteps
+[ModuleScript] ReplicatedStorage.Data.Products.Builders.LimitedEgg
+[ModuleScript] ReplicatedStorage.Data.Products.Builders.EggSkipGrowth
+[ModuleScript] ReplicatedStorage.Data.Products.Builders.TreadmillAdEggBoost
+[ModuleScript] ReplicatedStorage.Data.Treadmills.Configs.GuardianTreadmill
+[ModuleScript] ReplicatedStorage.Data.Guards
+[ModuleScript] ReplicatedStorage.Data.AdminAbuseEgg
+[ModuleScript] ReplicatedStorage.Data.DragonEgg
+[ModuleScript] ReplicatedStorage.Data.CaptureTheEgg
+[ModuleScript] ReplicatedStorage.Data.BrainrotEgg
+[ModuleScript] ReplicatedStorage.Data.BossMastery
+[ModuleScript] ReplicatedStorage.Data.BossEvent
+[ModuleScript] ReplicatedStorage.Data.EggSkins
+[ModuleScript] ReplicatedStorage.Data.MonsterEgg
+[ModuleScript] ReplicatedStorage.Data.LuminousEgg
+[ModuleScript] ReplicatedStorage.Data.HalloweenDimensionEgg
+[ModuleScript] ReplicatedStorage.Data.HalloweenEggSettings
+[MeshPart] ReplicatedStorage.GearTools.Phone.Meshes/Steal an Egg Phone Model_Cube.002 (1)
+[MeshPart] ReplicatedStorage.GearTools.Phone.Meshes/Steal an Egg Phone Model_Cube.001 (1)
+[MeshPart] ReplicatedStorage.GearTools.Phone.Meshes/Steal an Egg Phone Model_Cube (1)
+[Weld] ReplicatedStorage.GearTools.Phone.Handle.Meshes/Steal an Egg Phone Model_Cube.005 (1)
+[Weld] ReplicatedStorage.GearTools.Phone.Handle.Meshes/Steal an Egg Phone Model_Cube.004 (1)
+[Weld] ReplicatedStorage.GearTools.Phone.Handle.Meshes/Steal an Egg Phone Model_Cube.003 (1)
+[Weld] ReplicatedStorage.GearTools.Phone.Handle.Meshes/Steal an Egg Phone Model_Cube.002 (1)
+[Weld] ReplicatedStorage.GearTools.Phone.Handle.Meshes/Steal an Egg Phone Model_Cube.001 (1)
+[Weld] ReplicatedStorage.GearTools.Phone.Handle.Meshes/Steal an Egg Phone Model_Cube (1)
+[MeshPart] ReplicatedStorage.GearTools.Phone.Meshes/Steal an Egg Phone Model_Cube.005 (1)
+[MeshPart] ReplicatedStorage.GearTools.Phone.Meshes/Steal an Egg Phone Model_Cube.003 (1)
+[MeshPart] ReplicatedStorage.GearTools.Phone.Meshes/Steal an Egg Phone Model_Cube.004 (1)
+[Folder] ReplicatedStorage.Mutations.Boss
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GhostBoss/Suction
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GhostBoss/Defeated
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BeanstalkEvent/AskStealEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/HalloweenDimension/AskBuyEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/HalloweenDimension/AskDropEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/HalloweenDimension/AskCarryEgg
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/StaffConsole/GrantSelfEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskDoffTool
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskEggRecord
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskFieldEggCarry
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskFieldEggDrop
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskFieldEggRarityShows
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskFieldEggSnapshot
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskFinishHatch
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskHatch
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskLiveSnapshot
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskPlaceEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskSkipGrowth
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/EggWorld/AskWearTool
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/FieldEggBatchShifted
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/FieldEggCarry
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/FieldEggCycleCountdown
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/FieldEggGone
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/FieldEggRaritiesShown
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/FieldEggRedeemVerdict
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/FieldEggShifted
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/OwnerDropped
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggWorld/OwnerShifted
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggCapture/CutsceneBegan
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/EggCapture/StandingsRefreshed
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/FuseBiome/PortalTransition
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Fusery/BeginFuse
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Fusery/ConfirmBriefing
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Fusery/EjectPet
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Fusery/FinishReveal
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Fusery/LoadPet
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/GuardOnboarding/AskLiveState
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/GuardOnboarding/AskProgressSync
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GuardOnboarding/LiveStateShifted
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/GuardPatrol/AskEnabled
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GuardPatrol/EnabledShifted
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GuardPatrol/ForestHandoff
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GuardPatrol/ForestStrike
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GuardPatrol/Rouse
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GuardPatrol/SpeedTollOffer
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/GuardPatrol/SpeedTollWarning
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Codex/AskRedeemLimitedEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Bloomery/AskEjectEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/Bloomery/AskLoadEgg
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/BossEvent/AskEnter
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/BossEvent/AskSnapshot
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BossEvent/BlackHoleHit
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BossEvent/BossDamaged
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BossEvent/HazardHit
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BossEvent/HealthShifted
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BossEvent/StateShifted
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/BossEvent/Vfx
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/ScrambleBoss/EnterArena
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/ScrambleBoss/Fx
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/ScrambleBoss/Hazard
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/ScrambleBoss/HazardHit
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/ScrambleBoss/Transition
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/Fx
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/Hazard
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/HazardHit
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/Transition
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/CannonFire
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/Drops
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/Collect
+[RemoteEvent] ReplicatedStorage.Packages.Networking.RE/PumpkinBoss/RemoveDrops
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/BossMastery/AskBuyShopItem
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/BossMastery/AskClaimMilestone
+[RemoteFunction] ReplicatedStorage.Packages.Networking.RF/BossMastery/AskUseMutationConsumable
+[Attachment] ReplicatedStorage.Assets.VFX.RiftTradeIn.Phase4.EggSpawn
+[Model] ReplicatedStorage.Assets.VFX.RiftTradeIn.Egg
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Egg.Meshes/PurpleEgg_Cube.008
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Egg.Meshes/PurpleEgg_Cube.001
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Egg.Meshes/PurpleEgg_Cube.006
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Egg.Meshes/PurpleEgg_Cube.003
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Aura.Meshes/PurpleEgg_Cube.008
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Aura.Meshes/PurpleEgg_Cube.001
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Aura.Meshes/PurpleEgg_Cube.006
+[MeshPart] ReplicatedStorage.Assets.VFX.RiftTradeIn.Aura.Meshes/PurpleEgg_Cube.003
+[Attachment] ReplicatedStorage.Assets.VFX.RiftTradeIn.LockedLaboratory.MainScreen.EggSpawn
+[BillboardGui] ReplicatedStorage.Assets.Billboards.NightEggTimeSkip
+[BillboardGui] ReplicatedStorage.Assets.Billboards.FallenEggCountdown
+[ImageLabel] ReplicatedStorage.Assets.MoneyChange.EggIcon
+[UIGradient] ReplicatedStorage.Assets.UI.Gradients.DragonEggEventGradient
+[TextLabel] ReplicatedStorage.Assets.UI.Scramble.Card.EggName
+[CanvasGroup] ReplicatedStorage.Assets.UI.Notifs.GhostBossNotif
+[Folder] ReplicatedStorage.Assets.UI.ScrambleBoss
+[ScreenGui] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP2
+[Frame] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP2.BossHPBar
+[ImageLabel] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP2.BossHPBar.BarHolder.BossAura
+[TextLabel] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP2.BossHPBar.BossName
+[TextLabel] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP2.BossHPBar.Frame.BossName
+[TextLabel] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP2.BossHPBar.Frame.BossName
+[ScreenGui] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP1
+[Frame] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP1.BossHPBar
+[TextLabel] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP1.BossHPBar.BossName
+[TextLabel] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP1.BossHPBar.Frame.BossName
+[TextLabel] ReplicatedStorage.Assets.UI.HalloweenDimension.HalloweenBossHPBarP1.BossHPBar.Frame.BossName
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.CelebrityTreadmill.Celebrity.Meshes/Steal an Egg Treadmills 1_Cube.018
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.CelebrityTreadmill.Celebrity.Meshes/Steal an Egg Treadmills 1_Cube.022
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.CelebrityTreadmill.Celebrity.Meshes/Steal an Egg Treadmills 1_Cube.019
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.CelebrityTreadmill.Celebrity.Meshes/Steal an Egg Treadmills 1_Cube.020
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.DemonicTreadmill.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.064
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.DemonicTreadmill.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.063
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.DemonicTreadmill.Demonic.Meshes/Steal an Egg Treadmills 1_Cube.007
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.GoldenTreadmill.Gold.Meshes/Steal an Egg Treadmills 1_Cube.028
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.GoldenTreadmill.Gold.Meshes/Steal an Egg Treadmills 1_Cube.034
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.HackerTreadmill.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.006
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.HackerTreadmill.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.057
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.HackerTreadmill.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.054
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.HackerTreadmill.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.053
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.HackerTreadmill.Hacker.Meshes/Steal an Egg Treadmills 1_Cube.056
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.The FreezeTreadmill.Freeze.Meshes/Steal an Egg Treadmills 1_Cube.036
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.The FreezeTreadmill.Freeze.Meshes/Steal an Egg Treadmills 1_Cube.040
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.The FreezeTreadmill.Freeze.Meshes/Steal an Egg Treadmills 1_Cube.044
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.The FreezeTreadmill.Freeze.Meshes/Steal an Egg Treadmills 1_Cube.004
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.The FreezeTreadmill.Freeze.Meshes/Steal an Egg Treadmills 1_Cube.042
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Treadmill.Default2.Meshes/Steal an Egg Treadmills 1_Cube.015
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Treadmill.Default2.Meshes/Steal an Egg Treadmills 1_Cube.014
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Treadmill.Default2.Meshes/Steal an Egg Treadmills 1_Cube.013
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Treadmill.Default2.Meshes/Steal an Egg Treadmills 1_Cube.012
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Treadmill.Default2.Meshes/Steal an Egg Treadmills 1_Cube.005
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Treadmill.Default2.Meshes/Steal an Egg Treadmills 1_Cube.011
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Sci-FiTreadmill.Scifi.Meshes/Steal an Egg Treadmills 1_Cube.026
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.Sci-FiTreadmill.Scifi.Meshes/Steal an Egg Treadmills 1_Cube.027
+[Part] ReplicatedStorage.Assets.Models.Treadmills.AstralTreadmill.Astral.Meshes/Steal an Egg Treadmill 2_Cube.095 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.AstralTreadmill.Astral.Meshes/Steal an Egg Treadmill 2_Cube.099 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.AstralTreadmill.Astral.Meshes/Steal an Egg Treadmill 2_Cylinder.009 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.AstralTreadmill.Astral.Meshes/Steal an Egg Treadmill 2_Cube.089 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.AstralTreadmill.Astral.Meshes/Steal an Egg Treadmill 2_Plane (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Treadmills.AstralTreadmill.Astral.Meshes/Steal an Egg Treadmill 2_Cylinder.005 (2)
+[Tool] ReplicatedStorage.Assets.Models.Treadmills.GuardianTreadmill
+[Model] ReplicatedStorage.Assets.Models.Treadmills.GuardianTreadmill.Guardian
+[Folder] ReplicatedStorage.Assets.Models.Eggs
+[Model] ReplicatedStorage.Assets.Models.Eggs.Tralaledon.Dinosaur Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Depths Reroll Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Alien Skeleton Boss
+[Model] ReplicatedStorage.Assets.Models.Eggs.Monster Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monster Egg.Meshes/MonsterEgg_Plane.005 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monster Egg.Meshes/MonsterEgg_Cube
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monster Egg.Meshes/MonsterEgg_Cube.003 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monster Egg.Meshes/MonsterEgg_Cube.001 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monster Egg.Meshes/MonsterEgg_Cube.002 (2)
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Drill Monster.Steal an Egg Drill Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Drill Monster.Steal an Egg Drill Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Drill Monster.Steal an Egg Drill Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.King Kong.Meshes/Steal an Egg Batch 2_Plane.004
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.King Kong.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.009
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.King Kong.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.011
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.King Kong.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.010
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.King Kong.Meshes/Steal an Egg Batch 2_Cube.009
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Crab.Meshes/Steal an Egg Batch 2_Plane.001
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Crab.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0051
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Crab.Meshes/Steal an Egg Batch 2_Meshesuntitledcube1
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Crab.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0061
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Rhino.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Rhino.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0021
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Rhino.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Rhino.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0031
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Rhino.Meshes/Steal an Egg Batch 2_Plane
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mantis.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0071
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mantis.Meshes/Steal an Egg Batch 2_Plane.013
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mantis.Meshes/Steal an Egg Batch 2_Cube
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mantis.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0081
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mantis.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0061.001
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Kaiju Spider.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.004
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Kaiju Spider.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.003
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Kaiju Spider.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.002
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Kaiju Spider.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0041.001
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Kaiju Spider.Meshes/Steal an Egg Batch 2_Plane.002
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Shark.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.005
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Shark.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.007
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Shark.Steal an Egg Batch 2
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Shark.Meshes/Steal an Egg Batch 2_Plane.003
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Shark.Meshes/Steal an Egg Batch 2_Cube.010
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Blade Head.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.008
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Blade Head.Meshes/Steal an Egg Batch 2_Meshesuntitledcube00351.004
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Blade Head.Meshes/Steal an Egg Batch 2_Meshesuntitledcube00151.004
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Godzilla.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.012
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Godzilla.Meshes/Steal an Egg Batch 2_Plane.006
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Godzilla.Meshes/Steal an Egg Batch 2_Cube.013
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Godzilla.Meshes/Steal an Egg Batch 2_Meshesuntitledbaseegg0011.013
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Godzilla.Meshes/Steal an Egg Batch 2_Meshesuntitledcube00151.005
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Godzilla.Meshes/Steal an Egg Batch 2_Cube.012
+[Model] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg.Meshes/MechaMonsterEgg_Cube.001
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg.Meshes/MechaMonsterEgg_Cube.007
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg.Meshes/MechaMonsterEgg_Cube.002
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg.Meshes/MechaMonsterEgg_Cube.005
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg.Meshes/MechaMonsterEgg_Cube
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg.Meshes/MechaMonsterEgg_Plane.005
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Mecha Egg.Meshes/MechaMonsterEgg_Cube.003
+[Model] ReplicatedStorage.Assets.Models.Eggs.Monstrous Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monstrous Egg.Meshes/PurpleEgg_Cube.008
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monstrous Egg.Meshes/PurpleEgg_Cube.001
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monstrous Egg.Meshes/PurpleEgg_Cube.006
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Monstrous Egg.Meshes/PurpleEgg_Cube.003
+[Model] ReplicatedStorage.Assets.Models.Eggs.Boss Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Crystal Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Abyss Overlord.Meshesuntitledbaseegg0011.002
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Abyss Overlord.Meshesuntitledbaseegg0011.017
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Abyss Overlord.Meshesuntitledbaseegg0011.016
+[Model] ReplicatedStorage.Assets.Models.Eggs.Riftborn Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Riftborn Egg.Meshesuntitledbaseegg0011.016
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Riftborn Egg.Meshesuntitledbaseegg0011.002
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Riftborn Egg.Meshesuntitledbaseegg0011.017
+[Model] ReplicatedStorage.Assets.Models.Eggs.Shattered Rift Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Riftbeasts Egg
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Riftbeasts Egg.Meshesuntitledbaseegg0011.024
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Riftbeasts Egg.Meshesuntitledbaseegg0011.022
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Riftbeasts Egg.Meshesuntitledbaseegg0011.025
+[MeshPart] ReplicatedStorage.Assets.Models.Eggs.Riftbeasts Egg.Meshesuntitledbaseegg0011.026
+[Model] ReplicatedStorage.Assets.Models.Eggs.Ring Guard
+[Model] ReplicatedStorage.Assets.Models.Eggs.Aetheron.fusedegg2
+[Model] ReplicatedStorage.Assets.Models.Eggs.Depths Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.LimitedExperimentEgg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Biohazard Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Experiment Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Extinction Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Skeletal Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Jester Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Witch Pumpkin Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Witch Crow Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Mummy Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Halloween Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Mushroom Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Zombified Halloween Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Whiskers Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Jesterpop Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Candlefang Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Spirit Knight Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Graveyard Brute Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Voidseer Pumpkin Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Toadstool Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Patchwork Imp Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Haunted Scorpio Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.BloodBloom Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Ghost Reaper Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Crowshade Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Hexed Pumpkin Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Werewolf Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Abomination Kong Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Shelltide Voyager Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Halloween Boss Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Candy Corn Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Halloween Dimension Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Halloween Royal Mimic Egg
+[WeldConstraint] ReplicatedStorage.Assets.Models.Eggs.Halloween Royal Mimic Egg.Cube.193.EggRootWeld
+[WeldConstraint] ReplicatedStorage.Assets.Models.Eggs.Halloween Royal Mimic Egg.Cube.194.EggRootWeld
+[Model] ReplicatedStorage.Assets.Models.Eggs.Hooded Gerbil Egg
+[Model] ReplicatedStorage.Assets.Models.Eggs.Ghost Fish Egg
+[Folder] ReplicatedStorage.Assets.Particles.Egg Open
+[Folder] ReplicatedStorage.Assets.Particles.Egg Open.PlacedEggOpen
+[Model] ReplicatedStorage.Assets.Particles.Egg Open.PlacedEggOpen.EggExplode
+[Part] ReplicatedStorage.Assets.Particles.Egg Open.SkipEggEffect
+[Folder] ReplicatedStorage.Assets.Particles.EggRarityVFX
+[Folder] ReplicatedStorage.Assets.Particles.LegacyEggRarityVFX
+[Folder] ReplicatedStorage.Assets.Particles.BossFightVFX
+[Part] ReplicatedStorage.Assets.Particles.BossFightVFX.BossSpawn
+[Part] ReplicatedStorage.Assets.Particles.BossFightVFX.BossSlam
+[Folder] ReplicatedStorage.Assets.Particles.ScrambleBossVFX
+[Folder] ReplicatedStorage.Assets.Particles.ScrambleBossVFX.MechBoss
+[Part] ReplicatedStorage.Assets.Particles.ScrambleBossVFX.MechBoss.BossSwipe
+[Folder] ReplicatedStorage.Assets.Sounds.BossEventSounds
+[Sound] ReplicatedStorage.Assets.Sounds.BossEventSounds.Boss Spawn
+[Sound] ReplicatedStorage.Assets.Sounds.BossEventSounds.Boss SlamStart SFX
+[Sound] ReplicatedStorage.Assets.Sounds.BossEventSounds.Boss Phase 2 SFX
+[Sound] ReplicatedStorage.Assets.Sounds.BossEventSounds.Boss Slam SFX
+[Sound] ReplicatedStorage.Assets.Sounds.BossEventSounds.Boss Death SFX
+[Folder] ReplicatedStorage.Assets.Sounds.ScrambleBoss
+[Sound] ReplicatedStorage.Assets.Sounds.ScrambleBoss.DroneFuse
+[Model] ReplicatedStorage.Assets.BeanstalkEventAssets.Stage4.Egg
+[Model] ReplicatedStorage.Assets.MountRace.PowerUps.Models.Egg
+[Part] ReplicatedStorage.Assets.MountRace.PowerUps.Models.Egg.Egg
+[Sound] ReplicatedStorage.Assets.MountRace.PowerUps.Sounds.EggDrop
+[Part] ReplicatedStorage.Assets.EggPoof
+[ModuleScript] ReplicatedStorage.Shared.Flags.GuardTutorialFlags
+[ModuleScript] ReplicatedStorage.Shared.Flags.BossEventFlags
+[ModuleScript] ReplicatedStorage.Shared.Flags.BossMasteryFlags
+[ModuleScript] ReplicatedStorage.Shared.Flags.EggFlags
+[ModuleScript] ReplicatedStorage.Shared.Flags.FuseFlags
+[ModuleScript] ReplicatedStorage.Shared.Flags.ScrambleBossFlags
+[ModuleScript] ReplicatedStorage.Shared.Flags.PumpkinBossFlags
+[ModuleScript] ReplicatedStorage.Shared.Flags.GhostBossFlags
+[Folder] ReplicatedStorage.Shared.Eggs
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggHatchAnimation
+[ModuleScript] ReplicatedStorage.Shared.Eggs.NightEggTimeSkipAnimation
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggActionMovement
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggPlaceAnimation
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggToolDisplay
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggSkipAnimation
+[ModuleScript] ReplicatedStorage.Shared.Eggs.PlacedEggRenderer
+[ModuleScript] ReplicatedStorage.Shared.Eggs.PlacedEggGrowthPresentationPolicy
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggGrowthAnimation
+[ModuleScript] ReplicatedStorage.Shared.Eggs.PlacedEggReadyPulse
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggPlacementRaycast
+[ModuleScript] ReplicatedStorage.Shared.Eggs.PlacedEggBillboard
+[ModuleScript] ReplicatedStorage.Shared.Eggs.GrowingEggListRow
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggRenderer
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggMechaUpgradeAnimation
+[ModuleScript] ReplicatedStorage.Shared.Eggs.EggEnergyOrbField
+[ModuleScript] ReplicatedStorage.Shared.Types.AreaEggResetCycle
+[ModuleScript] ReplicatedStorage.Shared.Types.AreaEggs
+[ModuleScript] ReplicatedStorage.Shared.Types.GuardAreas
+[ModuleScript] ReplicatedStorage.Shared.Types.Eggs
+[ModuleScript] ReplicatedStorage.Shared.Types.GuardTutorial
+[ModuleScript] ReplicatedStorage.Shared.Types.FuseMachine
+[ModuleScript] ReplicatedStorage.Shared.Types.BossMastery
+[ModuleScript] ReplicatedStorage.Shared.Utils.GuardEscape
+[ModuleScript] ReplicatedStorage.Shared.Util.AreaEggSlotIdentity
+[ModuleScript] ReplicatedStorage.Shared.Util.FuseKernel
+[ModuleScript] ReplicatedStorage.Shared.Util.EggRecords
+[ModuleScript] ReplicatedStorage.Shared.Util.EggScaling
+[ModuleScript] ReplicatedStorage.Shared.Util.AreaEggCycle
+[ModuleScript] ReplicatedStorage.Shared.Util.EventEggCategories
+[ModuleScript] ReplicatedStorage.Shared.Util.GuardAreaGeometry
+[ModuleScript] ReplicatedStorage.Shared.Util.ScrambleBossHazards
+[ModuleScript] ReplicatedStorage.Shared.Util.ScrambleBossDrop
+[ModuleScript] ReplicatedStorage.Shared.Util.PumpkinBossState
+[ModuleScript] ReplicatedStorage.Shared.Util.GhostBoss
+[Folder] ReplicatedStorage.Shared.Modules.GuardAreas
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardMovementRecovery
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardDistance
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardChasePolicy
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardEscapePrediction
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardComponent
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardEggRetrievalComponent
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardPresentationComponent
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardReturnHomeDistanceResolver
+[ModuleScript] ReplicatedStorage.Shared.Modules.GuardAreas.GuardEscapeRequirement
+[Model] ReplicatedStorage.AssetModels.Alien Skeleton Boss
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.032
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.013
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.023
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.006
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.039
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.039.Models for egg.026
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.049
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.049.Models for egg.048
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.049.Models for egg.023
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.014
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.007
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.054
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.054.Models for egg.007
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.020
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.009
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.009.Models for egg.025
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.047
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.047.Models for egg.049
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.047.Models for egg.016
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.055
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.055.Models for egg.021
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.055.Models for egg.054
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.008
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.008.Models for egg.010
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.008.Models for egg.013
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.024
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.027
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.050
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.050.Models for egg.015
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.050.Models for egg.052
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.040
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.040.Models for egg.019
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.040.Models for egg.039
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.028
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.036
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.036.Models for egg.029
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.031
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Root.Models for egg.003
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.052
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.052.Models for egg.022
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.052.Models for egg.051
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.012
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.053
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.053.Models for egg.055
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.053.Models for egg.014
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.018
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.021
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.035
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.035.Models for egg.037
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.035.Models for egg.011
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.011
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.042
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.042.Models for egg.030
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.037
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.037.Models for egg.036
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.037.Models for egg.027
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.016
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.044
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.044.Models for egg.017
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.044.Models for egg.046
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.045
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.045.Models for egg.031
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.010
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.010.Models for egg.020
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.010.Models for egg.009
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.025
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.041
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.041.Models for egg.043
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.041.Models for egg.018
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.030
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.022
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.004
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.033
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.048
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.048.Models for egg.032
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.046
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.046.Models for egg.024
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.046.Models for egg.045
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.026
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.051
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.051.Models for egg.033
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.005
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.017
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.043
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.043.Models for egg.042
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.043.Models for egg.028
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.008
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.005
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.050
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.038
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.004
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.047
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.053
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.041
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.034
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.044
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.001
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.035
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.003.Models for egg.006
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.038
+[Weld] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.038.Models for egg.012
+[Motor6D] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.038.Models for egg.040
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.034
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.029
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.001
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.019
+[MeshPart] ReplicatedStorage.AssetModels.Kraken.Model.Models for egg.015
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.032
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.013
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.023
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.006
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.039
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.039.Models for egg.026
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.049
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.049.Models for egg.048
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.049.Models for egg.023
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.014
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.007
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.054
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.054.Models for egg.007
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.020
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.009
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.009.Models for egg.025
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.047
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.047.Models for egg.049
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.047.Models for egg.016
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.055
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.055.Models for egg.021
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.055.Models for egg.054
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.008
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.008.Models for egg.010
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.008.Models for egg.013
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.024
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.027
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.050
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.050.Models for egg.015
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.050.Models for egg.052
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.040
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.040.Models for egg.019
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.040.Models for egg.039
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.028
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.036
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.036.Models for egg.029
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.031
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Root.Models for egg.003
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.052
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.052.Models for egg.022
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.052.Models for egg.051
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.012
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.053
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.053.Models for egg.055
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.053.Models for egg.014
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.018
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.021
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.015
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.035
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.035.Models for egg.037
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.035.Models for egg.011
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.011
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.042
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.042.Models for egg.030
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.037
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.037.Models for egg.036
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.037.Models for egg.027
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.016
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.044
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.044.Models for egg.017
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.044.Models for egg.046
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.045
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.045.Models for egg.031
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.010
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.010.Models for egg.020
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.010.Models for egg.009
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.025
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.041
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.041.Models for egg.043
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.041.Models for egg.018
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.030
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.022
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.004
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.033
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.048
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.048.Models for egg.032
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.046
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.046.Models for egg.024
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.046.Models for egg.045
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.026
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.051
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.051.Models for egg.033
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.005
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.017
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.043
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.043.Models for egg.042
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.043.Models for egg.028
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.008
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.005
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.050
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.038
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.004
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.047
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.053
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.041
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.034
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.044
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.001
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.035
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.003.Models for egg.006
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.038
+[Weld] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.038.Models for egg.012
+[Motor6D] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.038.Models for egg.040
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.034
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.029
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.001
+[MeshPart] ReplicatedStorage.AssetModels.Riptide Octopus.Model.Models for egg.019
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.032
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.013
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.023
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.006
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.039
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.039.Models for egg.026
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.049
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.049.Models for egg.048
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.049.Models for egg.023
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.014
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.007
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.054
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.054.Models for egg.007
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.020
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.009
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.009.Models for egg.025
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.047
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.047.Models for egg.049
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.047.Models for egg.016
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.055
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.055.Models for egg.021
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.055.Models for egg.054
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.008
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.008.Models for egg.010
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.008.Models for egg.013
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.024
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.027
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.050
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.050.Models for egg.015
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.050.Models for egg.052
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.040
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.040.Models for egg.019
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.040.Models for egg.039
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.028
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.036
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.036.Models for egg.029
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.031
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Root.Models for egg.003
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.052
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.052.Models for egg.022
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.052.Models for egg.051
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.012
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.053
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.053.Models for egg.055
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.053.Models for egg.014
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.018
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.021
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.015
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.035
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.035.Models for egg.037
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.035.Models for egg.011
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.042
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.042.Models for egg.030
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.037
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.037.Models for egg.036
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.037.Models for egg.027
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.016
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.044
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.044.Models for egg.017
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.044.Models for egg.046
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.045
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.045.Models for egg.031
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.010
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.010.Models for egg.020
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.010.Models for egg.009
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.025
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.041
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.041.Models for egg.043
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.041.Models for egg.018
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.030
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.022
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.004
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.033
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.048
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.048.Models for egg.032
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.046
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.046.Models for egg.024
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.046.Models for egg.045
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.026
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.051
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.051.Models for egg.033
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.005
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.017
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.043
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.043.Models for egg.042
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.043.Models for egg.028
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.008
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.005
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.050
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.038
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.004
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.047
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.053
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.041
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.034
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.044
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.001
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.035
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.003.Models for egg.006
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.038
+[Weld] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.038.Models for egg.012
+[Motor6D] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.038.Models for egg.040
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.034
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.029
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.001
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.019
+[MeshPart] ReplicatedStorage.AssetModels.Depths Riptide Octopus.Model.Models for egg.011
+[Model] ReplicatedStorage.AssetModels.Ring Guard
+[ModuleScript] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.CaptureTheEgg
+[ModuleScript] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.DragonEggEvent
+[Attachment] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.DragonEggEvent.CutscenePart1.CutsceneVFX.EggDrop
+[Folder] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Yeti.Egg
+[Motor6D] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Yeti.Egg.Egg
+[Model] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests
+[Model] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggSpotBottom
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggFitBounds
+[Model] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggFitBounds
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggSpotBottom
+[Model] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggSpotBottom
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggFitBounds
+[Model] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggSpotBottom
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggFitBounds
+[Model] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggSpotBottom
+[Part] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.MonsterEvent.Cutscene.CutsceneVFX.Eggs.Nests.NestModel.EggFitBounds
+[ModuleScript] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.SammyEvent.SammyGuardSystem
+[ModuleScript] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.ScrambleBoss
+[ModuleScript] ReplicatedStorage.Controllers.Game.AdminAbuseClientController.Events.BeanstalkEvent.Stages.EggEscape
+[ModuleScript] ReplicatedStorage.Controllers.Game.FuseMachineController
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.ForestGuardRuntime
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardComponent
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardEscapeSignController
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardWakeLookAt
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardTutorialController
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardTutorialController.Steps.EquipEgg
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardTutorialController.Steps.HatchEgg
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardTutorialController.Steps.PlaceEgg
+[ModuleScript] ReplicatedStorage.Controllers.Game.GuardAreasController.GuardTutorialController.Steps.StealEgg
+[ModuleScript] ReplicatedStorage.Controllers.Game.AreaEggsController
+[ModuleScript] ReplicatedStorage.Controllers.Game.AreaEggsController.AreaEggNearbyPulse
+[ModuleScript] ReplicatedStorage.Controllers.Game.AreaEggsController.NestResolver
+[ModuleScript] ReplicatedStorage.Controllers.Game.AreaEggsController.RareEggHighlight
+[ModuleScript] ReplicatedStorage.Controllers.Game.AreaEggsController.WorkspaceEggVisibility
+[ModuleScript] ReplicatedStorage.Controllers.Game.BossEventClientController
+[Sound] ReplicatedStorage.Controllers.Game.BossEventClientController.BossArenaMusic
+[ModuleScript] ReplicatedStorage.Controllers.Game.FuseBiomePortalController
+[Folder] ReplicatedStorage.Controllers.Game.LightingController.Presets.RiftBoss
+[ModuleScript] ReplicatedStorage.Controllers.Game.TreadmillAdPopupController.AdEggBoostClient
+[ModuleScript] ReplicatedStorage.Controllers.Game.StarHandlerController.EggHolders
+[ModuleScript] ReplicatedStorage.Controllers.Game.HalloweenDimensionController.PumpkinBoss
+[ModuleScript] ReplicatedStorage.Controllers.Game.HalloweenDimensionController.EggShop
+[ModuleScript] ReplicatedStorage.Controllers.Game.HalloweenDimensionController.EggHighlights
+[ModuleScript] ReplicatedStorage.Controllers.Game.GhostBossController
+[ModuleScript] ReplicatedStorage.Controllers.Game.GhostBossController.Boss
+[Folder] ReplicatedStorage.Controllers.Game.Eggs
+[ModuleScript] ReplicatedStorage.Controllers.Game.Eggs.EggPlacementController
+[ModuleScript] ReplicatedStorage.Controllers.Game.Eggs.EggToolDisplayController
+[ModuleScript] ReplicatedStorage.Controllers.Game.AreaReset.AreaEggResetCycleController
+[ModuleScript] ReplicatedStorage.Controllers.GUI.FuseMachineController
+[ModuleScript] ReplicatedStorage.Controllers.GUI.FuseMachineController.FuseMachineBackpackSelection
+[ModuleScript] ReplicatedStorage.Controllers.GUI.FuseMachineController.FuseMachineProgressPresentation
+[ModuleScript] ReplicatedStorage.Controllers.GUI.FuseMachineController.FuseMachineSelectedSlot
+[ModuleScript] ReplicatedStorage.Controllers.GUI.FuseMachineController.FuseMachinePickerLayout
+[ModuleScript] ReplicatedStorage.Controllers.GUI.GrowingEggListController
+[ModuleScript] ReplicatedStorage.Controllers.GUI.AreaEggDropGuiController
+[ModuleScript] ReplicatedStorage.Controllers.GUI.BossMasteryController
+[ModuleScript] ReplicatedStorage.Controllers.GUI.Shops.BossShopController
+[ModuleScript] ReplicatedStorage.Controllers.GUI.Shops.BossShopController.BossShopProductCard
+[Folder] ReplicatedStorage.Controllers.GUI.GuardAreas
+[ModuleScript] ReplicatedStorage.Controllers.GUI.Shop.LimitedEggController
+[Folder] ReplicatedStorage.GhostBossAssets
+[Model] ReplicatedStorage.GhostBossAssets.Boss
+[Configuration] ReplicatedStorage.GhostBossState
+[Folder] ReplicatedStorage.AdEggBoostRemotes
+[RemoteEvent] ReplicatedStorage.AdEggBoostRemotes.AdEggBoostConfigResult
+Egg/Boss matching objects: 797
+
+==================================================
+SCAN COMPLETE
+==================================================

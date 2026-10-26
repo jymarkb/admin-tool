@@ -1,6 +1,6 @@
 --[[
-    AUTO MULTI-BAT / TOOL SWING  (Faster)
-    Cycles & equips the tools in the list, then fires ToolTrigger
+    AUTO MULTI-BAT / TOOL SWING
+    Correct remote per tool + fast cycling
 ]]
 
 local ok, err = pcall(function()
@@ -15,22 +15,22 @@ local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
 
 -- ======================
--- EASY EDIT LIST
+-- TOOL CONFIG
+-- type = "bat"  → RE/BatSwing/Trigger (nil, token)
+-- type = "tool" → RE/ToolTrigger/Trigger (tool instance)
 -- ======================
 local TOOLS = {
-    "Titan Axe [X1]",
-    "The Scrambler [X1]",
-    "Cricket's Banjo [X1]",
-    "Scramble Sword [X1]",
+    { name = "Titan Axe [X1]",       type = "bat"  },
+    { name = "Scramble Sword [X1]",  type = "bat"  },
+    { name = "The Scrambler [X1]",   type = "tool" },
+    { name = "Cricket's Banjo [X1]", type = "tool" },
 }
 
-local TOOL_COOLDOWN = 0.60        -- game cooldown per bat
-local EQUIP_DELAY   = 0.03        -- delay to let tool weld/attach (was 0.02)
--- Automatically paces switches so each bat is off cooldown (0.6s / #TOOLS):
-local SWING_DELAY   = math.max(0.02, (TOOL_COOLDOWN / math.max(#TOOLS, 1)) - EQUIP_DELAY)
+local EQUIP_DELAY = 0.01
+local SWING_DELAY = 0.01          -- very fast cycling
 
 -- ======================
--- REMOTE
+-- REMOTES
 -- ======================
 local function getNet(name)
     local net = ReplicatedStorage:FindFirstChild("Packages")
@@ -42,26 +42,34 @@ local function getNet(name)
     return ReplicatedStorage:FindFirstChild(name, true)
 end
 
+local RE_BatSwing    = getNet("RE/BatSwing/Trigger")
 local RE_ToolTrigger = getNet("RE/ToolTrigger/Trigger")
-if not RE_ToolTrigger then
-    error("RE/ToolTrigger/Trigger not found")
-end
+
+if not RE_BatSwing then error("RE/BatSwing/Trigger not found") end
+if not RE_ToolTrigger then error("RE/ToolTrigger/Trigger not found") end
 
 -- ======================
 -- STATE
 -- ======================
-local enabled = false
-local swinging = false
-local swingCount = 0
+local enabled     = false
+local swinging    = false
+local swingCount  = 0
 local currentIndex = 1
+local seq = 0
+
+local function makeToken()
+    seq += 1
+    return string.format("%d:%d:%d", lp.UserId, seq, math.floor(os.clock() * 1000))
+end
 
 -- ======================
 -- HELPERS
 -- ======================
 local toolCache = {}
+
 local function findTool(name)
     local cached = toolCache[name]
-    if cached and cached.Parent and (cached.Parent == lp.Character or (lp:FindFirstChild("Backpack") and cached.Parent == lp.Backpack)) then
+    if cached and cached.Parent and (cached.Parent == lp.Character or cached.Parent == lp:FindFirstChild("Backpack")) then
         return cached
     end
 
@@ -88,9 +96,7 @@ local function equipTool(tool)
     if not tool then return false end
     local humanoid = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
     if not humanoid then return false end
-    pcall(function()
-        humanoid:EquipTool(tool)
-    end)
+    pcall(function() humanoid:EquipTool(tool) end)
     return true
 end
 
@@ -210,7 +216,7 @@ local function setStatus(t, col)
 end
 
 -- ======================
--- SWING LOOP (cooldown-aware)
+-- SWING LOOP
 -- ======================
 local function startSwinging()
     if swinging then return end
@@ -220,21 +226,32 @@ local function startSwinging()
     task.spawn(function()
         local lastUiUpdate = 0
         while enabled do
-            local toolName = TOOLS[currentIndex]
+            local entry = TOOLS[currentIndex]
+            local toolName = entry.name
+            local toolType = entry.type
             local tool = findTool(toolName)
 
             if tool then
                 equipTool(tool)
                 task.wait(EQUIP_DELAY)
 
-                local fireOk = pcall(function()
-                    RE_ToolTrigger:FireServer(tool)
-                end)
+                local fireOk = false
+                if toolType == "bat" then
+                    -- Titan Axe / Scramble Sword
+                    fireOk = pcall(function()
+                        RE_BatSwing:FireServer(nil, makeToken())
+                    end)
+                else
+                    -- Scrambler / Banjo
+                    fireOk = pcall(function()
+                        RE_ToolTrigger:FireServer(tool)
+                    end)
+                end
 
                 if fireOk then
                     swingCount += 1
                     local now = os.clock()
-                    if (now - lastUiUpdate) >= 0.15 then
+                    if (now - lastUiUpdate) >= 0.12 then
                         lastUiUpdate = now
                         countLabel.Text = "Swings: " .. swingCount
                         toolLabel.Text = "Current: " .. toolName

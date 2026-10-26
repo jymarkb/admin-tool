@@ -17,7 +17,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace         = game:GetService("Workspace")
 
 local lp = Players.LocalPlayer
+local Character = lp and lp.Character
 local pg = lp:WaitForChild("PlayerGui")
+
+lp.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+end)
+lp.CharacterRemoving:Connect(function()
+    Character = nil
+end)
 
 -- ======================
 -- CONFIG
@@ -77,8 +85,7 @@ local function log(msg)
 end
 
 local function getCharPos()
-    local ch = lp and lp.Character
-    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
     return hrp and hrp.Position or nil
 end
 
@@ -88,8 +95,7 @@ local function distXZ(a, b)
 end
 
 local function getAutoCastPos()
-    local ch = lp and lp.Character
-    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return DEFAULT_CAST_POS end
     local look = hrp.CFrame.LookVector
     -- Cast ~22 studs forward in the direction the character is facing
@@ -102,8 +108,10 @@ local function getAutoCastPos()
         local rayOrigin = Vector3.new(targetX, hrp.Position.Y + 10, targetZ)
         local rayDirection = Vector3.new(0, -35, 0)
         local raycastParams = RaycastParams.new()
-        raycastParams.FilterDescendantsInstances = {ch}
-        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        if Character then
+            raycastParams.FilterDescendantsInstances = {Character}
+            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        end
         local result = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
         if result and result.Position then
             targetY = result.Position.Y
@@ -116,9 +124,8 @@ end
 -- TOOL EQUIP LOGIC (from auto-bat.lua)
 -- ======================
 local function findRod()
-    local char = lp.Character
-    if char then
-        for _, t in ipairs(char:GetChildren()) do
+    if Character then
+        for _, t in ipairs(Character:GetChildren()) do
             if t:IsA("Tool") then
                 if t.Name == ROD_NAME or string.find(t.Name:lower(), "haunted rod", 1, true) then
                     return t, true -- already in hand
@@ -148,7 +155,7 @@ local function ensureRodEquipped()
     if alreadyInHand then
         return true
     end
-    local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    local hum = Character and Character:FindFirstChildOfClass("Humanoid")
     if hum then
         pcall(function() hum:EquipTool(rod) end)
         task.wait(0.2)
@@ -163,10 +170,10 @@ end
 -- ======================
 local function walkToTarget(targetPos, arrivalDist, cancelCheck)
     arrivalDist = arrivalDist or 3.5
-    local char = lp.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    if not (char and root and hum) then return false end
+    if not Character then return false end
+    local root = Character:FindFirstChild("HumanoidRootPart")
+    local hum  = Character:FindFirstChildOfClass("Humanoid")
+    if not (root and hum) then return false end
 
     if hum.Sit then hum.Sit = false end
     if hum.PlatformStand then hum.PlatformStand = false end
@@ -181,7 +188,7 @@ local function walkToTarget(targetPos, arrivalDist, cancelCheck)
     local stuckFrames = 0
 
     while (os.clock() - startTime) < timeout do
-        if not lp.Character or not root.Parent or hum.Health <= 0 then break end
+        if not Character or not root.Parent or hum.Health <= 0 then break end
         if cancelCheck and cancelCheck() then break end
 
         local curPos = root.Position
@@ -489,8 +496,7 @@ local function doCycle()
                 log("Arrived at fishing spot")
                 setStatus("Arrived at spot", Color3.fromRGB(120, 220, 140))
                 pcall(function()
-                    local ch = lp.Character
-                    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+                    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
                     if hrp and lastPos then
                         hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(lastPos.X, hrp.Position.Y, lastPos.Z))
                     end
@@ -513,8 +519,7 @@ local function doCycle()
                 walkToTarget(DEFAULT_CHAR_POS, 3.5, function() return not enabled end)
                 if not enabled then break end
                 pcall(function()
-                    local ch = lp.Character
-                    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+                    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
                     if hrp and lastPos then
                         hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(lastPos.X, hrp.Position.Y, lastPos.Z))
                     end

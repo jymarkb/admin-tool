@@ -1,0 +1,226 @@
+[00:03:03] [PROBE] ================= FULL HALLOWEEN PROBE SNAPSHOT =================
+[00:03:03] [PROBE] LocalPlayer Status | InHalloweenDimension=true | HalloweenDelivered=nil | HalloweenTransition=4680:reveal:in
+[00:03:03] [PROBE] Workspace.HalloweenDimension: FOUND (25 top-level folders/models)
+[00:03:03] [PROBE]   Folder/Model: EggSpawns (Folder, 15 children)
+[00:03:03] [PROBE]   Folder/Model: MonsterSpawns (Folder, 45 children)
+[00:03:03] [PROBE]   Folder/Model: Ground (Folder, 13 children)
+[00:03:03] [PROBE]   Folder/Model: GhostDogQuest (Folder, 2 children)
+[00:03:03] [PROBE]   Folder/Model: ZonesAssets (Folder, 4 children)
+[00:03:03] [PROBE]   Folder/Model: Lights (Folder, 16 children)
+[00:03:03] [PROBE]   Folder/Model: Border (Folder, 2 children)
+[00:03:03] [PROBE]   Folder/Model: VFX (Folder, 3 children)
+[00:03:03] [PROBE]   Folder/Model: Sky (Folder, 1 children)
+[00:03:03] [PROBE]   Folder/Model: Spiderwebs (Folder, 5 children)
+[00:03:03] [PROBE]   Folder/Model: Zones (Folder, 4 children)
+[00:03:03] [PROBE]   Folder/Model: NPCs (Folder, 0 children)
+[00:03:03] [PROBE]   Folder/Model: Spawns (Folder, 11 children)
+[00:03:03] [PROBE]   Folder/Model: keyhallwoeen (Model, 2 children)
+[00:03:03] [PROBE]   Folder/Model: TrainStation (Model, 163 children)
+[00:03:03] [PROBE]   Folder/Model: BossPortal (Model, 5 children)
+[00:03:03] [PROBE]   Folder/Model: EggShop (Model, 2 children)
+[00:03:03] [PROBE]   Folder/Model: CastleGate (Model, 3 children)
+[00:03:03] [PROBE]   Folder/Model: DogPlacepoint (Model, 10 children)
+[00:03:03] [PROBE]   Folder/Model: NightWall (Model, 2 children)
+[00:03:03] [PROBE]   Folder/Model: Altar (Model, 3 children)
+[00:03:03] [PROBE]   Folder/Model: EggNests (Folder, 15 children)
+[00:03:03] [PROBE]   Folder/Model: WorldEggs (Folder, 15 children)
+[00:03:03] [PROBE]   Folder/Model: Ghosts (Folder, 0 children)
+[00:03:03] [PROBE]   Folder/Model: Monsters (Folder, 45 children)
+[00:03:03] [PROBE] WorldEggs: 15 active egg models currently present
+[00:03:03] [PROBE]   [01] Egg Model: 'HalloweenEgg' (near EggSpawn (4.3 st))
+  • Position: V3(-5812.65, -201.88, -6661.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 4.26 studs)
+  • Nearest EggNest: EggNest (dist: 4.10 studs)
+  • Hitbox: Size=6.288809299468994, 8.206798553466797, 6.480710983276367 CanCollide=false Mass=234.1
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=20.2
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 1, HalloweenEggUid = "76d977c4b8b54e25b44990f4c1924e32", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Whiskers" }
+  • Children (10): Body [MeshPart] (MeshId=rbxassetid://88930855838057, Tex=) [Attrs: { SourceMaterial = "MM_Body", SourceTriangles = 2784, WorkbenchMeshKey = "WBM_0000" }], CrackRim [MeshPart] (MeshId=rbxassetid://113870516465167, Tex=) [Attrs: { SourceMaterial = "MM_CrackRim", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 856 }], Glow [MeshPart] (MeshId=rbxassetid://104979211908605, Tex=) [Attrs: { SourceMaterial = "MM_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 896 }], GlowCore [MeshPart] (MeshId=rbxassetid://119442366992780, Tex=) [Attrs: { SourceMaterial = "MM_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 40 }], Skull [MeshPart] (MeshId=rbxassetid://120846872736841, Tex=) [Attrs: { SourceMaterial = "MM_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 82 }], SkullDark [MeshPart] (MeshId=rbxassetid://119806378790263, Tex=) [Attrs: { SourceMaterial = "MM_GoldDark", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 320 }], Wraps [MeshPart] (MeshId=rbxassetid://116700824433983, Tex=) [Attrs: { SourceMaterial = "MM_Wrap", DontModify = true, WorkbenchMeshKey = "WBM_0006", SourceTriangles = 3358 }], WrapsDark [MeshPart] (MeshId=rbxassetid://131987863655659, Tex=) [Attrs: { SourceMaterial = "MM_WrapDark", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 4114 }], WrapsMid [MeshPart] (MeshId=rbxassetid://131792438426865, Tex=) [Attrs: { SourceMaterial = "MM_WrapMid", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 1974 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [02] Egg Model: 'HalloweenEgg' (near EggSpawn (2.6 st))
+  • Position: V3(-6126.65, -203.58, -6661.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 2.56 studs)
+  • Nearest EggNest: EggNest (dist: 2.60 studs)
+  • Hitbox: Size=5.171611309051514, 5.192159175872803, 4.43362283706665 CanCollide=false Mass=83.3
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=17.2
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 1, HalloweenEggUid = "e3b7d5da28774c6e88379b5c8befdd03", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Jesterpop" }
+  • Children (8): Face [MeshPart] (MeshId=rbxassetid://102499305392910, Tex=) [Attrs: { SourceMaterial = "JE_Cream", DontModify = true, WorkbenchMeshKey = "WBM_0000", SourceTriangles = 1989 }], Dark [MeshPart] (MeshId=rbxassetid://71567878076399, Tex=) [Attrs: { SourceMaterial = "JE_Dark", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 688 }], Glow [MeshPart] (MeshId=rbxassetid://73428411066976, Tex=) [Attrs: { SourceMaterial = "JE_Neon", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 28 }], Gold [MeshPart] (MeshId=rbxassetid://89204782642277, Tex=) [Attrs: { SourceMaterial = "JE_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 1546 }], Nose [MeshPart] (MeshId=rbxassetid://97626219930211, Tex=) [Attrs: { SourceMaterial = "JE_NoseRed", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 120 }], HoodPurple [MeshPart] (MeshId=rbxassetid://125938800868772, Tex=) [Attrs: { SourceMaterial = "JE_Purple", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 1354 }], Body [MeshPart] (MeshId=rbxassetid://113817534011183, Tex=) [Attrs: { SourceMaterial = "JE_Red", SourceTriangles = 6436, WorkbenchMeshKey = "WBM_0006" }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [03] Egg Model: 'HalloweenEgg' (near EggSpawn (4.4 st))
+  • Position: V3(-6398.65, -201.70, -6843.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 4.44 studs)
+  • Nearest EggNest: EggNest (dist: 4.19 studs)
+  • Hitbox: Size=8.353742599487305, 8.386934280395508, 7.161664009094238 CanCollide=false Mass=351.2
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=20.4
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 1, HalloweenEggUid = "49858830bf8f4082b7d14080c0405a1a", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Jesterpop" }
+  • Children (8): Face [MeshPart] (MeshId=rbxassetid://102499305392910, Tex=) [Attrs: { SourceMaterial = "JE_Cream", DontModify = true, WorkbenchMeshKey = "WBM_0000", SourceTriangles = 1989 }], Dark [MeshPart] (MeshId=rbxassetid://71567878076399, Tex=) [Attrs: { SourceMaterial = "JE_Dark", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 688 }], Glow [MeshPart] (MeshId=rbxassetid://73428411066976, Tex=) [Attrs: { SourceMaterial = "JE_Neon", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 28 }], Gold [MeshPart] (MeshId=rbxassetid://89204782642277, Tex=) [Attrs: { SourceMaterial = "JE_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 1546 }], Nose [MeshPart] (MeshId=rbxassetid://97626219930211, Tex=) [Attrs: { SourceMaterial = "JE_NoseRed", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 120 }], HoodPurple [MeshPart] (MeshId=rbxassetid://125938800868772, Tex=) [Attrs: { SourceMaterial = "JE_Purple", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 1354 }], Body [MeshPart] (MeshId=rbxassetid://113817534011183, Tex=) [Attrs: { SourceMaterial = "JE_Red", SourceTriangles = 6436, WorkbenchMeshKey = "WBM_0006" }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [04] Egg Model: 'HalloweenEgg' (near EggSpawn (2.8 st))
+  • Position: V3(-5260.65, -203.29, -6961.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 2.85 studs)
+  • Nearest EggNest: EggNest (dist: 2.89 studs)
+  • Hitbox: Size=4.42340612411499, 5.7724761962890625, 4.558385372161865 CanCollide=false Mass=81.5
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=17.8
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 1, HalloweenEggUid = "af81fc5cbd544a21920eac46e33ea070", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Whiskers" }
+  • Children (10): Body [MeshPart] (MeshId=rbxassetid://88930855838057, Tex=) [Attrs: { SourceMaterial = "MM_Body", SourceTriangles = 2784, WorkbenchMeshKey = "WBM_0000" }], CrackRim [MeshPart] (MeshId=rbxassetid://113870516465167, Tex=) [Attrs: { SourceMaterial = "MM_CrackRim", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 856 }], Glow [MeshPart] (MeshId=rbxassetid://104979211908605, Tex=) [Attrs: { SourceMaterial = "MM_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 896 }], GlowCore [MeshPart] (MeshId=rbxassetid://119442366992780, Tex=) [Attrs: { SourceMaterial = "MM_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 40 }], Skull [MeshPart] (MeshId=rbxassetid://120846872736841, Tex=) [Attrs: { SourceMaterial = "MM_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 82 }], SkullDark [MeshPart] (MeshId=rbxassetid://119806378790263, Tex=) [Attrs: { SourceMaterial = "MM_GoldDark", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 320 }], Wraps [MeshPart] (MeshId=rbxassetid://116700824433983, Tex=) [Attrs: { SourceMaterial = "MM_Wrap", DontModify = true, WorkbenchMeshKey = "WBM_0006", SourceTriangles = 3358 }], WrapsDark [MeshPart] (MeshId=rbxassetid://131987863655659, Tex=) [Attrs: { SourceMaterial = "MM_WrapDark", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 4114 }], WrapsMid [MeshPart] (MeshId=rbxassetid://131792438426865, Tex=) [Attrs: { SourceMaterial = "MM_WrapMid", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 1974 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [05] Egg Model: 'HalloweenEgg' (near EggSpawn (12.8 st))
+  • Position: V3(-5309.65, -193.31, -6692.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 12.82 studs)
+  • Nearest EggNest: EggNest (dist: 11.49 studs)
+  • Hitbox: Size=17.60378074645996, 22.972658157348633, 18.140954971313477 CanCollide=false Mass=5135.4
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=30.0
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 1, HalloweenEggUid = "bb9a9af3451544aba8de24839cd21dd4", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Whiskers" }
+  • Children (10): Body [MeshPart] (MeshId=rbxassetid://88930855838057, Tex=) [Attrs: { SourceMaterial = "MM_Body", SourceTriangles = 2784, WorkbenchMeshKey = "WBM_0000" }], CrackRim [MeshPart] (MeshId=rbxassetid://113870516465167, Tex=) [Attrs: { SourceMaterial = "MM_CrackRim", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 856 }], Glow [MeshPart] (MeshId=rbxassetid://104979211908605, Tex=) [Attrs: { SourceMaterial = "MM_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 896 }], GlowCore [MeshPart] (MeshId=rbxassetid://119442366992780, Tex=) [Attrs: { SourceMaterial = "MM_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 40 }], Skull [MeshPart] (MeshId=rbxassetid://120846872736841, Tex=) [Attrs: { SourceMaterial = "MM_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 82 }], SkullDark [MeshPart] (MeshId=rbxassetid://119806378790263, Tex=) [Attrs: { SourceMaterial = "MM_GoldDark", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 320 }], Wraps [MeshPart] (MeshId=rbxassetid://116700824433983, Tex=) [Attrs: { SourceMaterial = "MM_Wrap", DontModify = true, WorkbenchMeshKey = "WBM_0006", SourceTriangles = 3358 }], WrapsDark [MeshPart] (MeshId=rbxassetid://131987863655659, Tex=) [Attrs: { SourceMaterial = "MM_WrapDark", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 4114 }], WrapsMid [MeshPart] (MeshId=rbxassetid://131792438426865, Tex=) [Attrs: { SourceMaterial = "MM_WrapMid", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 1974 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [06] Egg Model: 'HalloweenEgg' (near EggSpawn (2.2 st))
+  • Position: V3(-6349.65, -203.98, -5974.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 2.15 studs)
+  • Nearest EggNest: EggNest (dist: 2.22 studs)
+  • Hitbox: Size=2.9317731857299805, 4.431038856506348, 3.14141845703125 CanCollide=false Mass=28.6
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=17.7
+  • Model Attributes: { HalloweenEggCanPickUp = true, HalloweenEggUid = "9e04d54ac7d54e9ca93b9b2545987ea0", Zone = 2 }
+  • Children (3): Cube.192 [MeshPart] (MeshId=rbxassetid://70705556141109, Tex=) [Attrs: { DontModify = true }], Cube.191 [MeshPart] (MeshId=rbxassetid://85596455133555, Tex=) [Attrs: { DontModify = true }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [07] Egg Model: 'HalloweenEgg' (near EggSpawn (2.5 st))
+  • Position: V3(-5998.65, -203.64, -6002.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 2.50 studs)
+  • Nearest EggNest: EggNest (dist: 2.50 studs)
+  • Hitbox: Size=3.309000253677368, 5.001173973083496, 3.5456206798553467 CanCollide=false Mass=41.1
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=18.4
+  • Model Attributes: { HalloweenEggCanPickUp = true, HalloweenEggUid = "4466f2c91a864240ba276f20cea635ec", Zone = 2 }
+  • Children (3): Cube.192 [MeshPart] (MeshId=rbxassetid://70705556141109, Tex=) [Attrs: { DontModify = true }], Cube.191 [MeshPart] (MeshId=rbxassetid://85596455133555, Tex=) [Attrs: { DontModify = true }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [08] Egg Model: 'HalloweenEgg' (near EggSpawn (3.2 st))
+  • Position: V3(-5806.65, -202.97, -6013.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 3.17 studs)
+  • Nearest EggNest: EggNest (dist: 3.05 studs)
+  • Hitbox: Size=6.038710594177246, 6.095995903015137, 5.980693817138672 CanCollide=false Mass=154.1
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=18.1
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 2, HalloweenEggUid = "57b01afa26fb4fb8b7c917ff380fac7c", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Rotshroom" }
+  • Children (11): Body [MeshPart] (MeshId=rbxassetid://77950428056342, Tex=) [Attrs: { SourceMaterial = "ME_Tan", SourceTriangles = 3636, WorkbenchMeshKey = "WBM_0000" }], CapDark [MeshPart] (MeshId=rbxassetid://110855212360311, Tex=) [Attrs: { SourceMaterial = "ME_CapDark", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 4542 }], CapSpots [MeshPart] (MeshId=rbxassetid://120831950392049, Tex=) [Attrs: { SourceMaterial = "ME_CapLime", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 496 }], CapMid [MeshPart] (MeshId=rbxassetid://131887855440729, Tex=) [Attrs: { SourceMaterial = "ME_CapMid", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 1216 }], Curls [MeshPart] (MeshId=rbxassetid://123373497613419, Tex=) [Attrs: { SourceMaterial = "ME_Curl", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 3392 }], Face [MeshPart] (MeshId=rbxassetid://106028093857807, Tex=) [Attrs: { SourceMaterial = "ME_FaceDark", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 140 }], Glow [MeshPart] (MeshId=rbxassetid://83983870367770, Tex=) [Attrs: { SourceMaterial = "ME_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0006", SourceTriangles = 1032 }], GlowCore [MeshPart] (MeshId=rbxassetid://115848797151426, Tex=) [Attrs: { SourceMaterial = "ME_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 40 }], Moss [MeshPart] (MeshId=rbxassetid://113920131685864, Tex=) [Attrs: { SourceMaterial = "ME_Moss", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 820 }], Stem [MeshPart] (MeshId=rbxassetid://127084959091118, Tex=) [Attrs: { SourceMaterial = "ME_Stem", DontModify = true, WorkbenchMeshKey = "WBM_0009", SourceTriangles = 24 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [09] Egg Model: 'HalloweenEgg' (near EggSpawn (2.2 st))
+  • Position: V3(-5530.65, -203.91, -6078.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 2.23 studs)
+  • Nearest EggNest: EggNest (dist: 2.28 studs)
+  • Hitbox: Size=3.017855644226074, 4.561142921447754, 3.233656644821167 CanCollide=false Mass=31.2
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=17.9
+  • Model Attributes: { HalloweenEggCanPickUp = true, HalloweenEggUid = "9927f157d3a6405c86888ca00824b852", Zone = 2 }
+  • Children (3): Cube.192 [MeshPart] (MeshId=rbxassetid://70705556141109, Tex=) [Attrs: { DontModify = true }], Cube.191 [MeshPart] (MeshId=rbxassetid://85596455133555, Tex=) [Attrs: { DontModify = true }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [10] Egg Model: 'HalloweenEgg' (near EggSpawn (3.3 st))
+  • Position: V3(-5234.65, -202.81, -6190.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 3.33 studs)
+  • Nearest EggNest: EggNest (dist: 3.18 studs)
+  • Hitbox: Size=6.2908148765563965, 6.350491523742676, 6.23037576675415 CanCollide=false Mass=174.2
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=18.4
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 2, HalloweenEggUid = "2670071ca1854ac1afb559bc8ff142f8", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Rotshroom" }
+  • Children (11): Body [MeshPart] (MeshId=rbxassetid://77950428056342, Tex=) [Attrs: { SourceMaterial = "ME_Tan", SourceTriangles = 3636, WorkbenchMeshKey = "WBM_0000" }], CapDark [MeshPart] (MeshId=rbxassetid://110855212360311, Tex=) [Attrs: { SourceMaterial = "ME_CapDark", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 4542 }], CapSpots [MeshPart] (MeshId=rbxassetid://120831950392049, Tex=) [Attrs: { SourceMaterial = "ME_CapLime", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 496 }], CapMid [MeshPart] (MeshId=rbxassetid://131887855440729, Tex=) [Attrs: { SourceMaterial = "ME_CapMid", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 1216 }], Curls [MeshPart] (MeshId=rbxassetid://123373497613419, Tex=) [Attrs: { SourceMaterial = "ME_Curl", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 3392 }], Face [MeshPart] (MeshId=rbxassetid://106028093857807, Tex=) [Attrs: { SourceMaterial = "ME_FaceDark", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 140 }], Glow [MeshPart] (MeshId=rbxassetid://83983870367770, Tex=) [Attrs: { SourceMaterial = "ME_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0006", SourceTriangles = 1032 }], GlowCore [MeshPart] (MeshId=rbxassetid://115848797151426, Tex=) [Attrs: { SourceMaterial = "ME_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 40 }], Moss [MeshPart] (MeshId=rbxassetid://113920131685864, Tex=) [Attrs: { SourceMaterial = "ME_Moss", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 820 }], Stem [MeshPart] (MeshId=rbxassetid://127084959091118, Tex=) [Attrs: { SourceMaterial = "ME_Stem", DontModify = true, WorkbenchMeshKey = "WBM_0009", SourceTriangles = 24 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [11] Egg Model: 'HalloweenEgg' (near EggSpawn (3.7 st))
+  • Position: V3(-5666.00, -202.63, -5070.00)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 3.74 studs)
+  • Nearest EggNest: EggNest (dist: 3.62 studs)
+  • Hitbox: Size=5.957838535308838, 7.241573333740234, 6.0283284187316895 CanCollide=false Mass=182.1
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=19.2
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 3, HalloweenEggUid = "a8ec210f1ae449cfbe15f2e468e37a22", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Crowshade" }
+  • Children (16): Beak [MeshPart] (MeshId=rbxassetid://118219413624888, Tex=) [Attrs: { SourceMaterial = "CE_Beak", DontModify = true, WorkbenchMeshKey = "WBM_0000", SourceTriangles = 48 }], BeakRidge [MeshPart] (MeshId=rbxassetid://140540637664320, Tex=) [Attrs: { SourceMaterial = "CE_BeakHi", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 48 }], Bone [MeshPart] (MeshId=rbxassetid://72162629244399, Tex=) [Attrs: { SourceMaterial = "CE_Bone", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 192 }], Bow [MeshPart] (MeshId=rbxassetid://80865927712857, Tex=) [Attrs: { SourceMaterial = "CE_Bow", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 36 }], Dark [MeshPart] (MeshId=rbxassetid://115337366471412, Tex=) [Attrs: { SourceMaterial = "CE_Dark", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 1552 }], FeathersBlack [MeshPart] (MeshId=rbxassetid://102575455427645, Tex=) [Attrs: { SourceMaterial = "CE_Black", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 3377 }], Body [MeshPart] (MeshId=rbxassetid://112495553822313, Tex=) [Attrs: { SourceMaterial = "CE_Charcoal", SourceTriangles = 3460, WorkbenchMeshKey = "WBM_0006" }], Glow [MeshPart] (MeshId=rbxassetid://83845205832153, Tex=) [Attrs: { SourceMaterial = "CE_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 104 }], GlowCore [MeshPart] (MeshId=rbxassetid://105411344428861, Tex=) [Attrs: { SourceMaterial = "CE_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 104 }], Gold [MeshPart] (MeshId=rbxassetid://85508018301995, Tex=) [Attrs: { SourceMaterial = "CE_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0009", SourceTriangles = 648 }], HatBand [MeshPart] (MeshId=rbxassetid://105929407995505, Tex=) [Attrs: { SourceMaterial = "CE_Tan", DontModify = true, WorkbenchMeshKey = "WBM_0010", SourceTriangles = 224 }], Cape [MeshPart] (MeshId=rbxassetid://93285367869081, Tex=) [Attrs: { SourceMaterial = "CE_Plum", DontModify = true, WorkbenchMeshKey = "WBM_0011", SourceTriangles = 1346 }], CapeDark [MeshPart] (MeshId=rbxassetid://110128344472825, Tex=) [Attrs: { SourceMaterial = "CE_PlumDark", DontModify = true, WorkbenchMeshKey = "WBM_0012", SourceTriangles = 284 }], TagPanel [MeshPart] (MeshId=rbxassetid://82562621203088, Tex=) [Attrs: { SourceMaterial = "CE_TagPanel", DontModify = true, WorkbenchMeshKey = "WBM_0013", SourceTriangles = 24 }], TagRed [MeshPart] (MeshId=rbxassetid://120634874146604, Tex=) [Attrs: { SourceMaterial = "CE_TagRed", DontModify = true, WorkbenchMeshKey = "WBM_0014", SourceTriangles = 36 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [12] Egg Model: 'HalloweenEgg' (near EggSpawn (3.4 st))
+  • Position: V3(-5897.00, -202.95, -5056.00)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 3.42 studs)
+  • Nearest EggNest: EggNest (dist: 3.38 studs)
+  • Hitbox: Size=5.9973578453063965, 6.753755569458008, 5.230778217315674 CanCollide=false Mass=148.3
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=18.8
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 3, HalloweenEggUid = "e672e7c87f814effbd0ad3dba2f257d6", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Hexed Pumpkin" }
+  • Children (11): Ribs [MeshPart] (MeshId=rbxassetid://105704104295440, Tex=) [Attrs: { SourceMaterial = "WE_Bone", DontModify = true, WorkbenchMeshKey = "WBM_0000", SourceTriangles = 396 }], Bands [MeshPart] (MeshId=rbxassetid://95038334243895, Tex=) [Attrs: { SourceMaterial = "WE_Brown", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 516 }], BandPlates [MeshPart] (MeshId=rbxassetid://128259071935684, Tex=) [Attrs: { SourceMaterial = "WE_BrownDark", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 500 }], Dark [MeshPart] (MeshId=rbxassetid://83751338542256, Tex=) [Attrs: { SourceMaterial = "WE_Dark", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 540 }], Glow [MeshPart] (MeshId=rbxassetid://107233036988949, Tex=) [Attrs: { SourceMaterial = "WE_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 1106 }], GlowCore [MeshPart] (MeshId=rbxassetid://138646483994924, Tex=) [Attrs: { SourceMaterial = "WE_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 1076 }], Buckles [MeshPart] (MeshId=rbxassetid://135246245273211, Tex=) [Attrs: { SourceMaterial = "WE_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0006", SourceTriangles = 100 }], Body [MeshPart] (MeshId=rbxassetid://105726106849713, Tex=) [Attrs: { SourceMaterial = "WE_Orange", SourceTriangles = 4264, WorkbenchMeshKey = "WBM_0007" }], HatAndMane [MeshPart] (MeshId=rbxassetid://92059304140067, Tex=) [Attrs: { SourceMaterial = "WE_Purple", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 2548 }], ManeLining [MeshPart] (MeshId=rbxassetid://105033347414590, Tex=) [Attrs: { SourceMaterial = "WE_PurpleDark", DontModify = true, WorkbenchMeshKey = "WBM_0009", SourceTriangles = 1536 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [13] Egg Model: 'HalloweenEgg' (near EggSpawn (12.3 st))
+  • Position: V3(-5809.65, -193.81, -5176.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 12.33 studs)
+  • Nearest EggNest: EggNest (dist: 10.95 studs)
+  • Hitbox: Size=18.018157958984375, 21.900527954101562, 18.231340408325195 CanCollide=false Mass=5036.0
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=30.0
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 3, HalloweenEggUid = "372ee810053347d18edd9ff947fc6de3", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Crowshade" }
+  • Children (16): Beak [MeshPart] (MeshId=rbxassetid://118219413624888, Tex=) [Attrs: { SourceMaterial = "CE_Beak", DontModify = true, WorkbenchMeshKey = "WBM_0000", SourceTriangles = 48 }], BeakRidge [MeshPart] (MeshId=rbxassetid://140540637664320, Tex=) [Attrs: { SourceMaterial = "CE_BeakHi", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 48 }], Bone [MeshPart] (MeshId=rbxassetid://72162629244399, Tex=) [Attrs: { SourceMaterial = "CE_Bone", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 192 }], Bow [MeshPart] (MeshId=rbxassetid://80865927712857, Tex=) [Attrs: { SourceMaterial = "CE_Bow", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 36 }], Dark [MeshPart] (MeshId=rbxassetid://115337366471412, Tex=) [Attrs: { SourceMaterial = "CE_Dark", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 1552 }], FeathersBlack [MeshPart] (MeshId=rbxassetid://102575455427645, Tex=) [Attrs: { SourceMaterial = "CE_Black", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 3377 }], Body [MeshPart] (MeshId=rbxassetid://112495553822313, Tex=) [Attrs: { SourceMaterial = "CE_Charcoal", SourceTriangles = 3460, WorkbenchMeshKey = "WBM_0006" }], Glow [MeshPart] (MeshId=rbxassetid://83845205832153, Tex=) [Attrs: { SourceMaterial = "CE_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 104 }], GlowCore [MeshPart] (MeshId=rbxassetid://105411344428861, Tex=) [Attrs: { SourceMaterial = "CE_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 104 }], Gold [MeshPart] (MeshId=rbxassetid://85508018301995, Tex=) [Attrs: { SourceMaterial = "CE_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0009", SourceTriangles = 648 }], HatBand [MeshPart] (MeshId=rbxassetid://105929407995505, Tex=) [Attrs: { SourceMaterial = "CE_Tan", DontModify = true, WorkbenchMeshKey = "WBM_0010", SourceTriangles = 224 }], Cape [MeshPart] (MeshId=rbxassetid://93285367869081, Tex=) [Attrs: { SourceMaterial = "CE_Plum", DontModify = true, WorkbenchMeshKey = "WBM_0011", SourceTriangles = 1346 }], CapeDark [MeshPart] (MeshId=rbxassetid://110128344472825, Tex=) [Attrs: { SourceMaterial = "CE_PlumDark", DontModify = true, WorkbenchMeshKey = "WBM_0012", SourceTriangles = 284 }], TagPanel [MeshPart] (MeshId=rbxassetid://82562621203088, Tex=) [Attrs: { SourceMaterial = "CE_TagPanel", DontModify = true, WorkbenchMeshKey = "WBM_0013", SourceTriangles = 24 }], TagRed [MeshPart] (MeshId=rbxassetid://120634874146604, Tex=) [Attrs: { SourceMaterial = "CE_TagRed", DontModify = true, WorkbenchMeshKey = "WBM_0014", SourceTriangles = 36 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [14] Egg Model: 'HalloweenEgg' (near EggSpawn (7.9 st))
+  • Position: V3(-5548.65, -198.20, -5287.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 7.94 studs)
+  • Nearest EggNest: EggNest (dist: 7.20 studs)
+  • Hitbox: Size=11.8501558303833, 14.403508186340332, 11.990361213684082 CanCollide=false Mass=1432.6
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=26.4
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 3, HalloweenEggUid = "8740546860f648acbe7eb017d540c0b3", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Crowshade" }
+  • Children (16): Beak [MeshPart] (MeshId=rbxassetid://118219413624888, Tex=) [Attrs: { SourceMaterial = "CE_Beak", DontModify = true, WorkbenchMeshKey = "WBM_0000", SourceTriangles = 48 }], BeakRidge [MeshPart] (MeshId=rbxassetid://140540637664320, Tex=) [Attrs: { SourceMaterial = "CE_BeakHi", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 48 }], Bone [MeshPart] (MeshId=rbxassetid://72162629244399, Tex=) [Attrs: { SourceMaterial = "CE_Bone", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 192 }], Bow [MeshPart] (MeshId=rbxassetid://80865927712857, Tex=) [Attrs: { SourceMaterial = "CE_Bow", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 36 }], Dark [MeshPart] (MeshId=rbxassetid://115337366471412, Tex=) [Attrs: { SourceMaterial = "CE_Dark", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 1552 }], FeathersBlack [MeshPart] (MeshId=rbxassetid://102575455427645, Tex=) [Attrs: { SourceMaterial = "CE_Black", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 3377 }], Body [MeshPart] (MeshId=rbxassetid://112495553822313, Tex=) [Attrs: { SourceMaterial = "CE_Charcoal", SourceTriangles = 3460, WorkbenchMeshKey = "WBM_0006" }], Glow [MeshPart] (MeshId=rbxassetid://83845205832153, Tex=) [Attrs: { SourceMaterial = "CE_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 104 }], GlowCore [MeshPart] (MeshId=rbxassetid://105411344428861, Tex=) [Attrs: { SourceMaterial = "CE_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 104 }], Gold [MeshPart] (MeshId=rbxassetid://85508018301995, Tex=) [Attrs: { SourceMaterial = "CE_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0009", SourceTriangles = 648 }], HatBand [MeshPart] (MeshId=rbxassetid://105929407995505, Tex=) [Attrs: { SourceMaterial = "CE_Tan", DontModify = true, WorkbenchMeshKey = "WBM_0010", SourceTriangles = 224 }], Cape [MeshPart] (MeshId=rbxassetid://93285367869081, Tex=) [Attrs: { SourceMaterial = "CE_Plum", DontModify = true, WorkbenchMeshKey = "WBM_0011", SourceTriangles = 1346 }], CapeDark [MeshPart] (MeshId=rbxassetid://110128344472825, Tex=) [Attrs: { SourceMaterial = "CE_PlumDark", DontModify = true, WorkbenchMeshKey = "WBM_0012", SourceTriangles = 284 }], TagPanel [MeshPart] (MeshId=rbxassetid://82562621203088, Tex=) [Attrs: { SourceMaterial = "CE_TagPanel", DontModify = true, WorkbenchMeshKey = "WBM_0013", SourceTriangles = 24 }], TagRed [MeshPart] (MeshId=rbxassetid://120634874146604, Tex=) [Attrs: { SourceMaterial = "CE_TagRed", DontModify = true, WorkbenchMeshKey = "WBM_0014", SourceTriangles = 36 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE]   [15] Egg Model: 'HalloweenEgg' (near EggSpawn (3.7 st))
+  • Position: V3(-6222.65, -202.45, -5325.64)
+  • Nearest EggSpawn: Workspace.HalloweenDimension.EggSpawns.EggSpawn (dist: 3.69 studs)
+  • Nearest EggNest: EggNest (dist: 3.58 studs)
+  • Hitbox: Size=5.887458801269531, 7.1560282707214355, 5.957115173339844 CanCollide=false Mass=175.7
+  • Glow Light: Name='EggGlow' Color=RGB(182, 255, 233) Brightness=1.4 Range=19.2
+  • Model Attributes: { HalloweenEggCanPickUp = true, Zone = 3, HalloweenEggUid = "d5a443d3225d49d5b7cccafdbdb08009", GeneratedBy = "HalloweenGDD20261016", PreparedSourceName = "Crowshade" }
+  • Children (16): Beak [MeshPart] (MeshId=rbxassetid://118219413624888, Tex=) [Attrs: { SourceMaterial = "CE_Beak", DontModify = true, WorkbenchMeshKey = "WBM_0000", SourceTriangles = 48 }], BeakRidge [MeshPart] (MeshId=rbxassetid://140540637664320, Tex=) [Attrs: { SourceMaterial = "CE_BeakHi", DontModify = true, WorkbenchMeshKey = "WBM_0001", SourceTriangles = 48 }], Bone [MeshPart] (MeshId=rbxassetid://72162629244399, Tex=) [Attrs: { SourceMaterial = "CE_Bone", DontModify = true, WorkbenchMeshKey = "WBM_0002", SourceTriangles = 192 }], Bow [MeshPart] (MeshId=rbxassetid://80865927712857, Tex=) [Attrs: { SourceMaterial = "CE_Bow", DontModify = true, WorkbenchMeshKey = "WBM_0003", SourceTriangles = 36 }], Dark [MeshPart] (MeshId=rbxassetid://115337366471412, Tex=) [Attrs: { SourceMaterial = "CE_Dark", DontModify = true, WorkbenchMeshKey = "WBM_0004", SourceTriangles = 1552 }], FeathersBlack [MeshPart] (MeshId=rbxassetid://102575455427645, Tex=) [Attrs: { SourceMaterial = "CE_Black", DontModify = true, WorkbenchMeshKey = "WBM_0005", SourceTriangles = 3377 }], Body [MeshPart] (MeshId=rbxassetid://112495553822313, Tex=) [Attrs: { SourceMaterial = "CE_Charcoal", SourceTriangles = 3460, WorkbenchMeshKey = "WBM_0006" }], Glow [MeshPart] (MeshId=rbxassetid://83845205832153, Tex=) [Attrs: { SourceMaterial = "CE_Glow", DontModify = true, WorkbenchMeshKey = "WBM_0007", SourceTriangles = 104 }], GlowCore [MeshPart] (MeshId=rbxassetid://105411344428861, Tex=) [Attrs: { SourceMaterial = "CE_GlowCore", DontModify = true, WorkbenchMeshKey = "WBM_0008", SourceTriangles = 104 }], Gold [MeshPart] (MeshId=rbxassetid://85508018301995, Tex=) [Attrs: { SourceMaterial = "CE_Gold", DontModify = true, WorkbenchMeshKey = "WBM_0009", SourceTriangles = 648 }], HatBand [MeshPart] (MeshId=rbxassetid://105929407995505, Tex=) [Attrs: { SourceMaterial = "CE_Tan", DontModify = true, WorkbenchMeshKey = "WBM_0010", SourceTriangles = 224 }], Cape [MeshPart] (MeshId=rbxassetid://93285367869081, Tex=) [Attrs: { SourceMaterial = "CE_Plum", DontModify = true, WorkbenchMeshKey = "WBM_0011", SourceTriangles = 1346 }], CapeDark [MeshPart] (MeshId=rbxassetid://110128344472825, Tex=) [Attrs: { SourceMaterial = "CE_PlumDark", DontModify = true, WorkbenchMeshKey = "WBM_0012", SourceTriangles = 284 }], TagPanel [MeshPart] (MeshId=rbxassetid://82562621203088, Tex=) [Attrs: { SourceMaterial = "CE_TagPanel", DontModify = true, WorkbenchMeshKey = "WBM_0013", SourceTriangles = 24 }], TagRed [MeshPart] (MeshId=rbxassetid://120634874146604, Tex=) [Attrs: { SourceMaterial = "CE_TagRed", DontModify = true, WorkbenchMeshKey = "WBM_0014", SourceTriangles = 36 }], Hitbox [Part]
+  • Collection Tags: [ HalloweenWorldEgg ]
+  • Template Match: 'Halloween Egg' (matched 1 child parts)
+[00:03:03] [PROBE] EggSpawns: 15 spawn points registered
+[00:03:03] [PROBE] EggNests: 15 nests registered
+[00:03:03] [PROBE] Networking Halloween Remotes (6): 
+  • RF/HalloweenDimension/AskBuyEgg (RemoteFunction)
+  • RF/HalloweenDimension/AskDropEgg (RemoteFunction)
+  • RF/HalloweenDimension/AskCarryEgg (RemoteFunction)
+  • RF/HalloweenDimension/AskTutorialSeen (RemoteFunction)
+  • RE/HalloweenDimension/MonsterHit (RemoteEvent)
+  • RF/HalloweenManor/Talk (RemoteFunction)
+[00:03:03] [PROBE] Workspace.SmartPromptPart: 1 ProximityPrompts found:
+  • CarryAreaEgg | Action='Steal' Object='Egg' Hold=1.20s MaxDist=8.0
+[00:03:03] [PROBE] ModuleScript 'HalloweenDimensionEgg' (Required successfully):
+{ ModelName = "Halloween Dimension Egg", Roll = <function: function: 0x063356c22b7155f5>, Price = 2250, Chance = <function: function: 0x82f13b33d759d553>, Entries = [ { Weight = 51, AssetId = "Candy Corn" }, { Weight = 24, AssetId = "Hollow Bat" }, { Weight = 18, AssetId = "Scarecrow" }, { Weight = 6.5, AssetId = "Pumpkin Golem" }, { Weight = 0.5, AssetId = "Soul Phantom" } ], DisplayName = "Halloween Dimension Egg" }
+[00:03:03] [PROBE] ModuleScript 'HalloweenIndex' (Required successfully):
+{ HasEntries = <function: function: 0x595aa6e87ac6c3a6>, GetSections = <function: function: 0x046b8fee17bbbc1b>, Category = "HalloweenPart1", IsComplete = <function: function: 0xd4d4ffa6ff9aa2d9>, Entries = {}, BackgroundImage = "rbxassetid://91240205245018", DisplayName = "Halloween Part 1" }
+[00:03:03] [PROBE] ModuleScript 'HalloweenManor' (Required successfully):
+{ Lines = { AfterKey = [ "Head to the manor and use your key to unlock the gate. Good luck there!" ], First = [ "That old manor is a dangerous place... Only the strongest are allowed inside. Find every monster in this dimension, and I'll give you the key." ], Complete = [ "Impressive! You've discovered every monster. You've earned this... the Manor Key. Be careful what you find inside." ], Incomplete = [ "You haven't found all the monsters yet! Come back when you've completed your collection." ] }, Tags = { Prop = "GhostHunterProp", Portal = "HalloweenManorPortal", Npc = "HalloweenGhostHunterNpc", Gate = "HalloweenManorGate" }, InteractionPoint = "InteractionPoint", GearId = "Manor Key", Notices = { Locked = "The manor gate is locked.", Unlocked = "The Manor Key turns... the gate creaks open!", Quiet = "The manor is quiet for now." }, NpcDisplayName = "Ghost Hunter", TalkDistance = 12, IndexOverrideAttribute = "ManorIndexOverride", RewardTitle = "MANOR KEY CLAIMED!" }
+[00:03:03] [PROBE] ModuleScript 'HalloweenEggSettings' (Required successfully):
+{ ProductIds = { Single = 3718848856, Fifty = 3718848956, Triple = 3718848909, Ten = 3718848926 }, StartsAt = 1792249200, IsActive = <function: function: 0x923fcb71521e3608>, Time = <function: function: 0xe6a2ecb82075c17b>, GiftProductIds = { Single = 3718849262, Fifty = 3718849572, Triple = 3718849356, Ten = 3718849452 }, IsPreview = <function: function: 0x082154c46522f5fd>, EndsAt = 1793638800 }
+[00:03:03] [PROBE] ModuleScript 'HalloweenPets' (Required successfully):
+{ Config = { ZoneDropTables = { Zone3 = [ [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ] ], Zone1 = [ [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ] ], Zone2 = [ [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ], [ <depth limit>, <depth limit> ] ] } }, Specs = { ... (30 entries) ... } }
+[00:03:03] [PROBE] ReplicatedStorage Halloween Egg Templates (5):
+  • 'Halloween Egg' (Children: Cube.180, Cube.181, Hitbox)
+  • 'Zombified Halloween Egg' (Children: Cube.179, Cube.182, Icosphere.004, Hitbox)
+  • 'Halloween Boss Egg' (Children: Cube.161, Cube.162, Hitbox)
+  • 'Halloween Dimension Egg' (Children: Cube.167, Cube.163, Cube.165, Hitbox)
+  • 'Halloween Royal Mimic Egg' (Children: Cube.193, Cube.194, Hitbox)
+[00:03:03] [PROBE] ================= END PROBE SNAPSHOT =================
+[00:03:05] [SCAN] ================= EGG SPAWNS OCCUPANCY SCAN =================
+[00:03:05] [SCAN] Scanning 15 EggSpawn parts against 15 active WorldEggs...
+[00:03:05] [SCAN]   [01] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 3.74 studs, pos: V3(-5666.00, -206.37, -5070.00))
+[00:03:05] [SCAN]   [02] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 3.42 studs, pos: V3(-5897.00, -206.37, -5056.00))
+[00:03:05] [SCAN]   [03] SPAWN POINT: EMPTY (nearest egg is 12.3 studs away, pos: V3(-5809.65, -206.14, -5176.64))
+[00:03:05] [SCAN]   [04] SPAWN POINT: EMPTY (nearest egg is 7.9 studs away, pos: V3(-5548.65, -206.14, -5287.64))
+[00:03:05] [SCAN]   [05] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 3.69 studs, pos: V3(-6222.65, -206.14, -5325.64))
+[00:03:05] [SCAN]   [06] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 2.15 studs, pos: V3(-6349.65, -206.14, -5974.64))
+[00:03:05] [SCAN]   [07] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 2.50 studs, pos: V3(-5998.65, -206.14, -6002.64))
+[00:03:05] [SCAN]   [08] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 3.17 studs, pos: V3(-5806.65, -206.14, -6013.64))
+[00:03:05] [SCAN]   [09] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 2.23 studs, pos: V3(-5530.65, -206.14, -6078.64))
+[00:03:05] [SCAN]   [10] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 3.33 studs, pos: V3(-5234.65, -206.14, -6190.64))
+[00:03:05] [SCAN]   [11] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 4.26 studs, pos: V3(-5812.65, -206.14, -6661.64))
+[00:03:05] [SCAN]   [12] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 2.56 studs, pos: V3(-6126.65, -206.14, -6661.64))
+[00:03:05] [SCAN]   [13] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 4.44 studs, pos: V3(-6398.65, -206.14, -6843.64))
+[00:03:05] [SCAN]   [14] SPAWN POINT: OCCUPIED by 'HalloweenEgg' (dist: 2.85 studs, pos: V3(-5260.65, -206.14, -6961.64))
+[00:03:05] [SCAN]   [15] SPAWN POINT: EMPTY (nearest egg is 12.8 studs away, pos: V3(-5309.65, -206.14, -6692.64))
+[00:03:05] [SCAN] Summary: 12 / 15 spawn points are OCCUPIED. 3 are EMPTY.
+[00:03:05] [SCAN] ==============================================================

@@ -59,3 +59,14 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## 5. Anti-Bloat & Modular Architecture Guardrails
+
+- **Single-Domain Isolation:** Every script has exactly ONE domain. `autosell.lua` only touches satchel profile; it must never hook field remotes or world events.
+- **Push over Pull:** Never poll `InvokeServer` in tight loops when `RemoteEvents` push live data. Fallback safety syncs must be ≥ 15s–30s and sleep when their world is inactive.
+- **Slicing Budget:** Any satchel/profile iteration must process ≥ 64 items per yield (< 5ms) to finish in < 0.5s total. Never yield across hundreds of frames.
+- **Connection Hygiene:** All dynamic event listeners must be tracked in connection tables and disconnected cleanly before reconnecting on world/night resets.
+- **Root Local Budget:** Keep root locals ≤ 190 (Roblox limit is 200). Use module tables for grouping.
+- **Zero Redundant Scope Aliasing & Startup Caching:** Never redeclare or alias root-level variables inside inner functions (e.g. `local ch = Character`, `local char = Character`, `local lp = LocalPlayer`, or re-querying `lp.Character`). Immutable values (e.g. `UserId`, `Players`, Services) must be declared and cached once at startup. Stateful lifecycle entities (e.g. `Character`) must be declared once at script root, updated via `CharacterAdded`/`CharacterRemoving`, and accessed directly by inner functions via upvalues.
+- **Cycle & World Reset Hygiene:** When cycle reset, wave transition, or day/night reset events fire (e.g. `FieldEggCycleCountdown`, `FieldEggBatchShifted`, `Lighting.ClockTime`), clear stale entity caches (`table.clear(cache)`) and update UI immediately so old despawned entities never persist as phantoms. Always bind `ChildRemoved` alongside `ChildAdded` when indexing streaming containers like `AreaEggSlotsClient`. Snapshot reconciliation must purge any entities absent from authoritative server payloads without artificially shielding stale states.
+

@@ -1,0 +1,26 @@
+22:47:13 Ready! Char=(-5809.5, -199.7, -7372.6) Cast=(-5809.5, -203.1, -7350.6)
+22:47:23 Locked from Char: Char=(-5695.6, -203.7, -7370.9) → Cast=(-5673.8, -206.5, -7368.1)
+22:47:29 START pressed
+22:47:29 ----- CYCLE START Char=(-5695.6, -203.7, -7370.9) -----
+22:47:30 Casting power=0.901 Target=(-5668.5, -206.5, -7368.9)
+22:47:30 Cast OK → Id=491 Wait=4.862377442756282
+22:47:30 Waiting 6.01s  Id=491
+22:47:36 Reel SUCCESS → Char=(-5695.6, -203.7, -7370.9) [Unknown] Candy Corn x40 (1 in 1) (Id=491 attempt=1)
+22:47:37 ----- CYCLE START Char=(-5695.6, -203.7, -7370.9) -----
+22:47:37 Casting power=0.821 Target=(-5668.5, -206.5, -7368.9)
+22:47:37 Cast OK → Id=492 Wait=4.3832333054098385
+22:47:37 Waiting 5.53s  Id=492
+22:47:43 Reel SUCCESS → Char=(-5695.6, -203.7, -7370.9) [Unknown] Candy Corn x40 (1 in 1) (Id=492 attempt=1)
+22:47:44 ----- CYCLE START Char=(-5695.6, -203.7, -7370.9) -----
+22:47:44 Casting power=0.737 Target=(-5668.5, -206.5, -7368.9)
+22:47:45 Cast OK → Id=493 Wait=4.975735473019921
+22:47:45 Waiting 6.13s  Id=493
+22:47:51 Reel SUCCESS → Char=(-5695.6, -203.7, -7370.9) [Unknown] Candy Corn x31 (1 in 1) (Id=493 attempt=1)
+22:47:52 ----- CYCLE START Char=(-5695.6, -203.7, -7370.9) -----
+22:47:52 Casting power=0.751 Target=(-5668.5, -206.5, -7368.9)
+22:47:52 Cast OK → Id=494 Wait=4.105163469442394
+22:47:52 Waiting 5.26s  Id=494
+22:47:54 STOP pressed
+22:47:58 Manual Reel SUCCESS → Char=(-5695.6, -203.7, -7370.9) [Legendary] Mimic Chest Egg (1 in 35) (Id=494)
+22:47:58 Reel SUCCESS → Char=(-5695.6, -203.7, -7370.9) [Legendary] Mimic Chest Egg (1 in 35) (Id=494 attempt=1)
+22:47:59 Loop stopped

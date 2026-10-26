@@ -1,0 +1,197 @@
+[01:49:39] AreaEggSlotsClient Scanner initialized.
+[01:49:39] ==================================================
+[01:49:39] >>> AUDITING workspace.AreaEggSlotsClient...
+[01:49:39] [+] Container Found: AreaEggSlotsClient [Class: Folder]
+[01:49:39]     Total Direct Children: 65
+[01:49:39]     Attributes: none
+[01:49:39]     Child Classes: Model: 65
+[01:49:39]     Name Groups: Other (45), c (1), b (2), d (2), f (4), ca (2), ba (1), bb (1), db (1), FirstAreaEgg (5), da (1)
+[01:49:39] --- First 8 Sample Entries ---
+[01:49:39]     [1] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_004 | Class: Model | Pos: (600.2, 67.7, -332.7)
+         SubItems: [MeshPart:2, Part:1] | Attrs: [none]
+[01:49:39]     [2] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_005 | Class: Model | Pos: (605.0, 67.6, -326.5)
+         SubItems: [MeshPart:1, Part:1] | Attrs: [none]
+[01:49:39]     [3] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_002 | Class: Model | Pos: (593.0, 67.6, -332.4)
+         SubItems: [MeshPart:1, Part:1] | Attrs: [none]
+[01:49:39]     [4] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_001 | Class: Model | Pos: (590.6, 67.7, -325.6)
+         SubItems: [MeshPart:3, Part:1] | Attrs: [none]
+[01:49:39]     [5] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_003 | Class: Model | Pos: (597.2, 67.7, -324.4)
+         SubItems: [MeshPart:3, Part:1] | Attrs: [none]
+[01:49:39]     [6] Name: 9d88536ed53d4cccae01b92ff7333182 | Class: Model | Pos: (2817.8, 67.7, -394.2)
+         SubItems: [Part:3, UnionOperation:5] | Attrs: [none]
+[01:49:39]     [7] Name: 9ba3ca14b28348ebb385582e0641d05b | Class: Model | Pos: (1871.4, 67.5, -399.7)
+         SubItems: [MeshPart:3, Part:1] | Attrs: [none]
+[01:49:39]     [8] Name: d5efffe0af3442da8ad10fa66ad10f1b | Class: Model | Pos: (3392.0, 67.6, -320.9)
+         SubItems: [Part:13] | Attrs: [none]
+[01:49:39] ==================================================
+[01:49:39] >>> AUDITING SIBLING EGG CONTAINERS IN WORKSPACE...
+[01:49:39]   [+] workspace.Eggs [Class: Folder] -> Kids: 0 (Desc: 0) | Samples: [ none ]
+[01:49:39]   [-] workspace.WorldEggs: NOT found
+[01:49:39]   [+] workspace.ClientRenderedAssets [Class: Folder] -> Kids: 37 (Desc: 4492) | Samples: [ 9521640019_6c053fa7e7914e9383de265414bd1ecf (Model, (526.2, 94.5, -574.0)) | 9521640019_891373eddc3741ebbe640ebe0af88696 (Model, (521.9, 88.7, -568.1)) | 9521640019_b6922685bcf849fc95051e454df2c0b8 (Model, (499.4, 67.7, -533.2)) | 9521640019_b700ff6198214085826d24258b17ed94 (Model, (545.2, 67.7, -507.1)) ]
+[01:49:39]   [+] workspace.HalloweenDimension [Class: Model] -> Kids: 27 (Desc: 15751) | Samples: [ EggSpawns (Folder, nil) | MonsterSpawns (Folder, nil) | Ground (Folder, nil) | GhostDogQuest (Folder, nil) ]
+[01:49:39]       Halloween SubFolders: [ EggSpawns (Folder:15), MonsterSpawns (Folder:45), Ground (Folder:13), GhostDogQuest (Folder:2), ZonesAssets (Folder:4), TrainStation (Model:163), BossPortal (Model:8), EggShop (Model:2), CastleGate (Model:4), DogPlacepoint (Model:10), NightWall (Model:2), Altar (Model:3), EggNests (Folder:15), WorldEggs (Folder:15), ManorDoorway (Part:0), VFX (Folder:3), Monsters (Folder:45), Border (Folder:2), Lights (Folder:16), Sky (Folder:1), Spiderwebs (Folder:5), Zones (Folder:4), NPCs (Folder:0), Spawns (Folder:11), Ghosts (Folder:0), SewerPipeExit (Part:0), ManorDoorExit (Part:0) ]
+[01:49:39] ==================================================
+[01:49:39] [Monitor] Attaching ChildAdded / ChildRemoved listeners to AreaEggSlotsClient...
+[01:49:45] ==================================================
+[01:49:45] >>> AUDITING workspace.AreaEggSlotsClient...
+[01:49:45] [+] Container Found: AreaEggSlotsClient [Class: Folder]
+[01:49:45]     Total Direct Children: 65
+[01:49:45]     Attributes: none
+[01:49:45]     Child Classes: Model: 65
+[01:49:45]     Name Groups: Other (45), c (1), b (2), d (2), f (4), ca (2), ba (1), bb (1), db (1), FirstAreaEgg (5), da (1)
+[01:49:45] --- First 8 Sample Entries ---
+[01:49:45]     [1] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_004 | Class: Model | Pos: (600.2, 67.7, -332.7)
+         SubItems: [MeshPart:2, Part:1] | Attrs: [none]
+[01:49:45]     [2] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_005 | Class: Model | Pos: (605.0, 67.6, -326.5)
+         SubItems: [MeshPart:1, Part:1] | Attrs: [none]
+[01:49:45]     [3] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_002 | Class: Model | Pos: (593.0, 67.6, -332.4)
+         SubItems: [MeshPart:1, Part:1] | Attrs: [none]
+[01:49:45]     [4] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_001 | Class: Model | Pos: (590.6, 67.7, -325.6)
+         SubItems: [MeshPart:3, Part:1] | Attrs: [none]
+[01:49:45]     [5] Name: FirstAreaEgg_9521640019_5976213_Forest:Slot_003 | Class: Model | Pos: (597.2, 67.7, -324.4)
+         SubItems: [MeshPart:3, Part:1] | Attrs: [none]
+[01:49:45]     [6] Name: 9d88536ed53d4cccae01b92ff7333182 | Class: Model | Pos: (2817.8, 67.7, -394.2)
+         SubItems: [Part:3, UnionOperation:5] | Attrs: [none]
+[01:49:45]     [7] Name: 9ba3ca14b28348ebb385582e0641d05b | Class: Model | Pos: (1871.4, 67.5, -399.7)
+         SubItems: [MeshPart:3, Part:1] | Attrs: [none]
+[01:49:45]     [8] Name: d5efffe0af3442da8ad10fa66ad10f1b | Class: Model | Pos: (3392.0, 67.6, -320.9)
+         SubItems: [Part:13] | Attrs: [none]
+[01:49:45] ==================================================
+[01:49:45] >>> AUDITING SIBLING EGG CONTAINERS IN WORKSPACE...
+[01:49:45]   [+] workspace.Eggs [Class: Folder] -> Kids: 0 (Desc: 0) | Samples: [ none ]
+[01:49:45]   [-] workspace.WorldEggs: NOT found
+[01:49:45]   [+] workspace.ClientRenderedAssets [Class: Folder] -> Kids: 37 (Desc: 4492) | Samples: [ 9521640019_6c053fa7e7914e9383de265414bd1ecf (Model, (526.2, 94.5, -574.0)) | 9521640019_891373eddc3741ebbe640ebe0af88696 (Model, (521.9, 88.7, -568.1)) | 9521640019_b6922685bcf849fc95051e454df2c0b8 (Model, (499.4, 67.7, -533.2)) | 9521640019_b700ff6198214085826d24258b17ed94 (Model, (545.2, 67.7, -507.1)) ]
+[01:49:45]   [+] workspace.HalloweenDimension [Class: Model] -> Kids: 27 (Desc: 15751) | Samples: [ EggSpawns (Folder, nil) | MonsterSpawns (Folder, nil) | Ground (Folder, nil) | GhostDogQuest (Folder, nil) ]
+[01:49:45]       Halloween SubFolders: [ EggSpawns (Folder:15), MonsterSpawns (Folder:45), Ground (Folder:13), GhostDogQuest (Folder:2), ZonesAssets (Folder:4), TrainStation (Model:163), BossPortal (Model:8), EggShop (Model:2), CastleGate (Model:4), DogPlacepoint (Model:10), NightWall (Model:2), Altar (Model:3), EggNests (Folder:15), WorldEggs (Folder:15), ManorDoorway (Part:0), VFX (Folder:3), Monsters (Folder:45), Border (Folder:2), Lights (Folder:16), Sky (Folder:1), Spiderwebs (Folder:5), Zones (Folder:4), NPCs (Folder:0), Spawns (Folder:11), Ghosts (Folder:0), SewerPipeExit (Part:0), ManorDoorExit (Part:0) ]
+[01:49:45] ==================================================
+[01:49:47] [+] Log copied to clipboard via setclipboard()!
+[01:49:50] 💨 [SLOT REMOVED] 9d88536ed53d4cccae01b92ff7333182 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 9ba3ca14b28348ebb385582e0641d05b (Model)
+[01:49:50] 💨 [SLOT REMOVED] 2265745e6d8743e3b96a37ff13cf0f72 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 789fbe83781b4aecac0783aab9e795eb (Model)
+[01:49:50] 💨 [SLOT REMOVED] 7d4e7b33e8ac436eb67b06d0f348d234 (Model)
+[01:49:50] 💨 [SLOT REMOVED] ca98da42d8fc413cbb91d197a9831e5f (Model)
+[01:49:50] 💨 [SLOT REMOVED] 5b14b824720e41a78a7fa8dc276349f1 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 827f1573a98647eea07920aec9f8b7ab (Model)
+[01:49:50] 💨 [SLOT REMOVED] 401559fd177c42fdb27ab4bd72e800df (Model)
+[01:49:50] 💨 [SLOT REMOVED] 7447d44a1a8b4cae82b32f7fdde22643 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 5735545e54ee4eaab6c05a2e7ea64539 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 79bed24f0b9445d6b20f42f5f84c8c76 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 4a130201ba924f8d8f6784ab7178dc5e (Model)
+[01:49:50] 💨 [SLOT REMOVED] 20186ebe43b048f2aeaf66b57efd333b (Model)
+[01:49:50] 💨 [SLOT REMOVED] 9bb24e22306944a6b610c7fc54f65e62 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 05421345fbbd42b2923a54f48c4422c0 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 5020a2f3a7534bad8c764cb61e545aec (Model)
+[01:49:50] 💨 [SLOT REMOVED] 3dd3a83c4b174973b87c8c7998035dd9 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 76fe5fbf9a79410996216b22119d94ef (Model)
+[01:49:50] 💨 [SLOT REMOVED] 9985e300456a4581a130b075b955a3ec (Model)
+[01:49:50] 💨 [SLOT REMOVED] 29fc0ea3bf564e8cb28051da247dc119 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 57b0f122d215417e9068e9abfedb7c46 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 7840b9da15a5446ca1d0c06cec994ca3 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 63d30aaa3425493bbb2d4bcad73fdd7d (Model)
+[01:49:50] 💨 [SLOT REMOVED] f58670b9528942ffb0395881d0e4781f (Model)
+[01:49:50] 💨 [SLOT REMOVED] 90ee5e9aa4f546b48b44da8a0725cccb (Model)
+[01:49:50] 💨 [SLOT REMOVED] 9a49362c3bd74ec5b51510a0b3384d55 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 547c104189414ed3b00c2fc040c767f7 (Model)
+[01:49:50] 💨 [SLOT REMOVED] d8113090935147df93eee627281128e4 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 6b1f360f603c49cd80571106397c44e5 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 7422ed5c9856424f9ee3149645b2b40e (Model)
+[01:49:50] 💨 [SLOT REMOVED] 141cdb4f5e4d4faa8ff25402d19eb631 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 6a5fbcef1a2241a89d249f5e625c6829 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 94be41c4d3da407698cd73aaca7df65a (Model)
+[01:49:50] 💨 [SLOT REMOVED] 1786fc9cb1b94409a6304a4c7898d1ec (Model)
+[01:49:50] 💨 [SLOT REMOVED] 4945d85cb8004bcd8cd6d08fd91f88d7 (Model)
+[01:49:50] 💨 [SLOT REMOVED] f8b7613198b14cb89246ebc5327eb8d5 (Model)
+[01:49:50] 💨 [SLOT REMOVED] b36a765b1bd644b583f8d9c322a415bb (Model)
+[01:49:50] 💨 [SLOT REMOVED] 7addaedbbdc84ea18db5ed5d915a61a8 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 652cbecd6a3f4026a9bdd701b563d289 (Model)
+[01:49:50] 💨 [SLOT REMOVED] b0f5cd242b1044f099ac51fa9f2d767e (Model)
+[01:49:50] 💨 [SLOT REMOVED] 75f36c9eefb64f0d97ee5ddd9eec1ea0 (Model)
+[01:49:50] 💨 [SLOT REMOVED] f2696c5d1b474626afe8ed3435ab3b95 (Model)
+[01:49:50] 💨 [SLOT REMOVED] ba37ddf159a34ab9b657d5a05faa3b0a (Model)
+[01:49:50] 💨 [SLOT REMOVED] 16599430aebf4861aad95235da92a2f9 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 50d1487a364c4f79b99fce15eb765290 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 66b0a784e7014415aa28d0c3dceb09d1 (Model)
+[01:49:50] 💨 [SLOT REMOVED] db2ad7cebadf42eea44bc964930d0a20 (Model)
+[01:49:50] 💨 [SLOT REMOVED] ca6e126fe75c4696af7867f46382d907 (Model)
+[01:49:50] 💨 [SLOT REMOVED] f5cc12239cfa43f093123ec18c611bd2 (Model)
+[01:49:50] 💨 [SLOT REMOVED] d5efffe0af3442da8ad10fa66ad10f1b (Model)
+[01:49:50] 💨 [SLOT REMOVED] 4cf123958efe4094bd1fa6dcc6f089de (Model)
+[01:49:50] 💨 [SLOT REMOVED] 645a8601e41c46ddb7802da5469587f7 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 47a52c3909c94fcba5cb8859dbc9f242 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 19d301b3a2ff4cd6a7371c08d438f021 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 93f14346b02f45eb957423b6a262416e (Model)
+[01:49:50] 💨 [SLOT REMOVED] c8d9d188627246da9642970700465b37 (Model)
+[01:49:50] 💨 [SLOT REMOVED] bb58b6c5bbbb44d581cd15b8af9bf1eb (Model)
+[01:49:50] 💨 [SLOT REMOVED] da84dd05fd7447aaa4aedb9b0be02d63 (Model)
+[01:49:50] 💨 [SLOT REMOVED] 878ecb3600e441e08ff5e83e7cfa20af (Model)
+[01:49:50] 💨 [SLOT REMOVED] FirstAreaEgg_9521640019_5976213_Forest:Slot_004 (Model)
+[01:49:50] 💨 [SLOT REMOVED] FirstAreaEgg_9521640019_5976213_Forest:Slot_005 (Model)
+[01:49:50] 💨 [SLOT REMOVED] FirstAreaEgg_9521640019_5976213_Forest:Slot_002 (Model)
+[01:49:50] 💨 [SLOT REMOVED] FirstAreaEgg_9521640019_5976213_Forest:Slot_001 (Model)
+[01:49:50] 💨 [SLOT REMOVED] FirstAreaEgg_9521640019_5976213_Forest:Slot_003 (Model)
+[01:49:50] ✨ [SLOT ADDED] FirstAreaEgg_9521640019_5976214_Forest:Slot_004 (Model) Pos=(600.2, 67.7, -332.7) Attrs=[none]
+[01:49:50] ✨ [SLOT ADDED] FirstAreaEgg_9521640019_5976214_Forest:Slot_005 (Model) Pos=(605.0, 67.6, -326.5) Attrs=[none]
+[01:49:51] ✨ [SLOT ADDED] FirstAreaEgg_9521640019_5976214_Forest:Slot_002 (Model) Pos=(593.0, 67.7, -332.4) Attrs=[none]
+[01:49:51] ✨ [SLOT ADDED] FirstAreaEgg_9521640019_5976214_Forest:Slot_001 (Model) Pos=(590.6, 67.6, -325.6) Attrs=[none]
+[01:49:52] ✨ [SLOT ADDED] FirstAreaEgg_9521640019_5976214_Forest:Slot_003 (Model) Pos=(597.2, 67.7, -324.4) Attrs=[none]
+[01:50:02] ✨ [SLOT ADDED] 2d1be68d03ab4c608bdd3066dcae59b0 (Model) Pos=(4797.2, 67.9, -324.7) Attrs=[none]
+[01:50:02] ✨ [SLOT ADDED] bb0c835871ba47518c5b6cde25466cd1 (Model) Pos=(3385.4, 67.6, -322.1) Attrs=[none]
+[01:50:02] ✨ [SLOT ADDED] b3faf220ca47479cb52ddbbd3ca4dca2 (Model) Pos=(6704.7, 67.9, -347.0) Attrs=[PreparedSourceName=Workspace.NewEnchantedEggs.PetalBeetle]
+[01:50:02] ✨ [SLOT ADDED] 0d20161bae1841799c03eedcc358208e (Model) Pos=(4028.4, 67.8, -400.9) Attrs=[none]
+[01:50:02] ✨ [SLOT ADDED] acd0db7af28f49f0a59b4898e76b6646 (Model) Pos=(945.6, 67.6, -328.3) Attrs=[RBX_ReimportId=9448839e-0353-4d44-873a-78106834d018]
+[01:50:02] ✨ [SLOT ADDED] aecea5babcde4a60bfcee70247d1db0a (Model) Pos=(4805.2, 67.9, -325.8) Attrs=[none]
+[01:50:02] ✨ [SLOT ADDED] 79996cf2c1f54ac1aa756a7ae3a4285b (Model) Pos=(2284.6, 67.7, -331.4) Attrs=[none]
+[01:50:03] ✨ [SLOT ADDED] 9a752673569948cebdfd820198653557 (Model) Pos=(2813.6, 68.1, -402.2) Attrs=[none]
+[01:50:03] ✨ [SLOT ADDED] fb7f63b9cfda4dec946015e3c9323056 (Model) Pos=(740.7, 67.8, -404.5) Attrs=[none]
+[01:50:03] ✨ [SLOT ADDED] 018c888bc868493fbcf39cfc3b97f155 (Model) Pos=(5666.3, 68.0, -332.6) Attrs=[none]
+[01:50:03] ✨ [SLOT ADDED] fb55223275a9477b94ae2cc8979de530 (Model) Pos=(6696.7, 67.9, -345.9) Attrs=[PreparedSourceName=Workspace.NewEnchantedEggs.PrismGecko]
+[01:50:03] ✨ [SLOT ADDED] 31e79fa8d08847d5885b2f60bdb363cb (Model) Pos=(1488.2, 68.0, -318.8) Attrs=[none]
+[01:50:03] ✨ [SLOT ADDED] 25fe345160494d8abea0985e053b49d2 (Model) Pos=(5670.2, 68.0, -325.8) Attrs=[none]
+[01:50:03] ✨ [SLOT ADDED] bd611c40d6904622b401610042003504 (Model) Pos=(2820.2, 67.8, -401.0) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] b5d579a658c24cb784ad04b41f820248 (Model) Pos=(952.8, 67.6, -328.5) Attrs=[RBX_ReimportId=9448839e-0353-4d44-873a-78106834d018]
+[01:50:04] ✨ [SLOT ADDED] 4dd3409f637a48899df21c8ca78d13dd (Model) Pos=(949.8, 67.8, -320.2) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] 3fed51951c394128890af3b670a277ea (Model) Pos=(1492.4, 68.0, -310.7) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] 97f597bb3b554cfcbef5e517b2340eac (Model) Pos=(1885.8, 67.5, -400.6) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] 9e7ff778901145399b4e1a824ab527ba (Model) Pos=(3395.0, 67.9, -329.2) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] c401167dc0b847449be093f40b2f0e7d (Model) Pos=(2277.3, 67.7, -331.1) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] a58b80736df44c39bbbac3a97a8d0447 (Model) Pos=(2275.0, 67.7, -324.3) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] 8df09ecf19ff4df398018896305ab90b (Model) Pos=(2810.6, 67.8, -393.9) Attrs=[none]
+[01:50:04] ✨ [SLOT ADDED] 1dbcdcea31904371b19de6380c9e6520 (Model) Pos=(1495.4, 68.0, -319.1) Attrs=[none]
+[01:50:05] ✨ [SLOT ADDED] b7f79a78077f4d378a8a1173d0fe583f (Model) Pos=(4794.1, 68.0, -333.2) Attrs=[none]
+[01:50:05] ✨ [SLOT ADDED] 21913473864d41e5804d3712dbcb67f8 (Model) Pos=(6700.8, 67.9, -353.8) Attrs=[PreparedSourceName=Workspace.NewEnchantedEggs.EnchantedBluejay]
+[01:50:05] ✨ [SLOT ADDED] 45fba619ced0413cb28412040ba45e3b (Model) Pos=(5662.2, 68.0, -324.7) Attrs=[none]
+[01:50:05] ✨ [SLOT ADDED] bd27d14ff59d4d8aaf223196d2e0d153 (Model) Pos=(1883.4, 67.5, -393.8) Attrs=[none]
+[01:50:05] ✨ [SLOT ADDED] 8ea6b94d09ae4dd89c908fe32625a371 (Model) Pos=(4020.3, 67.9, -399.7) Attrs=[none]
+[01:50:05] ✨ [SLOT ADDED] 9eb99020079e48fbab03fadc85f5196d (Model) Pos=(1186.0, 67.6, -405.1) Attrs=[none]
+[01:50:05] ✨ [SLOT ADDED] 34910ff171a2448fa5944610de661d26 (Model) Pos=(1485.8, 68.0, -311.9) Attrs=[none]
+[01:50:06] ✨ [SLOT ADDED] 419d5cdc54ae49338a44d71393e8c790 (Model) Pos=(4034.7, 67.8, -398.9) Attrs=[none]
+[01:50:06] ✨ [SLOT ADDED] ef5ab971cd6c4677a7e37976c47cf6bd (Model) Pos=(743.7, 67.7, -412.8) Attrs=[none]
+[01:50:06] ✨ [SLOT ADDED] 7d44afaaead848f0a8ca3ff229716b55 (Model) Pos=(3392.0, 67.6, -320.9) Attrs=[none]
+[01:50:06] ✨ [SLOT ADDED] 9bb8133366ad4ec2bb019064a66df7c7 (Model) Pos=(3387.7, 67.7, -329.0) Attrs=[none]
+[01:50:06] ✨ [SLOT ADDED] 22cefdfed6744fa4948aa90594cd216d (Model) Pos=(1189.0, 67.6, -413.4) Attrs=[none]
+[01:50:06] ✨ [SLOT ADDED] 912f8f4b696c42c19e2720c14ab38a8f (Model) Pos=(5655.8, 68.1, -326.7) Attrs=[none]
+[01:50:06] ✨ [SLOT ADDED] 96b62ece9fff4c85863ea9faf9e1a14c (Model) Pos=(6690.3, 68.0, -347.9) Attrs=[PreparedSourceName=Workspace.NewEnchantedEggs.AstralJackalope]
+[01:50:06] ✨ [SLOT ADDED] 81b0f9cfc8584e60be94f4b07071ca2c (Model) Pos=(4790.8, 67.9, -326.7) Attrs=[none]
+[01:50:07] ✨ [SLOT ADDED] 7172b68efbf84d4dbb1862cf4e9c4bb6 (Model) Pos=(6693.6, 68.0, -354.4) Attrs=[PreparedSourceName=Workspace.NewEnchantedEggs.AstralJackalope]
+[01:50:07] ✨ [SLOT ADDED] 8c889d28c84348e1b66b0e8e1f4e6525 (Model) Pos=(747.9, 68.2, -404.8) Attrs=[none]
+[01:50:07] ✨ [SLOT ADDED] 08eb8e3c028744cf8d92d9355d3697b0 (Model) Pos=(2289.4, 67.5, -325.2) Attrs=[none]
+[01:50:07] ✨ [SLOT ADDED] a5dd51e17ab349a98201417c7a22b2ff (Model) Pos=(957.6, 67.8, -322.4) Attrs=[none]
+[01:50:07] ✨ [SLOT ADDED] 4636be780d1a43edad97919edd455abb (Model) Pos=(943.2, 67.7, -321.4) Attrs=[none]
+[01:50:07] ✨ [SLOT ADDED] ad3f172f6ef441cab3e922d39bfdbcc0 (Model) Pos=(735.9, 67.6, -410.7) Attrs=[none]
+[01:50:07] ✨ [SLOT ADDED] 55939e5ead9d488db0211cd1942e5b38 (Model) Pos=(1876.2, 67.6, -393.5) Attrs=[none]
+[01:50:07] ✨ [SLOT ADDED] 9149b3491aca4f7a974ac524f338f25b (Model) Pos=(1500.2, 68.0, -312.9) Attrs=[none]
+[01:50:08] ✨ [SLOT ADDED] 28d21f8200794a2a89ead375ad08ee52 (Model) Pos=(1871.4, 67.4, -399.7) Attrs=[none]
+[01:50:08] ✨ [SLOT ADDED] 85f80ad0f1c348d4b0faed5f8b94b73b (Model) Pos=(1193.2, 67.6, -405.3) Attrs=[none]
+[01:50:08] ✨ [SLOT ADDED] 205965ac56db4e3eb4624c34165e1e24 (Model) Pos=(5659.1, 68.1, -333.2) Attrs=[none]
+[01:50:08] ✨ [SLOT ADDED] c98ae4c5edaf4e8baea03e196449b394 (Model) Pos=(2805.8, 69.7, -400.1) Attrs=[none]
+[01:50:08] ✨ [SLOT ADDED] 5a444fb713f5408887ca0e20c4bf154e (Model) Pos=(1195.6, 67.6, -412.2) Attrs=[none]
+[01:50:08] ✨ [SLOT ADDED] 0ea642f56852472390f14c3c54719eb9 (Model) Pos=(1879.2, 67.5, -401.8) Attrs=[none]
+[01:50:08] ✨ [SLOT ADDED] ab8533e139d545dba310f7a177064ca4 (Model) Pos=(4801.3, 68.1, -332.6) Attrs=[none]
+[01:50:09] ✨ [SLOT ADDED] 0f10962f236440b1b2cdf02338525705 (Model) Pos=(3399.8, 67.6, -323.1) Attrs=[none]
+[01:50:09] ✨ [SLOT ADDED] f8a5444e43554cddb5828922411d33a3 (Model) Pos=(4031.5, 67.8, -392.4) Attrs=[none]
+[01:50:09] ✨ [SLOT ADDED] 8b11014a5e914115b0cf730e368b235a (Model) Pos=(1181.2, 67.6, -411.2) Attrs=[none]
+[01:50:09] ✨ [SLOT ADDED] 399920d719eb448c948e311aac3e3f44 (Model) Pos=(2281.6, 67.5, -323.1) Attrs=[none]
+[01:50:09] ✨ [SLOT ADDED] 9e472ba26bc34be092d7421993a04d6d (Model) Pos=(750.3, 67.6, -411.6) Attrs=[none]
+[01:50:09] ✨ [SLOT ADDED] 4ba1fe4b613b41d3bbdf2e55f036fd65 (Model) Pos=(4024.3, 67.8, -393.0) Attrs=[none]
+[01:50:09] ✨ [SLOT ADDED] 2df51c66be9f441bb176fdc435dcf414 (Model) Pos=(2817.8, 67.5, -394.2) Attrs=[none]

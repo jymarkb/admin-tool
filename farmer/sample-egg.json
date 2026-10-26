@@ -1,0 +1,862 @@
+{
+  "Halloween Dimension": [
+    {
+      "name": "Whiskers Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Halloween Dimension Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Jesterpop Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Hooded Gerbil Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Mimic Chest Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Halloween Royal Mimic Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Halloween Dimension Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Candlefang Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Toadstool Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Crowshade Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Halloween Dimension Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Spirit Knight Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Patchwork Imp Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Haunted Scorpio Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Hexed Pumpkin Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Graveyard Brute Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Halloween Dimension Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Ghost Reaper Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Halloween Dimension Egg",
+      "rarity": "Eternal"
+    }
+  ],
+  "Forest Biome": [
+    {
+      "name": "Chicken Egg",
+      "rarity": "Common"
+    },
+    {
+      "name": "Dog Egg",
+      "rarity": "Common"
+    },
+    {
+      "name": "Bird Egg",
+      "rarity": "Uncommon"
+    },
+    {
+      "name": "Owl Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Raccoon Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Bear Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Fox Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Brr Egg",
+      "rarity": "Legendary"
+    }
+  ],
+  "Lake Biome": [
+    {
+      "name": "Frog Egg",
+      "rarity": "Common"
+    },
+    {
+      "name": "Duckling Egg",
+      "rarity": "Common"
+    },
+    {
+      "name": "Catfish Egg",
+      "rarity": "Uncommon"
+    },
+    {
+      "name": "Turtle Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Trulimero Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Swan Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Axolotl Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Leviathan Egg",
+      "rarity": "Cosmic"
+    }
+  ],
+  "Desert Biome": [
+    {
+      "name": "Jerboa Egg",
+      "rarity": "Common"
+    },
+    {
+      "name": "Fennec Egg",
+      "rarity": "Uncommon"
+    },
+    {
+      "name": "Camel Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Tob Tobi Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Snake Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Sand Spider Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Scorpion Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Royal Sphinx Egg",
+      "rarity": "Cosmic"
+    }
+  ],
+  "Jungle Biome": [
+    {
+      "name": "Toucan Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Chimpanzee Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Crocodile Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Gorilla Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Orangutini Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Spider Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Tiger Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "King Snake Egg",
+      "rarity": "Secret"
+    }
+  ],
+  "Snow Biome": [
+    {
+      "name": "Penguin Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Walrus Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Polar Bear Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Sabertooth Tiger Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Mammoth Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "King Mammoth Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Yeti Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Ice Dragon Egg",
+      "rarity": "Eternal"
+    }
+  ],
+  "Volcano Biome": [
+    {
+      "name": "Lava Gecko Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Lava Frog Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Flaming Bull Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Lava Iguana Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Chillin Chilli Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Cerberus Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Phoenix Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Lava Dragon Egg",
+      "rarity": "Eternal"
+    }
+  ],
+  "Abyss Ocean Biome": [
+    {
+      "name": "Parrotfish Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Swordfish Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Shark Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Orca Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Whale Shark Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Beluga Whale Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Kraken Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "El Maja Egg",
+      "rarity": "Eternal"
+    }
+  ],
+  "Prehistoric Biome": [
+    {
+      "name": "Dodo Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Ptero Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Anky Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Tri Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Bronto Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Trala Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "TRex Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Mosas Egg",
+      "rarity": "Eternal"
+    }
+  ],
+  "Cosmic Biome": [
+    {
+      "name": "Centapede Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Cosmic Gecko Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Cosmic Gorilla Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "La Vacca Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Cosmic Dragon Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Skeleton Boss Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Lunar Dragon Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Unicorn Egg",
+      "rarity": "Divine"
+    }
+  ],
+  "Cherry Blossom Biome": [
+    {
+      "name": "Crane Egg",
+      "rarity": "Epic"
+    },
+    {
+      "name": "Salamander Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Red Panda Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Koi Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Snowy Owl Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Stag Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Oni Tiger Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Kitsune Egg",
+      "rarity": "Divine"
+    }
+  ],
+  "Titan Temple Biome": [
+    {
+      "name": "Crustcia Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Spiderod Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Bladehide Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Mantaris Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Rhinotaur Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Mutant Shark Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Gorilla King Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Nightflame Egg",
+      "rarity": "Divine"
+    }
+  ],
+  "Monster Eggs": [
+    {
+      "name": "Monster Egg (Scorpio)",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Monster Egg (Froggo)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Monster Egg (Crawler)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Monster Egg (Crocodon)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Monster Egg (Krakenoid)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Monster Egg (Dreadscale)",
+      "rarity": "Divine"
+    },
+    {
+      "name": "Monster Egg (Mecha Scorpio)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Monster Egg (Mecha Froggo)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Monster Egg (Mecha Crawler)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Monster Egg (Mecha Crocodon)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Monster Egg (Mecha Krakenoid)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Monster Egg (Mecha Dreadscale)",
+      "rarity": "1%"
+    }
+  ],
+  "Void Eggs": [
+    {
+      "name": "Riftborn Egg (Rift Eye)",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Riftborn Egg (Voidmaw)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Riftborn Egg (Ventinal)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Riftborn Egg (Wendigo)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Riftborn Egg (World Eater)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Riftbeasts Egg (Void Angler)",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Riftbeasts Egg (Riftwing)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Riftbeasts Egg (Dreadclaw)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Riftbeasts Egg (Mawbreaker)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Riftbeasts Egg (Void Serpent)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Shattered Rift Egg (Shardling)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Shattered Rift Egg (Shattered Ram)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Shattered Rift Egg (Shardwing)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Shattered Rift Egg (Shattered Drake)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Shattered Rift Egg (Shattered Colossus)",
+      "rarity": "Divine"
+    }
+  ],
+  "Angel Eggs": [
+    {
+      "name": "Light Dove Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Winged Lamb Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Sacred Moth Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Holy Peacock Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Pure Jellyfish Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Centaur Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Pegasus Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "ArchAngel Egg",
+      "rarity": "Divine"
+    }
+  ],
+  "Demon Eggs": [
+    {
+      "name": "Flame Sprite Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Toro Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Demon Hound Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Imp Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Gargoyle Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Razor Fang Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Skeleton Horse Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "World Burner Egg",
+      "rarity": "Divine"
+    }
+  ],
+  "Enchanted Forest": [
+    {
+      "name": "Prism Gecko Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Petal Beetle Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Enchanted Bluejay Egg",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Astral Jackalope Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Spirit Panda Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Starry Fox Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Celestial Sunlion Egg",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Royal Skywhale Egg",
+      "rarity": "Divine"
+    }
+  ],
+  "Luminous Eggs": [
+    {
+      "name": "Luminous Egg (Spike)",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Luminous Egg (Spirit Manta)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Luminous Egg (Abyss Shark)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Luminous Egg (Electric Eel)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Luminous Egg (Terra Snapper)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Luminous Egg (Cthulhu)",
+      "rarity": "Divine"
+    },
+    {
+      "name": "Luminous Egg (Luminous Spike)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Luminous Egg (Luminous Spirit Manta)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Luminous Egg (Luminous Abyss Shark)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Luminous Egg (Luminous Electric Eel)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Luminous Egg (Luminous Terra Snapper)",
+      "rarity": "1%"
+    },
+    {
+      "name": "Luminous Egg (Luminous Cthulhu)",
+      "rarity": "1%"
+    }
+  ],
+  "Dr. Scramble's Experiments": [
+    {
+      "name": "Experiment #001 Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Nibbles Egg",
+      "rarity": "Cosmic"
+    }
+  ],
+  "Dr. Scramble's Laboratory": [
+    {
+      "name": "Biohazard Egg (Toxic Rat)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Experimental Pets Egg (Wheel Hamster)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Unstable DNA Egg (Frogfly)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Biohazard Egg (Radcoon)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Experimental Pets Egg (Stacked Turtle)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Unstable DNA Egg (Spiderpig)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Biohazard Egg (Toucax)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Experimental Pets Egg (Three Headed Chicken)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Unstable DNA Egg (Sharkodile)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Biohazard Egg (Nuceodile)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Experimental Pets Egg (Eyeball Crab)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Unstable DNA Egg (Rhinobear)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Biohazard Egg (Nuclear Mantis)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Experimental Pets Egg (Deadstinger)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Unstable DNA Egg (Octophant)",
+      "rarity": "Divine"
+    }
+  ],
+  "Extinction Eggs": [
+    {
+      "name": "Extinction Egg (Glyptodon)",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Extinction Egg (Terrorbird)",
+      "rarity": "Mythic"
+    },
+    {
+      "name": "Extinction Egg (Giant Sloth)",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Extinction Egg (Dunkleosteus)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Extinction Egg (Skeletal Glyptodon)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Extinction Egg (Skeletal Terrorbird)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Extinction Egg (Skeletal Giant Sloth)",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Extinction Egg (Gigantus)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Extinction Egg (Skeletal Dunkleosteus)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Extinction Egg (Skeletal Gigantus)",
+      "rarity": "Eternal"
+    },
+    {
+      "name": "Extinction Egg (Sabertooth)",
+      "rarity": "Divine"
+    },
+    {
+      "name": "Extinction Egg (Skeletal Sabertooth)",
+      "rarity": "Divine"
+    }
+  ],
+  "Racing Event Eggs": [
+    {
+      "name": "Seahorse Egg",
+      "rarity": "Legendary"
+    },
+    {
+      "name": "Race Lizard Egg",
+      "rarity": "Rare"
+    },
+    {
+      "name": "Race Bird Egg",
+      "rarity": "Cosmic"
+    },
+    {
+      "name": "Race Cheetah Egg",
+      "rarity": "Secret"
+    },
+    {
+      "name": "Engine Snail Egg",
+      "rarity": "Eternal"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+[01:58:03] Advanced Egg Spawn & Interactive Test Case Scanner initialized.
+[01:58:03] ==================================================
+[01:58:03] >>> INITIAL SCAN: workspace.AreaEggSlotsClient...
+[01:58:03] [+] Found AreaEggSlotsClient with 65 active slots
+[01:58:03]     Biomes: Abyss Ocean:5 | Cherry Blossom:5 | Cosmic:5 | Desert:5 | Enchanted Forest:5 | Forest:5 | Jungle:5 | Lake:5 | Light & Dark:5 | Prehistoric:5 | Snow:5 | Titan Temple:5 | Volcano:5
+[01:58:03] --- Sample Egg Details ---
+[01:58:03]   [1] UID: FirstAre... | Forest Egg [Common] | Biome: Forest | Pos: (600.2, 67.8, -332.7)
+[01:58:03]   [2] UID: FirstAre... | Forest Egg [Common] | Biome: Forest | Pos: (605.0, 67.6, -326.5)
+[01:58:03]   [3] UID: FirstAre... | Forest Egg [Common] | Biome: Forest | Pos: (593.0, 67.7, -332.4)
+[01:58:03]   [4] UID: FirstAre... | Forest Egg [Common] | Biome: Forest | Pos: (590.6, 67.8, -325.6)
+[01:58:03]   [5] UID: FirstAre... | Forest Egg [Common] | Biome: Forest | Pos: (597.2, 67.7, -324.4)
+[01:58:03]   [6] UID: a289a495... | PrismGecko [Discovered] | Biome: Enchanted Forest | Pos: (6690.3, 67.9, -347.9)
+[01:58:03]   [11] UID: 2b262355... | PrismGecko [Discovered] | Biome: Enchanted Forest | Pos: (6704.7, 68.6, -347.0)
+[01:58:03]   [30] UID: 2ce33fe6... | PrismGecko [Discovered] | Biome: Enchanted Forest | Pos: (6693.6, 67.9, -354.4)
+[01:58:03]   [43] UID: d01e529d... | EnchantedBluejay [Discovered] | Biome: Enchanted Forest | Pos: (6700.8, 68.1, -353.8)
+[01:58:03]   [56] UID: 32eb55df... | PrismGecko [Discovered] | Biome: Enchanted Forest | Pos: (6696.7, 67.9, -345.9)
+[01:58:03] ==================================================
+[01:58:03] [Ready] Monitoring active: Pick up, Drop, Deliver, or watch for Thefts & Resets!
+[01:58:04] 🟢 [TEST CASE: I PICKED UP] Uid=6c053fa7... | Egg [Unknown] | From Unknown at (526.1, 108.5, -572.9)
+[01:58:36] 🟢 [TEST CASE: I PICKED UP] Uid=2b262355... | PrismGecko [Discovered] | From Enchanted Forest at (6704.7, 74.7, -347.0)
+[01:58:59] 📦 [TEST CASE: I DROPPED IT] Uid=2b262355... | PrismGecko [Discovered] dropped on ground at (615.5, 73.7, -367.4)
+[01:59:00] 🟢 [TEST CASE: I PICKED UP] Uid=6c053fa7... | Egg [Unknown] | From Unknown at (526.1, 108.5, -572.9)
+[01:59:02] 🟢 [TEST CASE: I PICKED UP] Uid=2b262355... | PrismGecko [Discovered] | From Enchanted Forest at (615.5, 73.7, -367.4)
+[01:59:03] 📦 [TEST CASE: I DROPPED IT] Uid=2b262355... | PrismGecko [Discovered] dropped on ground at (588.8, 73.7, -367.2)
+[01:59:04] 🟢 [TEST CASE: I PICKED UP] Uid=6c053fa7... | Egg [Unknown] | From Unknown at (526.1, 108.5, -572.9)
+[01:59:06] 🟢 [TEST CASE: I PICKED UP] Uid=2b262355... | PrismGecko [Discovered] | From Enchanted Forest at (588.8, 73.7, -367.2)
+[01:59:08] 📦 [TEST CASE: I DROPPED IT] Uid=2b262355... | PrismGecko [Discovered] dropped on ground at (573.2, 73.7, -363.8)
+[01:59:08] 🟢 [TEST CASE: I PICKED UP] Uid=6c053fa7... | Egg [Unknown] | From Unknown at (526.1, 108.5, -572.9)
+[01:59:29] 👤 [RIVAL CARRIED] brian456278 (@brian456278) picked up Uid=2b262355... (PrismGecko [Discovered] in Enchanted Forest)
+[01:59:30] 💨 [TEST CASE: DESPAWN / EXPIRED] Uid=2b262355... (PrismGecko [Discovered]) expired or was removed from field.
+[01:59:38] [+] Log copied to clipboard via setclipboard()!
+[01:59:50] 💨 [TEST CASE: DESPAWN / EXPIRED] Uid=FirstAre... (Forest Egg [Common]) expired or was removed from field.
+[01:59:50] 💨 [TEST CASE: DESPAWN / EXPIRED] Uid=FirstAre... (Forest Egg [Common]) expired or was removed from field.
+[01:59:50] 💨 [TEST CASE: DESPAWN / EXPIRED] Uid=FirstAre... (Forest Egg [Common]) expired or was removed from field.
+[01:59:50] 💨 [TEST CASE: DESPAWN / EXPIRED] Uid=FirstAre... (Forest Egg [Common]) expired or was removed from field.
+[01:59:50] 💨 [TEST CASE: DESPAWN / EXPIRED] Uid=FirstAre... (Forest Egg [Common]) expired or was removed from field.
+[02:00:02] ✨ [ADMIN / RARE SPAWN ANNOUNCEMENT] Secret: 6330be6a
+[02:00:05] 🌙 [SPAWN: NIGHT RESET #1] Mass wave of 60 eggs refreshed across all 13 biomes (initial / first detected)!

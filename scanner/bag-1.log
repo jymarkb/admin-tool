@@ -1,0 +1,52 @@
+[00:09:48] Bag Slot Scanner initialized.
+[00:09:48] --- BEGIN FULL BAG & SLOT SNAPSHOT ---
+[00:09:48] [Backpack] Total Tools: 239
+[00:09:48]   Slot #1: [Tool] Winged Lamb | Attrs: Category="Lamb", ColorIndex=1, ColorSeed=122263899, DisplayName="Winged Lamb", EyeColor="6f8e22", Favorite=false, GuardTransparencyExcluded=true, ItemType="Asset", Mutations="", Scale=4.055507979814533, UID="76c400b5d24b4845a77b9485469660d2", Weight=291996.5745466464
+[00:09:48]   Slot #2: [Tool] Golden Pumpkin Golem | Attrs: BaseMutation="Golden", Category="Pumpkin Golem", ColorIndex=1, ColorSeed=511314605, DisplayName="Pumpkin Golem", EyeColor="7aa732", Favorite=false, GuardTransparencyExcluded=true, ItemType="Asset", Mutations="Golden", Scale=0.9851567563265038, UID="8e1ecfa03fef40918ad3eee553c373fe", Weight=1182.1881075918045
+[00:09:48]   Slot #3: [Tool] Werewolf | Attrs: Category="Werewolf", ColorIndex=1, ColorSeed=791037311, DisplayName="Werewolf", EyeColor="974820", Favorite=false, GuardTransparencyExcluded=true, ItemType="Asset", Mutations="", Scale=1.5023930441908768, UID="35f85b01e3e3494797b37d1ec4ae2879", Weight=22535.895662863153
+[00:09:48]   Slot #4: [Tool] Skeleton Horse | Attrs: Category="Skeleton Horse", ColorIndex=1, ColorSeed=653297724, DisplayName="Skeleton Horse", EyeColor="223464", Favorite=false, GuardTransparencyExcluded=true, ItemType="Asset", Mutations="", Scale=0.8677501028155137, UID="7398ed0907384e3ea2bb4b6f0295aa19", Weight=56403.75668300839
+[00:09:48]   Slot #5: [Tool] Trap [X3] | Attrs: GearName="Trap", ItemType="Gear", OldId="rbxassetid://98146157051289", Uses=3
+[00:09:48]   Slot #6: [Tool] Titan Axe [X1] | Attrs: CooldownActive=false, CooldownDuration=0, CooldownEndTime=0, GearName="Titan Axe", IsBat=true, ItemType="Gear", Uses=1
+[00:09:48]   Slot #7: [Tool] The Scrambler [X1] | Attrs: CooldownActive=false, CooldownDuration=0, CooldownEndTime=0, GearName="The Scrambler", ItemType="Gear", Uses=1
+[00:09:48]   Slot #8: [Tool] Scramble Sword [X1] | Attrs: CooldownActive=false, CooldownDuration=0, CooldownEndTime=0, GearName="Scramble Sword", IsBat=true, ItemType="Gear", Uses=1
+[00:09:48]   Slot #9: [Tool] Cricket's Banjo [X1] | Attrs: BanjoBridgePlaying=false, CooldownActive=false, CooldownDuration=0, CooldownEndTime=0, GearName="Cricket's Banjo", ItemType="Gear", Uses=1
+[00:09:48]   Slot #10: [Tool] Nightflame | Attrs: Category="Godzilla", ColorIndex=1, ColorSeed=695551437, DisplayName="Nightflame", EyeColor="267e1c", Favorite=false, GuardTransparencyExcluded=true, ItemType="Asset", Mutations="", Scale=0.8556063089654664, UID="93f68f731dd748198f387e72cf044117", Weight=136897.00943447463
+[00:09:48]   -> No direct Tool eggs in Backpack (eggs are likely stored in UI slots or satchel profile).
+[00:09:48] [GUI] Found BackpackGui: Players.mackyhohohoho.PlayerGui.BackpackGui
+[00:09:48] [Hotbar] Container: Players.mackyhohohoho.PlayerGui.BackpackGui.Backpack.Hotbar | Slots: 13
+[00:09:48]   Hotbar Slot 1: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=2] | Texts=[Number="1"]
+[00:09:48]   Hotbar Slot 2: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=3] | Texts=[ToolName="x3", Number="2"]
+[00:09:48]   Hotbar Slot 3: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=4] | Texts=[Number="3"]
+[00:09:48]   Hotbar Slot 4: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=5] | Texts=[Number="4"]
+[00:09:48]   Hotbar Slot 5: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=6] | Texts=[Number="5"]
+[00:09:48]   Hotbar Slot 6: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=7] | Texts=[Number="6"]
+[00:09:48]   Hotbar Slot 7: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=8] | Texts=[Number="7"]
+[00:09:48]   Hotbar Slot 8: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=9] | Texts=[Number="8"]
+[00:09:48]   Hotbar Slot 9: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=10] | Texts=[Number="9"]
+[00:09:48]   Hotbar Slot 10: Attrs=[Draggable=false, IsInventorySlot=false, PressBound=11] | Texts=[Number="0"]
+[00:09:48] [Inventory ScrollingFrame] Found 259 total slots in Players.mackyhohohoho.PlayerGui.BackpackGui.Backpack.Main.Inventory.ScrollingFrame
+[00:09:48]   === First 10 Inventory Slots ===
+[00:09:48]   [1] Slot '11': Texts=[ToolName="Winged Lamb (4,802,510Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=311]
+[00:09:48]   [2] Slot '12': Texts=[ToolName="Golden Pumpkin Golem (1,147Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=312]
+[00:09:48]   [3] Slot '13': Texts=[ToolName="Werewolf (50,868Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=313]
+[00:09:48]   [4] Slot '14': Texts=[ToolName="Skeleton Horse (42,471Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=314]
+[00:09:48]   [5] Slot '15': Texts=[ToolName="Rhinotaur (274,659Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=315]
+[00:09:48]   [6] Slot '16': Texts=[ToolName="Candy Corn (821Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=316]
+[00:09:48]   [7] Slot '17': Texts=[ToolName="Golden + Enchanted Gorilla King (793,982Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=317]
+[00:09:48]   [8] Slot '18': Texts=[ToolName="Werewolf (110,945Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=318]
+[00:09:48]   [9] Slot '19': Texts=[ToolName="Toro (104,938,558Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=319]
+[00:09:48]   [10] Slot '20': Texts=[ToolName="Candy Corn (14,886Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=320]
+[00:09:48]   === Last 5 Inventory Slots (Total: 259) ===
+[00:09:48]   [255] Slot '265': Texts=[ToolName="BloodBloom (4,006Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=794]
+[00:09:48]   [256] Slot '266': Texts=[ToolName="Graveyard Brute (9,684Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=796]
+[00:09:48]   [257] Slot '267': Texts=[ToolName="Graveyard Brute (2,543Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=798]
+[00:09:48]   [258] Slot '268': Texts=[ToolName="Werewolf (12,309Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=800]
+[00:09:48]   [259] Slot '269': Texts=[ToolName="Graveyard Brute (9,888Kg)"] | Attrs=[Draggable=true, HasAssetOverlay=true, IsInventorySlot=true, PressBound=802]
+[00:09:48] [Summary] 41 slots currently hold Eggs. Sample slots: 206, 207, 208, 209, 210, 211, 212, 213, 214, 215
+[00:09:48] [Category] CategoryTemplate -> CategoryName="Test", Quantity="4000/4,5000"
+[00:09:48] [Category] CategoryTemplate -> CategoryName="Pets", Quantity="4000/4,5000"
+[00:09:48] [Category] CategoryTemplate -> CategoryName="Eggs", Quantity="4000/4,5000"
+[00:09:48] [Category] CategoryTemplate -> CategoryName="Gear", Quantity="4000/4,5000"
+[00:09:48] --- END FULL SNAPSHOT ---
+[00:09:48] [LiveMonitor] Initializing real-time listeners...
+[00:09:48] [LiveMonitor] Active! Pick up an egg now and watch the log below to see which slot updates.

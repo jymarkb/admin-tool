@@ -90,6 +90,12 @@ local function disconnectAll()
         pcall(function() conn:Disconnect() end)
     end
     table.clear(connections)
+    if Engine and Engine.State and Engine.State.HwFolderConns then
+        for _, conn in ipairs(Engine.State.HwFolderConns) do
+            pcall(function() conn:Disconnect() end)
+        end
+        table.clear(Engine.State.HwFolderConns)
+    end
 end
 
 -- Forward declaration of modular tables
@@ -466,7 +472,7 @@ Config.Taxonomy = {
             "Halloween Dimension Egg", "Halloween Egg", "HalloweenEgg", "Halloween Royal Mimic Egg",
             "Whiskers Egg", "Jesterpop Egg", "Candlefang Egg", "Hooded Gerbil Egg", "Toadstool Egg",
             "Candy Corn Egg", "Halloween Boss Egg", "Zombified Halloween Egg", "Pumpkin Golem Egg",
-            "Voidseer Pumpkin Egg", "Abomination Kong Egg", "Shelltide Voyager Egg", "Werewolf Egg",
+            "Voidseer Pumpkin Egg", "Abomination Kong Egg", "Gorillastein Egg", "Shelltide Voyager Egg", "Werewolf Egg",
             "Mimic Chest", "Mimic Chest Egg"
         },
         Species = {
@@ -474,7 +480,8 @@ Config.Taxonomy = {
             { Name = "Voidseer Pumpkin Egg", Rarity = "Divine", Aliases = { "Voidseer Pumpkin" } },
 
             -- Eternal
-            { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong" } },
+            { Name = "Gorillastein Egg", Rarity = "Eternal", Aliases = { "Gorillastein", "Gorillastine", "Gorillastines", "Gorillastein Egg", "Gorillastine Egg", "Gorillastines Egg", "Gorilla Stein", "Gorilla Stein Egg", "Abomination Kong", "Abomination Kong Egg" } },
+            { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong", "Gorillastein", "Gorillastine", "Gorillastines", "Gorillastein Egg", "Gorillastine Egg", "Gorillastines Egg", "Gorilla Stein" } },
             { Name = "Ghost Reaper Egg", Rarity = "Eternal", Aliases = { "Ghost Reaper" } },
             { Name = "Shelltide Voyager Egg", Rarity = "Eternal", Aliases = { "Shelltide Voyager" } },
             { Name = "Halloween Dimension Egg", Rarity = "Eternal", Aliases = { "Dimension Egg", "Halloween Dimension" } },
@@ -575,6 +582,16 @@ Config.Pickup = {
     DirectPickupDist  = 7.0,
 }
 
+-- 1.4.1 Halloween Fast Pickup Configuration
+Config.HwPickup = {
+    Enabled           = false,
+    SpamBurstCount    = 8,
+    PickupInterval    = 0.035,
+    BurstMaxDuration  = 1.5,
+    FastPickupMaxDist = 45.0,
+    DirectPickupDist  = 7.0,
+}
+
 -- 1.5 Trap Evade Configuration (Complete Trap Neutralization)
 Config.TrapEvade = {
     Enabled          = true,
@@ -634,6 +651,7 @@ UI.Elements = {
     HwEggListScroll    = nil,
     HwEmptyNotice      = nil,
     HwRarityDropdownBtn= nil,
+    HwFilterPickupBtn  = nil,
 
     -- TabEggs Elements
     ActivityStatus     = nil,
@@ -647,6 +665,7 @@ UI.Elements = {
 
     -- TabUtility Elements
     TogglePickupBtn    = nil,
+    ToggleHwPickupBtn  = nil,
     ToggleRecoveryBtn  = nil,
     ToggleNoclipBtn    = nil,
     ToggleTrapEvadeBtn = nil,
@@ -668,6 +687,29 @@ UI.closeCurrentDropdown = function()
             UI.OpenDropdown.updateBtnText(false)
         end
         UI.OpenDropdown = nil
+    end
+end
+
+UI.syncPickupToggles = function()
+    local w1En = Config.Pickup and Config.Pickup.Enabled == true
+    local hwEn = Config.HwPickup and Config.HwPickup.Enabled == true
+
+    if UI.Elements.TogglePickupBtn then
+        UI.Elements.TogglePickupBtn.Text = w1En and "ON" or "OFF"
+        UI.Elements.TogglePickupBtn.BackgroundColor3 = w1En and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
+        UI.Elements.TogglePickupBtn.TextColor3 = w1En and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+
+    if UI.Elements.ToggleHwPickupBtn then
+        UI.Elements.ToggleHwPickupBtn.Text = hwEn and "ON" or "OFF"
+        UI.Elements.ToggleHwPickupBtn.BackgroundColor3 = hwEn and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
+        UI.Elements.ToggleHwPickupBtn.TextColor3 = hwEn and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+
+    if UI.Elements.HwFilterPickupBtn then
+        UI.Elements.HwFilterPickupBtn.Text = hwEn and "⚡ Fast Pick: ON" or "⚡ Fast Pick: OFF"
+        UI.Elements.HwFilterPickupBtn.BackgroundColor3 = hwEn and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
+        UI.Elements.HwFilterPickupBtn.TextColor3 = hwEn and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
     end
 end
 
@@ -1516,6 +1558,39 @@ UI.build = function()
     Instance.new("UICorner", toggleBfBtn).CornerRadius = UDim.new(0, 5)
     UI.Elements.ToggleButterflyBtn = toggleBfBtn
 
+    -- Row 2.4.9: Halloween Fast Pickup [E] Row
+    local rowHwP = Instance.new("Frame")
+    rowHwP.Name = "RowHwPickup"
+    rowHwP.Size = UDim2.new(1, -16, 0, 36)
+    rowHwP.Position = UDim2.new(0, 8, 0, 346)
+    rowHwP.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+    rowHwP.Parent = tabUtility
+    Instance.new("UICorner", rowHwP).CornerRadius = UDim.new(0, 6)
+
+    local lblHwP = Instance.new("TextLabel")
+    lblHwP.Size = UDim2.new(1, -80, 1, 0)
+    lblHwP.Position = UDim2.new(0, 12, 0, 0)
+    lblHwP.BackgroundTransparency = 1
+    lblHwP.Text = "Halloween Fast Pickup [E]"
+    lblHwP.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblHwP.Font = Enum.Font.GothamBold
+    lblHwP.TextSize = 12
+    lblHwP.TextXAlignment = Enum.TextXAlignment.Left
+    lblHwP.Parent = rowHwP
+
+    local toggleHwPBtn = Instance.new("TextButton")
+    toggleHwPBtn.Name = "ToggleHwPickupBtn"
+    toggleHwPBtn.Size = UDim2.new(0, 56, 0, 24)
+    toggleHwPBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    toggleHwPBtn.BackgroundColor3 = (Config.HwPickup and Config.HwPickup.Enabled) and theme.GreenOn or theme.GrayOff
+    toggleHwPBtn.Text = (Config.HwPickup and Config.HwPickup.Enabled) and "ON" or "OFF"
+    toggleHwPBtn.TextColor3 = (Config.HwPickup and Config.HwPickup.Enabled) and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    toggleHwPBtn.Font = Enum.Font.GothamBold
+    toggleHwPBtn.TextSize = 11
+    toggleHwPBtn.Parent = rowHwP
+    Instance.new("UICorner", toggleHwPBtn).CornerRadius = UDim.new(0, 5)
+    UI.Elements.ToggleHwPickupBtn = toggleHwPBtn
+
     -- 2.5 Panel 3: TabHalloween (Halloween Dimension Egg List)
     local tabHalloween = Instance.new("Frame")
     tabHalloween.Name = "TabHalloween"
@@ -1540,7 +1615,7 @@ UI.build = function()
 
     local hwRarityBtn = Instance.new("TextButton")
     hwRarityBtn.Name = "HwRarityDropdownBtn"
-    hwRarityBtn.Size = UDim2.new(1, 0, 1, 0)
+    hwRarityBtn.Size = UDim2.new(1, -114, 1, 0)
     hwRarityBtn.Position = UDim2.new(0, 0, 0, 0)
     hwRarityBtn.BackgroundColor3 = Color3.fromRGB(30, 36, 52)
     hwRarityBtn.Text = "Rarity: All ▼"
@@ -1550,6 +1625,19 @@ UI.build = function()
     hwRarityBtn.Parent = hwFilterBar
     Instance.new("UICorner", hwRarityBtn).CornerRadius = UDim.new(0, 4)
     UI.Elements.HwRarityDropdownBtn = hwRarityBtn
+
+    local hwFilterPickupBtn = Instance.new("TextButton")
+    hwFilterPickupBtn.Name = "HwFilterPickupBtn"
+    hwFilterPickupBtn.Size = UDim2.new(0, 110, 1, 0)
+    hwFilterPickupBtn.Position = UDim2.new(1, -110, 0, 0)
+    hwFilterPickupBtn.BackgroundColor3 = (Config.HwPickup and Config.HwPickup.Enabled) and theme.GreenOn or theme.GrayOff
+    hwFilterPickupBtn.Text = (Config.HwPickup and Config.HwPickup.Enabled) and "⚡ Fast Pick: ON" or "⚡ Fast Pick: OFF"
+    hwFilterPickupBtn.TextColor3 = (Config.HwPickup and Config.HwPickup.Enabled) and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    hwFilterPickupBtn.TextSize = 10.5
+    hwFilterPickupBtn.Font = Enum.Font.GothamBold
+    hwFilterPickupBtn.Parent = hwFilterBar
+    Instance.new("UICorner", hwFilterPickupBtn).CornerRadius = UDim.new(0, 4)
+    UI.Elements.HwFilterPickupBtn = hwFilterPickupBtn
 
     UI.createFilterDropdown({
         parent = hwFilterBar,
@@ -1562,7 +1650,7 @@ UI.build = function()
         onChanged = function()
             if UI.renderHalloweenEggs then pcall(UI.renderHalloweenEggs) end
         end,
-        size = UDim2.new(1, 0, 0, 240),
+        size = UDim2.new(1, -114, 0, 240),
         pos = UDim2.new(0, 0, 0, 28),
         scrollable = true,
         zIndex = 50,
@@ -2001,6 +2089,10 @@ for _, biomeData in ipairs(Config.Taxonomy.BiomeCatalog) do
             end
         end
     end
+
+    if biomeData.Biome == "Halloween Dimension" then
+        SPECIES_INFO_BY_BIOME["Halloween"] = SPECIES_INFO_BY_BIOME["Halloween Dimension"]
+    end
 end
 
 Helpers.getSpeciesInfo = function(rawName, searchArea)
@@ -2069,7 +2161,42 @@ Helpers.registerDynamicSpecies = function(rawName, defaultBiome, defaultRarity)
     return false
 end
 
--- Dynamic Game Discovery for Egg Species (ReplicatedStorage.Assets.Models.Eggs)
+-- Dynamic Game Discovery for Egg Species & Template Signatures (ReplicatedStorage.Assets.Models.Eggs)
+Helpers.GenericPartNames = {
+    hitbox = true, part = true, meshpart = true, model = true,
+    basepart = true, weld = true, weldconstraint = true,
+    pointlight = true, attachment = true, eggradius = true,
+    egggrip = true, eggglow = true, eggrootweld = true
+}
+
+Helpers.TemplateSignatures = nil
+Helpers.getTemplateSignatures = function()
+    if Helpers.TemplateSignatures then return Helpers.TemplateSignatures end
+    pcall(function()
+        local eggsFolder = ReplicatedStorage:FindFirstChild("Assets")
+            and ReplicatedStorage.Assets:FindFirstChild("Models")
+            and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
+        if not eggsFolder then return end
+        local sigs = {}
+        for _, tModel in ipairs(eggsFolder:GetChildren()) do
+            if tModel:IsA("Model") then
+                local childrenSet = {}
+                for _, tc in ipairs(tModel:GetChildren()) do
+                    local tcLower = tc.Name:lower()
+                    if not Helpers.GenericPartNames[tcLower] then
+                        childrenSet[tcLower] = true
+                    end
+                end
+                table.insert(sigs, { Name = tModel.Name, Children = childrenSet })
+            end
+        end
+        if #sigs > 0 then
+            Helpers.TemplateSignatures = sigs
+        end
+    end)
+    return Helpers.TemplateSignatures
+end
+
 pcall(function()
     local eggsFolder = ReplicatedStorage:FindFirstChild("Assets")
         and ReplicatedStorage.Assets:FindFirstChild("Models")
@@ -2078,8 +2205,167 @@ pcall(function()
         for _, child in ipairs(eggsFolder:GetChildren()) do
             Helpers.registerDynamicSpecies(child.Name)
         end
+        Helpers.getTemplateSignatures()
     end
 end)
+
+Helpers.matchTemplateEgg = function(model)
+    if not model then return nil end
+    local sigs = Helpers.getTemplateSignatures()
+    if not sigs or #sigs == 0 then return nil end
+    local liveChildren = {}
+    for _, c in ipairs(model:GetChildren()) do
+        local cLower = c.Name:lower()
+        if not Helpers.GenericPartNames[cLower] then
+            liveChildren[cLower] = true
+        end
+    end
+    local nonGenericCount = 0
+    for _ in pairs(liveChildren) do nonGenericCount = nonGenericCount + 1 end
+    if nonGenericCount == 0 then return nil end
+
+    local bestName, bestCount = nil, 0
+    for _, sig in ipairs(sigs) do
+        local matchCount = 0
+        for childName in pairs(sig.Children) do
+            if liveChildren[childName] then matchCount = matchCount + 1 end
+        end
+        if matchCount > bestCount then
+            bestCount = matchCount
+            bestName = sig.Name
+        end
+    end
+    if bestCount >= 2 and bestName then
+        local sInfo = Helpers.getSpeciesInfo(bestName, "Halloween Dimension") or Helpers.getSpeciesInfo(bestName)
+        return (sInfo and sInfo.DisplayName) or bestName
+    end
+    return nil
+end
+
+Helpers.resolveHalloweenEggName = function(model)
+    if not model then return "Hooded Gerbil Egg" end
+
+    -- 1. Direct attributes on model
+    local rawName = model:GetAttribute("PreparedSourceName")
+        or model:GetAttribute("DisplayName")
+        or model:GetAttribute("EggName")
+        or model:GetAttribute("EggType")
+        or model:GetAttribute("Species")
+        or model:GetAttribute("Name")
+
+    if rawName and tostring(rawName) ~= "" and not Helpers.isGenericEggName(tostring(rawName)) and tostring(rawName):lower() ~= "halloweenegg" and tostring(rawName):lower() ~= "halloween egg" then
+        local sInfo = Helpers.getSpeciesInfo(tostring(rawName), "Halloween Dimension") or Helpers.getSpeciesInfo(tostring(rawName))
+        if sInfo and sInfo.DisplayName then
+            return sInfo.DisplayName
+        end
+    end
+
+    -- 2. Direct attributes on Hitbox
+    local hitbox = model:FindFirstChild("Hitbox")
+    if hitbox then
+        local hbAttr = hitbox:GetAttribute("PreparedSourceName")
+            or hitbox:GetAttribute("DisplayName")
+            or hitbox:GetAttribute("EggName")
+            or hitbox:GetAttribute("EggType")
+            or hitbox:GetAttribute("Species")
+        if hbAttr and tostring(hbAttr) ~= "" and not Helpers.isGenericEggName(tostring(hbAttr)) and tostring(hbAttr):lower() ~= "halloweenegg" and tostring(hbAttr):lower() ~= "halloween egg" then
+            local sInfo = Helpers.getSpeciesInfo(tostring(hbAttr), "Halloween Dimension") or Helpers.getSpeciesInfo(tostring(hbAttr))
+            if sInfo and sInfo.DisplayName then
+                return sInfo.DisplayName
+            end
+        end
+    end
+
+    -- 3. Child StringValues or child Models
+    for _, ch in ipairs(model:GetChildren()) do
+        if ch:IsA("StringValue") and ch.Value ~= "" and not Helpers.isGenericEggName(ch.Value) and ch.Value:lower() ~= "halloweenegg" and ch.Value:lower() ~= "halloween egg" then
+            local sInfo = Helpers.getSpeciesInfo(ch.Value, "Halloween Dimension") or Helpers.getSpeciesInfo(ch.Value)
+            if sInfo and sInfo.DisplayName then
+                return sInfo.DisplayName
+            end
+        elseif ch:IsA("Model") and ch.Name ~= "Model" and ch.Name ~= "Hitbox" and not Helpers.isGenericEggName(ch.Name) and ch.Name:lower() ~= "halloweenegg" and ch.Name:lower() ~= "halloween egg" then
+            local sInfo = Helpers.getSpeciesInfo(ch.Name, "Halloween Dimension") or Helpers.getSpeciesInfo(ch.Name)
+            if sInfo and sInfo.DisplayName then
+                return sInfo.DisplayName
+            end
+        end
+    end
+
+    -- 4. ProximityPrompt inspection: exact lookups and keyword substring matches
+    local prMatch = nil
+    for _, d in ipairs(model:GetDescendants()) do
+        if d:IsA("ProximityPrompt") then
+            local objTxt = d.ObjectText or ""
+            local actTxt = d.ActionText or ""
+
+            if objTxt ~= "" and not Helpers.isGenericEggName(objTxt) and objTxt:lower() ~= "halloweenegg" and objTxt:lower() ~= "halloween egg" then
+                local pInfo = Helpers.getSpeciesInfo(objTxt, "Halloween Dimension") or Helpers.getSpeciesInfo(objTxt)
+                if pInfo and pInfo.DisplayName then
+                    prMatch = pInfo.DisplayName
+                    break
+                end
+            end
+            if actTxt ~= "" and not Helpers.isGenericEggName(actTxt) and actTxt:lower() ~= "halloweenegg" and actTxt:lower() ~= "halloween egg" then
+                local pInfo = Helpers.getSpeciesInfo(actTxt, "Halloween Dimension") or Helpers.getSpeciesInfo(actTxt)
+                if pInfo and pInfo.DisplayName then
+                    prMatch = pInfo.DisplayName
+                    break
+                end
+            end
+
+            local fullTxt = (objTxt .. " " .. actTxt):lower()
+            if fullTxt ~= "" then
+                local bestMatch, bestLen = nil, 0
+                local hwSpecies = SPECIES_INFO_BY_BIOME["Halloween Dimension"]
+                if hwSpecies then
+                    for cleanName, rec in pairs(hwSpecies) do
+                        if cleanName ~= "egg" and cleanName ~= "halloween" and cleanName ~= "halloweenegg" and #cleanName >= 3 then
+                            if fullTxt:find(cleanName, 1, true) and #cleanName > bestLen then
+                                bestMatch = rec.DisplayName
+                                bestLen = #cleanName
+                            end
+                        end
+                    end
+                end
+                if not bestMatch then
+                    for cleanName, rec in pairs(SPECIES_INFO) do
+                        if cleanName ~= "egg" and cleanName ~= "halloween" and cleanName ~= "halloweenegg" and #cleanName >= 3 then
+                            if rec.DisplayName and fullTxt:find(cleanName, 1, true) and #cleanName > bestLen then
+                                bestMatch = rec.DisplayName
+                                bestLen = #cleanName
+                            end
+                        end
+                    end
+                end
+                if bestMatch then
+                    prMatch = bestMatch
+                    break
+                end
+            end
+        end
+    end
+    if prMatch then return prMatch end
+
+    -- 5. Standard HalloweenEgg / Halloween Egg model represents Hooded Gerbil Egg
+    if model.Name == "HalloweenEgg" or model.Name == "Halloween Egg" then
+        return "Hooded Gerbil Egg"
+    end
+
+    -- 6. Speculative template match against ReplicatedStorage.Assets.Models.Eggs (for unnamed models like "Egg")
+    local tplMatch = Helpers.matchTemplateEgg(model)
+    if tplMatch then return tplMatch end
+
+    -- 7. Model name lookup if not generic
+    if model.Name ~= "Egg" and not Helpers.isGenericEggName(model.Name) then
+        local mInfo = Helpers.getSpeciesInfo(model.Name, "Halloween Dimension") or Helpers.getSpeciesInfo(model.Name)
+        if mInfo and mInfo.DisplayName then
+            return mInfo.DisplayName
+        end
+    end
+
+    -- 8. Fallback for generic egg model
+    return "Hooded Gerbil Egg"
+end
 
 -- 3.5 Proximity Prompt Filtering
 Helpers.isCarryPrompt = function(prompt)
@@ -2186,6 +2472,7 @@ Engine.State = {
     NoclipActive          = false,
     NoclipParts           = {},
     AutoPickupToken       = 0,
+    HwPickupToken         = 0,
     EggCacheByUid         = {},
     RarityByUid           = {},
     SelectedBiomes        = { ["All"] = true },
@@ -3107,6 +3394,163 @@ Engine.Pickup.startAutoPickupSpam = function()
                         end
                     end
                 end)
+            end
+
+            task.wait(0.04)
+        end
+    end)
+end
+
+Engine.Pickup.toggle = function(enabled)
+    if enabled == nil then
+        enabled = not (Config.Pickup and Config.Pickup.Enabled)
+    end
+    if Config.Pickup then
+        Config.Pickup.Enabled = enabled
+    end
+    if enabled then
+        -- Mutual exclusion: turn off Halloween Fast Pickup
+        if Config.HwPickup then Config.HwPickup.Enabled = false end
+    end
+    if UI.syncPickupToggles then UI.syncPickupToggles() end
+end
+
+-- 4.6.1 Halloween Fast Pickup Engine
+Engine.HwPickup = {}
+
+Engine.HwPickup.toggle = function(enabled)
+    if enabled == nil then
+        enabled = not (Config.HwPickup and Config.HwPickup.Enabled)
+    end
+    if Config.HwPickup then
+        Config.HwPickup.Enabled = enabled
+    end
+    if enabled then
+        -- Mutual exclusion: turn off World 1 Fast Pickup
+        if Config.Pickup then Config.Pickup.Enabled = false end
+    else
+        -- Turning OFF Halloween fast pickup turns back ON World 1 main fast pickup
+        if Config.Pickup then Config.Pickup.Enabled = true end
+    end
+    if UI.syncPickupToggles then UI.syncPickupToggles() end
+end
+
+Engine.HwPickup.carryEgg = function(uid, burstCount)
+    if not uid or uid == "" then return false end
+    burstCount = burstCount or (Config.HwPickup and Config.HwPickup.SpamBurstCount) or 8
+    local hwRf = Helpers.getNetRemote("RF/HalloweenDimension/AskCarryEgg")
+    if not hwRf then return false end
+    task.spawn(function()
+        for _ = 1, burstCount do
+            pcall(function() return hwRf:InvokeServer(uid) end)
+            task.wait(0.04)
+        end
+    end)
+    return true
+end
+
+Engine.HwPickup.startAutoPickupSpam = function()
+    Engine.State.HwPickupToken = (Engine.State.HwPickupToken or 0) + 1
+    local myToken = Engine.State.HwPickupToken
+
+    task.spawn(function()
+        local tStart = os.clock()
+        local maxDur = (Config.HwPickup and Config.HwPickup.BurstMaxDuration) or 1.5
+        local maxDist = (Config.HwPickup and Config.HwPickup.FastPickupMaxDist) or 45.0
+
+        while Engine.State.HwPickupToken == myToken and (Config.HwPickup and Config.HwPickup.Enabled) and (os.clock() - tStart < maxDur) do
+            if not (hrp and hrp.Parent) then break end
+            local charPos = hrp.Position
+
+            -- 1. Trigger ProximityPrompt on SmartPromptPart
+            local spp = Workspace:FindFirstChild("SmartPromptPart")
+            if spp then
+                for _, pr in ipairs(spp:GetDescendants()) do
+                    if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                        Helpers.triggerProximityPrompt(pr)
+                        break
+                    end
+                end
+            end
+
+            -- 2. Find Halloween egg candidates from HalloweenDimension.WorldEggs, Workspace.WorldEggs, or tagged
+            local rawEggs = {}
+            local seen = {}
+            local hwDim = Workspace:FindFirstChild("HalloweenDimension")
+            local wEggs = hwDim and hwDim:FindFirstChild("WorldEggs")
+            if not wEggs then
+                wEggs = Workspace:FindFirstChild("WorldEggs")
+            end
+            if wEggs then
+                for _, egg in ipairs(wEggs:GetChildren()) do
+                    if egg:IsA("Instance") and not seen[egg] then
+                        seen[egg] = true
+                        table.insert(rawEggs, egg)
+                    end
+                end
+            end
+            local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
+            if tagged then
+                for _, egg in ipairs(tagged) do
+                    if egg:IsA("Instance") and not seen[egg] then
+                        seen[egg] = true
+                        table.insert(rawEggs, egg)
+                    end
+                end
+            end
+
+            -- 3. Find closest farmable Halloween egg within reach
+            local bestEgg, closestDist = nil, 999
+            for _, egg in ipairs(rawEggs) do
+                if egg.Parent and not egg.Name:lower():find("holder") and egg:GetAttribute("HalloweenEggCanPickUp") ~= false then
+                    local pos = nil
+                    local hitbox = egg:FindFirstChild("Hitbox")
+                    if hitbox and hitbox:IsA("BasePart") then
+                        pos = hitbox.Position
+                    elseif egg.PrimaryPart then
+                        pos = egg.PrimaryPart.Position
+                    elseif egg:IsA("Model") then
+                        local okP, p = pcall(function() return egg:GetPivot().Position end)
+                        if okP and p then pos = p end
+                    elseif egg:IsA("BasePart") then
+                        pos = egg.Position
+                    end
+
+                    if pos then
+                        local d = (pos - charPos).Magnitude
+                        if d <= maxDist and d < closestDist then
+                            closestDist = d
+                            bestEgg = egg
+                        end
+                    end
+                end
+            end
+
+            if bestEgg then
+                -- Trigger model proximity prompt if present
+                local pr = bestEgg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if pr and Helpers.isCarryPrompt(pr) then
+                    Helpers.triggerProximityPrompt(pr)
+                end
+
+                -- Dispatch Halloween remote RF/HalloweenDimension/AskCarryEgg
+                local uid = bestEgg:GetAttribute("HalloweenEggUid") or bestEgg.Name
+                if uid and uid ~= "" then
+                    local hwRf = Helpers.getNetRemote("RF/HalloweenDimension/AskCarryEgg")
+                    if hwRf then
+                        task.spawn(function()
+                            pcall(function() hwRf:InvokeServer(uid) end)
+                        end)
+                    end
+                end
+
+                -- Check if egg was picked up (server marked attribute false)
+                if bestEgg:GetAttribute("HalloweenEggCanPickUp") == false then
+                    if Engine.Velocity and Engine.Velocity.setCarry then
+                        Engine.Velocity.setCarry(true)
+                    end
+                    break
+                end
             end
 
             task.wait(0.04)
@@ -4202,6 +4646,24 @@ UI.renderHalloweenEggs = function()
         for _, egg in ipairs(wEggs:GetChildren()) do
             addEgg(egg)
         end
+
+        if Engine.State.HwHookedFolder ~= wEggs then
+            if Engine.State.HwFolderConns then
+                for _, c in ipairs(Engine.State.HwFolderConns) do pcall(function() c:Disconnect() end) end
+                table.clear(Engine.State.HwFolderConns)
+            else
+                Engine.State.HwFolderConns = {}
+            end
+            Engine.State.HwHookedFolder = wEggs
+            table.insert(Engine.State.HwFolderConns, wEggs.ChildAdded:Connect(function()
+                Engine.State.ListDirty = true
+                if UI.renderHalloweenEggs then pcall(UI.renderHalloweenEggs) end
+            end))
+            table.insert(Engine.State.HwFolderConns, wEggs.ChildRemoved:Connect(function()
+                Engine.State.ListDirty = true
+                if UI.renderHalloweenEggs then pcall(UI.renderHalloweenEggs) end
+            end))
+        end
     end
 
     local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
@@ -4235,15 +4697,11 @@ UI.renderHalloweenEggs = function()
         end
 
         if pos then
-            local rawName = model:GetAttribute("PreparedSourceName")
-                or model:GetAttribute("DisplayName")
-                or model.Name
+            local eggName = Helpers.resolveHalloweenEggName(model)
+            local sInfo = Helpers.getSpeciesInfo(eggName, "Halloween Dimension") or Helpers.getSpeciesInfo(eggName)
 
-            local sInfo = Helpers.getSpeciesInfo(rawName)
-                or (model.Name ~= rawName and Helpers.getSpeciesInfo(model.Name))
-
-            local disp = (sInfo and sInfo.DisplayName) or rawName
-            local rarity = (sInfo and sInfo.Rarity) or model:GetAttribute("Rarity") or "Legendary"
+            local disp = (sInfo and sInfo.DisplayName) or eggName
+            local rarity = (sInfo and sInfo.Rarity) or model:GetAttribute("Rarity") or (hitbox and hitbox:GetAttribute("Rarity")) or "Legendary"
             local rank = (sInfo and sInfo.Rank) or Config.Taxonomy.RarityRank[rarity] or 5
             local zone = model:GetAttribute("Zone")
             local zoneLabel = zone and ("Zone " .. tostring(zone)) or "Halloween"
@@ -4351,6 +4809,13 @@ Engine.Cleanup = function()
         Engine.Butterfly.EventActive = false
     end
 
+    if Config.HwPickup then
+        Config.HwPickup.Enabled = false
+    end
+    if Engine.State then
+        Engine.State.HwPickupToken = (Engine.State.HwPickupToken or 0) + 1
+    end
+
     pcall(function()
         if hum and hum.Parent then
             hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed
@@ -4378,6 +4843,7 @@ end
 
 -- Build UI elements
 UI.build()
+if UI.syncPickupToggles then UI.syncPickupToggles() end
 
 -- Wire UI Handlers
 local function switchTab(tabName)
@@ -4452,12 +4918,21 @@ end))
 
 -- Fast Pickup Toggle Button
 addConnection(UI.Elements.TogglePickupBtn.MouseButton1Click:Connect(function()
-    Config.Pickup.Enabled = not Config.Pickup.Enabled
-    local en = Config.Pickup.Enabled
-    UI.Elements.TogglePickupBtn.Text = en and "ON" or "OFF"
-    UI.Elements.TogglePickupBtn.BackgroundColor3 = en and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
-    UI.Elements.TogglePickupBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    Engine.Pickup.toggle()
 end))
+
+-- Halloween Fast Pickup Toggle Buttons
+if UI.Elements.ToggleHwPickupBtn then
+    addConnection(UI.Elements.ToggleHwPickupBtn.MouseButton1Click:Connect(function()
+        Engine.HwPickup.toggle()
+    end))
+end
+
+if UI.Elements.HwFilterPickupBtn then
+    addConnection(UI.Elements.HwFilterPickupBtn.MouseButton1Click:Connect(function()
+        Engine.HwPickup.toggle()
+    end))
+end
 
 -- Instant Recovery Toggle Button
 if UI.Elements.ToggleRecoveryBtn then
@@ -4604,6 +5079,8 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
     if input.KeyCode == Enum.KeyCode.E then
         if Config.Pickup.Enabled then
             Engine.Pickup.startAutoPickupSpam()
+        elseif Config.HwPickup and Config.HwPickup.Enabled then
+            Engine.HwPickup.startAutoPickupSpam()
         end
     elseif input.KeyCode == Enum.KeyCode.Q then
         Engine.Travel.stopWalking()
