@@ -1488,6 +1488,7 @@ Helpers.applyReachAssist = function(targetPos)
     local dist = (hrp.Position - targetPos).Magnitude
     if dist <= 35.0 then
         hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
+        Engine.State.LastGoodCFrame = hrp.CFrame
         return true
     end
     return false
@@ -1776,6 +1777,7 @@ Engine.State = {
     LastRecoveryTime      = 0,
     SavedWalkSpeed        = 16.0,
     CachedControls        = nil,
+    LastGoodCFrame        = nil,
 }
 
 -- Initialize default selected rarities
@@ -1981,6 +1983,10 @@ Engine.Recovery.execute = function(reason)
         end
         Engine.Velocity.setCarry(false)
 
+        if Engine.Travel and Engine.Travel.stopWalking then
+            Engine.Travel.stopWalking()
+        end
+
         -- Immediately restore Humanoid WalkSpeed so player never gets stuck frozen at 0 speed!
         local targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
         if Engine.State.VelocityEnabled then
@@ -1989,15 +1995,28 @@ Engine.Recovery.execute = function(reason)
             pcall(function() hum.WalkSpeed = math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0) end)
         end
 
-        if Config.Recovery.AntiFling and hrp then
-            local curVel = hrp.AssemblyLinearVelocity
-            if curVel.Magnitude > Config.Recovery.MaxFlingSpeed or math.abs(curVel.Y) > Config.Recovery.MaxFlingSpeed then
-                hrp.AssemblyLinearVelocity = Vector3.new(curVel.X, math.clamp(curVel.Y, -20, 20), curVel.Z)
-                hrp.AssemblyAngularVelocity = Vector3.zero
+        -- Anti-Fling Braking & Bump Location Anchoring (from v10 & v11)
+        if Config.Recovery.AntiFling and hrp and hrp.Parent then
+            local lastGood = Engine.State.LastGoodCFrame
+            if lastGood then
+                local dist = (hrp.Position - lastGood.Position).Magnitude
+                if dist > 2.0 and dist < 150.0 then
+                    pcall(function()
+                        hrp.CFrame = lastGood + Vector3.new(0, 0.2, 0)
+                    end)
+                end
             end
+
+            local curVel = hrp.AssemblyLinearVelocity
+            local fastY = 0
+            if hum and hum.Parent and hum.FloorMaterial == Enum.Material.Air then
+                fastY = (curVel.Y > -20) and -35 or curVel.Y
+            end
+            hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)
+            hrp.AssemblyAngularVelocity = Vector3.zero
         end
 
-        if Config.Recovery.BrakeVelocity and hrp then
+        if Config.Recovery.BrakeVelocity and hrp and hrp.Parent then
             hrp.AssemblyAngularVelocity = Vector3.zero
         end
 
@@ -2287,6 +2306,7 @@ Engine.Travel.teleportToEgg = function(itemData)
     if hrp and hrp.Parent then
         hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3.0, 0))
         hrp.AssemblyLinearVelocity = Vector3.zero
+        Engine.State.LastGoodCFrame = hrp.CFrame
     end
 
     if itemData.Uid then
@@ -2988,6 +3008,10 @@ Engine.Loops.start = function()
 
     -- Heartbeat Loop: Velocity Physics & Instant Recovery Safety Net
     addConnection(RunService.Heartbeat:Connect(function()
+        if not Engine.State.IsRecovering and hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0 then
+            Engine.State.LastGoodCFrame = hrp.CFrame
+        end
+
         if Config.Recovery.Enabled and Engine.Recovery.execute then
             if hum and hum.Parent and hum.Health > 0 then
                 local rEnd = LocalPlayer:GetAttribute("RagdollEndTime")
@@ -3366,6 +3390,7 @@ local function clearCharRefs()
     RootPart = nil
     hum = nil
     hrp = nil
+    Engine.State.LastGoodCFrame = nil
 end
 
 local function bindLifecycle(newChar)
