@@ -131,7 +131,9 @@ Config.Taxonomy = {
     },
 
     DefaultSelectedRarities = {
-        ["All"] = true,
+        ["Divine"] = true,
+        ["Eternal"] = true,
+        ["Secret"] = true,
     },
 
     -- 13 Canonical Farmable World Biomes
@@ -460,31 +462,61 @@ Config.Taxonomy = {
     },
     {
         Biome = "Halloween Dimension",
-        EggNames = { "HalloweenEgg", "Halloween Egg", "Halloween Royal Mimic Egg" },
+        EggNames = {
+            "Halloween Dimension Egg", "Halloween Egg", "HalloweenEgg", "Halloween Royal Mimic Egg",
+            "Whiskers Egg", "Jesterpop Egg", "Candlefang Egg", "Hooded Gerbil Egg", "Toadstool Egg",
+            "Candy Corn Egg", "Halloween Boss Egg", "Zombified Halloween Egg", "Pumpkin Golem Egg",
+            "Voidseer Pumpkin Egg", "Abomination Kong Egg", "Shelltide Voyager Egg", "Werewolf Egg",
+            "Mimic Chest", "Mimic Chest Egg"
+        },
         Species = {
-            { Name = "Hooded Gerbil Egg", Rarity = "Legendary", Aliases = { "HalloweenEgg", "Halloween Egg", "Halloween", "Hooded Gerbil" } },
-            { Name = "Halloween Royal Mimic Egg", Rarity = "Legendary", Aliases = { "Halloween Royal Mimic", "Royal Mimic", "Royal Mimic Egg", "Mimic Chest", "Mimic Chest Egg" } },
-            { Name = "Whiskers Egg", Rarity = "Epic", Aliases = { "Whiskers" } },
-            { Name = "Mummy Egg", Rarity = "Epic", Aliases = { "Mummy" } },
-            { Name = "Ghost Fish Egg", Rarity = "Epic", Aliases = { "Ghost Fish" } },
-            { Name = "Jesterpop Egg", Rarity = "Legendary", Aliases = { "Jesterpop" } },
-            { Name = "Candy Corn Egg", Rarity = "Legendary", Aliases = { "Candy Corn" } },
-            { Name = "Witch Pumpkin Egg", Rarity = "Legendary", Aliases = { "Witch Pumpkin" } },
-            { Name = "Jester Egg", Rarity = "Legendary", Aliases = { "Jester" } },
-            { Name = "Candlefang Egg", Rarity = "Mythic", Aliases = { "Candlefang" } },
-            { Name = "Toadstool Egg", Rarity = "Mythic", Aliases = { "Toadstool", "Rotshroom", "Rotshroom Egg" } },
-            { Name = "Crowshade Egg", Rarity = "Mythic", Aliases = { "Crowshade" } },
-            { Name = "Zombified Halloween Egg", Rarity = "Mythic", Aliases = { "Zombified Halloween" } },
-            { Name = "Spirit Knight Egg", Rarity = "Cosmic", Aliases = { "Spirit Knight", "SpiritKnight" } },
-            { Name = "Patchwork Imp Egg", Rarity = "Cosmic", Aliases = { "Patchwork Imp", "Quilted Imp", "Quilted Imp Egg", "Patchwork", "Quilted" } },
+            -- Divine
+            { Name = "Voidseer Pumpkin Egg", Rarity = "Divine", Aliases = { "Voidseer Pumpkin" } },
+
+            -- Eternal
+            { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong" } },
+            { Name = "Ghost Reaper Egg", Rarity = "Eternal", Aliases = { "Ghost Reaper" } },
+            { Name = "Shelltide Voyager Egg", Rarity = "Eternal", Aliases = { "Shelltide Voyager" } },
+            { Name = "Halloween Dimension Egg", Rarity = "Eternal", Aliases = { "Dimension Egg", "Halloween Dimension" } },
+
+            -- Secret
+            { Name = "BloodBloom Egg", Rarity = "Secret", Aliases = { "BloodBloom" } },
+            { Name = "Graveyard Brute Egg", Rarity = "Secret", Aliases = { "Graveyard Brute" } },
+            { Name = "Phantom Dragon Egg", Rarity = "Secret", Aliases = { "Phantom Dragon" } },
+            { Name = "Pumpkin Golem Egg", Rarity = "Secret", Aliases = { "Pumpkin Golem" } },
+            { Name = "Soul Phantom Egg", Rarity = "Secret", Aliases = { "Soul Phantom" } },
+            { Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } },
+
+            -- Cosmic
+            { Name = "Halloween Boss Egg", Rarity = "Cosmic", Aliases = { "Halloween Boss" } },
             { Name = "Haunted Scorpio Egg", Rarity = "Cosmic", Aliases = { "Haunted Scorpio" } },
             { Name = "Hexed Pumpkin Egg", Rarity = "Cosmic", Aliases = { "Hexed Pumpkin" } },
-            { Name = "Halloween Boss Egg", Rarity = "Cosmic", Aliases = { "Halloween Boss" } },
+            { Name = "Patchwork Imp Egg", Rarity = "Cosmic", Aliases = { "Patchwork Imp", "Quilted Imp", "Quilted Imp Egg", "Patchwork", "Quilted" } },
+            { Name = "Spirit Knight Egg", Rarity = "Cosmic", Aliases = { "Spirit Knight", "SpiritKnight" } },
             { Name = "Witch Crow Egg", Rarity = "Cosmic", Aliases = { "Witch Crow" } },
-            { Name = "Graveyard Brute Egg", Rarity = "Secret", Aliases = { "Graveyard Brute" } },
-            { Name = "BloodBloom Egg", Rarity = "Secret", Aliases = { "BloodBloom" } },
-            { Name = "Ghost Reaper Egg", Rarity = "Eternal", Aliases = { "Ghost Reaper" } },
-            { Name = "Phantom Dragon Egg", Rarity = "Secret", Aliases = { "Phantom Dragon" } },
+
+            -- Mythic
+            { Name = "Candlefang Egg", Rarity = "Mythic", Aliases = { "Candlefang" } },
+            { Name = "Crowshade Egg", Rarity = "Mythic", Aliases = { "Crowshade" } },
+            { Name = "Toadstool Egg", Rarity = "Mythic", Aliases = { "Toadstool", "Rotshroom", "Rotshroom Egg" } },
+            { Name = "Zombified Halloween Egg", Rarity = "Mythic", Aliases = { "Zombified Halloween" } },
+
+            -- Legendary
+            { Name = "Candy Corn Egg", Rarity = "Legendary", Aliases = { "Candy Corn" } },
+            { Name = "Halloween Royal Mimic Egg", Rarity = "Legendary", Aliases = { "Halloween Royal Mimic", "Royal Mimic", "Royal Mimic Egg", "Mimic Chest", "Mimic Chest Egg" } },
+            { Name = "Hooded Gerbil Egg", Rarity = "Legendary", Aliases = { "HalloweenEgg", "Halloween Egg", "Halloween", "Hooded Gerbil" } },
+            { Name = "Jester Egg", Rarity = "Legendary", Aliases = { "Jester" } },
+            { Name = "Jesterpop Egg", Rarity = "Legendary", Aliases = { "Jesterpop" } },
+            { Name = "Witch Pumpkin Egg", Rarity = "Legendary", Aliases = { "Witch Pumpkin" } },
+
+            -- Epic
+            { Name = "Ghost Fish Egg", Rarity = "Epic", Aliases = { "Ghost Fish" } },
+            { Name = "Mummy Egg", Rarity = "Epic", Aliases = { "Mummy" } },
+            { Name = "Whiskers Egg", Rarity = "Epic", Aliases = { "Whiskers" } },
+
+            -- Rare
+            { Name = "Hollow Bat Egg", Rarity = "Rare", Aliases = { "Hollow Bat" } },
+            { Name = "Scarecrow Egg", Rarity = "Rare", Aliases = { "Scarecrow" } },
         }
     },
     {
@@ -601,6 +633,7 @@ UI.Elements = {
     TabHalloween       = nil,
     HwEggListScroll    = nil,
     HwEmptyNotice      = nil,
+    HwRarityDropdownBtn= nil,
 
     -- TabEggs Elements
     ActivityStatus     = nil,
@@ -823,13 +856,20 @@ end
 -- 2.1 Build UI Structure (Per Panel & Row)
 UI.build = function()
     local theme = Config.UI.Theme
+    local safeParent = Helpers.getSafeUiParent()
+
+    -- Ensure any orphan instance is destroyed
+    if safeParent then
+        local oldGui = safeParent:FindFirstChild("EggGoToUI_v12")
+        if oldGui then pcall(function() oldGui:Destroy() end) end
+    end
 
     -- ScreenGui
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "EggGoToUI_v12"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.Parent = Helpers.getSafeUiParent()
+    screenGui.Parent = safeParent
     UI.Elements.ScreenGui = screenGui
 
     -- Draggable Menu Toggle Button
@@ -1487,11 +1527,52 @@ UI.build = function()
     tabHalloween.Parent = contentContainer
     UI.Elements.TabHalloween = tabHalloween
 
+    -- Row 2.5.1: Halloween Filter Bar (Rarity Dropdown)
+    local hwFilterBar = Instance.new("Frame")
+    hwFilterBar.Name = "HwFilterBar"
+    hwFilterBar.Size = UDim2.new(1, -16, 0, 26)
+    hwFilterBar.Position = UDim2.new(0, 8, 0, 8)
+    hwFilterBar.BackgroundTransparency = 1
+    hwFilterBar.BorderSizePixel = 0
+    hwFilterBar.ClipsDescendants = false
+    hwFilterBar.ZIndex = 40
+    hwFilterBar.Parent = tabHalloween
+
+    local hwRarityBtn = Instance.new("TextButton")
+    hwRarityBtn.Name = "HwRarityDropdownBtn"
+    hwRarityBtn.Size = UDim2.new(1, 0, 1, 0)
+    hwRarityBtn.Position = UDim2.new(0, 0, 0, 0)
+    hwRarityBtn.BackgroundColor3 = Color3.fromRGB(30, 36, 52)
+    hwRarityBtn.Text = "Rarity: All ▼"
+    hwRarityBtn.TextColor3 = Color3.fromRGB(200, 220, 255)
+    hwRarityBtn.TextSize = 10.5
+    hwRarityBtn.Font = Enum.Font.GothamBold
+    hwRarityBtn.Parent = hwFilterBar
+    Instance.new("UICorner", hwRarityBtn).CornerRadius = UDim.new(0, 4)
+    UI.Elements.HwRarityDropdownBtn = hwRarityBtn
+
+    UI.createFilterDropdown({
+        parent = hwFilterBar,
+        btn = hwRarityBtn,
+        title = "Rarity",
+        items = Config.Taxonomy.FarmableRarities,
+        colorMap = Config.Taxonomy.RarityColors,
+        getSelected = function() return Engine.State.SelectedHwRarities end,
+        setSelected = function(v) Engine.State.SelectedHwRarities = v end,
+        onChanged = function()
+            if UI.renderHalloweenEggs then pcall(UI.renderHalloweenEggs) end
+        end,
+        size = UDim2.new(1, 0, 0, 240),
+        pos = UDim2.new(0, 0, 0, 28),
+        scrollable = true,
+        zIndex = 50,
+    })
+
     -- Scroll Frame for Halloween eggs
     local hwScroll = Instance.new("ScrollingFrame")
     hwScroll.Name = "HwEggListScroll"
-    hwScroll.Size = UDim2.new(1, -16, 1, -16)
-    hwScroll.Position = UDim2.new(0, 8, 0, 8)
+    hwScroll.Size = UDim2.new(1, -16, 1, -46)
+    hwScroll.Position = UDim2.new(0, 8, 0, 38)
     hwScroll.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
     hwScroll.BorderSizePixel = 0
     hwScroll.ScrollBarThickness = 4
@@ -2108,7 +2189,8 @@ Engine.State = {
     EggCacheByUid         = {},
     RarityByUid           = {},
     SelectedBiomes        = { ["All"] = true },
-    SelectedRarities      = { ["All"] = true },
+    SelectedRarities      = {},
+    SelectedHwRarities    = { ["Divine"] = true, ["Eternal"] = true, ["Secret"] = true },
     BaseGoSpeed           = Config.Velocity.DefaultGoSpeed,
     BaseCarrySpeed        = Config.Velocity.DefaultCarrySpeed,
     ListDirty             = false,
@@ -4168,16 +4250,29 @@ UI.renderHalloweenEggs = function()
             local uid = model:GetAttribute("HalloweenEggUid") or model.Name
             local dist = charPos and (pos - charPos).Magnitude or 99999
 
-            table.insert(eggList, {
-                Model       = model,
-                DisplayName = disp,
-                ZoneLabel   = zoneLabel,
-                Rarity      = rarity,
-                Rank        = rank,
-                Position    = pos,
-                Distance    = dist,
-                Uid         = uid,
-            })
+            -- Rarity filter for Halloween eggs
+            local rarityAllowed = false
+            local hwRar = Engine.State.SelectedHwRarities
+            if not hwRar or hwRar["All"] == true then
+                rarityAllowed = true
+            elseif next(hwRar) == nil then
+                rarityAllowed = false
+            elseif hwRar[rarity] == true then
+                rarityAllowed = true
+            end
+
+            if rarityAllowed then
+                table.insert(eggList, {
+                    Model       = model,
+                    DisplayName = disp,
+                    ZoneLabel   = zoneLabel,
+                    Rarity      = rarity,
+                    Rank        = rank,
+                    Position    = pos,
+                    Distance    = dist,
+                    Uid         = uid,
+                })
+            end
         end
     end
 
@@ -4262,6 +4357,12 @@ Engine.Cleanup = function()
             hum:Move(Vector3.zero, false)
         end
     end)
+
+    table.clear(Engine.State.EggCacheByUid)
+    table.clear(Engine.State.RarityByUid)
+    table.clear(Engine.State.NoclipParts)
+    table.clear(UI.CardPool)
+    table.clear(UI.HwCardPool)
 
     if UI.Elements.ScreenGui and UI.Elements.ScreenGui.Parent then
         pcall(function() UI.Elements.ScreenGui:Destroy() end)
