@@ -7,7 +7,7 @@
     1. CONFIG DEFAULT
        - Taxonomy, Rarity colors & ranks (Common up to Divine)
        - 13 Canonical farmable world biomes catalog & species aliases
-       - Dual-speed velocity defaults (Go: 360, Carry: 310)
+       - Dual-speed velocity defaults (Go: 360, Carry: 300)
        - Instant recovery physics parameters (AntiFling, BrakeVelocity, GroundDist)
        - Fast pickup configuration (Burst count, interval, reach distance)
        - UI theme styling & dimensions
@@ -470,7 +470,7 @@ Config.Taxonomy = {
 -- 1.2 Velocity & Dual-Speed Defaults
 Config.Velocity = {
     DefaultGoSpeed    = 360,
-    DefaultCarrySpeed = 310,
+    DefaultCarrySpeed = 300,
     MinSpeed          = 16,
     MaxSpeed          = 500,
     DefaultWalkSpeed  = 16.0,
@@ -1015,7 +1015,7 @@ UI.build = function()
     carryBox.Position = UDim2.new(0, 36, 0, 0)
     carryBox.BackgroundTransparency = 1
     carryBox.Text = tostring(Config.Velocity.DefaultCarrySpeed)
-    carryBox.PlaceholderText = "310"
+    carryBox.PlaceholderText = "300"
     carryBox.TextColor3 = Color3.new(1, 1, 1)
     carryBox.TextSize = 11
     carryBox.Font = Enum.Font.GothamBold
@@ -1814,6 +1814,12 @@ Engine.Velocity.setCarry = function(isCarry)
     if UI.updateActivityStatus then
         pcall(UI.updateActivityStatus)
     end
+
+    if carryBool and Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+        if Engine.Travel and Engine.Travel.startReturnTrip then
+            task.spawn(Engine.Travel.startReturnTrip)
+        end
+    end
 end
 
 Engine.Velocity.setCarryingState = function(carrying)
@@ -1851,11 +1857,14 @@ Engine.Velocity.updatePhysics = function(isCarry)
     end
 
     local isMoving = (hum.MoveDirection.Magnitude > 0.05)
+    local targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
+    if hum.WalkSpeed ~= targetSpeed then
+        pcall(function() hum.WalkSpeed = targetSpeed end)
+    end
+
     if not Engine.State.ActiveWalkTarget and not isMoving then
         return
     end
-
-    local targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
 
     -- Active Auto-Walk to target (walking to egg or safezone)
     if Engine.State.ActiveWalkTarget then
@@ -1869,9 +1878,6 @@ Engine.Velocity.updatePhysics = function(isCarry)
                 hrp.AssemblyLinearVelocity.Y,
                 targetDir.Z * targetSpeed
             )
-            if hum.WalkSpeed ~= targetSpeed then
-                pcall(function() hum.WalkSpeed = targetSpeed end)
-            end
         end
         return
     end
@@ -1884,9 +1890,6 @@ Engine.Velocity.updatePhysics = function(isCarry)
             hrp.AssemblyLinearVelocity.Y,
             dir.Z * targetSpeed
         )
-        if hum.WalkSpeed ~= targetSpeed then
-            pcall(function() hum.WalkSpeed = targetSpeed end)
-        end
     end
 end
 
@@ -1965,9 +1968,11 @@ Engine.Recovery.execute = function(reason)
         pcall(function()
             hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
             hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
             hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
             hum:ChangeState(Enum.HumanoidStateType.Running)
+            hum.Jump = true
 
             local animator = hum:FindFirstChildOfClass("Animator")
             if animator then
@@ -2157,30 +2162,51 @@ end
 -- 4.4 Fast Pickup Engine
 Engine.Pickup = {}
 
-Engine.Pickup.carryEgg = function(uid, burstCount)
+Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
     if not uid or uid == "" then return false end
     burstCount = burstCount or Config.Pickup.SpamBurstCount
     local rf = Helpers.getNetRemote("RF/EggWorld/AskFieldEggCarry")
     if not rf then return false end
 
     local payload = { Uid = uid }
-    for _ = 1, burstCount do
-        if Engine.State.IsCarry then
-            return true
-        end
-        task.spawn(function()
+    task.spawn(function()
+        for _ = 1, burstCount do
+            if Engine.State.IsCarry then
+                if onCarried then task.spawn(onCarried) end
+                if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                    if Engine.Travel and Engine.Travel.startReturnTrip then
+                        Engine.Travel.startReturnTrip()
+                    end
+                end
+                return
+            end
             local ok, res = pcall(function() return rf:InvokeServer(payload) end)
             if ok and res == true then
                 Engine.Velocity.setCarry(true)
                 Engine.State.CarryUid = uid
+                if onCarried then task.spawn(onCarried) end
+                if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                    if Engine.Travel and Engine.Travel.startReturnTrip then
+                        Engine.Travel.startReturnTrip()
+                    end
+                end
+                break
             end
-        end)
-    end
+            task.wait(0.04)
+        end
+    end)
     return true
 end
 
 Engine.Pickup.startAutoPickupSpam = function()
-    if Engine.State.IsCarry then return end
+    if Engine.State.IsCarry then
+        if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+            if Engine.Travel and Engine.Travel.startReturnTrip then
+                Engine.Travel.startReturnTrip()
+            end
+        end
+        return
+    end
 
     Engine.State.AutoPickupToken = Engine.State.AutoPickupToken + 1
     local myToken = Engine.State.AutoPickupToken
@@ -2189,6 +2215,11 @@ Engine.Pickup.startAutoPickupSpam = function()
         local tStart = os.clock()
         while Engine.State.AutoPickupToken == myToken and Config.Pickup.Enabled and (os.clock() - tStart < Config.Pickup.BurstMaxDuration) do
             if Engine.State.IsCarry then
+                if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                    if Engine.Travel and Engine.Travel.startReturnTrip then
+                        Engine.Travel.startReturnTrip()
+                    end
+                end
                 break
             end
 
@@ -2244,7 +2275,13 @@ Engine.Pickup.startAutoPickupSpam = function()
             end
 
             if bestEggUid then
-                Engine.Pickup.carryEgg(bestEggUid, 2)
+                Engine.Pickup.carryEgg(bestEggUid, 2, function()
+                    if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                        if Engine.Travel and Engine.Travel.startReturnTrip then
+                            Engine.Travel.startReturnTrip()
+                        end
+                    end
+                end)
             end
 
             task.wait(0.04)
@@ -2255,13 +2292,19 @@ end
 -- 4.5 Auto-Travel, Navigation & SafeZone Return Engine
 Engine.Travel = {}
 
+Engine.Travel.getSafeZonePosition = function()
+    return Config.Velocity.SafeZonePosition or Vector3.new(530.332, 70.724, -399.111)
+end
+
 Engine.Travel.stopWalking = function()
     Engine.State.ActiveWalkToken = Engine.State.ActiveWalkToken + 1
     Engine.State.ActiveWalkTarget = nil
     pcall(function()
         if hum and hum.Parent then
             hum:Move(Vector3.zero, false)
-            if hrp and hrp.Parent then hum.WalkToPoint = hrp.Position end
+            if hrp and hrp.Parent then
+                hum:MoveTo(hrp.Position)
+            end
             if not Engine.State.VelocityEnabled then
                 hum.WalkSpeed = math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0)
             end
@@ -2273,28 +2316,47 @@ Engine.Travel.stopWalking = function()
 end
 
 -- Reusable Simple Teleport Logic (Admin Abuse TP, Reach Assist & 60-Stud Snap Teleport)
-Engine.Travel.teleportTo = function(targetPos)
+-- snapBeside: When true, teleports beside the egg at ground level facing it, eliminating excess freefall on large eggs
+Engine.Travel.teleportTo = function(targetPos, snapBeside)
     if not (hrp and hrp.Parent and targetPos) then return false end
     local ok = pcall(function()
-        local targetY = targetPos.Y
-        if math.abs(hrp.Position.Y - targetPos.Y) <= 4 then
-            targetY = hrp.Position.Y
-        else
-            targetY = targetPos.Y + 2.5
-        end
         local rot = hrp.CFrame - hrp.CFrame.Position
-        hrp.CFrame = CFrame.new(targetPos.X, targetY, targetPos.Z) * rot
+        local finalPos = targetPos
+
+        if snapBeside then
+            local diff = Vector3.new(hrp.Position.X - targetPos.X, 0, hrp.Position.Z - targetPos.Z)
+            local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
+            local groundY = hrp.Position.Y
+            if math.abs(groundY - targetPos.Y) > 8 then
+                groundY = targetPos.Y
+            end
+            finalPos = Vector3.new(targetPos.X + dir.X * 3.2, groundY, targetPos.Z + dir.Z * 3.2)
+            rot = CFrame.lookAt(finalPos, Vector3.new(targetPos.X, groundY, targetPos.Z)) - finalPos
+        else
+            local targetY = targetPos.Y
+            if math.abs(hrp.Position.Y - targetPos.Y) <= 4 then
+                targetY = hrp.Position.Y
+            else
+                targetY = targetPos.Y + 2.5
+            end
+            finalPos = Vector3.new(targetPos.X, targetY, targetPos.Z)
+        end
+
+        hrp.CFrame = CFrame.new(finalPos) * rot
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
         Engine.State.LastGoodCFrame = hrp.CFrame
         if hum and hum.Parent then
             hum:Move(Vector3.zero, false)
+            if hrp and hrp.Parent then
+                hum:MoveTo(hrp.Position)
+            end
         end
     end)
     return ok
 end
 
-Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, snapDist)
+Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, snapDist, snapBeside)
     if not targetPos then return end
     arriveDist = arriveDist or 4.0
     snapDist = snapDist or Config.Velocity.TargetSnapDist or 60.0
@@ -2314,7 +2376,7 @@ Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, sna
 
             -- 60 studs teleport snap towards egg/location to stop and not overpass the target
             if dist <= snapDist or dist <= arriveDist then
-                Engine.Travel.teleportTo(targetPos)
+                Engine.Travel.teleportTo(targetPos, snapBeside)
                 Engine.Travel.stopWalking()
                 if onArrived then task.spawn(onArrived) end
                 break
@@ -2338,28 +2400,64 @@ end
 Engine.Travel.teleportToEgg = function(itemData)
     if not itemData or not itemData.Position then return false end
     Engine.Travel.stopWalking()
-    local ok = Engine.Travel.teleportTo(itemData.Position)
+    pcall(function()
+        if hum and hum.Parent then
+            hum:UnequipTools()
+        end
+    end)
+    Engine.State.AutoReturnActive = true
+    Engine.State.AutoReturnTargetUid = itemData.Uid
+    Engine.State.ReturnTripInProgress = false
+
+    local ok = Engine.Travel.teleportTo(itemData.Position, true)
     if ok and itemData.Uid then
-        Engine.Pickup.carryEgg(itemData.Uid, 6)
+        Engine.Pickup.carryEgg(itemData.Uid, 8, function()
+            if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                Engine.Travel.startReturnTrip()
+            end
+        end)
+        Engine.Pickup.startAutoPickupSpam()
     end
     return ok
 end
 
 Engine.Travel.walkToEgg = function(itemData)
-    if not itemData or not itemData.Position then return end
-    Engine.Travel.walkToTarget(itemData.Position, 4.0, function()
-        if itemData.Uid then
-            Engine.Pickup.carryEgg(itemData.Uid, 6)
+    if not itemData then return end
+    local targetPos = itemData.Position or (itemData.Record and Engine.Travel.getEggPosition(itemData.Record, itemData.Uid))
+    if not targetPos then return end
+
+    Engine.Travel.stopWalking()
+    pcall(function()
+        if hum and hum.Parent then
+            hum:UnequipTools()
         end
-    end, itemData.Uid, 60.0)
+    end)
+    Engine.State.AutoReturnActive = true
+    Engine.State.AutoReturnTargetUid = itemData.Uid
+    Engine.State.ReturnTripInProgress = false
+
+    if UI.Elements.ActivityStatus then
+        UI.Elements.ActivityStatus.Text = "Status: Walking to Egg (" .. tostring(itemData.DisplayName or itemData.Uid) .. ")..."
+        UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(240, 200, 80)
+    end
+
+    Engine.Travel.walkToTarget(targetPos, 4.0, function()
+        if itemData.Uid then
+            Engine.Pickup.carryEgg(itemData.Uid, 8, function()
+                if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                    Engine.Travel.startReturnTrip()
+                end
+            end)
+            Engine.Pickup.startAutoPickupSpam()
+        end
+    end, itemData.Uid, 60.0, true)
 end
 
 Engine.Travel.startReturnTrip = function()
-    if Engine.State.ReturnTripInProgress and Engine.State.ActiveWalkTarget == Config.Velocity.SafeZonePosition then return end
-    Engine.State.ReturnTripInProgress = true
-
-    local safePos = Config.Velocity.SafeZonePosition
+    local safePos = Engine.Travel.getSafeZonePosition()
     if not safePos then return end
+    if Engine.State.ReturnTripInProgress and Engine.State.ActiveWalkTarget == safePos then return end
+    Engine.State.ReturnTripInProgress = true
 
     if UI.Elements.ActivityStatus then
         UI.Elements.ActivityStatus.Text = "Status: Returning to SafeZone with Egg..."
@@ -2369,7 +2467,11 @@ Engine.Travel.startReturnTrip = function()
     Engine.Travel.walkToTarget(safePos, 6.0, function()
         pcall(function()
             if hrp and hrp.Parent then hrp.AssemblyLinearVelocity = Vector3.zero end
-            if hum and hum.Parent then hum:UnequipTools() end
+            if hum and hum.Parent then
+                hum:UnequipTools()
+                local resetSpeed = Engine.State.VelocityEnabled and Engine.State.BaseGoSpeed or math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0)
+                hum.WalkSpeed = resetSpeed
+            end
         end)
         Engine.State.AutoReturnActive = false
         Engine.State.AutoReturnTargetUid = nil
@@ -2416,7 +2518,7 @@ Engine.Travel.handleEggDropped = function(u, payload)
     Engine.Travel.walkToTarget(dropPos, 3.5, function()
         Engine.Pickup.carryEgg(u, 8)
         Engine.Pickup.startAutoPickupSpam()
-    end, u, 60.0)
+    end, u, 60.0, true)
 end
 
 Engine.Travel.handleEggDelivered = function(uid)
@@ -2427,7 +2529,11 @@ Engine.Travel.handleEggDelivered = function(uid)
     Engine.Travel.stopWalking()
     pcall(function()
         if hrp and hrp.Parent then hrp.AssemblyLinearVelocity = Vector3.zero end
-        if hum and hum.Parent then hum:UnequipTools() end
+        if hum and hum.Parent then
+            hum:UnequipTools()
+            local resetSpeed = Engine.State.VelocityEnabled and Engine.State.BaseGoSpeed or math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0)
+            hum.WalkSpeed = resetSpeed
+        end
     end)
     if UI.Elements.ActivityStatus then
         UI.Elements.ActivityStatus.Text = "Status: Egg successfully delivered!"
@@ -2652,13 +2758,13 @@ Engine.Sync.startPushMonitor = function()
         if payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr and state == "Carried" then
             Engine.Velocity.setCarry(true)
             Engine.State.CarryUid = u
-            if Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u then
+            if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
                 Engine.Travel.startReturnTrip()
             end
-        elseif (state == "Claimed" or state == "Dropped") and (Engine.State.CarryUid == u or (payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr)) then
+        elseif (state == "Claimed" or state == "Dropped") and (Engine.State.CarryUid == u or (payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr) or Engine.State.IsCarry) then
             Engine.Velocity.setCarry(false)
             Engine.State.CarryUid = nil
-            if Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u then
+            if Engine.State.AutoReturnActive and (Engine.State.AutoReturnTargetUid == u or state == "Claimed" or not Engine.State.AutoReturnTargetUid) then
                 if state == "Dropped" then
                     Engine.Travel.handleEggDropped(u, payload)
                 elseif state == "Claimed" then
@@ -2858,9 +2964,10 @@ Engine.Sync.startPushMonitor = function()
     local cra = Workspace:FindFirstChild("ClientRenderedAssets")
     if cra then
         addConnection(cra.ChildRemoved:Connect(function(child)
-            if Engine.State.IsCarry and Engine.State.CarryUid then
-                local expName = myUidStr .. "_" .. tostring(Engine.State.CarryUid)
-                if child.Name == expName then
+            if Engine.State.IsCarry then
+                local expName = myUidStr .. "_" .. tostring(Engine.State.CarryUid or "")
+                local prefix = myUidStr .. "_"
+                if child.Name == expName or child.Name:sub(1, #prefix) == prefix then
                     task.defer(function()
                         if Engine.State.IsCarry then
                             Engine.Velocity.setCarry(false)
@@ -3080,6 +3187,13 @@ Engine.Loops.start = function()
             if Config.Recovery.Enabled and Engine.Recovery.execute then
                 if hum and hum.Parent and hum.Health > 0 and (hum.PlatformStand or hum.Sit) then
                     Engine.Recovery.execute("LoopFallback")
+                end
+            end
+
+            -- Auto-Return Watchdog: If carrying an egg and AutoReturnActive is true, ensure return trip is running
+            if Engine.State.AutoReturnActive and (Engine.State.IsCarry or Engine.State.WeAreCarrying) and not Engine.State.ReturnTripInProgress then
+                if Engine.Travel and Engine.Travel.startReturnTrip then
+                    Engine.Travel.startReturnTrip()
                 end
             end
         end
@@ -3382,6 +3496,13 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
         end
     elseif input.KeyCode == Enum.KeyCode.Q then
         Engine.Travel.stopWalking()
+        Engine.State.AutoReturnActive = false
+        Engine.State.AutoReturnTargetUid = nil
+        Engine.State.ReturnTripInProgress = false
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Walk cancelled [Q]"
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(220, 220, 100)
+        end
     end
 end))
 
@@ -3451,6 +3572,30 @@ local function bindLifecycle(newChar)
             end
         end))
     end
+
+    addConnection(newChar.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            local nm = child.Name:lower()
+            if nm:find("egg") or child:GetAttribute("IsEgg") == true then
+                task.defer(function()
+                    Engine.Velocity.setCarry(true)
+                end)
+            end
+        end
+    end))
+
+    addConnection(newChar.ChildRemoved:Connect(function(child)
+        if Engine.State.IsCarry and child:IsA("Tool") then
+            local nm = child.Name:lower()
+            if nm:find("egg") or child:GetAttribute("IsEgg") == true then
+                task.defer(function()
+                    if Engine.State.IsCarry then
+                        Engine.Velocity.setCarry(false)
+                    end
+                end)
+            end
+        end
+    end))
 
     task.spawn(function()
         task.wait(0.2)
