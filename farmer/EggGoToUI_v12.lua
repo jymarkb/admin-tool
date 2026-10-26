@@ -59,6 +59,7 @@ local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService       = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService")
+local GuiService        = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
@@ -69,6 +70,8 @@ if not LocalPlayer then
     end
     LocalPlayer = LocalPlayer or Players.LocalPlayer
 end
+
+local myUidStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
 
 -- Connection management
 local connections = {}
@@ -478,6 +481,26 @@ Config.Recovery = {
     GroundDistance  = 2.5,
     MaxFlingSpeed   = 100,
     DebounceWindow  = 0.05,
+    BodyJointNames  = {
+        ["RootJoint"]     = true,
+        ["Root"]          = true,
+        ["Neck"]          = true,
+        ["Waist"]         = true,
+        ["Left Shoulder"] = true,
+        ["Right Shoulder"]= true,
+        ["Left Hip"]      = true,
+        ["Right Hip"]     = true,
+        ["LeftShoulder"]  = true,
+        ["RightShoulder"] = true,
+        ["LeftElbow"]     = true,
+        ["RightElbow"]    = true,
+        ["LeftWrist"]     = true,
+        ["RightWrist"]    = true,
+        ["LeftKnee"]      = true,
+        ["RightKnee"]     = true,
+        ["LeftAnkle"]     = true,
+        ["RightAnkle"]    = true,
+    },
 }
 
 -- 1.4 Fast Pickup Configuration
@@ -1365,17 +1388,26 @@ end
 -- ============================================================================
 
 -- 3.1 Network Remote Resolution
+Helpers.RemoteCache = {}
 Helpers.getNetRemote = function(name)
+    if Helpers.RemoteCache[name] then return Helpers.RemoteCache[name] end
     local pkg = ReplicatedStorage:FindFirstChild("Packages")
     local net = pkg and pkg:FindFirstChild("Networking")
     if net then
         local r = net:FindFirstChild(name)
-        if r then return r end
+        if r then
+            Helpers.RemoteCache[name] = r
+            return r
+        end
     end
     local found = ReplicatedStorage:FindFirstChild(name, true)
-    if found then return found end
+    if found then
+        Helpers.RemoteCache[name] = found
+        return found
+    end
     for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
         if d.Name == name or d.Name:lower() == name:lower() then
+            Helpers.RemoteCache[name] = d
             return d
         end
     end
@@ -1719,6 +1751,7 @@ end
 -- 4.1 State Management
 Engine.State = {
     VelocityEnabled       = false,
+    IsCarry               = false,
     WeAreCarrying         = false,
     IsCarrying            = false,
     CarryUid              = nil,
@@ -1739,9 +1772,6 @@ Engine.State = {
     ListDirty             = false,
     IsRecovering          = false,
     LastRecoveryTime      = 0,
-    LastCarryingCheck     = 0,
-    CachedCarryingStatus  = false,
-    CachedCarryingName    = nil,
     SavedWalkSpeed        = 16.0,
     CachedControls        = nil,
 }
@@ -1751,27 +1781,23 @@ for r, sel in pairs(Config.Taxonomy.DefaultSelectedRarities) do
     Engine.State.SelectedRarities[r] = sel
 end
 
--- 4.2 Velocity & Carry Physics Engine
+-- 4.2 Velocity Engine (Continuous Speed with isCarry true/false param)
 Engine.Velocity = {}
 
-Engine.Velocity.setCarryingState = function(carrying, eggName)
-    Engine.State.IsCarrying = carrying
-    Engine.State.WeAreCarrying = carrying
-    if not carrying then
+Engine.Velocity.setCarry = function(isCarry)
+    local carryBool = (isCarry == true)
+    Engine.State.IsCarry = carryBool
+    Engine.State.WeAreCarrying = carryBool
+    Engine.State.IsCarrying = carryBool
+    if not carryBool then
         Engine.State.CarryUid = nil
-        Engine.State.CachedCarryingName = nil
-    elseif eggName then
-        Engine.State.CachedCarryingName = eggName
     end
-    Engine.State.CachedCarryingStatus = carrying
-    Engine.State.LastCarryingCheck = 0
 
-    -- Instant speed update without Heartbeat lag
     local char = LocalPlayer and LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum and hum.Health > 0 then
         if Engine.State.VelocityEnabled then
-            local spd = carrying and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
+            local spd = carryBool and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
             pcall(function() hum.WalkSpeed = spd end)
         else
             pcall(function() hum.WalkSpeed = math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0) end)
@@ -1783,65 +1809,30 @@ Engine.Velocity.setCarryingState = function(carrying, eggName)
     end
 end
 
+Engine.Velocity.setCarryingState = function(carrying)
+    Engine.Velocity.setCarry(carrying)
+end
+
+Engine.Velocity.setSpeed = function(isCarry)
+    Engine.Velocity.setCarry(isCarry)
+end
+
+Engine.Velocity.getCarryingStatus = function()
+    return Engine.State.IsCarry == true
+end
+
+Engine.Velocity.isHoldingFieldEgg = function()
+    return Engine.State.IsCarry == true
+end
+
 Engine.Velocity.isHoldingEgg = function()
-    local char = LocalPlayer and LocalPlayer.Character
-    if char then
-        for _, c in ipairs(char:GetChildren()) do
-            if c:IsA("Tool") then
-                local cName = c.Name:lower()
-                if cName:find("egg", 1, true) or c:GetAttribute("IsEgg") == true then
-                    return true, c.Name
-                end
-            end
-        end
-    end
-
-    if Engine.State.CarryUid then
-        local myUidStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
-        local cra = Workspace:FindFirstChild("ClientRenderedAssets")
-        if cra and myUidStr ~= "" then
-            local expName = myUidStr .. "_" .. tostring(Engine.State.CarryUid)
-            local m = cra:FindFirstChild(expName)
-            if m and (m:IsA("BasePart") or m:FindFirstChildWhichIsA("BasePart", true)) then
-                return true, tostring(Engine.State.CarryUid)
-            end
-        end
-
-        local rec = Engine.State.EggCacheByUid[Engine.State.CarryUid]
-        if rec and typeof(rec) == "table" and rec.CarrierUserId and tostring(rec.CarrierUserId) == myUidStr and rec.State == "Carried" then
-            return true, rec.DisplayName or rec.Name or tostring(Engine.State.CarryUid)
-        end
-    end
-
-    return false, nil
+    return Engine.State.IsCarry == true
 end
 
-Engine.Velocity.getCarryingStatus = function(force)
-    local now = os.clock()
-    if not force and (now - Engine.State.LastCarryingCheck < 0.25) then
-        return Engine.State.CachedCarryingStatus, Engine.State.CachedCarryingName
+Engine.Velocity.updatePhysics = function(isCarry)
+    if isCarry ~= nil then
+        Engine.Velocity.setCarry(isCarry)
     end
-    Engine.State.LastCarryingCheck = now
-
-    local held, heldName = Engine.Velocity.isHoldingEgg()
-    if held then
-        Engine.State.WeAreCarrying = true
-        Engine.State.IsCarrying = true
-        Engine.State.CachedCarryingStatus = true
-        Engine.State.CachedCarryingName = heldName or Engine.State.CachedCarryingName or "Egg"
-        return true, Engine.State.CachedCarryingName
-    else
-        if Engine.State.WeAreCarrying then
-            Engine.Velocity.setCarryingState(false, nil)
-        else
-            Engine.State.CachedCarryingStatus = false
-            Engine.State.CachedCarryingName = nil
-        end
-        return false, nil
-    end
-end
-
-Engine.Velocity.updatePhysics = function()
     if not Engine.State.VelocityEnabled then return end
     local char = LocalPlayer and LocalPlayer.Character
     if not char then return end
@@ -1854,8 +1845,7 @@ Engine.Velocity.updatePhysics = function()
         return
     end
 
-    local isCarrying = Engine.Velocity.getCarryingStatus()
-    local targetSpeed = isCarrying and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
+    local targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
 
     -- Active Auto-Walk to target (walking to egg or safezone)
     if Engine.State.ActiveWalkTarget then
@@ -1925,7 +1915,7 @@ Engine.Recovery.breakJointFallbacks = function(char, hum, hrp)
         end
     else
         for _, d in ipairs(char:GetDescendants()) do
-            if d:IsA("Motor6D") and not d.Enabled then
+            if d:IsA("Motor6D") and Config.Recovery.BodyJointNames[d.Name] and not d.Enabled then
                 pcall(function() d.Enabled = true end)
             end
         end
@@ -1979,15 +1969,14 @@ Engine.Recovery.execute = function(reason)
 
         Helpers.enablePlayerControls()
 
-        -- Verify carrying status on bump/hit/trap: if egg dropped, reset velocity speed immediately!
-        local held, heldName = Engine.Velocity.isHoldingEgg()
-        if not held and Engine.State.WeAreCarrying then
+        -- Instant Recovery on bump/hit/trap: field egg is dropped on stun/hit/trap!
+        if Engine.State.WeAreCarrying then
             Engine.Velocity.setCarryingState(false, nil)
         end
+        Engine.Velocity.setCarry(false)
 
         -- Immediately restore Humanoid WalkSpeed so player never gets stuck frozen at 0 speed!
-        local isCarrying = Engine.Velocity.getCarryingStatus(true)
-        local targetSpeed = isCarrying and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
+        local targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
         if Engine.State.VelocityEnabled then
             pcall(function() hum.WalkSpeed = targetSpeed end)
         else
@@ -2021,10 +2010,12 @@ Engine.Recovery.installHooks = function()
         local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            if Config.Recovery.Enabled and not (checkcaller and checkcaller()) and method == "GetAttribute" then
-                local attrName = ...
-                if attrName == "RagdollEndTime" or attrName == "RagdollTime" then
-                    return 0
+            if Config.Recovery.Enabled and not (checkcaller and checkcaller()) then
+                if method == "GetAttribute" then
+                    local attrName = ...
+                    if attrName == "RagdollEndTime" or attrName == "RagdollTime" then
+                        return 0
+                    end
                 end
             end
             return oldNamecall(self, ...)
@@ -2034,9 +2025,11 @@ Engine.Recovery.installHooks = function()
         oldNewIndex = hookmetamethod(game, "__newindex", newcclosure(function(self, key, value)
             if Config.Recovery.Enabled and not (checkcaller and checkcaller()) and typeof(self) == "Instance" then
                 if key == "Enabled" and self:IsA("Motor6D") and value == false then
-                    local ch = LocalPlayer and LocalPlayer.Character
-                    if ch and self:IsDescendantOf(ch) then
-                        return oldNewIndex(self, key, true)
+                    if Config.Recovery.BodyJointNames[self.Name] then
+                        local ch = LocalPlayer and LocalPlayer.Character
+                        if ch and self:IsDescendantOf(ch) then
+                            return oldNewIndex(self, key, true)
+                        end
                     end
                 elseif key == "PlatformStand" and self:IsA("Humanoid") and value == true then
                     local ch = LocalPlayer and LocalPlayer.Character
@@ -2046,7 +2039,7 @@ Engine.Recovery.installHooks = function()
                 elseif key == "WalkSpeed" and self:IsA("Humanoid") and value == 0 then
                     local ch = LocalPlayer and LocalPlayer.Character
                     if ch and self:IsDescendantOf(ch) then
-                        local spd = Engine.State.VelocityEnabled and (Engine.State.WeAreCarrying and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed) or 16.0
+                        local spd = Engine.State.VelocityEnabled and (Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed) or 16.0
                         return oldNewIndex(self, key, spd)
                     end
                 end
@@ -2073,7 +2066,7 @@ Engine.Recovery.bindCharacter = function(char)
     end
 
     local function registerMotor(obj)
-        if obj:IsA("Motor6D") and not obj:FindFirstAncestorWhichIsA("Tool") and not obj:FindFirstAncestorWhichIsA("Accessory") then
+        if obj:IsA("Motor6D") and Config.Recovery.BodyJointNames[obj.Name] then
             table.insert(Engine.Recovery.Joints, obj)
             local conn = obj:GetPropertyChangedSignal("Enabled"):Connect(function()
                 if Config.Recovery.Enabled and not obj.Enabled then
@@ -2086,19 +2079,6 @@ Engine.Recovery.bindCharacter = function(char)
     end
 
     for _, d in ipairs(char:GetDescendants()) do registerMotor(d) end
-    table.insert(Engine.Recovery.Connections, char.DescendantAdded:Connect(registerMotor))
-
-    local childConn = char.ChildRemoved:Connect(function(child)
-        if child:IsA("Tool") then
-            task.defer(function()
-                local held = Engine.Velocity.isHoldingEgg()
-                if not held and Engine.State.WeAreCarrying then
-                    Engine.Velocity.setCarryingState(false, nil)
-                end
-            end)
-        end
-    end)
-    table.insert(Engine.Recovery.Connections, childConn)
 
     local stateConn = hum.StateChanged:Connect(function(_, newState)
         if not Config.Recovery.Enabled then return end
@@ -2160,19 +2140,22 @@ Engine.Pickup.carryEgg = function(uid, burstCount)
 
     local payload = { Uid = uid }
     for _ = 1, burstCount do
-        if Engine.Velocity.isHoldingEgg() or Engine.State.WeAreCarrying then
+        if Engine.State.IsCarry then
             return true
         end
         task.spawn(function()
-            pcall(function() return rf:InvokeServer(payload) end)
+            local ok, res = pcall(function() return rf:InvokeServer(payload) end)
+            if ok and res == true then
+                Engine.Velocity.setCarry(true)
+                Engine.State.CarryUid = uid
+            end
         end)
     end
     return true
 end
 
 Engine.Pickup.startAutoPickupSpam = function()
-    local curHolding = Engine.Velocity.isHoldingEgg()
-    if curHolding or Engine.State.WeAreCarrying then return end
+    if Engine.State.IsCarry then return end
 
     Engine.State.AutoPickupToken = Engine.State.AutoPickupToken + 1
     local myToken = Engine.State.AutoPickupToken
@@ -2180,8 +2163,7 @@ Engine.Pickup.startAutoPickupSpam = function()
     task.spawn(function()
         local tStart = os.clock()
         while Engine.State.AutoPickupToken == myToken and Config.Pickup.Enabled and (os.clock() - tStart < Config.Pickup.BurstMaxDuration) do
-            if Engine.Velocity.isHoldingEgg() or Engine.State.WeAreCarrying then
-                Engine.Velocity.setCarryingState(true)
+            if Engine.State.IsCarry then
                 break
             end
 
@@ -2352,7 +2334,7 @@ Engine.Travel.startReturnTrip = function()
         Engine.State.AutoReturnActive = false
         Engine.State.AutoReturnTargetUid = nil
         Engine.State.ReturnTripInProgress = false
-        Engine.Velocity.setCarryingState(false, nil)
+        Engine.Velocity.setCarry(false)
         if UI.Elements.ActivityStatus then
             UI.Elements.ActivityStatus.Text = "Status: Arrived at SafeZone with Egg"
             UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(120, 240, 160)
@@ -2361,7 +2343,7 @@ Engine.Travel.startReturnTrip = function()
 end
 
 Engine.Travel.handleEggDropped = function(u, payload)
-    Engine.Velocity.setCarryingState(false, nil)
+    Engine.Velocity.setCarry(false)
     if not Engine.State.AutoReturnActive then return end
     Engine.State.ReturnTripInProgress = false
     Engine.Travel.stopWalking()
@@ -2403,7 +2385,7 @@ Engine.Travel.handleEggDelivered = function(uid)
     Engine.State.AutoReturnActive = false
     Engine.State.AutoReturnTargetUid = nil
     Engine.State.ReturnTripInProgress = false
-    Engine.Velocity.setCarryingState(false, nil)
+    Engine.Velocity.setCarry(false)
     Engine.Travel.stopWalking()
     pcall(function()
         local ch = LocalPlayer and LocalPlayer.Character
@@ -2504,7 +2486,7 @@ Engine.Travel.isFarmableEgg = function(r)
     if state == "Claimed" then
         return false
     end
-    if state == "Carried" or (r.CarrierUserId and tostring(r.CarrierUserId) ~= tostring(LocalPlayer and LocalPlayer.UserId)) then
+    if state == "Carried" or (r.CarrierUserId and tostring(r.CarrierUserId) ~= myUidStr) then
         return false
     end
     return true
@@ -2616,15 +2598,15 @@ Engine.Sync.startPushMonitor = function()
         if u == "" then return end
 
         local state = payload.State
-        local myUidStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
-
         if payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr and state == "Carried" then
-            Engine.Velocity.setCarryingState(true, u)
+            Engine.Velocity.setCarry(true)
+            Engine.State.CarryUid = u
             if Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u then
                 Engine.Travel.startReturnTrip()
             end
-        elseif (state == "Claimed" or state == "Dropped") and Engine.State.CarryUid == u then
-            Engine.Velocity.setCarryingState(false, nil)
+        elseif (state == "Claimed" or state == "Dropped") and (Engine.State.CarryUid == u or (payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr)) then
+            Engine.Velocity.setCarry(false)
+            Engine.State.CarryUid = nil
             if Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u then
                 if state == "Dropped" then
                     Engine.Travel.handleEggDropped(u, payload)
@@ -2770,6 +2752,32 @@ Engine.Sync.startPushMonitor = function()
             Engine.State.ListDirty = true
         end
     end)
+
+    connectRemote("RE/EggWorld/OwnerDropped", function(payload)
+        local u = typeof(payload) == "table" and tostring(payload.Uid or payload.EggUid or payload.uid or "") or tostring(payload or "")
+        local isOurs = (typeof(payload) == "table" and payload.UserId and tostring(payload.UserId) == myUidStr) or (u ~= "" and u == Engine.State.CarryUid) or Engine.State.IsCarry
+        if isOurs then
+            Engine.Velocity.setCarry(false)
+            Engine.State.CarryUid = nil
+        end
+    end)
+
+    -- Drop Monitor: watches Workspace.ClientRenderedAssets if an active carried field egg is dropped
+    local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+    if cra then
+        addConnection(cra.ChildRemoved:Connect(function(child)
+            if Engine.State.IsCarry and Engine.State.CarryUid then
+                local expName = myUidStr .. "_" .. tostring(Engine.State.CarryUid)
+                if child.Name == expName then
+                    task.defer(function()
+                        if Engine.State.IsCarry then
+                            Engine.Velocity.setCarry(false)
+                        end
+                    end)
+                end
+            end
+        end))
+    end
 end
 
 Engine.Sync.syncEggSnapshot = function()
@@ -3004,9 +3012,8 @@ UI.updateActivityStatus = function()
         lbl.TextColor3 = Color3.fromRGB(160, 170, 190)
         return
     end
-    local carrying, name = Engine.Velocity.getCarryingStatus()
-    if carrying then
-        lbl.Text = string.format("Status: Carrying [%s] (%d studs/s)", name or "Egg", Engine.State.BaseCarrySpeed)
+    if Engine.State.IsCarry then
+        lbl.Text = string.format("Status: Carrying (%d studs/s)", Engine.State.BaseCarrySpeed)
         lbl.TextColor3 = Color3.fromRGB(255, 200, 80)
     else
         lbl.Text = string.format("Status: Velocity Active (%d studs/s)", Engine.State.BaseGoSpeed)
@@ -3288,7 +3295,6 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
 end))
 
 -- Outside Click Listener for Dropdowns (Zero-blocking, coordinate & inset safe)
-local GuiService = game:GetService("GuiService")
 local function isInsideGui(guiObj, pos)
     if not (guiObj and guiObj.Visible) then return false end
     local ok, a = pcall(function() return guiObj.AbsolutePosition end)
@@ -3322,7 +3328,7 @@ addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
     task.spawn(function()
         task.wait(0.2)
         Engine.Recovery.bindCharacter(newChar)
-        Engine.Velocity.setCarryingState(false)
+        Engine.Velocity.setCarry(false)
     end)
 end))
 
