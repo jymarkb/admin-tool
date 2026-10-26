@@ -525,7 +525,13 @@ Config.Treadmill = {
     Enabled = false,
 }
 
--- 1.7 UI Theme & Window Dimensions
+-- 1.7 Auto Butterfly Configuration
+Config.Butterfly = {
+    Enabled      = false,
+    ZonePosition = Vector3.new(6697.747, 70.724, -376.004),
+}
+
+-- 1.8 UI Theme & Window Dimensions
 Config.UI = {
     WindowSize     = UDim2.new(0, 380, 0, 520),
     TitleBarHeight = 36,
@@ -580,6 +586,7 @@ UI.Elements = {
     ToggleTrapEvadeBtn = nil,
     ToggleTreadmillBtn = nil,
     TriggerDismountBtn = nil,
+    ToggleButterflyBtn = nil,
     UtilityCopyJsonBtn = nil,
 }
 
@@ -1385,6 +1392,39 @@ UI.build = function()
     uCopyBtn.Parent = rowExp
     Instance.new("UICorner", uCopyBtn).CornerRadius = UDim.new(0, 5)
     UI.Elements.UtilityCopyJsonBtn = uCopyBtn
+
+    -- Row 2.4.8: Auto Butterfly Row
+    local rowBf = Instance.new("Frame")
+    rowBf.Name = "RowAutoButterfly"
+    rowBf.Size = UDim2.new(1, -16, 0, 36)
+    rowBf.Position = UDim2.new(0, 8, 0, 304)
+    rowBf.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+    rowBf.Parent = tabUtility
+    Instance.new("UICorner", rowBf).CornerRadius = UDim.new(0, 6)
+
+    local lblBf = Instance.new("TextLabel")
+    lblBf.Size = UDim2.new(1, -80, 1, 0)
+    lblBf.Position = UDim2.new(0, 12, 0, 0)
+    lblBf.BackgroundTransparency = 1
+    lblBf.Text = "Auto Butterfly"
+    lblBf.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblBf.Font = Enum.Font.GothamBold
+    lblBf.TextSize = 12
+    lblBf.TextXAlignment = Enum.TextXAlignment.Left
+    lblBf.Parent = rowBf
+
+    local toggleBfBtn = Instance.new("TextButton")
+    toggleBfBtn.Name = "ToggleButterflyBtn"
+    toggleBfBtn.Size = UDim2.new(0, 56, 0, 24)
+    toggleBfBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    toggleBfBtn.BackgroundColor3 = Config.Butterfly.Enabled and theme.GreenOn or theme.GrayOff
+    toggleBfBtn.Text = Config.Butterfly.Enabled and "ON" or "OFF"
+    toggleBfBtn.TextColor3 = Config.Butterfly.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    toggleBfBtn.Font = Enum.Font.GothamBold
+    toggleBfBtn.TextSize = 11
+    toggleBfBtn.Parent = rowBf
+    Instance.new("UICorner", toggleBfBtn).CornerRadius = UDim.new(0, 5)
+    UI.Elements.ToggleButterflyBtn = toggleBfBtn
 end
 
 -- Card Pool Factory (Zero-Allocation DOM Recycling)
@@ -2595,6 +2635,80 @@ Engine.Treadmill.dismount = function()
     end
 end
 
+-- 4.55 Auto Butterfly Engine (Lean Push Architecture)
+Engine.Butterfly = {
+    EventActive = false,
+}
+
+Engine.Butterfly.equipNet = function()
+    if Character and Character:FindFirstChild("Butterfly Net") then
+        return true
+    end
+    local bp = LocalPlayer and LocalPlayer:FindFirstChild("Backpack")
+    local net = bp and bp:FindFirstChild("Butterfly Net")
+    if net and hum and hum.Parent then
+        pcall(function() hum:EquipTool(net) end)
+        return true
+    end
+    return false
+end
+
+Engine.Butterfly.goToEvent = function()
+    if not Config.Butterfly.Enabled or not Engine.Butterfly.EventActive then return end
+
+    local zone = Config.Butterfly.ZonePosition
+    if UI.Elements.ActivityStatus then
+        UI.Elements.ActivityStatus.Text = "Status: Moving to Butterfly Event..."
+        UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 180, 220)
+    end
+
+    Engine.Travel.walkToTarget(zone, 2.5, function()
+        Engine.Butterfly.equipNet()
+        pcall(function()
+            if hrp and hrp.Parent then hrp.AssemblyLinearVelocity = Vector3.zero end
+            if hum and hum.Parent then hum:Move(Vector3.zero, false) end
+        end)
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: At Butterfly Event"
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 140, 240)
+        end
+    end, "BUTTERFLY", 60.0, false)
+end
+
+Engine.Butterfly.setEventActive = function(active)
+    Engine.Butterfly.EventActive = active
+    if active and Config.Butterfly.Enabled then
+        task.spawn(Engine.Butterfly.goToEvent)
+    end
+end
+
+Engine.Butterfly.init = function()
+    local evAnnounce = Helpers.getNetRemote("RE/Butterflies/Announce")
+    if evAnnounce and evAnnounce:IsA("RemoteEvent") then
+        addConnection(evAnnounce.OnClientEvent:Connect(function()
+            Engine.Butterfly.setEventActive(true)
+        end))
+    end
+
+    local evEnded = Helpers.getNetRemote("RE/LiveEvents/Ended")
+    if evEnded and evEnded:IsA("RemoteEvent") then
+        addConnection(evEnded.OnClientEvent:Connect(function(eventData)
+            local str = tostring(eventData)
+            if typeof(eventData) == "table" then
+                str = tostring(eventData.Name or eventData.Type or eventData.Id or "")
+            end
+            if str == "" or str:lower():find("butterfl", 1, true) then
+                Engine.Butterfly.setEventActive(false)
+            end
+        end))
+    end
+
+    local bFolder = Workspace:FindFirstChild("Butterflies") or (Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Butterflies"))
+    if bFolder and #bFolder:GetChildren() > 0 then
+        Engine.Butterfly.setEventActive(true)
+    end
+end
+
 -- 4.6 Fast Pickup Engine
 Engine.Pickup = {}
 
@@ -3668,6 +3782,7 @@ Engine.Loops.start = function()
 
         task.wait(0.2)
         Engine.Sync.startPushMonitor()
+        pcall(Engine.Butterfly.init)
         pcall(Engine.Sync.syncAreaEggSlotsESP)
         pcall(Engine.Sync.syncEggSnapshot)
 
@@ -3813,6 +3928,13 @@ Engine.Cleanup = function()
     if Engine.Treadmill then
         Engine.Treadmill.CachedModel = nil
         Engine.Treadmill.CachedPosition = nil
+    end
+
+    if Config.Butterfly then
+        Config.Butterfly.Enabled = false
+    end
+    if Engine.Butterfly then
+        Engine.Butterfly.EventActive = false
     end
 
     pcall(function()
@@ -3995,6 +4117,24 @@ end
 if UI.Elements.TriggerDismountBtn then
     addConnection(UI.Elements.TriggerDismountBtn.MouseButton1Click:Connect(function()
         Engine.Treadmill.dismount()
+    end))
+end
+
+-- Auto Butterfly Toggle Button
+if UI.Elements.ToggleButterflyBtn then
+    local function updateBfBtn()
+        local en = Config.Butterfly.Enabled
+        UI.Elements.ToggleButterflyBtn.Text = en and "ON" or "OFF"
+        UI.Elements.ToggleButterflyBtn.BackgroundColor3 = en and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
+        UI.Elements.ToggleButterflyBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+
+    addConnection(UI.Elements.ToggleButterflyBtn.MouseButton1Click:Connect(function()
+        Config.Butterfly.Enabled = not Config.Butterfly.Enabled
+        updateBfBtn()
+        if Config.Butterfly.Enabled and Engine.Butterfly.EventActive then
+            task.spawn(Engine.Butterfly.goToEvent)
+        end
     end))
 end
 
