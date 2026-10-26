@@ -1907,17 +1907,14 @@ end
 
 Engine.Recovery.breakJointFallbacks = function(char, hum, hrp)
     if not (char and hum and hrp) then return end
-    if #Engine.Recovery.Joints > 0 then
-        for _, m in ipairs(Engine.Recovery.Joints) do
-            if m and m.Parent and not m.Enabled then
-                pcall(function() m.Enabled = true end)
-            end
-        end
-    else
-        for _, d in ipairs(char:GetDescendants()) do
-            if d:IsA("Motor6D") and Config.Recovery.BodyJointNames[d.Name] and not d.Enabled then
+    for _, d in ipairs(char:GetDescendants()) do
+        if d:IsA("Motor6D") and not d:FindFirstAncestorWhichIsA("Tool") and not d:FindFirstAncestorWhichIsA("Accessory") then
+            if not d.Enabled then
                 pcall(function() d.Enabled = true end)
             end
+            pcall(function() d.Transform = CFrame.identity end)
+        elseif d:IsA("BallSocketConstraint") or d:IsA("HingeConstraint") then
+            pcall(function() d.Enabled = false end)
         end
     end
 end
@@ -2281,7 +2278,7 @@ end
 Engine.Travel = {}
 
 Engine.Travel.getSafeZonePosition = function()
-    return Config.Velocity.SafeZonePosition or Vector3.new(530.332, 70.724, -399.111)
+    return Config.Velocity.SafeZonePosition
 end
 
 Engine.Travel.stopWalking = function()
@@ -2605,7 +2602,7 @@ end
 Engine.Travel.isFarmableEgg = function(r)
     if not r or typeof(r) ~= "table" then return false end
     local state = tostring(r.State or "Slot")
-    if state ~= "Slot" and state ~= "Dropped" and state ~= "Ground" and state ~= "Active" then
+    if state ~= "Slot" and state ~= "Dropped" and state ~= "Ground" and state ~= "Active" and state ~= "Field" and state ~= "Nest" then
         if r.PreparedSourceName and r.PreparedSourceName ~= "" then
             -- Accepted
         else
@@ -2615,7 +2612,10 @@ Engine.Travel.isFarmableEgg = function(r)
     if state == "Claimed" then
         return false
     end
-    if state == "Carried" or (r.CarrierUserId and tostring(r.CarrierUserId) ~= myUidStr) then
+    if state == "Carried" then
+        return false
+    end
+    if r.CarrierUserId and tostring(r.CarrierUserId) ~= myUidStr and state ~= "Dropped" then
         return false
     end
     return true
@@ -2780,14 +2780,29 @@ Engine.Sync.startPushMonitor = function()
             Engine.State.EggCacheByUid[u] = nil
         elseif Engine.State.EggCacheByUid[u] then
             Engine.State.EggCacheByUid[u].State = state
-            if payload.CarrierUserId then
+            if state == "Carried" then
                 Engine.State.EggCacheByUid[u].CarrierUserId = payload.CarrierUserId
+            else
+                Engine.State.EggCacheByUid[u].CarrierUserId = nil
             end
             if payload.BoundsCFrame then
                 Engine.State.EggCacheByUid[u].BoundsCFrame = payload.BoundsCFrame
+                local cf = payload.BoundsCFrame
+                if typeof(cf) == "CFrame" then Engine.State.EggCacheByUid[u].Position = cf.Position
+                elseif typeof(cf) == "Vector3" then Engine.State.EggCacheByUid[u].Position = cf
+                end
             end
         else
             Engine.State.EggCacheByUid[u] = payload
+            if state ~= "Carried" then
+                Engine.State.EggCacheByUid[u].CarrierUserId = nil
+            end
+            if payload.BoundsCFrame then
+                local cf = payload.BoundsCFrame
+                if typeof(cf) == "CFrame" then Engine.State.EggCacheByUid[u].Position = cf.Position
+                elseif typeof(cf) == "Vector3" then Engine.State.EggCacheByUid[u].Position = cf
+                end
+            end
         end
 
         local rId = payload.RarityId or payload.Rarity or (payload.Attributes and payload.Attributes.Rarity)
@@ -2859,11 +2874,13 @@ Engine.Sync.startPushMonitor = function()
         addConnection(slotsContainer.ChildRemoved:Connect(function(child)
             local uid = child.Name
             if uid and uid ~= "" then
-                if not (Engine.State.IsCarry and Engine.State.CarryUid == uid) then
-                    Engine.State.EggCacheByUid[uid] = nil
-                    Engine.State.RarityByUid[uid] = nil
-                    Engine.State.ListDirty = true
+                local existing = Engine.State.EggCacheByUid[uid]
+                -- Do NOT delete eggs that are currently dropped or being carried!
+                if existing and (existing.State == "Dropped" or existing.State == "Carried" or (Engine.State.IsCarry and Engine.State.CarryUid == uid)) then
+                    return
                 end
+                Engine.State.EggCacheByUid[uid] = nil
+                Engine.State.ListDirty = true
             end
         end))
     end
