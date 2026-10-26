@@ -520,7 +520,12 @@ Config.TrapEvade = {
     NeutralizeHitbox = true,
 }
 
--- 1.6 UI Theme & Window Dimensions
+-- 1.6 Treadmill Configuration
+Config.Treadmill = {
+    Enabled = false,
+}
+
+-- 1.7 UI Theme & Window Dimensions
 Config.UI = {
     WindowSize     = UDim2.new(0, 380, 0, 520),
     TitleBarHeight = 36,
@@ -573,6 +578,8 @@ UI.Elements = {
     ToggleRecoveryBtn  = nil,
     ToggleNoclipBtn    = nil,
     ToggleTrapEvadeBtn = nil,
+    ToggleTreadmillBtn = nil,
+    TriggerDismountBtn = nil,
     UtilityCopyJsonBtn = nil,
 }
 
@@ -1280,11 +1287,77 @@ UI.build = function()
     Instance.new("UICorner", toggleTrapBtn).CornerRadius = UDim.new(0, 5)
     UI.Elements.ToggleTrapEvadeBtn = toggleTrapBtn
 
-    -- Row 2.4.5: Diagnostic Export Row
+    -- Row 2.4.5: Auto Treadmill Row
+    local rowTm = Instance.new("Frame")
+    rowTm.Name = "RowAutoTreadmill"
+    rowTm.Size = UDim2.new(1, -16, 0, 36)
+    rowTm.Position = UDim2.new(0, 8, 0, 178)
+    rowTm.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+    rowTm.Parent = tabUtility
+    Instance.new("UICorner", rowTm).CornerRadius = UDim.new(0, 6)
+
+    local lblTm = Instance.new("TextLabel")
+    lblTm.Size = UDim2.new(1, -80, 1, 0)
+    lblTm.Position = UDim2.new(0, 12, 0, 0)
+    lblTm.BackgroundTransparency = 1
+    lblTm.Text = "Auto Treadmill"
+    lblTm.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblTm.Font = Enum.Font.GothamBold
+    lblTm.TextSize = 12
+    lblTm.TextXAlignment = Enum.TextXAlignment.Left
+    lblTm.Parent = rowTm
+
+    local toggleTmBtn = Instance.new("TextButton")
+    toggleTmBtn.Name = "ToggleTreadmillBtn"
+    toggleTmBtn.Size = UDim2.new(0, 56, 0, 24)
+    toggleTmBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    toggleTmBtn.BackgroundColor3 = Config.Treadmill.Enabled and theme.GreenOn or theme.GrayOff
+    toggleTmBtn.Text = Config.Treadmill.Enabled and "ON" or "OFF"
+    toggleTmBtn.TextColor3 = Config.Treadmill.Enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    toggleTmBtn.Font = Enum.Font.GothamBold
+    toggleTmBtn.TextSize = 11
+    toggleTmBtn.Parent = rowTm
+    Instance.new("UICorner", toggleTmBtn).CornerRadius = UDim.new(0, 5)
+    UI.Elements.ToggleTreadmillBtn = toggleTmBtn
+
+    -- Row 2.4.6: Auto Dismount Row
+    local rowDm = Instance.new("Frame")
+    rowDm.Name = "RowAutoDismount"
+    rowDm.Size = UDim2.new(1, -16, 0, 36)
+    rowDm.Position = UDim2.new(0, 8, 0, 220)
+    rowDm.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
+    rowDm.Parent = tabUtility
+    Instance.new("UICorner", rowDm).CornerRadius = UDim.new(0, 6)
+
+    local lblDm = Instance.new("TextLabel")
+    lblDm.Size = UDim2.new(1, -80, 1, 0)
+    lblDm.Position = UDim2.new(0, 12, 0, 0)
+    lblDm.BackgroundTransparency = 1
+    lblDm.Text = "Auto Dismount"
+    lblDm.TextColor3 = Color3.fromRGB(225, 235, 255)
+    lblDm.Font = Enum.Font.GothamBold
+    lblDm.TextSize = 12
+    lblDm.TextXAlignment = Enum.TextXAlignment.Left
+    lblDm.Parent = rowDm
+
+    local triggerDmBtn = Instance.new("TextButton")
+    triggerDmBtn.Name = "TriggerDismountBtn"
+    triggerDmBtn.Size = UDim2.new(0, 56, 0, 24)
+    triggerDmBtn.Position = UDim2.new(1, -66, 0.5, -12)
+    triggerDmBtn.BackgroundColor3 = Color3.fromRGB(180, 75, 45)
+    triggerDmBtn.Text = "Jump"
+    triggerDmBtn.TextColor3 = Color3.new(1, 1, 1)
+    triggerDmBtn.Font = Enum.Font.GothamBold
+    triggerDmBtn.TextSize = 11
+    triggerDmBtn.Parent = rowDm
+    Instance.new("UICorner", triggerDmBtn).CornerRadius = UDim.new(0, 5)
+    UI.Elements.TriggerDismountBtn = triggerDmBtn
+
+    -- Row 2.4.7: Diagnostic Export Row
     local rowExp = Instance.new("Frame")
     rowExp.Name = "RowExportJson"
     rowExp.Size = UDim2.new(1, -16, 0, 36)
-    rowExp.Position = UDim2.new(0, 8, 0, 178)
+    rowExp.Position = UDim2.new(0, 8, 0, 262)
     rowExp.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
     rowExp.Parent = tabUtility
     Instance.new("UICorner", rowExp).CornerRadius = UDim.new(0, 6)
@@ -2351,7 +2424,178 @@ Engine.Traps.init = function()
     end))
 end
 
--- 4.5 Fast Pickup Engine
+-- 4.45 Decoupled Plot Discovery Engine
+Engine.Plot = {
+    CachedPlot      = nil,
+    CachedPlotIndex = nil,
+}
+
+Engine.Plot.getPlot = function()
+    if Engine.Plot.CachedPlot and Engine.Plot.CachedPlot.Parent then
+        return Engine.Plot.CachedPlot, Engine.Plot.CachedPlotIndex
+    end
+
+    local plotsFolder = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("Bases")
+    if not plotsFolder then return nil, nil end
+
+    local myName = LocalPlayer and LocalPlayer.Name or ""
+
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        local sign = plot:FindFirstChild("PlotSign")
+        local pName = sign and sign:FindFirstChild("PlayerPlotSign")
+        local frame = pName and pName:FindFirstChild("Frame")
+        local label = frame and frame:FindFirstChild("PlayerName")
+        if label and label:IsA("TextLabel") and label.Text == myName then
+            local idx = tonumber(plot.Name) or tonumber(string.match(plot.Name, "%d+"))
+            Engine.Plot.CachedPlot = plot
+            Engine.Plot.CachedPlotIndex = idx
+            return plot, idx
+        end
+    end
+
+    return nil, nil
+end
+
+-- 4.5 Auto Treadmill & Dismount Engine
+Engine.Treadmill = {
+    CachedModel    = nil,
+    CachedPosition = nil,
+}
+
+Engine.Treadmill.findTreadmill = function()
+    if Engine.Treadmill.CachedPosition and Engine.Treadmill.CachedModel and Engine.Treadmill.CachedModel.Parent then
+        return Engine.Treadmill.CachedModel, Engine.Treadmill.CachedPosition
+    end
+
+    local plot, plotIdx = Engine.Plot.getPlot()
+    local clientRenders = Workspace:FindFirstChild("__ClientTreadmillRenders")
+
+    -- 1. Targeted TreadmillRender_<plotIdx> in __ClientTreadmillRenders
+    if plotIdx and clientRenders then
+        local target = clientRenders:FindFirstChild("TreadmillRender_" .. tostring(plotIdx))
+        if target then
+            local ok, piv = pcall(function() return target:GetPivot().Position end)
+            if ok and piv then
+                Engine.Treadmill.CachedModel = target
+                Engine.Treadmill.CachedPosition = piv
+                return target, piv
+            end
+        end
+    end
+
+    -- 2. Direct match inside own Plot model
+    if plot then
+        local tu = plot:FindFirstChild("TreadmillUpgrade")
+        if tu then
+            local ok, piv = pcall(function() return tu:GetPivot().Position end)
+            if ok and piv then
+                Engine.Treadmill.CachedModel = tu
+                Engine.Treadmill.CachedPosition = piv
+                return tu, piv
+            end
+        end
+    end
+
+    return nil, nil
+end
+
+Engine.Treadmill.isOnTreadmill = function()
+    local lpAttr = LocalPlayer and LocalPlayer:GetAttribute("IsOnTreadmill")
+    local chAttr = Character and Character:GetAttribute("IsOnTreadmill")
+    if lpAttr == true or chAttr == true then
+        return true
+    end
+    if hrp and Engine.Treadmill.CachedPosition then
+        local flatDist = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(Engine.Treadmill.CachedPosition.X, 0, Engine.Treadmill.CachedPosition.Z)).Magnitude
+        if flatDist <= 4.0 and hum and (hum:GetState() == Enum.HumanoidStateType.Running or hum.MoveDirection.Magnitude > 0.05) then
+            return true
+        end
+    end
+    return false
+end
+
+Engine.Treadmill.goToTreadmill = function()
+    if Engine.Treadmill.isOnTreadmill() then return end
+
+    local tmModel, tmPos = Engine.Treadmill.findTreadmill()
+    if not tmPos then
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Treadmill not found"
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 120, 120)
+        end
+        return
+    end
+
+    if UI.Elements.ActivityStatus then
+        UI.Elements.ActivityStatus.Text = "Status: Moving to Treadmill..."
+        UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 200, 255)
+    end
+
+    Engine.Travel.walkToTarget(tmPos, 2.5, function()
+        pcall(function()
+            if hrp and hrp.Parent then hrp.AssemblyLinearVelocity = Vector3.zero end
+            if hum and hum.Parent then hum:Move(Vector3.zero, false) end
+        end)
+
+        -- Fire ProximityPrompt on treadmill model if present
+        if tmModel and typeof(fireproximityprompt) == "function" then
+            local prompt = tmModel:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if prompt then pcall(function() fireproximityprompt(prompt) end) end
+        end
+
+        -- Invoke Treadmill mount remotes
+        local rfWear = Helpers.getNetRemote("RF/Treadmill/AskWearStill")
+        if rfWear then
+            pcall(function() rfWear:InvokeServer() end)
+            if tmModel then pcall(function() rfWear:InvokeServer(tmModel) end) end
+        end
+
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: On Treadmill"
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(120, 240, 160)
+        end
+    end, "TREADMILL", 60.0, false)
+end
+
+Engine.Treadmill.dismount = function()
+    -- Immediate jump to dismount character
+    pcall(function()
+        if hum and hum.Parent then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            hum.Jump = true
+        end
+    end)
+    task.delay(0.05, function()
+        pcall(function()
+            if hum and hum.Parent then
+                hum.Jump = true
+            end
+        end)
+    end)
+
+    -- Invoke dismount remote
+    local rfDoff = Helpers.getNetRemote("RF/Treadmill/AskDoff")
+    if rfDoff then
+        pcall(function() rfDoff:InvokeServer() end)
+    end
+
+    -- If Auto Treadmill was active, deactivate toggle so character does not re-walk back
+    if Config.Treadmill and Config.Treadmill.Enabled then
+        Config.Treadmill.Enabled = false
+        if UI.Elements.ToggleTreadmillBtn then
+            UI.Elements.ToggleTreadmillBtn.Text = "OFF"
+            UI.Elements.ToggleTreadmillBtn.BackgroundColor3 = Config.UI.Theme.GrayOff
+            UI.Elements.ToggleTreadmillBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+        end
+    end
+
+    if UI.Elements.ActivityStatus then
+        UI.Elements.ActivityStatus.Text = "Status: Dismounted from Treadmill"
+        UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(220, 220, 120)
+    end
+end
+
+-- 4.6 Fast Pickup Engine
 Engine.Pickup = {}
 
 Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
@@ -3558,6 +3802,19 @@ Engine.Cleanup = function()
         end
     end
 
+    if Engine.Plot then
+        Engine.Plot.CachedPlot = nil
+        Engine.Plot.CachedPlotIndex = nil
+    end
+
+    if Config.Treadmill then
+        Config.Treadmill.Enabled = false
+    end
+    if Engine.Treadmill then
+        Engine.Treadmill.CachedModel = nil
+        Engine.Treadmill.CachedPosition = nil
+    end
+
     pcall(function()
         if hum and hum.Parent then
             hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed
@@ -3711,6 +3968,33 @@ if UI.Elements.ToggleTrapEvadeBtn then
                 end
             end
         end
+    end))
+end
+
+-- Auto Treadmill Toggle Button
+if UI.Elements.ToggleTreadmillBtn then
+    local function updateTmBtn()
+        local en = Config.Treadmill.Enabled
+        UI.Elements.ToggleTreadmillBtn.Text = en and "ON" or "OFF"
+        UI.Elements.ToggleTreadmillBtn.BackgroundColor3 = en and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
+        UI.Elements.ToggleTreadmillBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    end
+
+    addConnection(UI.Elements.ToggleTreadmillBtn.MouseButton1Click:Connect(function()
+        Config.Treadmill.Enabled = not Config.Treadmill.Enabled
+        updateTmBtn()
+        if Config.Treadmill.Enabled then
+            task.spawn(Engine.Treadmill.goToTreadmill)
+        else
+            Engine.Travel.stopWalking()
+        end
+    end))
+end
+
+-- Auto Dismount Trigger Button (Direct jump & remote dismount)
+if UI.Elements.TriggerDismountBtn then
+    addConnection(UI.Elements.TriggerDismountBtn.MouseButton1Click:Connect(function()
+        Engine.Treadmill.dismount()
     end))
 end
 
