@@ -72,6 +72,11 @@ if not LocalPlayer then
 end
 
 local myUidStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
+local Character = LocalPlayer and LocalPlayer.Character
+local Humanoid  = Character and Character:FindFirstChildOfClass("Humanoid")
+local RootPart  = Character and Character:FindFirstChild("HumanoidRootPart")
+local hum = Humanoid
+local hrp = RootPart
 
 -- Connection management
 local connections = {}
@@ -496,10 +501,6 @@ Config.Recovery = {
         ["RightElbow"]    = true,
         ["LeftWrist"]     = true,
         ["RightWrist"]    = true,
-        ["LeftKnee"]      = true,
-        ["RightKnee"]     = true,
-        ["LeftAnkle"]     = true,
-        ["RightAnkle"]    = true,
     },
 }
 
@@ -1425,7 +1426,8 @@ Helpers.getSafeUiParent = function()
         local okTest = pcall(function() local f = Instance.new("Folder", core); f:Destroy() end)
         if okTest then return core end
     end
-    return (LocalPlayer and (LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5))) or game:GetService("CoreGui")
+    local pg = LocalPlayer and (LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5))
+    return pg or (okCore and core or nil)
 end
 
 Helpers.makeDraggable = function(guiObject, dragHandle)
@@ -1477,10 +1479,12 @@ Helpers.enablePlayerControls = function()
     end)
 end
 
+Helpers.isAlive = function()
+    return hrp ~= nil and hrp.Parent ~= nil and hum ~= nil and hum.Parent ~= nil and hum.Health > 0 and hum:GetState() ~= Enum.HumanoidStateType.Dead
+end
+
 Helpers.applyReachAssist = function(targetPos)
-    local ch = LocalPlayer and LocalPlayer.Character
-    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-    if not (hrp and targetPos) then return false end
+    if not (hrp and hrp.Parent and targetPos) then return false end
     local dist = (hrp.Position - targetPos).Magnitude
     if dist <= 35.0 then
         hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
@@ -1702,11 +1706,9 @@ Helpers.exportEggListJson = function()
     }
 
     local charPos = nil
-    pcall(function()
-        local ch = LocalPlayer and LocalPlayer.Character
-        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-        if hrp then charPos = hrp.Position end
-    end)
+    if hrp and hrp.Parent then
+        charPos = hrp.Position
+    end
 
     for uid, r in pairs(Engine.State.EggCacheByUid) do
         exportData.totalCached = exportData.totalCached + 1
@@ -1793,9 +1795,7 @@ Engine.Velocity.setCarry = function(isCarry)
         Engine.State.CarryUid = nil
     end
 
-    local char = LocalPlayer and LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum and hum.Health > 0 then
+    if hum and hum.Parent and hum.Health > 0 then
         if Engine.State.VelocityEnabled then
             local spd = carryBool and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
             pcall(function() hum.WalkSpeed = spd end)
@@ -1834,11 +1834,14 @@ Engine.Velocity.updatePhysics = function(isCarry)
         Engine.Velocity.setCarry(isCarry)
     end
     if not Engine.State.VelocityEnabled then return end
-    local char = LocalPlayer and LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not (hum and hrp and hrp.Parent and hum.Health > 0) then return end
+    if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then return end
+
+    -- Void death check: if falling into void below Y = -400, cancel auto-walk & velocity
+    if hrp.Position.Y < -400 then
+        Engine.Travel.stopWalking()
+        Engine.Velocity.setCarry(false)
+        return
+    end
 
     local isMoving = (hum.MoveDirection.Magnitude > 0.05)
     if not Engine.State.ActiveWalkTarget and not isMoving then
@@ -1895,12 +1898,11 @@ Engine.Recovery.clearRagdollAttributes = function()
             LocalPlayer:SetAttribute("IsRagdoll", false)
             LocalPlayer:SetAttribute("Ragdolled", false)
         end
-        local char = LocalPlayer and LocalPlayer.Character
-        if char then
-            char:SetAttribute("RagdollEndTime", 0)
-            char:SetAttribute("RagdollTime", 0)
-            char:SetAttribute("IsRagdoll", false)
-            char:SetAttribute("Ragdolled", false)
+        if Character then
+            Character:SetAttribute("RagdollEndTime", 0)
+            Character:SetAttribute("RagdollTime", 0)
+            Character:SetAttribute("IsRagdoll", false)
+            Character:SetAttribute("Ragdolled", false)
         end
     end)
 end
@@ -1944,27 +1946,31 @@ Engine.Recovery.execute = function(reason)
     Engine.State.LastRecoveryTime = now
 
     pcall(function()
-        local char = LocalPlayer and LocalPlayer.Character
-        if not char then return end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not (hum and hrp and hum.Health > 0) then return end
+        if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then return end
 
         Engine.Recovery.clearRagdollAttributes()
-        Engine.Recovery.breakJointFallbacks(char, hum, hrp)
+        Engine.Recovery.breakJointFallbacks(Character, hum, hrp)
 
         hum.PlatformStand = false
         hum.Sit = false
         hum.AutoRotate = true
 
         pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
-            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
             hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
-            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
             hum:ChangeState(Enum.HumanoidStateType.Running)
+
+            local animator = hum:FindFirstChildOfClass("Animator")
+            if animator then
+                for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                    local animName = track.Name:lower()
+                    if animName:find("getup") or animName:find("fall") or animName:find("ragdoll") or animName:find("sit") then
+                        pcall(function() track:Stop(0.05) end)
+                    end
+                end
+            end
         end)
 
         Helpers.enablePlayerControls()
@@ -1985,19 +1991,17 @@ Engine.Recovery.execute = function(reason)
 
         if Config.Recovery.AntiFling and hrp then
             local curVel = hrp.AssemblyLinearVelocity
-            local fastY = curVel.Y
-            if fastY > 0 or fastY > -30 then
-                fastY = -45
+            if curVel.Magnitude > Config.Recovery.MaxFlingSpeed or math.abs(curVel.Y) > Config.Recovery.MaxFlingSpeed then
+                hrp.AssemblyLinearVelocity = Vector3.new(curVel.X, math.clamp(curVel.Y, -20, 20), curVel.Z)
+                hrp.AssemblyAngularVelocity = Vector3.zero
             end
-            hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)
-            hrp.AssemblyAngularVelocity = Vector3.zero
         end
 
         if Config.Recovery.BrakeVelocity and hrp then
             hrp.AssemblyAngularVelocity = Vector3.zero
         end
 
-        Engine.Recovery.neutraliseCarriedEggMass(char)
+        Engine.Recovery.neutraliseCarriedEggMass(Character)
     end)
 
     Engine.State.IsRecovering = false
@@ -2026,19 +2030,16 @@ Engine.Recovery.installHooks = function()
             if Config.Recovery.Enabled and not (checkcaller and checkcaller()) and typeof(self) == "Instance" then
                 if key == "Enabled" and self:IsA("Motor6D") and value == false then
                     if Config.Recovery.BodyJointNames[self.Name] then
-                        local ch = LocalPlayer and LocalPlayer.Character
-                        if ch and self:IsDescendantOf(ch) then
+                        if Character and self:IsDescendantOf(Character) then
                             return oldNewIndex(self, key, true)
                         end
                     end
                 elseif key == "PlatformStand" and self:IsA("Humanoid") and value == true then
-                    local ch = LocalPlayer and LocalPlayer.Character
-                    if ch and self:IsDescendantOf(ch) then
+                    if Character and self:IsDescendantOf(Character) then
                         return oldNewIndex(self, key, false)
                     end
                 elseif key == "WalkSpeed" and self:IsA("Humanoid") and value == 0 then
-                    local ch = LocalPlayer and LocalPlayer.Character
-                    if ch and self:IsDescendantOf(ch) then
+                    if Character and self:IsDescendantOf(Character) then
                         local spd = Engine.State.VelocityEnabled and (Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed) or 16.0
                         return oldNewIndex(self, key, spd)
                     end
@@ -2167,10 +2168,8 @@ Engine.Pickup.startAutoPickupSpam = function()
                 break
             end
 
-            local ch = LocalPlayer and LocalPlayer.Character
-            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-            local charPos = hrp and hrp.Position
-            if not charPos then break end
+            if not (hrp and hrp.Parent) then break end
+            local charPos = hrp.Position
 
             -- 1. Trigger ProximityPrompt on SmartPromptPart
             local spp = Workspace:FindFirstChild("SmartPromptPart")
@@ -2236,17 +2235,14 @@ Engine.Travel.stopWalking = function()
     Engine.State.ActiveWalkToken = Engine.State.ActiveWalkToken + 1
     Engine.State.ActiveWalkTarget = nil
     pcall(function()
-        local ch = LocalPlayer and LocalPlayer.Character
-        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-        if hum then
+        if hum and hum.Parent then
             hum:Move(Vector3.zero, false)
-            if hrp then hum.WalkToPoint = hrp.Position end
+            if hrp and hrp.Parent then hum.WalkToPoint = hrp.Position end
             if not Engine.State.VelocityEnabled then
                 hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed
             end
         end
-        if hrp then
+        if hrp and hrp.Parent then
             hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
         end
     end)
@@ -2263,10 +2259,8 @@ Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, sna
 
     task.spawn(function()
         while Engine.State.ActiveWalkToken == myToken do
-            local ch = LocalPlayer and LocalPlayer.Character
-            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-            if not (ch and hum and hrp) then break end
+            if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then break end
+            if hrp.Position.Y < -400 then break end
 
             local currentPos = hrp.Position
             local flatDelta = Vector3.new(targetPos.X - currentPos.X, 0, targetPos.Z - currentPos.Z)
@@ -2290,9 +2284,7 @@ Engine.Travel.teleportToEgg = function(itemData)
     if not pos then return end
 
     Engine.Travel.stopWalking()
-    local ch = LocalPlayer and LocalPlayer.Character
-    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-    if hrp then
+    if hrp and hrp.Parent then
         hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3.0, 0))
         hrp.AssemblyLinearVelocity = Vector3.zero
     end
@@ -2325,11 +2317,8 @@ Engine.Travel.startReturnTrip = function()
 
     Engine.Travel.walkToTarget(safePos, 6.0, function()
         pcall(function()
-            local ch = LocalPlayer and LocalPlayer.Character
-            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-            if hrp then hrp.AssemblyLinearVelocity = Vector3.zero end
-            if hum then hum:UnequipTools() end
+            if hrp and hrp.Parent then hrp.AssemblyLinearVelocity = Vector3.zero end
+            if hum and hum.Parent then hum:UnequipTools() end
         end)
         Engine.State.AutoReturnActive = false
         Engine.State.AutoReturnTargetUid = nil
@@ -2363,9 +2352,7 @@ Engine.Travel.handleEggDropped = function(u, payload)
     end
 
     if not dropPos then
-        local ch = LocalPlayer and LocalPlayer.Character
-        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-        if hrp then dropPos = hrp.Position end
+        if hrp and hrp.Parent then dropPos = hrp.Position end
     end
 
     if not dropPos then return end
@@ -2388,11 +2375,8 @@ Engine.Travel.handleEggDelivered = function(uid)
     Engine.Velocity.setCarry(false)
     Engine.Travel.stopWalking()
     pcall(function()
-        local ch = LocalPlayer and LocalPlayer.Character
-        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-        if hrp then hrp.AssemblyLinearVelocity = Vector3.zero end
-        if hum then hum:UnequipTools() end
+        if hrp and hrp.Parent then hrp.AssemblyLinearVelocity = Vector3.zero end
+        if hum and hum.Parent then hum:UnequipTools() end
     end)
     if UI.Elements.ActivityStatus then
         UI.Elements.ActivityStatus.Text = "Status: Egg successfully delivered!"
@@ -2584,6 +2568,22 @@ end
 -- 4.6 Server Push Monitor & ESP Discovery
 Engine.Sync = {}
 
+Engine.Sync.clearAllEggs = function(reason)
+    local preservedCarry = nil
+    if Engine.State.IsCarry and Engine.State.CarryUid and Engine.State.EggCacheByUid[Engine.State.CarryUid] then
+        preservedCarry = Engine.State.EggCacheByUid[Engine.State.CarryUid]
+    end
+    table.clear(Engine.State.EggCacheByUid)
+    table.clear(Engine.State.RarityByUid)
+    if preservedCarry and Engine.State.CarryUid then
+        Engine.State.EggCacheByUid[Engine.State.CarryUid] = preservedCarry
+    end
+    Engine.State.ListDirty = true
+    if UI.renderFarmableEggs then
+        pcall(UI.renderFarmableEggs)
+    end
+end
+
 Engine.Sync.startPushMonitor = function()
     local function connectRemote(name, callback)
         local rem = Helpers.getNetRemote(name)
@@ -2710,17 +2710,58 @@ Engine.Sync.startPushMonitor = function()
                 Engine.State.ListDirty = true
             end
         end))
+
+        addConnection(slotsContainer.ChildRemoved:Connect(function(child)
+            local uid = child.Name
+            if uid and uid ~= "" then
+                if not (Engine.State.IsCarry and Engine.State.CarryUid == uid) then
+                    Engine.State.EggCacheByUid[uid] = nil
+                    Engine.State.RarityByUid[uid] = nil
+                    Engine.State.ListDirty = true
+                end
+            end
+        end))
     end
 
     connectRemote("RE/EggWorld/FieldEggBatchShifted", function(batch)
+        Engine.Sync.clearAllEggs("BatchShifted")
         if typeof(batch) == "table" then
             for uid, data in pairs(batch) do
                 Engine.State.EggCacheByUid[tostring(uid)] = data
             end
             Engine.State.ListDirty = true
         end
-        Engine.Sync.syncEggSnapshot()
+        task.delay(0.2, function()
+            pcall(Engine.Sync.syncAreaEggSlotsESP)
+            pcall(Engine.Sync.syncEggSnapshot)
+        end)
     end)
+
+    connectRemote("RE/EggWorld/FieldEggCycleCountdown", function(val)
+        local cd = tonumber(val) or (typeof(val) == "table" and tonumber(val.Countdown or val.Time or val.Seconds))
+        if cd and cd <= 1 then
+            Engine.Sync.clearAllEggs("CycleCountdown")
+        end
+    end)
+
+    local okLighting, lighting = pcall(function() return game:GetService("Lighting") end)
+    if okLighting and lighting then
+        local lastClockTime = lighting.ClockTime
+        addConnection(lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+            local cur = lighting.ClockTime
+            local prev = lastClockTime or cur
+            lastClockTime = cur
+            local wasDay = (prev >= 6 and prev < 18)
+            local isNight = (cur >= 18 or cur < 6)
+            if wasDay and isNight then
+                Engine.Sync.clearAllEggs("NightTransition")
+                task.delay(0.5, function()
+                    pcall(Engine.Sync.syncAreaEggSlotsESP)
+                    pcall(Engine.Sync.syncEggSnapshot)
+                end)
+            end
+        end))
+    end
 
     connectRemote("RE/EggWorld/FieldEggRaritiesShown", function(payload)
         if typeof(payload) == "table" then
@@ -2814,15 +2855,24 @@ Engine.Sync.syncEggSnapshot = function()
                 end
             end
             for u in pairs(Engine.State.EggCacheByUid) do
-                if not currentUids[u] and Engine.State.EggCacheByUid[u].State ~= "Slot" then
+                if not currentUids[u] and (not Engine.State.IsCarry or u ~= Engine.State.CarryUid) then
                     Engine.State.EggCacheByUid[u] = nil
                     Engine.State.RarityByUid[u] = nil
                 end
             end
             Engine.State.ListDirty = true
-        elseif not res.Records then
+        elseif typeof(res) == "table" then
+            local currentUids = {}
             for uid, egg in pairs(res) do
-                Engine.State.EggCacheByUid[tostring(uid)] = egg
+                local u = tostring(uid)
+                currentUids[u] = true
+                Engine.State.EggCacheByUid[u] = egg
+            end
+            for u in pairs(Engine.State.EggCacheByUid) do
+                if not currentUids[u] and (not Engine.State.IsCarry or u ~= Engine.State.CarryUid) then
+                    Engine.State.EggCacheByUid[u] = nil
+                    Engine.State.RarityByUid[u] = nil
+                end
             end
             Engine.State.ListDirty = true
         end
@@ -2920,9 +2970,8 @@ Engine.Loops.start = function()
         if #Engine.State.NoclipParts == 0 or not (firstPart and firstPart.Parent) or (now - lastNoclipRefresh > 2.0) then
             lastNoclipRefresh = now
             table.clear(Engine.State.NoclipParts)
-            local ch = LocalPlayer and LocalPlayer.Character
-            if ch then
-                for _, p in ipairs(ch:GetDescendants()) do
+            if Character then
+                for _, p in ipairs(Character:GetDescendants()) do
                     if p:IsA("BasePart") and not p:FindFirstAncestorWhichIsA("Tool") then
                         table.insert(Engine.State.NoclipParts, p)
                     end
@@ -2940,9 +2989,7 @@ Engine.Loops.start = function()
     -- Heartbeat Loop: Velocity Physics & Instant Recovery Safety Net
     addConnection(RunService.Heartbeat:Connect(function()
         if Config.Recovery.Enabled and Engine.Recovery.execute then
-            local ch = LocalPlayer and LocalPlayer.Character
-            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
+            if hum and hum.Parent and hum.Health > 0 then
                 local rEnd = LocalPlayer:GetAttribute("RagdollEndTime")
                 if typeof(rEnd) == "number" and rEnd > 0 then
                     Engine.Recovery.execute("RagdollTimer")
@@ -2976,9 +3023,7 @@ Engine.Loops.start = function()
 
             -- Instant Recovery Fallback
             if Config.Recovery.Enabled and Engine.Recovery.execute then
-                local ch = LocalPlayer and LocalPlayer.Character
-                local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-                if hum and (hum.PlatformStand or hum.Sit) then
+                if hum and hum.Parent and hum.Health > 0 and (hum.PlatformStand or hum.Sit) then
                     Engine.Recovery.execute("LoopFallback")
                 end
             end
@@ -3023,11 +3068,9 @@ end
 
 UI.renderFarmableEggs = function()
     local charPos = nil
-    pcall(function()
-        local ch = LocalPlayer and LocalPlayer.Character
-        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-        if hrp then charPos = hrp.Position end
-    end)
+    if hrp and hrp.Parent then
+        charPos = hrp.Position
+    end
 
     local farmableList = {}
     for uid, r in pairs(Engine.State.EggCacheByUid) do
@@ -3117,9 +3160,7 @@ Engine.Cleanup = function()
     table.clear(Engine.Recovery.Connections)
 
     pcall(function()
-        local ch = LocalPlayer and LocalPlayer.Character
-        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-        if hum then
+        if hum and hum.Parent then
             hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed
             hum:Move(Vector3.zero, false)
         end
@@ -3177,9 +3218,7 @@ addConnection(UI.Elements.VelToggleBtn.MouseButton1Click:Connect(function()
     UI.Elements.VelToggleBtn.TextColor3 = enabled and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
     if not enabled then
         pcall(function()
-            local ch = LocalPlayer and LocalPlayer.Character
-            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-            if hum then hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed end
+            if hum and hum.Parent then hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed end
         end)
     end
     UI.updateActivityStatus()
@@ -3233,9 +3272,8 @@ addConnection(UI.Elements.ToggleNoclipBtn.MouseButton1Click:Connect(function()
     UI.Elements.ToggleNoclipBtn.TextColor3 = en and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
     if en then
         table.clear(Engine.State.NoclipParts)
-        local ch = LocalPlayer and LocalPlayer.Character
-        if ch then
-            for _, p in ipairs(ch:GetDescendants()) do
+        if Character then
+            for _, p in ipairs(Character:GetDescendants()) do
                 if p:IsA("BasePart") and not p:FindFirstAncestorWhichIsA("Tool") then
                     table.insert(Engine.State.NoclipParts, p)
                 end
@@ -3244,9 +3282,7 @@ addConnection(UI.Elements.ToggleNoclipBtn.MouseButton1Click:Connect(function()
     else
         table.clear(Engine.State.NoclipParts)
         pcall(function()
-            local ch = LocalPlayer and LocalPlayer.Character
-            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-            if hrp then hrp.CanCollide = true end
+            if hrp and hrp.Parent then hrp.CanCollide = true end
         end)
     end
 end))
@@ -3323,19 +3359,62 @@ addConnection(UserInputService.InputBegan:Connect(function(input)
     end
 end))
 
--- Character Added Listener
-addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
+-- Character Lifecycle Listeners & Void Death Resilience
+local function clearCharRefs()
+    Character = nil
+    Humanoid = nil
+    RootPart = nil
+    hum = nil
+    hrp = nil
+end
+
+local function bindLifecycle(newChar)
+    Character = newChar
+    local h = newChar:WaitForChild("Humanoid", 5)
+    local r = newChar:WaitForChild("HumanoidRootPart", 5)
+    Humanoid = h
+    RootPart = r
+    hum = h
+    hrp = r
+
+    if h then
+        addConnection(h.Died:Connect(function()
+            clearCharRefs()
+            Engine.Velocity.setCarry(false)
+            Engine.Travel.stopWalking()
+        end))
+    end
+    if r then
+        addConnection(r.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                -- Void destruction / part detached from Workspace
+                RootPart = nil
+                hrp = nil
+                Engine.Velocity.setCarry(false)
+                Engine.Travel.stopWalking()
+            end
+        end))
+    end
+
     task.spawn(function()
         task.wait(0.2)
         Engine.Recovery.bindCharacter(newChar)
         Engine.Velocity.setCarry(false)
     end)
+end
+
+addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
+    bindLifecycle(newChar)
 end))
 
-if LocalPlayer.Character then
-    task.spawn(function()
-        Engine.Recovery.bindCharacter(LocalPlayer.Character)
-    end)
+addConnection(LocalPlayer.CharacterRemoving:Connect(function()
+    clearCharRefs()
+    Engine.Velocity.setCarry(false)
+    Engine.Travel.stopWalking()
+end))
+
+if Character then
+    bindLifecycle(Character)
 end
 
 -- Start Background Loops & Push Monitor
