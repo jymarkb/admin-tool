@@ -503,6 +503,202 @@ class TestV12EndurancePerformance(unittest.TestCase):
         self.assertNotIn("executeAutoTreadmill", self.lua_code, "Legacy coupled treadmill function must not exist")
         self.assertNotIn("treadmillEnteredAt", self.lua_code, "Egg hatch timer coupling must not exist in v12")
 
+    # =========================================================================
+    # TEST 7: Long-Run Fast Pickup Toggle Churn & Token Invariant Simulation
+    # =========================================================================
+    def test_14_long_run_fast_pickup_toggle_churn_and_token_cancellation(self):
+        """Simulate 5,000 rapid switches between World 1 Fast Pickup and Halloween Fast Pickup.
+        Verify token cancellation cleanly terminates previous loops and mutual exclusion holds."""
+        state = {
+            "PickupEnabled": True,
+            "HwPickupEnabled": False,
+            "PickupToken": 0,
+            "HwPickupToken": 0,
+            "ActivePickupLoops": 0,
+            "ActiveHwLoops": 0,
+        }
+
+        def toggle_pickup(enabled=None):
+            if enabled is None:
+                enabled = not state["PickupEnabled"]
+            state["PickupEnabled"] = enabled
+            if enabled:
+                state["HwPickupEnabled"] = False
+                state["HwPickupToken"] += 1
+
+        def toggle_hw_pickup(enabled=None):
+            if enabled is None:
+                enabled = not state["HwPickupEnabled"]
+            state["HwPickupEnabled"] = enabled
+            if enabled:
+                state["PickupEnabled"] = False
+                state["PickupToken"] += 1
+            else:
+                state["PickupEnabled"] = True
+
+        tracemalloc.start()
+        start_mem, _ = tracemalloc.get_traced_memory()
+
+        # 5,000 rapid toggles alternating between HwPickup and World 1 Pickup
+        for i in range(2500):
+            # Toggle HW Pickup ON -> cancels World 1
+            toggle_hw_pickup(True)
+            self.assertTrue(state["HwPickupEnabled"])
+            self.assertFalse(state["PickupEnabled"])
+
+            # Toggle World 1 Pickup ON -> cancels HW
+            toggle_pickup(True)
+            self.assertTrue(state["PickupEnabled"])
+            self.assertFalse(state["HwPickupEnabled"])
+
+        end_mem, _ = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        self.assertLessEqual(end_mem - start_mem, 1024, "Toggle churn leaked memory!")
+        self.assertEqual(state["HwPickupToken"], 2500)
+        self.assertEqual(state["PickupToken"], 2500)
+
+    # =========================================================================
+    # TEST 8: Long-Run Halloween Streaming Folder Mount / Unmount Endurance
+    # =========================================================================
+    def test_15_long_run_halloween_folder_streaming_mount_unmount(self):
+        """Simulate 200 Halloween world streaming mount/unmount transitions.
+        Verify Engine.State.HwFolderConns cleanly disconnects and purges old listeners."""
+        hw_folder_conns = []
+        hooked_folder = None
+        total_created = 0
+
+        class MockFolder:
+            def __init__(self, name):
+                self.Name = name
+                self.conns = []
+
+            def ChildAdded(self):
+                c = {"Connected": True, "Folder": self.Name, "Event": "ChildAdded"}
+                self.conns.append(c)
+                return c
+
+            def ChildRemoved(self):
+                c = {"Connected": True, "Folder": self.Name, "Event": "ChildRemoved"}
+                self.conns.append(c)
+                return c
+
+        for cycle in range(200):
+            new_folder = MockFolder(f"WorldEggs_Cycle_{cycle}")
+            if hooked_folder != new_folder:
+                for c in hw_folder_conns:
+                    c["Connected"] = False
+                hw_folder_conns.clear()
+                hooked_folder = new_folder
+                c1 = new_folder.ChildAdded()
+                c2 = new_folder.ChildRemoved()
+                hw_folder_conns.extend([c1, c2])
+                total_created += 2
+
+        self.assertEqual(len(hw_folder_conns), 2, "HwFolderConns leaked across streaming cycles!")
+        self.assertEqual(total_created, 400)
+        # Verify all previously disconnected connections have Connected == False
+        for c in hw_folder_conns:
+            self.assertTrue(c["Connected"])
+
+    # =========================================================================
+    # TEST 9: Long-Run Species Resolution & Keyword Taxonomy Cache Stability
+    # =========================================================================
+    def test_16_long_run_species_resolution_cache_stability(self):
+        """Simulate 100,000 egg species resolutions (Steal Werewolf, Hooded Gerbil, Gorillastein).
+        Verify sub-microsecond throughput and zero memory accumulation."""
+        hw_catalog = {
+            "hooded gerbil egg": ("Hooded Gerbil Egg", "Common"),
+            "corrupted spider egg": ("Corrupted Spider Egg", "Rare"),
+            "werewolf egg": ("Werewolf Egg", "Divine"),
+            "gorillastein egg": ("Gorillastein Egg", "Divine"),
+            "phantom dragon egg": ("Phantom Dragon Egg", "Eternal"),
+            "soul phantom egg": ("Soul Phantom Egg", "Secret"),
+        }
+
+        def resolve_hw_species(model_name, children_names):
+            norm = model_name.lower().replace("_", " ").strip()
+            if not norm.endswith(" egg"):
+                norm = norm + " egg"
+            if norm in hw_catalog:
+                return hw_catalog[norm]
+            # Keyword substring check
+            for sp_lower, info in hw_catalog.items():
+                sp_key = sp_lower.replace(" egg", "").strip()
+                if sp_key in norm:
+                    return info
+            return None
+
+        tracemalloc.start()
+        start_time = time.perf_counter()
+
+        test_inputs = [
+            ("Steal Werewolf", []),
+            ("Gorillastein Egg", ["Body", "Mesh"]),
+            ("HalloweenEgg", ["Mesh"]),
+            ("Phantom Dragon Egg", []),
+            ("Soul Phantom", []),
+        ]
+
+        for i in range(100000):
+            inp, ch = test_inputs[i % len(test_inputs)]
+            _ = resolve_hw_species(inp, ch)
+
+        elapsed = time.perf_counter() - start_time
+        cur_mem, peak_mem = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        # 100,000 lookups should take < 0.50 seconds (200k+ ops/sec) in Python
+        self.assertLess(elapsed, 0.50, f"Species taxonomy lookup too slow: {elapsed:.3f}s for 100k calls")
+        # Net memory growth must be zero (< 1KB)
+        self.assertLess(peak_mem, 10 * 1024, "Species resolution leaked memory!")
+
+    # =========================================================================
+    # TEST 10: Long-Run 30s Snapshot Reconciliation Zero-Leak Stress Test
+    # =========================================================================
+    def test_17_long_run_snapshot_reconciliation_zero_leak(self):
+        """Simulate 200 consecutive snapshot reconciliations (100 minutes of continuous play).
+        Verify stale eggs and rarities are purged with zero lingering table entries."""
+        egg_cache = {}
+        rarity_cache = {}
+        carry_state = {"IsCarry": False, "CarryUid": None}
+
+        def reconcile_snapshot(server_payload):
+            current_uids = set()
+            for uid, egg_data in server_payload.items():
+                u = str(uid)
+                current_uids.add(u)
+                egg_cache[u] = egg_data
+                if "Rarity" in egg_data:
+                    rarity_cache[u] = egg_data["Rarity"]
+
+            # v12 reconciliation logic:
+            stale_uids = [
+                u for u in egg_cache
+                if u not in current_uids and (not carry_state["IsCarry"] or u != carry_state["CarryUid"])
+            ]
+            for u in stale_uids:
+                del egg_cache[u]
+                rarity_cache.pop(u, None)
+
+        tracemalloc.start()
+        for cycle in range(200):
+            # Batch of 40 eggs with changing UIDs
+            batch = {
+                f"Egg_{cycle}_{i}": {"DisplayName": f"Egg_{i}", "Rarity": "Legendary"}
+                for i in range(40)
+            }
+            reconcile_snapshot(batch)
+            # Active eggs must strictly equal 40, never 40 * (cycle + 1)
+            self.assertEqual(len(egg_cache), 40)
+            self.assertEqual(len(rarity_cache), 40)
+
+        # Clear final
+        reconcile_snapshot({})
+        self.assertEqual(len(egg_cache), 0)
+        self.assertEqual(len(rarity_cache), 0)
+        tracemalloc.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

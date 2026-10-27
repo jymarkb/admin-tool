@@ -289,5 +289,82 @@ def main():
     print(f"  Peak Memory          : {b_ui['throttled_peak_kb']:.1f} KB")
 
 
+import unittest
+
+
+class TestAutoBatArchitecture(unittest.TestCase):
+    """Architectural and Static Invariant Tests for farmer/auto-bat.lua."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open("farmer/auto-bat.lua", "r") as f:
+            cls.code = f.read()
+
+    def test_01_all_five_weapons_configured(self):
+        """Verify all 5 weapons (3 bats + 2 tools) are defined."""
+        self.assertIn('"Titan Axe"', self.code)
+        self.assertIn('"Scramble Sword"', self.code)
+        self.assertIn('"Pumpkin Scythe"', self.code)
+        self.assertIn('"The Scrambler"', self.code)
+        self.assertIn('"Cricket\'s Banjo"', self.code)
+
+    def test_02_zero_reequip_bypass_logic(self):
+        """Verify zero-thrashing: if tool is already in Character, EquipTool is bypassed."""
+        self.assertIn("tool.Parent == Character", self.code)
+        self.assertIn("equipToolFast", self.code)
+
+    def test_03_active_inventory_filtering(self):
+        """Verify missing tools are filtered out so loop never wastes ticks on absent items."""
+        self.assertIn("getActiveTools", self.code)
+        self.assertIn("local activeList = getActiveTools()", self.code)
+        self.assertIn("matchToolName", self.code)
+
+    def test_04_cooldown_aware_pacing_and_turbo_toggle(self):
+        """Verify adaptive pacing formula (0.60 / #activeTools) and turboMode toggle."""
+        self.assertIn("COOLDOWN_PER_BAT = 0.60", self.code)
+        self.assertIn("COOLDOWN_PER_BAT / math.max(activeCount, 1)", self.code)
+        self.assertIn("turboMode", self.code)
+        self.assertIn("modeBtn", self.code)
+
+    def test_05_startup_caching_and_zero_scope_aliasing(self):
+        """Verify LocalPlayer, UserId, Character, Humanoid are cached at root."""
+        self.assertIn("local myUidStr  = tostring(LocalPlayer and LocalPlayer.UserId or 0)", self.code)
+        self.assertIn("local Character = LocalPlayer and LocalPlayer.Character", self.code)
+        self.assertIn("local Humanoid  = Character and Character:FindFirstChildOfClass(\"Humanoid\")", self.code)
+        # Inside swing loop, should not re-declare local char = lp.Character
+        self.assertNotIn("local char = lp.Character", self.code)
+        self.assertNotIn("local humanoid = lp.Character", self.code)
+
+    def test_06_connection_hygiene_and_cleanup(self):
+        """Verify connection tracking table and clean unbinding."""
+        self.assertIn("local connections = {}", self.code)
+        self.assertIn("local function addConnection(conn)", self.code)
+        self.assertIn("local function disconnectAll()", self.code)
+        self.assertIn("disconnectAll()", self.code)
+        self.assertIn("_G.AutoMultiSwing_Cleanup", self.code)
+
+    def test_07_token_allocation_efficiency(self):
+        """Verify token generator avoids repeated string.format overhead."""
+        self.assertIn('myUidStr .. ":" .. seq .. ":" .. math.floor(os.clock() * 1000)', self.code)
+
+    def test_08_five_bats_simulation_throughput(self):
+        """Simulate 5 bats under 0.12s paced mode: verify 100% accepted hits and 8.33 hits/sec."""
+        tools_5 = [
+            "Titan Axe", "Scramble Sword", "Pumpkin Scythe",
+            "The Scrambler", "Cricket's Banjo"
+        ]
+        sim = BatSwingSimulator(
+            tools=tools_5,
+            equip_delay=0.016,
+            swing_delay=0.104,  # Total = 0.120s per tool
+            simulate_roblox_frames=False,
+            ui_throttle=0.20,
+        )
+        res = sim.run_simulation(30.0)
+        self.assertEqual(res["rejected"], 0, f"Paced mode had {res['rejected']} rejected hits!")
+        self.assertAlmostEqual(res["swings_per_sec_valid"], 8.33, delta=0.2)
+        self.assertEqual(res["waste_percentage"], 0.0)
+
+
 if __name__ == "__main__":
     main()

@@ -117,12 +117,11 @@ class TestV12HalloweenEngine(unittest.TestCase):
         self.assertIn("HwPickupToken         = 0,", self.code)
 
     def test_13_halloween_fast_pickup_ui_elements(self):
-        """Verify Halloween Fast Pickup UI elements on TabHalloween and TabUtility."""
+        """Verify Halloween Fast Pickup UI element on TabHalloween filter bar and absence on TabUtility."""
         self.assertIn('Name = "HwFilterPickupBtn"', self.code)
         self.assertIn('UI.Elements.HwFilterPickupBtn = hwFilterPickupBtn', self.code)
-        self.assertIn('Name = "RowHwPickup"', self.code)
-        self.assertIn('Name = "ToggleHwPickupBtn"', self.code)
-        self.assertIn('UI.Elements.ToggleHwPickupBtn = toggleHwPBtn', self.code)
+        self.assertNotIn('Name = "RowHwPickup"', self.code)
+        self.assertNotIn('Name = "ToggleHwPickupBtn"', self.code)
         self.assertIn("UI.syncPickupToggles", self.code)
 
     def test_14_halloween_fast_pickup_mutual_exclusion(self):
@@ -157,45 +156,173 @@ class TestV12HalloweenEngine(unittest.TestCase):
         self.assertIn('hitbox:GetAttribute("PreparedSourceName")', self.code)
 
     def test_19_werewolf_and_halloween_resolution(self):
-        """Verify Werewolf Egg resolves via ProximityPrompt keyword search, template signatures, and event connections."""
+        """Verify Werewolf Egg and Halloween species resolve via clean O(1) taxonomy & alias lookup with zero redundant loops."""
         self.assertIn("Helpers.resolveHalloweenEggName", self.code)
-        self.assertIn("Helpers.getTemplateSignatures", self.code)
-        self.assertIn("Helpers.matchTemplateEgg", self.code)
         self.assertIn("wEggs.ChildAdded:Connect", self.code)
         self.assertIn("wEggs.ChildRemoved:Connect", self.code)
         self.assertIn("Engine.State.HwHookedFolder", self.code)
         self.assertIn("Engine.State.HwFolderConns", self.code)
 
-        # ProximityPrompt keyword search must ignore generic terms and match specific species keywords
-        self.assertIn('cleanName ~= "egg" and cleanName ~= "halloween" and cleanName ~= "halloweenegg"', self.code)
-        self.assertIn('fullTxt:find(cleanName, 1, true)', self.code)
+        # Connection hygiene: HwFolderConns must be cleaned up in Engine.Cleanup
+        cleanup_snippet = re.search(r"Engine\.Cleanup\s*=\s*function\(\)(.*?)\nend", self.code, re.DOTALL)
+        self.assertIsNotNone(cleanup_snippet)
+        self.assertIn("table.clear(Engine.State.HwFolderConns)", cleanup_snippet.group(1))
+
+        # Redundant template signatures and speculative mesh part matching must NOT exist
+        self.assertNotIn("Helpers.getTemplateSignatures", self.code)
+        self.assertNotIn("Helpers.matchTemplateEgg", self.code)
+        self.assertNotIn("Helpers.GenericPartNames", self.code)
 
         # Verify Werewolf Egg is in taxonomy as Secret
         self.assertIn('{ Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } }', self.code)
 
-        # Simulate keyword matching for ProximityPrompt text "Steal Werewolf Egg"
-        prompt_text = "Steal Werewolf Egg".lower()
-        self.assertIn("werewolf", prompt_text)
-
-        # Template signatures matching against ReplicatedStorage.Assets.Models.Eggs
-        self.assertIn('ReplicatedStorage.Assets.Models.Eggs', self.code)
-        self.assertIn('Helpers.GenericPartNames', self.code)
-
     def test_20_hooded_gerbil_not_hijacked_by_graveyard_brute(self):
-        """Verify standard HalloweenEgg resolves to Hooded Gerbil Egg before template matching to prevent Graveyard Brute false positives."""
-        # Ensure Step 5 returns Hooded Gerbil Egg before speculative template match
+        """Verify Hooded Gerbil Egg resolves via taxonomy alias in O(1) without speculative template false-positives."""
         resolve_snippet = re.search(r"Helpers\.resolveHalloweenEggName\s*=\s*function\(model\)(.*?)\nend", self.code, re.DOTALL)
         self.assertIsNotNone(resolve_snippet)
         body = resolve_snippet.group(1)
 
-        pos_gerbil = body.find('model.Name == "HalloweenEgg" or model.Name == "Halloween Egg"')
-        pos_template = body.find('Helpers.matchTemplateEgg(model)')
-        self.assertGreater(pos_gerbil, 0, "HalloweenEgg check missing in resolveHalloweenEggName")
-        self.assertGreater(pos_template, 0, "matchTemplateEgg missing in resolveHalloweenEggName")
-        self.assertLess(pos_gerbil, pos_template, "HalloweenEgg must default to Hooded Gerbil Egg BEFORE speculative matchTemplateEgg to avoid Graveyard Brute false positives")
+        # Direct attribute checks and taxonomy lookup
+        self.assertIn('model:GetAttribute("PreparedSourceName")', body)
+        self.assertIn('hitbox:GetAttribute("PreparedSourceName")', body)
+        self.assertIn('Helpers.getSpeciesInfo(tostring(raw), "Halloween Dimension")', body)
+        self.assertIn('return "Hooded Gerbil Egg"', body)
 
-        # Verify Hooded Gerbil Egg is Legendary
+        # Speculative template matching must be completely removed
+        self.assertNotIn("matchTemplateEgg", body)
+        self.assertNotIn("matchTemplateEgg", self.code)
+
+        # Verify Hooded Gerbil Egg is Legendary with HalloweenEgg aliases in taxonomy
         self.assertIn('{ Name = "Hooded Gerbil Egg", Rarity = "Legendary"', self.code)
+        self.assertIn('"HalloweenEgg"', self.code)
+
+    def test_21_night_reset_and_rare_egg_spawns(self):
+        """Verify staged night reset resyncs and authoritative serverRarity evaluation in UI.renderHalloweenEggs."""
+        # 1. Staged resync delays on night transition
+        self.assertIn("task.delay(0.5, doResync)", self.code)
+        self.assertIn("task.delay(1.5, doResync)", self.code)
+        self.assertIn("task.delay(3.0, doResync)", self.code)
+
+        # 2. Authoritative serverRarity takes precedence in UI.renderHalloweenEggs
+        self.assertIn('local serverRarity = model:GetAttribute("Rarity") or (hitbox and hitbox:GetAttribute("Rarity"))', self.code)
+        self.assertIn('local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown") and serverRarity or ((sInfo and sInfo.Rarity) or "Legendary")', self.code)
+
+        # 3. Streamlined resolution: SmartPromptPart is not used for egg species naming
+        resolve_snippet = re.search(r"Helpers\.resolveHalloweenEggName\s*=\s*function\(model\)(.*?)\nend", self.code, re.DOTALL)
+        self.assertIsNotNone(resolve_snippet)
+        self.assertNotIn('Workspace:FindFirstChild("SmartPromptPart")', resolve_snippet.group(1))
+
+    def test_22_werewolf_egg_visible_under_divine_eternal_secret_filter(self):
+        """Verify Werewolf Egg resolves to Secret rarity and is visible under Divine, Eternal, Secret filter."""
+        # 1. Taxonomy entry is Secret
+        self.assertIn('{ Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } }', self.code)
+
+        # 2. resolveHalloweenEggName inspects ProximityPrompt and children before falling back to Hooded Gerbil
+        resolve_snippet = re.search(r"Helpers\.resolveHalloweenEggName\s*=\s*function\(model\)(.*?)\nend", self.code, re.DOTALL)
+        self.assertIsNotNone(resolve_snippet)
+        body = resolve_snippet.group(1)
+        self.assertIn("ProximityPrompt", body)
+        self.assertIn("ObjectText", body)
+        self.assertIn("ActionText", body)
+        self.assertIn("HwNameCache", body)
+
+        # 3. Default filter enables Secret, Eternal, Divine
+        def_m = re.search(r'SelectedHwRarities\s*=\s*\{([^}]+)\}', self.code)
+        self.assertIsNotNone(def_m)
+        content = def_m.group(1)
+        self.assertIn('["Secret"] = true', content)
+        self.assertIn('["Eternal"] = true', content)
+        self.assertIn('["Divine"] = true', content)
+
+    def test_23_halloween_tp_logic_sequence(self):
+        """Verify Halloween TP logic executes:
+           - tp towards egg
+           - pick up
+           - tp towards dropzone
+           - drop the egg
+           - repick up
+           - walk towards halloween safezone
+        """
+        self.assertIn("Engine.HwPickup.executeTpSequence", self.code)
+        tp_snippet = re.search(r"Engine\.HwPickup\.executeTpSequence\s*=\s*function\(itemData, onComplete\)(.*?)\nend\n", self.code, re.DOTALL)
+        self.assertIsNotNone(tp_snippet, "executeTpSequence must be defined")
+        body = tp_snippet.group(1)
+
+        # Step 1: TP towards egg
+        self.assertIn("Engine.Travel.teleportTo(targetPos, true)", body)
+
+        # Step 2: Pick up
+        self.assertIn("Helpers.isHoldingEgg()", body)
+        self.assertIn("RF/HalloweenDimension/AskCarryEgg", body)
+
+        # Step 3: TP towards dropzone
+        self.assertIn("Engine.Travel.teleportTo(dropPos, false)", body)
+        self.assertIn("Engine.HwPickup.DropZone", self.code)
+
+        # Step 4: Drop the egg
+        self.assertIn("RF/HalloweenDimension/AskDropEgg", body)
+
+        # Step 5: Re-pick up
+        self.assertIn("reSecured", body)
+
+        # Step 6: Walk towards halloween safezone
+        self.assertIn("Engine.Travel.walkToTarget(safeZone, 4.0", body)
+        self.assertIn("Engine.HwPickup.SafeZone", self.code)
+
+    def test_24_halloween_get_logic_sequence(self):
+        """Verify Halloween Get logic executes:
+           - tp towards egg
+           - pick up the egg
+           - walk towards dropzone
+           - walk towards safezone
+        """
+        self.assertIn("Engine.HwPickup.executeGetSequence", self.code)
+        get_snippet = re.search(r"Engine\.HwPickup\.executeGetSequence\s*=\s*function\(itemData, onComplete\)(.*?)\nend\n", self.code, re.DOTALL)
+        self.assertIsNotNone(get_snippet, "executeGetSequence must be defined")
+        body = get_snippet.group(1)
+
+        # Step 1: TP towards egg
+        self.assertIn("Engine.Travel.teleportTo(targetPos, true)", body)
+
+        # Step 2: Pick up the egg
+        self.assertIn("Helpers.isHoldingEgg()", body)
+        self.assertIn("RF/HalloweenDimension/AskCarryEgg", body)
+
+        # Step 3: Walk towards dropzone
+        self.assertIn("Engine.Travel.walkToTarget(dropPos, 4.0", body)
+
+        # Step 4: Walk towards safezone
+        self.assertIn("Engine.Travel.walkToTarget(safeZone, 4.0", body)
+
+    def test_25_halloween_card_buttons_wiring(self):
+        """Verify Halloween card buttons route TP to executeTpSequence and WALK to executeGetSequence."""
+        self.assertIn("Engine.HwPickup.executeTpSequence(item.data)", self.code)
+        self.assertIn("Engine.HwPickup.executeGetSequence(item.data)", self.code)
+
+    def test_26_zone_1_eggs_use_walk_delivery(self):
+        """Verify Zone 1 eggs route TP to pickup + walk towards dropzone and safezone (no drop remote)."""
+        tp_snippet = re.search(r"Engine\.HwPickup\.executeTpSequence\s*=\s*function\(itemData, onComplete\)(.*?)\nend\n", self.code, re.DOTALL)
+        self.assertIsNotNone(tp_snippet)
+        body = tp_snippet.group(1)
+
+        self.assertIn("local isZone1 =", body)
+        self.assertIn("itemData.Zone == 1", body)
+        self.assertIn("Zone 1 Egg - Walking to Dropzone", body)
+        self.assertIn("Engine.Travel.walkToTarget(dropPos, 4.0", body)
+        self.assertIn("Engine.Travel.walkToTarget(safeZone, 4.0", body)
+
+    def test_27_teleport_beside_big_egg_ground_raycast(self):
+        """Verify Engine.Travel.teleportTo prevents excess freefall on big eggs via geometry check and ground raycast."""
+        tp_snippet = re.search(r"Engine\.Travel\.teleportTo\s*=\s*function\(targetPos, snapBeside(.*?)\nend\n", self.code, re.DOTALL)
+        self.assertIsNotNone(tp_snippet)
+        body = tp_snippet.group(1)
+
+        self.assertIn("eggRadius", body)
+        self.assertIn("eggBottomY", body)
+        self.assertIn("RaycastParams.new()", body)
+        self.assertIn("Workspace:Raycast", body)
+        self.assertIn("rayRes.Position.Y + 2.8", body)
+
 
 if __name__ == "__main__":
     unittest.main()
