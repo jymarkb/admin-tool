@@ -22,6 +22,7 @@ local pg = lp:WaitForChild("PlayerGui")
 local TOOLS = {
     { name = "Titan Axe [X1]",       type = "bat"  },
     { name = "Scramble Sword [X1]",  type = "bat"  },
+    { name = "Pumpkin Scythe [X1]",  type = "bat"  },
     { name = "The Scrambler [X1]",   type = "tool" },
     { name = "Cricket's Banjo [X1]", type = "tool" },
 }
