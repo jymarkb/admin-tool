@@ -1,10 +1,13 @@
 --[[
-    SIMPLE AUTO FISHING + LOG
-    - Default Halloween fishing spot & reel target
-    - Auto-walks to fishing location before fishing if away
-    - Equips "Haunted Rod [X1]" automatically when at fishing location
-    - Safer wait + reel retry on failure
-    - Logs live character position and detailed reel rewards (Name, Rarity, OneIn, Id)
+    AUTO FISHING ENGINE (Clean & Modular)
+    =====================================
+    Features:
+      1. Exact Proven Location: Halloween Bank stand (-5695.6, -203.7, -7370.9) & reel target (-5668.5, -206.5, -7368.9).
+      2. Dynamic Rod Detection: Works with any rod in hand or Backpack (Haunted Rod, Basic Rod, etc.) with zero-re-equip bypass.
+      3. Clean Fishing Cycle: RE/Fishing/Hold (0.40s) -> RF/Fishing/Cast -> wait (Wait+1.10s) -> RF/Fishing/Reel (up to 2 retries).
+      4. Auto-Walk to Bank: Smooth walkToSpot if character drifts > 8 studs away from stand.
+      5. Zero Metamethod Overhead: Standalone, pure client remote execution without global hooking.
+      6. Compact HUD & Connection Hygiene: Sleek 270x160 UI; 100% listeners cleaned via _G.SimpleAutoFish_Cleanup.
 ]]
 
 local ok, err = pcall(function()
@@ -14,33 +17,64 @@ _G.SimpleAutoFish_Cleanup = nil
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace         = game:GetService("Workspace")
 
-local lp = Players.LocalPlayer
-local Character = lp and lp.Character
-local pg = lp:WaitForChild("PlayerGui")
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    local t0 = os.clock()
+    while not LocalPlayer and (os.clock() - t0 < 3) do
+        task.wait(0.1)
+        LocalPlayer = Players.LocalPlayer
+    end
+end
 
-lp.CharacterAdded:Connect(function(newChar)
-    Character = newChar
-end)
-lp.CharacterRemoving:Connect(function()
-    Character = nil
-end)
+local Character = LocalPlayer and LocalPlayer.Character
+local Humanoid  = Character and Character:FindFirstChildOfClass("Humanoid")
+local RootPart  = Character and Character:FindFirstChild("HumanoidRootPart")
+local Backpack  = LocalPlayer and LocalPlayer:FindFirstChildOfClass("Backpack")
 
 -- ======================
--- CONFIG
+-- CONNECTIONS & LIFECYCLE
 -- ======================
-local DEFAULT_CHAR_POS = Vector3.new(-5695.6, -203.7, -7370.9)  -- Halloween Fishing Bank Stand Position
-local DEFAULT_CAST_POS = Vector3.new(-5668.5, -206.5, -7368.9)  -- Water Reel Target Coordinates
-local ROD_NAME         = "Haunted Rod [X1]"                      -- Rod to auto-equip
+local connections = {}
+local function addConnection(conn)
+    table.insert(connections, conn)
+    return conn
+end
 
-local CLICKS           = 13
-local HOLD_DELAY       = 0.40       -- Safe charge time (avoids server power mismatch)
-local CAST_POWER_MIN   = 0.72       -- Proven safe range from fishing-3.log
-local CAST_POWER_MAX   = 0.90       -- Proven safe range from fishing-3.log
-local EXTRA_WAIT       = 1.10       -- Crucial bite window buffer (guarantees server hooks fish)
-local CYCLE_PAUSE      = 0.40       -- Clean reset before next cast
-local MAX_REEL_RETRIES = 2
+local function disconnectAll()
+    for _, conn in ipairs(connections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(connections)
+end
+
+if LocalPlayer then
+    addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
+        Character = newChar
+        Humanoid = newChar:WaitForChild("Humanoid", 5) or newChar:FindFirstChildOfClass("Humanoid")
+        RootPart = newChar:WaitForChild("HumanoidRootPart", 5) or newChar:FindFirstChild("HumanoidRootPart")
+    end))
+    addConnection(LocalPlayer.CharacterRemoving:Connect(function()
+        Character = nil
+        Humanoid = nil
+        RootPart = nil
+    end))
+end
+
+-- ======================
+-- CONFIG (Proven Exact Coordinates & Timing)
+-- ======================
+local Config = {
+    CHAR_POS         = Vector3.new(-5695.6, -203.7, -7370.9),  -- Halloween Fishing Bank Stand
+    CAST_POS         = Vector3.new(-5668.5, -206.5, -7368.9),  -- Water Reel Target Coordinates
+    CLICKS           = 13,
+    HOLD_DELAY       = 0.40,       -- Charge time
+    CAST_POWER_MIN   = 0.72,       -- Safe power range
+    CAST_POWER_MAX   = 0.90,
+    EXTRA_WAIT       = 1.10,       -- Bite window buffer
+    CYCLE_PAUSE      = 0.40,       -- Reset delay
+    MAX_REEL_RETRIES = 2,
+}
 
 -- ======================
 -- REMOTES
@@ -55,192 +89,89 @@ local function getNet(name)
     return ReplicatedStorage:FindFirstChild(name, true)
 end
 
-local RE_Hold = getNet("RE/Fishing/Hold")
-local RF_Cast = getNet("RF/Fishing/Cast")
-local RF_Reel = getNet("RF/Fishing/Reel")
+local Remotes = {
+    Hold = getNet("RE/Fishing/Hold"),
+    Cast = getNet("RF/Fishing/Cast"),
+    Reel = getNet("RF/Fishing/Reel"),
+}
 
-if not (RE_Hold and RF_Cast and RF_Reel) then
+if not (Remotes.Hold and Remotes.Cast and Remotes.Reel) then
     error("Fishing remotes not found")
 end
 
 -- ======================
--- STATE & HELPERS
+-- STATE
 -- ======================
-local enabled         = false
-local lastPos         = DEFAULT_CAST_POS
-local running         = false
-local catchCount      = 0
-local logLines        = {}
-local logBox          = nil
-local charLabel       = nil
-local isScriptActive  = true
-
-local function log(msg)
-    local line = os.date("%H:%M:%S") .. " " .. tostring(msg)
-    table.insert(logLines, line)
-    if #logLines > 60 then table.remove(logLines, 1) end
-    if logBox and logBox.Parent then
-        pcall(function() logBox.Text = table.concat(logLines, "\n") end)
-    end
-end
-
-local function getCharPos()
-    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
-    return hrp and hrp.Position or nil
-end
-
-local function distXZ(a, b)
-    if not (a and b) then return 99999 end
-    return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
-end
-
-local function getAutoCastPos()
-    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return DEFAULT_CAST_POS end
-    local look = hrp.CFrame.LookVector
-    -- Cast ~22 studs forward in the direction the character is facing
-    local forwardDist = 22
-    local targetX = hrp.Position.X + look.X * forwardDist
-    local targetZ = hrp.Position.Z + look.Z * forwardDist
-    local targetY = hrp.Position.Y - 2.8
-
-    pcall(function()
-        local rayOrigin = Vector3.new(targetX, hrp.Position.Y + 10, targetZ)
-        local rayDirection = Vector3.new(0, -35, 0)
-        local raycastParams = RaycastParams.new()
-        if Character then
-            raycastParams.FilterDescendantsInstances = {Character}
-            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-        end
-        local result = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-        if result and result.Position then
-            targetY = result.Position.Y
-        end
-    end)
-    return Vector3.new(targetX, targetY, targetZ)
-end
+local State = {
+    Enabled    = false,
+    Running    = false,
+    CatchCount = 0,
+}
 
 -- ======================
--- TOOL EQUIP LOGIC (from auto-bat.lua)
+-- ROD & NAVIGATION LOGIC
 -- ======================
-local function findRod()
-    if Character then
-        for _, t in ipairs(Character:GetChildren()) do
-            if t:IsA("Tool") then
-                if t.Name == ROD_NAME or string.find(t.Name:lower(), "haunted rod", 1, true) then
-                    return t, true -- already in hand
-                end
-            end
-        end
-    end
-    local bp = lp:FindFirstChild("Backpack")
-    if bp then
-        for _, t in ipairs(bp:GetChildren()) do
-            if t:IsA("Tool") then
-                if t.Name == ROD_NAME or string.find(t.Name:lower(), "haunted rod", 1, true) then
-                    return t, false -- in backpack
-                end
-            end
-        end
-    end
-    return nil, false
+local function isRod(tool)
+    if not (tool and tool:IsA("Tool")) then return false end
+    local gName = tool:GetAttribute("GearName")
+    if gName and gName:lower():find("rod", 1, true) then return true end
+    return tool.Name:lower():find("rod", 1, true) ~= nil
 end
 
 local function ensureRodEquipped()
-    local rod, alreadyInHand = findRod()
-    if not rod then
-        log("Notice: '" .. ROD_NAME .. "' not found in Backpack or Character")
-        return false
+    if Character then
+        for _, t in ipairs(Character:GetChildren()) do
+            if isRod(t) then return true end -- already in hand
+        end
     end
-    if alreadyInHand then
-        return true
+    local bp = Backpack or (LocalPlayer and LocalPlayer:FindFirstChildOfClass("Backpack"))
+    if bp then
+        for _, t in ipairs(bp:GetChildren()) do
+            if isRod(t) then
+                if Humanoid then
+                    pcall(function() Humanoid:EquipTool(t) end)
+                    task.wait(0.2)
+                end
+                return true
+            end
+        end
     end
-    local hum = Character and Character:FindFirstChildOfClass("Humanoid")
-    if hum then
-        pcall(function() hum:EquipTool(rod) end)
-        task.wait(0.2)
-        log("Equipped tool: " .. rod.Name)
-        return true
+    return false
+end
+
+local function walkToSpot()
+    local hrp = RootPart or (Character and Character:FindFirstChild("HumanoidRootPart"))
+    local hum = Humanoid or (Character and Character:FindFirstChildOfClass("Humanoid"))
+    if not (hrp and hum) then return false end
+
+    if hum.Sit then hum.Sit = false end
+    if hum.PlatformStand then hum.PlatformStand = false end
+
+    local diff = Vector3.new(Config.CHAR_POS.X - hrp.Position.X, 0, Config.CHAR_POS.Z - hrp.Position.Z)
+    if diff.Magnitude <= 4.0 then return true end
+
+    hum.WalkToPoint = Config.CHAR_POS
+    hum:MoveTo(Config.CHAR_POS)
+
+    local t0 = os.clock()
+    while State.Enabled and (os.clock() - t0 < 25.0) do
+        if not (Character and hrp.Parent and hum.Health > 0) then return false end
+        local d = Vector3.new(Config.CHAR_POS.X - hrp.Position.X, 0, Config.CHAR_POS.Z - hrp.Position.Z).Magnitude
+        if d <= 3.5 then
+            pcall(function()
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hum:Move(Vector3.zero, false)
+            end)
+            return true
+        end
+        hum:MoveTo(Config.CHAR_POS)
+        task.wait(0.1)
     end
     return false
 end
 
 -- ======================
--- NAVIGATION LOGIC
--- ======================
-local function walkToTarget(targetPos, arrivalDist, cancelCheck)
-    arrivalDist = arrivalDist or 3.5
-    if not Character then return false end
-    local root = Character:FindFirstChild("HumanoidRootPart")
-    local hum  = Character:FindFirstChildOfClass("Humanoid")
-    if not (root and hum) then return false end
-
-    if hum.Sit then hum.Sit = false end
-    if hum.PlatformStand then hum.PlatformStand = false end
-
-    if distXZ(root.Position, targetPos) <= arrivalDist then
-        return true
-    end
-
-    local startTime = os.clock()
-    local timeout = 35.0
-    local lastWalkPos = nil
-    local stuckFrames = 0
-
-    while (os.clock() - startTime) < timeout do
-        if not Character or not root.Parent or hum.Health <= 0 then break end
-        if cancelCheck and cancelCheck() then break end
-
-        local curPos = root.Position
-        local dist = distXZ(curPos, targetPos)
-
-        if dist <= arrivalDist then
-            pcall(function()
-                root.AssemblyLinearVelocity = Vector3.zero
-                hum:Move(Vector3.zero, false)
-                hum.WalkToPoint = root.Position
-            end)
-            return true
-        end
-
-        pcall(function()
-            hum:MoveTo(targetPos)
-        end)
-
-        if lastWalkPos and distXZ(curPos, lastWalkPos) < 0.4 then
-            stuckFrames = stuckFrames + 1
-            if stuckFrames >= 5 then
-                stuckFrames = 0
-                pcall(function() hum.Jump = true end)
-            end
-        else
-            stuckFrames = 0
-        end
-        lastWalkPos = curPos
-
-        task.wait(0.1)
-    end
-
-    pcall(function()
-        if root then root.AssemblyLinearVelocity = Vector3.zero end
-        if hum then hum:Move(Vector3.zero, false) end
-    end)
-    return (root and distXZ(root.Position, targetPos) <= arrivalDist)
-end
-
-local function formatReward(item)
-    if typeof(item) ~= "table" then
-        return tostring(item)
-    end
-    local name = item.DisplayName or item.Id or item.Name or "Fish"
-    local rarity = item.Rarity or "Unknown"
-    local oneIn = item.OneIn and string.format(" (1 in %s)", tostring(item.OneIn)) or ""
-    local amount = item.Amount and tonumber(item.Amount) and tonumber(item.Amount) > 1 and string.format(" x%d", item.Amount) or ""
-    return string.format("[%s] %s%s%s", rarity, name, amount, oneIn)
-end
-
--- ======================
--- UI
+-- UI SETUP (Compact 270x160 HUD matching auto-bat.lua)
 -- ======================
 local function getSafeParent()
     if typeof(gethui) == "function" then
@@ -249,429 +180,227 @@ local function getSafeParent()
     end
     local a, b = pcall(function() return game:GetService("CoreGui") end)
     if a and b then return b end
-    return pg
+    return LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
 end
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "SimpleAutoFish"
-gui.ResetOnSpawn = false
-gui.Parent = getSafeParent()
+local GUI_NAME = "AutoFishingGui"
+local parentUi = getSafeParent()
+pcall(function()
+    if parentUi:FindFirstChild(GUI_NAME) then parentUi[GUI_NAME]:Destroy() end
+end)
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 350, 0, 420)
-frame.Position = UDim2.new(1, -370, 0, 20)
-frame.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.Parent = gui
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+local UI = {}
+UI.Gui = Instance.new("ScreenGui")
+UI.Gui.Name = GUI_NAME
+UI.Gui.ResetOnSpawn = false
+UI.Gui.Parent = parentUi
 
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(60, 140, 220)
-stroke.Thickness = 1.5
-stroke.Parent = frame
+local W, H = 270, 160
+UI.Frame = Instance.new("Frame")
+UI.Frame.Size = UDim2.new(0, W, 0, H)
+UI.Frame.Position = UDim2.new(1, -W - 20, 0, 80)
+UI.Frame.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
+UI.Frame.BorderSizePixel = 0
+UI.Frame.Active = true
+UI.Frame.Draggable = true
+UI.Frame.Parent = UI.Gui
+Instance.new("UICorner", UI.Frame).CornerRadius = UDim.new(0, 8)
+
+UI.Stroke = Instance.new("UIStroke")
+UI.Stroke.Color = Color3.fromRGB(60, 140, 220)
+UI.Stroke.Thickness = 1.5
+UI.Stroke.Parent = UI.Frame
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -50, 0, 26)
 title.Position = UDim2.new(0, 10, 0, 4)
 title.BackgroundTransparency = 1
-title.Text = "🎣 Simple Auto Fish"
+title.Text = "🎣 Auto Fishing v2"
 title.TextColor3 = Color3.fromRGB(120, 210, 255)
-title.TextSize = 14
+title.TextSize = 13
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = frame
+title.Parent = UI.Frame
 
 local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 28, 0, 22)
-closeBtn.Position = UDim2.new(1, -34, 0, 4)
+closeBtn.Size = UDim2.new(0, 24, 0, 22)
+closeBtn.Position = UDim2.new(1, -30, 0, 4)
 closeBtn.BackgroundColor3 = Color3.fromRGB(150, 45, 45)
-closeBtn.Text = "X"
-closeBtn.TextColor3 = Color3.new(1,1,1)
-closeBtn.TextSize = 12
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.TextSize = 11
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.Parent = frame
+closeBtn.Parent = UI.Frame
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 4)
 
-local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -16, 0, 16)
-status.Position = UDim2.new(0, 8, 0, 30)
-status.BackgroundTransparency = 1
-status.Text = "Ready – press START"
-status.TextColor3 = Color3.fromRGB(200, 200, 160)
-status.TextSize = 11
-status.Font = Enum.Font.Gotham
-status.TextXAlignment = Enum.TextXAlignment.Left
-status.Parent = frame
+UI.StatusLbl = Instance.new("TextLabel")
+UI.StatusLbl.Size = UDim2.new(1, -20, 0, 20)
+UI.StatusLbl.Position = UDim2.new(0, 10, 0, 34)
+UI.StatusLbl.BackgroundTransparency = 1
+UI.StatusLbl.Text = "Ready – press START"
+UI.StatusLbl.TextColor3 = Color3.fromRGB(200, 200, 160)
+UI.StatusLbl.TextSize = 10.5
+UI.StatusLbl.Font = Enum.Font.Gotham
+UI.StatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+UI.StatusLbl.Parent = UI.Frame
 
-charLabel = Instance.new("TextLabel")
-charLabel.Size = UDim2.new(1, -16, 0, 16)
-charLabel.Position = UDim2.new(0, 8, 0, 48)
-charLabel.BackgroundTransparency = 1
-charLabel.Text = "Char: none"
-charLabel.TextColor3 = Color3.fromRGB(160, 190, 220)
-charLabel.TextSize = 10
-charLabel.Font = Enum.Font.Code
-charLabel.TextXAlignment = Enum.TextXAlignment.Left
-charLabel.Parent = frame
-
-local posLabel = Instance.new("TextLabel")
-posLabel.Size = UDim2.new(1, -16, 0, 16)
-posLabel.Position = UDim2.new(0, 8, 0, 66)
-posLabel.BackgroundTransparency = 1
-posLabel.Text = string.format("Pos: %.1f, %.1f, %.1f (Default)", lastPos.X, lastPos.Y, lastPos.Z)
-posLabel.TextColor3 = Color3.fromRGB(150, 170, 190)
-posLabel.TextSize = 10
-posLabel.Font = Enum.Font.Code
-posLabel.TextXAlignment = Enum.TextXAlignment.Left
-posLabel.Parent = frame
-
-local countLabel = Instance.new("TextLabel")
-countLabel.Size = UDim2.new(1, -16, 0, 16)
-countLabel.Position = UDim2.new(0, 8, 0, 84)
-countLabel.BackgroundTransparency = 1
-countLabel.Text = "Catches: 0"
-countLabel.TextColor3 = Color3.fromRGB(140, 200, 140)
-countLabel.TextSize = 11
-countLabel.Font = Enum.Font.Gotham
-countLabel.TextXAlignment = Enum.TextXAlignment.Left
-countLabel.Parent = frame
-
-logBox = Instance.new("TextBox")
-logBox.Size = UDim2.new(1, -16, 0, 220)
-logBox.Position = UDim2.new(0, 8, 0, 104)
-logBox.BackgroundColor3 = Color3.fromRGB(8, 10, 16)
-logBox.TextColor3 = Color3.fromRGB(170, 220, 170)
-logBox.Font = Enum.Font.Code
-logBox.TextSize = 11
-logBox.Text = ""
-logBox.TextWrapped = true
-logBox.TextXAlignment = Enum.TextXAlignment.Left
-logBox.TextYAlignment = Enum.TextYAlignment.Top
-logBox.ClearTextOnFocus = false
-logBox.TextEditable = false
-logBox.MultiLine = true
-logBox.Parent = frame
-Instance.new("UICorner", logBox).CornerRadius = UDim.new(0, 6)
-
-local clearLogBtn = Instance.new("TextButton")
-clearLogBtn.Size = UDim2.new(0, 60, 0, 18)
-clearLogBtn.Position = UDim2.new(1, -70, 0, 106)
-clearLogBtn.BackgroundColor3 = Color3.fromRGB(50, 55, 70)
-clearLogBtn.Text = "CLEAR"
-clearLogBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
-clearLogBtn.TextSize = 10
-clearLogBtn.Font = Enum.Font.Gotham
-clearLogBtn.Parent = frame
-Instance.new("UICorner", clearLogBtn).CornerRadius = UDim.new(0, 4)
-
-clearLogBtn.MouseButton1Click:Connect(function()
-    table.clear(logLines)
-    logBox.Text = ""
-end)
-
-local setPosBtn = Instance.new("TextButton")
-setPosBtn.Size = UDim2.new(1, -20, 0, 26)
-setPosBtn.Position = UDim2.new(0, 10, 1, -74)
-setPosBtn.BackgroundColor3 = Color3.fromRGB(45, 75, 110)
-setPosBtn.Text = "📍 RESET TO DEFAULT SPOT & REEL"
-setPosBtn.TextColor3 = Color3.fromRGB(200, 230, 255)
-setPosBtn.TextSize = 11
-setPosBtn.Font = Enum.Font.GothamBold
-setPosBtn.Parent = frame
-Instance.new("UICorner", setPosBtn).CornerRadius = UDim.new(0, 6)
+UI.CountLbl = Instance.new("TextLabel")
+UI.CountLbl.Size = UDim2.new(1, -20, 0, 20)
+UI.CountLbl.Position = UDim2.new(0, 10, 0, 56)
+UI.CountLbl.BackgroundTransparency = 1
+UI.CountLbl.Text = "Catches: 0"
+UI.CountLbl.TextColor3 = Color3.fromRGB(140, 220, 160)
+UI.CountLbl.TextSize = 11
+UI.CountLbl.Font = Enum.Font.GothamBold
+UI.CountLbl.TextXAlignment = Enum.TextXAlignment.Left
+UI.CountLbl.Parent = UI.Frame
 
 local startBtn = Instance.new("TextButton")
-startBtn.Size = UDim2.new(0, 155, 0, 32)
-startBtn.Position = UDim2.new(0, 10, 1, -42)
+startBtn.Size = UDim2.new(0, 118, 0, 36)
+startBtn.Position = UDim2.new(0, 10, 1, -46)
 startBtn.BackgroundColor3 = Color3.fromRGB(35, 130, 70)
-startBtn.Text = "START"
-startBtn.TextColor3 = Color3.new(1,1,1)
-startBtn.TextSize = 13
+startBtn.Text = "▶ START"
+startBtn.TextColor3 = Color3.new(1, 1, 1)
+startBtn.TextSize = 12
 startBtn.Font = Enum.Font.GothamBold
-startBtn.Parent = frame
+startBtn.Parent = UI.Frame
 Instance.new("UICorner", startBtn).CornerRadius = UDim.new(0, 6)
 
 local stopBtn = Instance.new("TextButton")
-stopBtn.Size = UDim2.new(0, 155, 0, 32)
-stopBtn.Position = UDim2.new(1, -165, 1, -42)
+stopBtn.Size = UDim2.new(0, 118, 0, 36)
+stopBtn.Position = UDim2.new(1, -128, 1, -46)
 stopBtn.BackgroundColor3 = Color3.fromRGB(130, 50, 50)
-stopBtn.Text = "STOP"
-stopBtn.TextColor3 = Color3.new(1,1,1)
-stopBtn.TextSize = 13
+stopBtn.Text = "⏹ STOP"
+stopBtn.TextColor3 = Color3.new(1, 1, 1)
+stopBtn.TextSize = 12
 stopBtn.Font = Enum.Font.GothamBold
-stopBtn.Parent = frame
+stopBtn.Parent = UI.Frame
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 6)
 
-local function setStatus(t, col)
-    status.Text = t
-    status.TextColor3 = col or Color3.fromRGB(200, 200, 160)
+local function setStatus(msg, col)
+    UI.StatusLbl.Text = msg
+    UI.StatusLbl.TextColor3 = col or Color3.fromRGB(200, 200, 160)
 end
 
--- Live character position updater
-task.spawn(function()
-    while isScriptActive and gui and gui.Parent do
-        local cp = getCharPos()
-        if cp and charLabel and charLabel.Parent then
-            pcall(function()
-                charLabel.Text = string.format("Char: %.1f, %.1f, %.1f", cp.X, cp.Y, cp.Z)
-            end)
-        end
-        task.wait(1.0)
-    end
-end)
-
 -- ======================
--- HOOK – Capture Manual Cast & Reel with Character Position
+-- FISHING CYCLE
 -- ======================
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    if not isScriptActive then
-        return oldNamecall(self, ...)
-    end
-
-    local method = getnamecallmethod()
-    if method == "InvokeServer" and not enabled and not running then
-        local name = ""
-        pcall(function() name = self.Name end)
-
-        if name == "RF/Fishing/Cast" or string.find(tostring(name), "Fishing/Cast") then
-            local args = {...}
-            if typeof(args[2]) == "Vector3" then
-                lastPos = args[2]
-                local cp = getCharPos()
-                pcall(function()
-                    if cp and charLabel then
-                        charLabel.Text = string.format("Char: %.1f, %.1f, %.1f", cp.X, cp.Y, cp.Z)
-                    end
-                    posLabel.Text = string.format("Pos: %.1f, %.1f, %.1f (Manual)", lastPos.X, lastPos.Y, lastPos.Z)
-                    setStatus("Position captured – press START", Color3.fromRGB(120, 220, 140))
-                    local charStr = cp and string.format("Char=(%.1f, %.1f, %.1f) ", cp.X, cp.Y, cp.Z) or ""
-                    log(string.format("Manual Cast Captured → %sCast=(%.1f, %.1f, %.1f) Power=%.3f",
-                        charStr, lastPos.X, lastPos.Y, lastPos.Z, tonumber(args[1]) or 0))
-                end)
-            end
-        elseif name == "RF/Fishing/Reel" or string.find(tostring(name), "Fishing/Reel") then
-            local args = {...}
-            local results = table.pack(oldNamecall(self, ...))
-            local ret1 = results[1]
-            local ret2 = results[2]
-            local cp = getCharPos()
-            local charStr = cp and string.format("Char=(%.1f, %.1f, %.1f) ", cp.X, cp.Y, cp.Z) or ""
-            if ret1 == true then
-                log(string.format("Manual Reel SUCCESS → %s%s (Id=%s)", charStr, formatReward(ret2), tostring(args[1])))
-            else
-                log(string.format("Manual Reel → %sret1=%s ret2=%s", charStr, tostring(ret1), tostring(ret2)))
-            end
-            return table.unpack(results, 1, results.n)
-        end
-    end
-    return oldNamecall(self, ...)
-end)
-
--- ======================
--- AUTO CYCLE
--- ======================
-local function doCycle()
-    if running then return end
-    running = true
+local function startFishing()
+    if State.Running then return end
+    State.Running = true
 
     task.spawn(function()
-        -- 1. Check if at fishing location; if not, walk towards DEFAULT_CHAR_POS
-        local startCp = getCharPos()
-        local distFromSpot = distXZ(startCp, DEFAULT_CHAR_POS)
-        if distFromSpot > 4.0 then
-            setStatus(string.format("Walking to spot (%.0fm)...", distFromSpot), Color3.fromRGB(255, 200, 100))
-            log(string.format("Walking to fishing spot (%.1f studs away)...", distFromSpot))
-
-            local arrived = walkToTarget(DEFAULT_CHAR_POS, 3.5, function() return not enabled end)
-            if not enabled then
-                running = false
-                log("Stopped while walking to fishing spot")
-                return
-            end
-
-            if arrived then
-                log("Arrived at fishing spot")
-                setStatus("Arrived at spot", Color3.fromRGB(120, 220, 140))
+        while State.Enabled do
+            -- 1. Ensure at fishing spot
+            local hrp = RootPart or (Character and Character:FindFirstChild("HumanoidRootPart"))
+            if hrp and Vector3.new(Config.CHAR_POS.X - hrp.Position.X, 0, Config.CHAR_POS.Z - hrp.Position.Z).Magnitude > 8.0 then
+                setStatus("Walking to fishing spot...", Color3.fromRGB(255, 200, 100))
+                walkToSpot()
+                if not State.Enabled then break end
                 pcall(function()
-                    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
-                    if hrp and lastPos then
-                        hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(lastPos.X, hrp.Position.Y, lastPos.Z))
-                    end
+                    local r = RootPart or (Character and Character:FindFirstChild("HumanoidRootPart"))
+                    if r then r.CFrame = CFrame.lookAt(r.Position, Vector3.new(Config.CAST_POS.X, r.Position.Y, Config.CAST_POS.Z)) end
                 end)
-            else
-                log("Warning: Navigation timed out, proceeding from current location")
-            end
-        end
-
-        -- 2. Equip Haunted Rod [X1] once at fishing location
-        ensureRodEquipped()
-
-        -- 3. Main Fishing Loop
-        while enabled and lastPos do
-            -- Safety drift check: if bumped > 10 studs away from spot, walk back
-            local loopCp = getCharPos()
-            if loopCp and distXZ(loopCp, DEFAULT_CHAR_POS) > 10.0 then
-                setStatus("Returning to spot...", Color3.fromRGB(255, 200, 100))
-                log("Drifted from fishing spot, walking back...")
-                walkToTarget(DEFAULT_CHAR_POS, 3.5, function() return not enabled end)
-                if not enabled then break end
-                pcall(function()
-                    local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
-                    if hrp and lastPos then
-                        hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(lastPos.X, hrp.Position.Y, lastPos.Z))
-                    end
-                end)
-                ensureRodEquipped()
             end
 
-            ensureRodEquipped()
-
-            local cp = getCharPos()
-            local charStr = cp and string.format("Char=(%.1f, %.1f, %.1f)", cp.X, cp.Y, cp.Z) or "Char=none"
-            if cp and charLabel and charLabel.Parent then
-                pcall(function() charLabel.Text = string.format("Char: %.1f, %.1f, %.1f", cp.X, cp.Y, cp.Z) end)
+            -- 2. Ensure rod equipped
+            if not ensureRodEquipped() then
+                setStatus("No Fishing Rod found in hand/backpack!", Color3.fromRGB(255, 120, 80))
+                task.wait(2.0)
+                continue
             end
 
-            log("----- CYCLE START " .. charStr .. " -----")
-            setStatus("Holding...", Color3.fromRGB(160, 200, 255))
-            pcall(function() RE_Hold:FireServer() end)
-            task.wait(HOLD_DELAY)
-            if not enabled then break end
+            -- 3. Hold charge
+            setStatus("Charging cast...", Color3.fromRGB(160, 200, 255))
+            pcall(function() Remotes.Hold:FireServer() end)
+            task.wait(Config.HOLD_DELAY)
+            if not State.Enabled then break end
 
-            local power = CAST_POWER_MIN + math.random() * (CAST_POWER_MAX - CAST_POWER_MIN)
-            power = math.floor(power * 1000) / 1000
-            setStatus("Casting " .. power, Color3.fromRGB(160, 200, 255))
-            log(string.format("Casting power=%.3f Target=(%.1f, %.1f, %.1f)", power, lastPos.X, lastPos.Y, lastPos.Z))
+            -- 4. Cast with randomized proven power
+            local power = math.floor((Config.CAST_POWER_MIN + math.random() * (Config.CAST_POWER_MAX - Config.CAST_POWER_MIN)) * 1000) / 1000
+            setStatus(string.format("Casting (power %.2f)...", power), Color3.fromRGB(160, 200, 255))
 
             local castOk, castData = pcall(function()
-                return RF_Cast:InvokeServer(power, lastPos)
+                return Remotes.Cast:InvokeServer(power, Config.CAST_POS)
             end)
 
-            if type(castData) == "table" and castData.Id then
-                log("Cast OK → Id=" .. tostring(castData.Id) .. " Wait=" .. tostring(castData.Wait))
-            else
-                log("Cast FAILED → " .. tostring(castData))
+            if not castOk or typeof(castData) ~= "table" or not castData.Id then
+                setStatus("Cast failed, retrying in 2s...", Color3.fromRGB(255, 160, 60))
+                task.wait(2.0)
+                continue
             end
 
-            if not castOk or type(castData) ~= "table" or not castData.Id then
-                setStatus("Cast failed", Color3.fromRGB(255, 160, 60))
-                log("Retrying in 2s...")
-                task.wait(2)
-            else
-                local fishId   = castData.Id
-                local waitTime = (tonumber(castData.Wait) or 3) + EXTRA_WAIT
+            local fishId = castData.Id
+            local waitTime = (tonumber(castData.Wait) or 3.0) + Config.EXTRA_WAIT
+            setStatus(string.format("Waiting for bite (%.1fs)...", waitTime), Color3.fromRGB(180, 210, 255))
+            task.wait(waitTime)
+            if not State.Enabled then break end
 
-                setStatus(string.format("Waiting %.1fs", waitTime), Color3.fromRGB(180, 210, 255))
-                log("Waiting " .. string.format("%.2f", waitTime) .. "s  Id=" .. tostring(fishId))
-                task.wait(waitTime)
-                if not enabled then break end
-
-                -- Reel with retries
-                local success = false
-                local caughtItem = nil
-                for attempt = 1, MAX_REEL_RETRIES + 1 do
-                    setStatus("Reeling..." .. (attempt > 1 and (" retry " .. (attempt-1)) or ""), Color3.fromRGB(100, 220, 140))
-
-                    local curCp = getCharPos()
-                    local curCharStr = curCp and string.format("Char=(%.1f, %.1f, %.1f) ", curCp.X, curCp.Y, curCp.Z) or ""
-
-                    local reelResults = table.pack(pcall(function()
-                        return RF_Reel:InvokeServer(fishId, "Caught", CLICKS)
-                    end))
-
-                    local reelOk = reelResults[1]
-                    local ret1 = reelResults[2]
-                    local ret2 = reelResults[3]
-
-                    if reelOk and ret1 == true then
-                        success = true
-                        caughtItem = ret2
-                        log(string.format("Reel SUCCESS → %s%s (Id=%s attempt=%d)",
-                            curCharStr, formatReward(ret2), tostring(fishId), attempt))
-                        break
-                    else
-                        log(string.format("Reel attempt %d failed → %sok=%s ret1=%s",
-                            attempt, curCharStr, tostring(reelOk), tostring(ret1)))
-                    end
-
-                    if attempt <= MAX_REEL_RETRIES then
-                        task.wait(0.25) -- fast retry delay
-                    end
+            -- 5. Reel with retries
+            local success, caughtItem = false, nil
+            for attempt = 1, Config.MAX_REEL_RETRIES + 1 do
+                setStatus(attempt == 1 and "Reeling in..." or string.format("Reeling (retry %d)...", attempt - 1), Color3.fromRGB(100, 220, 140))
+                local ok, ret1, ret2 = pcall(function()
+                    return Remotes.Reel:InvokeServer(fishId, "Caught", Config.CLICKS)
+                end)
+                if ok and ret1 == true then
+                    success = true
+                    caughtItem = ret2
+                    break
                 end
-
-                if success then
-                    catchCount += 1
-                    countLabel.Text = "Catches: " .. catchCount
-                    local displayItem = (typeof(caughtItem) == "table" and (caughtItem.DisplayName or caughtItem.Id)) or "Caught!"
-                    setStatus(string.format("Caught #%d: %s", catchCount, displayItem), Color3.fromRGB(100, 255, 140))
-                else
-                    setStatus("REEL FAILED", Color3.fromRGB(255, 100, 80))
-                    log("REEL FAILED after retries")
+                if attempt <= Config.MAX_REEL_RETRIES then
+                    task.wait(0.25)
                 end
             end
 
-            task.wait(CYCLE_PAUSE)
-            if not enabled then break end
+            -- 6. Result & feedback
+            if success then
+                State.CatchCount = State.CatchCount + 1
+                UI.CountLbl.Text = "Catches: " .. State.CatchCount
+                local itemName = (typeof(caughtItem) == "table" and (caughtItem.DisplayName or caughtItem.Id or caughtItem.Name)) or "Catch!"
+                local rarity = (typeof(caughtItem) == "table" and caughtItem.Rarity) or ""
+                local rPrefix = (rarity ~= "" and rarity ~= "Unknown") and ("[" .. rarity .. "] ") or ""
+                setStatus(string.format("Caught #%d: %s%s", State.CatchCount, rPrefix, itemName), Color3.fromRGB(100, 255, 140))
+            else
+                setStatus("Reel failed, resetting...", Color3.fromRGB(255, 100, 80))
+            end
+
+            task.wait(Config.CYCLE_PAUSE)
         end
-        running = false
-        log("Loop stopped")
+
+        State.Running = false
+        setStatus("Stopped", Color3.fromRGB(200, 180, 100))
     end)
 end
 
 -- ======================
--- BUTTONS
+-- BUTTON WIRING & CLEANUP
 -- ======================
-setPosBtn.MouseButton1Click:Connect(function()
-    lastPos = DEFAULT_CAST_POS
-    posLabel.Text = string.format("Pos: %.1f, %.1f, %.1f (Default)", lastPos.X, lastPos.Y, lastPos.Z)
-    setStatus("Reset to default fishing spot", Color3.fromRGB(120, 220, 140))
-    log(string.format("Target reset to default: (%.1f, %.1f, %.1f)", lastPos.X, lastPos.Y, lastPos.Z))
-end)
-
-startBtn.MouseButton1Click:Connect(function()
-    if not lastPos then
-        lastPos = DEFAULT_CAST_POS
-        posLabel.Text = string.format("Pos: %.1f, %.1f, %.1f (Default)", lastPos.X, lastPos.Y, lastPos.Z)
-    end
-    enabled = true
+addConnection(startBtn.MouseButton1Click:Connect(function()
+    State.Enabled = true
+    UI.Stroke.Color = Color3.fromRGB(60, 200, 100)
     setStatus("Starting...", Color3.fromRGB(120, 220, 140))
-    stroke.Color = Color3.fromRGB(60, 200, 100)
-    log("START pressed")
-    doCycle()
-end)
+    startFishing()
+end))
 
-stopBtn.MouseButton1Click:Connect(function()
-    enabled = false
-    setStatus("Stopped", Color3.fromRGB(200, 180, 100))
-    stroke.Color = Color3.fromRGB(60, 140, 220)
-    log("STOP pressed")
-end)
+addConnection(stopBtn.MouseButton1Click:Connect(function()
+    State.Enabled = false
+    UI.Stroke.Color = Color3.fromRGB(60, 140, 220)
+    setStatus("Stopping...", Color3.fromRGB(200, 180, 100))
+end))
 
 local function cleanup()
-    isScriptActive = false
-    enabled = false
-    running = false
-    if gui then pcall(function() gui:Destroy() end) end
+    State.Enabled = false
+    disconnectAll()
+    if UI.Gui and UI.Gui.Parent then pcall(function() UI.Gui:Destroy() end) end
+    _G.SimpleAutoFish_Cleanup = nil
 end
-_G.SimpleAutoFish_Cleanup = cleanup
-closeBtn.MouseButton1Click:Connect(cleanup)
 
--- Initialization on load
-local initCp = getCharPos()
-if initCp then
-    charLabel.Text = string.format("Char: %.1f, %.1f, %.1f", initCp.X, initCp.Y, initCp.Z)
-end
-posLabel.Text = string.format("Pos: %.1f, %.1f, %.1f (Default)", lastPos.X, lastPos.Y, lastPos.Z)
-setStatus("Ready – press START", Color3.fromRGB(120, 220, 140))
-log(string.format("Ready! Fishing Spot: (%.1f, %.1f, %.1f) Reel Target: (%.1f, %.1f, %.1f)",
-    DEFAULT_CHAR_POS.X, DEFAULT_CHAR_POS.Y, DEFAULT_CHAR_POS.Z,
-    DEFAULT_CAST_POS.X, DEFAULT_CAST_POS.Y, DEFAULT_CAST_POS.Z))
+_G.SimpleAutoFish_Cleanup = cleanup
+addConnection(closeBtn.MouseButton1Click:Connect(cleanup))
 
 end)
 
 if not ok then
-    warn("[SimpleAutoFish] " .. tostring(err))
+    warn("[AutoFishing] " .. tostring(err))
 end
