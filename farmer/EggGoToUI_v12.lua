@@ -553,7 +553,7 @@ Config.Recovery = {
     BrakeVelocity   = true,
     GroundDistance  = 2.5,
     MaxFlingSpeed   = 100,
-    DebounceWindow  = 0.05,
+    DebounceWindow  = 0,
     BodyJointNames  = {
         ["RootJoint"]     = true,
         ["Root"]          = true,
@@ -565,6 +565,8 @@ Config.Recovery = {
         ["Right Hip"]     = true,
         ["LeftShoulder"]  = true,
         ["RightShoulder"] = true,
+        ["LeftHip"]       = true,
+        ["RightHip"]      = true,
         ["LeftElbow"]     = true,
         ["RightElbow"]    = true,
         ["LeftWrist"]     = true,
@@ -1946,6 +1948,35 @@ Helpers.isAlive = function()
     return hrp ~= nil and hrp.Parent ~= nil and hum ~= nil and hum.Parent ~= nil and hum.Health > 0 and hum:GetState() ~= Enum.HumanoidStateType.Dead
 end
 
+Helpers.isHoldingEgg = function()
+    if Engine.State and Engine.State.IsCarry then return true end
+    if Character then
+        for _, c in ipairs(Character:GetChildren()) do
+            if (c:IsA("Tool") or c:IsA("Model")) and c.Name:lower():find("egg", 1, true) then
+                return true
+            end
+        end
+    end
+    local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+    if cra and myUidStr ~= "" then
+        local expName = Engine.State and Engine.State.CarryUid and (myUidStr .. "_" .. tostring(Engine.State.CarryUid))
+        if expName and cra:FindFirstChild(expName) then return true end
+        if hrp and hrp.Parent then
+            local pfx = myUidStr .. "_"
+            for _, m in ipairs(cra:GetChildren()) do
+                if m.Name:sub(1, #pfx) == pfx then
+                    local okP, pv = pcall(function() return m:GetPivot().Position end)
+                    local pos = (okP and pv) or (m:IsA("BasePart") and m.Position)
+                    if pos and (pos - hrp.Position).Magnitude <= 12 then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
 Helpers.applyReachAssist = function(targetPos)
     if not (hrp and hrp.Parent and targetPos) then return false end
     local dist = (hrp.Position - targetPos).Magnitude
@@ -2121,209 +2152,25 @@ Helpers.registerDynamicSpecies = function(rawName, defaultBiome, defaultRarity)
     return false
 end
 
--- Dynamic Game Discovery for Egg Species & Template Signatures (ReplicatedStorage.Assets.Models.Eggs)
-Helpers.GenericPartNames = {
-    hitbox = true, part = true, meshpart = true, model = true,
-    basepart = true, weld = true, weldconstraint = true,
-    pointlight = true, attachment = true, eggradius = true,
-    egggrip = true, eggglow = true, eggrootweld = true
-}
-
-Helpers.TemplateSignatures = nil
-Helpers.getTemplateSignatures = function()
-    if Helpers.TemplateSignatures then return Helpers.TemplateSignatures end
-    pcall(function()
-        local eggsFolder = ReplicatedStorage:FindFirstChild("Assets")
-            and ReplicatedStorage.Assets:FindFirstChild("Models")
-            and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
-        if not eggsFolder then return end
-        local sigs = {}
-        for _, tModel in ipairs(eggsFolder:GetChildren()) do
-            if tModel:IsA("Model") then
-                local childrenSet = {}
-                for _, tc in ipairs(tModel:GetChildren()) do
-                    local tcLower = tc.Name:lower()
-                    if not Helpers.GenericPartNames[tcLower] then
-                        childrenSet[tcLower] = true
-                    end
-                end
-                table.insert(sigs, { Name = tModel.Name, Children = childrenSet })
-            end
-        end
-        if #sigs > 0 then
-            Helpers.TemplateSignatures = sigs
-        end
-    end)
-    return Helpers.TemplateSignatures
-end
-
-pcall(function()
-    local eggsFolder = ReplicatedStorage:FindFirstChild("Assets")
-        and ReplicatedStorage.Assets:FindFirstChild("Models")
-        and ReplicatedStorage.Assets.Models:FindFirstChild("Eggs")
-    if eggsFolder then
-        for _, child in ipairs(eggsFolder:GetChildren()) do
-            Helpers.registerDynamicSpecies(child.Name)
-        end
-        Helpers.getTemplateSignatures()
-    end
-end)
-
-Helpers.matchTemplateEgg = function(model)
-    if not model then return nil end
-    local sigs = Helpers.getTemplateSignatures()
-    if not sigs or #sigs == 0 then return nil end
-    local liveChildren = {}
-    for _, c in ipairs(model:GetChildren()) do
-        local cLower = c.Name:lower()
-        if not Helpers.GenericPartNames[cLower] then
-            liveChildren[cLower] = true
-        end
-    end
-    local nonGenericCount = 0
-    for _ in pairs(liveChildren) do nonGenericCount = nonGenericCount + 1 end
-    if nonGenericCount == 0 then return nil end
-
-    local bestName, bestCount = nil, 0
-    for _, sig in ipairs(sigs) do
-        local matchCount = 0
-        for childName in pairs(sig.Children) do
-            if liveChildren[childName] then matchCount = matchCount + 1 end
-        end
-        if matchCount > bestCount then
-            bestCount = matchCount
-            bestName = sig.Name
-        end
-    end
-    if bestCount >= 2 and bestName then
-        local sInfo = Helpers.getSpeciesInfo(bestName, "Halloween Dimension") or Helpers.getSpeciesInfo(bestName)
-        return (sInfo and sInfo.DisplayName) or bestName
-    end
-    return nil
-end
-
+-- 3.4 Halloween Egg Resolution (Direct O(1) attribute & taxonomy alias lookup)
 Helpers.resolveHalloweenEggName = function(model)
     if not model then return "Hooded Gerbil Egg" end
 
-    -- 1. Direct attributes on model
-    local rawName = model:GetAttribute("PreparedSourceName")
+    local hitbox = model:FindFirstChild("Hitbox")
+    local raw = model:GetAttribute("PreparedSourceName")
+        or (hitbox and hitbox:GetAttribute("PreparedSourceName"))
         or model:GetAttribute("DisplayName")
         or model:GetAttribute("EggName")
-        or model:GetAttribute("EggType")
-        or model:GetAttribute("Species")
-        or model:GetAttribute("Name")
+        or (model:FindFirstChildWhichIsA("StringValue") and model:FindFirstChildWhichIsA("StringValue").Value)
+        or model.Name
 
-    if rawName and tostring(rawName) ~= "" and not Helpers.isGenericEggName(tostring(rawName)) and tostring(rawName):lower() ~= "halloweenegg" and tostring(rawName):lower() ~= "halloween egg" then
-        local sInfo = Helpers.getSpeciesInfo(tostring(rawName), "Halloween Dimension") or Helpers.getSpeciesInfo(tostring(rawName))
+    if raw and tostring(raw) ~= "" and not Helpers.isGenericEggName(tostring(raw)) then
+        local sInfo = Helpers.getSpeciesInfo(tostring(raw), "Halloween Dimension") or Helpers.getSpeciesInfo(tostring(raw))
         if sInfo and sInfo.DisplayName then
             return sInfo.DisplayName
         end
     end
 
-    -- 2. Direct attributes on Hitbox
-    local hitbox = model:FindFirstChild("Hitbox")
-    if hitbox then
-        local hbAttr = hitbox:GetAttribute("PreparedSourceName")
-            or hitbox:GetAttribute("DisplayName")
-            or hitbox:GetAttribute("EggName")
-            or hitbox:GetAttribute("EggType")
-            or hitbox:GetAttribute("Species")
-        if hbAttr and tostring(hbAttr) ~= "" and not Helpers.isGenericEggName(tostring(hbAttr)) and tostring(hbAttr):lower() ~= "halloweenegg" and tostring(hbAttr):lower() ~= "halloween egg" then
-            local sInfo = Helpers.getSpeciesInfo(tostring(hbAttr), "Halloween Dimension") or Helpers.getSpeciesInfo(tostring(hbAttr))
-            if sInfo and sInfo.DisplayName then
-                return sInfo.DisplayName
-            end
-        end
-    end
-
-    -- 3. Child StringValues or child Models
-    for _, ch in ipairs(model:GetChildren()) do
-        if ch:IsA("StringValue") and ch.Value ~= "" and not Helpers.isGenericEggName(ch.Value) and ch.Value:lower() ~= "halloweenegg" and ch.Value:lower() ~= "halloween egg" then
-            local sInfo = Helpers.getSpeciesInfo(ch.Value, "Halloween Dimension") or Helpers.getSpeciesInfo(ch.Value)
-            if sInfo and sInfo.DisplayName then
-                return sInfo.DisplayName
-            end
-        elseif ch:IsA("Model") and ch.Name ~= "Model" and ch.Name ~= "Hitbox" and not Helpers.isGenericEggName(ch.Name) and ch.Name:lower() ~= "halloweenegg" and ch.Name:lower() ~= "halloween egg" then
-            local sInfo = Helpers.getSpeciesInfo(ch.Name, "Halloween Dimension") or Helpers.getSpeciesInfo(ch.Name)
-            if sInfo and sInfo.DisplayName then
-                return sInfo.DisplayName
-            end
-        end
-    end
-
-    -- 4. ProximityPrompt inspection: exact lookups and keyword substring matches
-    local prMatch = nil
-    for _, d in ipairs(model:GetDescendants()) do
-        if d:IsA("ProximityPrompt") then
-            local objTxt = d.ObjectText or ""
-            local actTxt = d.ActionText or ""
-
-            if objTxt ~= "" and not Helpers.isGenericEggName(objTxt) and objTxt:lower() ~= "halloweenegg" and objTxt:lower() ~= "halloween egg" then
-                local pInfo = Helpers.getSpeciesInfo(objTxt, "Halloween Dimension") or Helpers.getSpeciesInfo(objTxt)
-                if pInfo and pInfo.DisplayName then
-                    prMatch = pInfo.DisplayName
-                    break
-                end
-            end
-            if actTxt ~= "" and not Helpers.isGenericEggName(actTxt) and actTxt:lower() ~= "halloweenegg" and actTxt:lower() ~= "halloween egg" then
-                local pInfo = Helpers.getSpeciesInfo(actTxt, "Halloween Dimension") or Helpers.getSpeciesInfo(actTxt)
-                if pInfo and pInfo.DisplayName then
-                    prMatch = pInfo.DisplayName
-                    break
-                end
-            end
-
-            local fullTxt = (objTxt .. " " .. actTxt):lower()
-            if fullTxt ~= "" then
-                local bestMatch, bestLen = nil, 0
-                local hwSpecies = SPECIES_INFO_BY_BIOME["Halloween Dimension"]
-                if hwSpecies then
-                    for cleanName, rec in pairs(hwSpecies) do
-                        if cleanName ~= "egg" and cleanName ~= "halloween" and cleanName ~= "halloweenegg" and #cleanName >= 3 then
-                            if fullTxt:find(cleanName, 1, true) and #cleanName > bestLen then
-                                bestMatch = rec.DisplayName
-                                bestLen = #cleanName
-                            end
-                        end
-                    end
-                end
-                if not bestMatch then
-                    for cleanName, rec in pairs(SPECIES_INFO) do
-                        if cleanName ~= "egg" and cleanName ~= "halloween" and cleanName ~= "halloweenegg" and #cleanName >= 3 then
-                            if rec.DisplayName and fullTxt:find(cleanName, 1, true) and #cleanName > bestLen then
-                                bestMatch = rec.DisplayName
-                                bestLen = #cleanName
-                            end
-                        end
-                    end
-                end
-                if bestMatch then
-                    prMatch = bestMatch
-                    break
-                end
-            end
-        end
-    end
-    if prMatch then return prMatch end
-
-    -- 5. Standard HalloweenEgg / Halloween Egg model represents Hooded Gerbil Egg
-    if model.Name == "HalloweenEgg" or model.Name == "Halloween Egg" then
-        return "Hooded Gerbil Egg"
-    end
-
-    -- 6. Speculative template match against ReplicatedStorage.Assets.Models.Eggs (for unnamed models like "Egg")
-    local tplMatch = Helpers.matchTemplateEgg(model)
-    if tplMatch then return tplMatch end
-
-    -- 7. Model name lookup if not generic
-    if model.Name ~= "Egg" and not Helpers.isGenericEggName(model.Name) then
-        local mInfo = Helpers.getSpeciesInfo(model.Name, "Halloween Dimension") or Helpers.getSpeciesInfo(model.Name)
-        if mInfo and mInfo.DisplayName then
-            return mInfo.DisplayName
-        end
-    end
-
-    -- 8. Fallback for generic egg model
     return "Hooded Gerbil Egg"
 end
 
@@ -2498,11 +2345,11 @@ Engine.Velocity.getCarryingStatus = function()
 end
 
 Engine.Velocity.isHoldingFieldEgg = function()
-    return Engine.State.IsCarry == true
+    return Helpers.isHoldingEgg and Helpers.isHoldingEgg() or (Engine.State.IsCarry == true)
 end
 
 Engine.Velocity.isHoldingEgg = function()
-    return Engine.State.IsCarry == true
+    return Helpers.isHoldingEgg and Helpers.isHoldingEgg() or (Engine.State.IsCarry == true)
 end
 
 Engine.Velocity.updatePhysics = function(isCarry)
@@ -2511,12 +2358,20 @@ Engine.Velocity.updatePhysics = function(isCarry)
     end
     if not Engine.State.VelocityEnabled then return end
     if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then return end
+    if Engine.State.IsRecovering then return end
 
     -- Void death check: if falling into void below Y = -400, cancel auto-walk & velocity
     if hrp.Position.Y < -400 then
         Engine.Travel.stopWalking()
         Engine.Velocity.setCarry(false)
         return
+    end
+
+    -- Keep carry state synced with physical egg holding
+    if Helpers.isHoldingEgg and Helpers.isHoldingEgg() then
+        if not Engine.State.IsCarry then
+            Engine.Velocity.setCarry(true)
+        end
     end
 
     local isMoving = (hum.MoveDirection.Magnitude > 0.05)
@@ -2608,12 +2463,9 @@ end
 
 Engine.Recovery.execute = function(reason)
     if not Config.Recovery.Enabled then return end
-    local now = os.clock()
-    if Engine.State.IsRecovering or (now - Engine.State.LastRecoveryTime < Config.Recovery.DebounceWindow) then
-        return
-    end
+    if Engine.State.IsRecovering then return end
     Engine.State.IsRecovering = true
-    Engine.State.LastRecoveryTime = now
+    Engine.State.LastRecoveryTime = os.clock()
 
     pcall(function()
         if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then return end
@@ -2626,13 +2478,13 @@ Engine.Recovery.execute = function(reason)
         hum.AutoRotate = true
 
         pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
             hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
             hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
             hum:ChangeState(Enum.HumanoidStateType.GettingUp)
             hum:ChangeState(Enum.HumanoidStateType.Running)
-            hum.Jump = true
 
             local animator = hum:FindFirstChildOfClass("Animator")
             if animator then
@@ -2647,14 +2499,16 @@ Engine.Recovery.execute = function(reason)
 
         Helpers.enablePlayerControls()
 
-        -- Instant Recovery on bump/hit/trap: field egg is dropped on stun/hit/trap!
-        if Engine.State.WeAreCarrying then
-            Engine.Velocity.setCarryingState(false, nil)
-        end
-        Engine.Velocity.setCarry(false)
-
-        if Engine.Travel and Engine.Travel.stopWalking then
-            Engine.Travel.stopWalking()
+        -- Maintain carry state if egg is still held; only clear if physically lost
+        local stillHolding = Helpers.isHoldingEgg and Helpers.isHoldingEgg()
+        if not stillHolding then
+            if Engine.State.WeAreCarrying then
+                Engine.Velocity.setCarryingState(false, nil)
+            end
+            Engine.Velocity.setCarry(false)
+            if Engine.Travel and Engine.Travel.stopWalking then
+                Engine.Travel.stopWalking()
+            end
         end
 
         -- Immediately restore Humanoid WalkSpeed so player never gets stuck frozen at 0 speed!
@@ -2665,28 +2519,18 @@ Engine.Recovery.execute = function(reason)
             pcall(function() hum.WalkSpeed = math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0) end)
         end
 
-        -- Anti-Fling Braking & Bump Location Anchoring (from v10 & v11)
-        if Config.Recovery.AntiFling and hrp and hrp.Parent then
-            local lastGood = Engine.State.LastGoodCFrame
-            if lastGood then
-                local dist = (hrp.Position - lastGood.Position).Magnitude
-                if dist > 2.0 and dist < 150.0 then
-                    pcall(function()
-                        hrp.CFrame = lastGood + Vector3.new(0, 0.2, 0)
-                    end)
-                end
-            end
-
+        -- 7. Anti-Fling Braking & Fast Grounding (from v10)
+        -- Stay right at the bump location (cancel horizontal fling) and go down fast if airborne
+        if hrp and hrp.Parent then
             local curVel = hrp.AssemblyLinearVelocity
-            local fastY = 0
-            if hum and hum.Parent and hum.FloorMaterial == Enum.Material.Air then
-                fastY = (curVel.Y > -20) and -35 or curVel.Y
+            local fastY = curVel.Y
+            if fastY > 0 then
+                fastY = -45
+            elseif fastY > -30 then
+                fastY = -45
             end
+            -- Zero horizontal fling velocity so character stays right at the bump location beside the egg
             hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end
-
-        if Config.Recovery.BrakeVelocity and hrp and hrp.Parent then
             hrp.AssemblyAngularVelocity = Vector3.zero
         end
 
@@ -3417,91 +3261,53 @@ Engine.HwPickup.startAutoPickupSpam = function()
         local tStart = os.clock()
         local maxDur = (Config.HwPickup and Config.HwPickup.BurstMaxDuration) or 1.5
         local maxDist = (Config.HwPickup and Config.HwPickup.FastPickupMaxDist) or 45.0
+        local hwRf = Helpers.getNetRemote("RF/HalloweenDimension/AskCarryEgg")
 
         while Engine.State.HwPickupToken == myToken and (Config.HwPickup and Config.HwPickup.Enabled) and (os.clock() - tStart < maxDur) do
             if not (hrp and hrp.Parent) then break end
             local charPos = hrp.Position
 
-            -- 1. Trigger ProximityPrompt on SmartPromptPart
-            local spp = Workspace:FindFirstChild("SmartPromptPart")
-            if spp then
-                for _, pr in ipairs(spp:GetDescendants()) do
-                    if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
-                        Helpers.triggerProximityPrompt(pr)
-                        break
-                    end
-                end
-            end
-
-            -- 2. Find Halloween egg candidates from HalloweenDimension.WorldEggs, Workspace.WorldEggs, or tagged
-            local rawEggs = {}
-            local seen = {}
+            -- 1. Candidate world eggs from HalloweenDimension.WorldEggs or tagged
             local hwDim = Workspace:FindFirstChild("HalloweenDimension")
             local wEggs = hwDim and hwDim:FindFirstChild("WorldEggs")
-            if not wEggs then
-                wEggs = Workspace:FindFirstChild("WorldEggs")
-            end
-            if wEggs then
-                for _, egg in ipairs(wEggs:GetChildren()) do
-                    if egg:IsA("Instance") and not seen[egg] then
-                        seen[egg] = true
-                        table.insert(rawEggs, egg)
-                    end
-                end
-            end
-            local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
-            if tagged then
-                for _, egg in ipairs(tagged) do
-                    if egg:IsA("Instance") and not seen[egg] then
-                        seen[egg] = true
-                        table.insert(rawEggs, egg)
-                    end
-                end
-            end
+            local eggCandidates = (wEggs and wEggs:GetChildren()) or CollectionService:GetTagged("HalloweenWorldEgg")
 
-            -- 3. Find closest farmable Halloween egg within reach
+            -- 2. Find closest farmable Halloween egg within reach
             local bestEgg, closestDist = nil, 999
-            for _, egg in ipairs(rawEggs) do
-                if egg.Parent and not egg.Name:lower():find("holder") and egg:GetAttribute("HalloweenEggCanPickUp") ~= false then
-                    local pos = nil
-                    local hitbox = egg:FindFirstChild("Hitbox")
-                    if hitbox and hitbox:IsA("BasePart") then
-                        pos = hitbox.Position
-                    elseif egg.PrimaryPart then
-                        pos = egg.PrimaryPart.Position
-                    elseif egg:IsA("Model") then
-                        local okP, p = pcall(function() return egg:GetPivot().Position end)
-                        if okP and p then pos = p end
-                    elseif egg:IsA("BasePart") then
-                        pos = egg.Position
-                    end
+            if eggCandidates then
+                for _, egg in ipairs(eggCandidates) do
+                    if egg.Parent and not egg.Name:lower():find("holder") and egg:GetAttribute("HalloweenEggCanPickUp") ~= false then
+                        local pos = nil
+                        local hitbox = egg:FindFirstChild("Hitbox")
+                        if hitbox and hitbox:IsA("BasePart") then
+                            pos = hitbox.Position
+                        elseif egg.PrimaryPart then
+                            pos = egg.PrimaryPart.Position
+                        elseif egg:IsA("Model") then
+                            local okP, p = pcall(function() return egg:GetPivot().Position end)
+                            if okP and p then pos = p end
+                        elseif egg:IsA("BasePart") then
+                            pos = egg.Position
+                        end
 
-                    if pos then
-                        local d = (pos - charPos).Magnitude
-                        if d <= maxDist and d < closestDist then
-                            closestDist = d
-                            bestEgg = egg
+                        if pos then
+                            local d = (pos - charPos).Magnitude
+                            if d <= maxDist and d < closestDist then
+                                closestDist = d
+                                bestEgg = egg
+                            end
                         end
                     end
                 end
             end
 
             if bestEgg then
-                -- Trigger model proximity prompt if present
-                local pr = bestEgg:FindFirstChildWhichIsA("ProximityPrompt", true)
-                if pr and Helpers.isCarryPrompt(pr) then
-                    Helpers.triggerProximityPrompt(pr)
-                end
-
                 -- Dispatch Halloween remote RF/HalloweenDimension/AskCarryEgg
                 local uid = bestEgg:GetAttribute("HalloweenEggUid") or bestEgg.Name
-                if uid and uid ~= "" then
-                    local hwRf = Helpers.getNetRemote("RF/HalloweenDimension/AskCarryEgg")
-                    if hwRf then
-                        task.spawn(function()
-                            pcall(function() hwRf:InvokeServer(uid) end)
-                        end)
-                    end
+                if uid and uid ~= "" and hwRf then
+                    task.spawn(function()
+                        pcall(function() hwRf:InvokeServer(uid) end)
+                    end)
                 end
 
                 -- Check if egg was picked up (server marked attribute false)
@@ -3996,7 +3802,7 @@ Engine.Sync.startPushMonitor = function()
             if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
                 Engine.Travel.startReturnTrip()
             end
-        elseif (state == "Claimed" or state == "Dropped") and (Engine.State.CarryUid == u or (payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr) or Engine.State.IsCarry) then
+        elseif (state == "Claimed" or state == "Dropped") and (Engine.State.CarryUid == u or (payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr)) then
             Engine.Velocity.setCarry(false)
             Engine.State.CarryUid = nil
             if Engine.State.AutoReturnActive and (Engine.State.AutoReturnTargetUid == u or state == "Claimed" or not Engine.State.AutoReturnTargetUid) then
@@ -4165,10 +3971,15 @@ Engine.Sync.startPushMonitor = function()
             local isNight = (cur >= 18 or cur < 6)
             if wasDay and isNight then
                 Engine.Sync.clearAllEggs("NightTransition")
-                task.delay(0.5, function()
+                local function doResync()
                     pcall(Engine.Sync.syncAreaEggSlotsESP)
                     pcall(Engine.Sync.syncEggSnapshot)
-                end)
+                    if UI.renderFarmableEggs then pcall(UI.renderFarmableEggs) end
+                    if UI.renderHalloweenEggs then pcall(UI.renderHalloweenEggs) end
+                end
+                task.delay(0.5, doResync)
+                task.delay(1.5, doResync)
+                task.delay(3.0, doResync)
             end
         end))
     end
@@ -4206,7 +4017,7 @@ Engine.Sync.startPushMonitor = function()
 
     connectRemote("RE/EggWorld/OwnerDropped", function(payload)
         local u = typeof(payload) == "table" and tostring(payload.Uid or payload.EggUid or payload.uid or "") or tostring(payload or "")
-        local isOurs = (typeof(payload) == "table" and payload.UserId and tostring(payload.UserId) == myUidStr) or (u ~= "" and u == Engine.State.CarryUid) or Engine.State.IsCarry
+        local isOurs = (typeof(payload) == "table" and payload.UserId and tostring(payload.UserId) == myUidStr) or (u ~= "" and u == Engine.State.CarryUid)
         if isOurs then
             Engine.Velocity.setCarry(false)
             Engine.State.CarryUid = nil
@@ -4217,12 +4028,11 @@ Engine.Sync.startPushMonitor = function()
     local cra = Workspace:FindFirstChild("ClientRenderedAssets")
     if cra then
         addConnection(cra.ChildRemoved:Connect(function(child)
-            if Engine.State.IsCarry then
-                local expName = myUidStr .. "_" .. tostring(Engine.State.CarryUid or "")
-                local prefix = myUidStr .. "_"
-                if child.Name == expName or child.Name:sub(1, #prefix) == prefix then
+            if Engine.State.IsCarry and Engine.State.CarryUid then
+                local expName = myUidStr .. "_" .. tostring(Engine.State.CarryUid)
+                if child.Name == expName then
                     task.defer(function()
-                        if Engine.State.IsCarry then
+                        if Engine.State.IsCarry and not (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then
                             Engine.Velocity.setCarry(false)
                         end
                     end)
@@ -4412,13 +4222,49 @@ Engine.Loops.start = function()
             if hum and hum.Parent and hum.Health > 0 then
                 local rEnd = LocalPlayer:GetAttribute("RagdollEndTime")
                 if typeof(rEnd) == "number" and rEnd > 0 then
+                    Engine.Recovery.clearRagdollAttributes()
+                    Helpers.enablePlayerControls()
                     Engine.Recovery.execute("RagdollTimer")
-                elseif hum.PlatformStand or hum.Sit then
+                end
+
+                -- Re-enable any disabled Motor6D joints immediately on Heartbeat (from instant-ragdoll-recovery.lua)
+                local disabled = 0
+                for _, m in ipairs(Engine.Recovery.Joints) do
+                    if m and m.Parent and not m.Enabled then
+                        disabled = disabled + 1
+                        m.Enabled = true
+                    end
+                end
+                if disabled > 0 then
+                    Engine.Recovery.execute(string.format("%dMotorsFixed", disabled))
+                end
+
+                local s = hum:GetState()
+                if hum.PlatformStand or hum.Sit then
                     Engine.Recovery.execute("PlatSit")
+                elseif s == Enum.HumanoidStateType.Ragdoll
+                    or s == Enum.HumanoidStateType.FallingDown
+                    or s == Enum.HumanoidStateType.Physics then
+                    Engine.Recovery.execute(s.Name)
                 elseif hum.WalkSpeed < 16.0 then
-                    local s = hum:GetState()
-                    if s == Enum.HumanoidStateType.Ragdoll or s == Enum.HumanoidStateType.FallingDown or s == Enum.HumanoidStateType.Physics then
-                        Engine.Recovery.execute(s.Name)
+                    local targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
+                    hum.WalkSpeed = Engine.State.VelocityEnabled and targetSpeed or math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0)
+                    Helpers.enablePlayerControls()
+                end
+
+                -- Fast Grounding & Anti-Drift (from v10: zero horizontal fling drift on hit, normal jump unaffected)
+                local timeSinceHit = os.clock() - (Engine.State.LastRecoveryTime or 0)
+                if timeSinceHit < 0.5 and hrp and hrp.Parent then
+                    local curVel = hrp.AssemblyLinearVelocity
+                    local vy = curVel.Y
+                    if hum.FloorMaterial == Enum.Material.Air and vy > -30 then
+                        vy = -45
+                    end
+                    if hum.MoveDirection.Magnitude <= 0.05 then
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, vy, 0)
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    else
+                        hrp.AssemblyLinearVelocity = Vector3.new(curVel.X, vy, curVel.Z)
                     end
                 end
             end
@@ -4588,26 +4434,12 @@ UI.renderHalloweenEggs = function()
         charPos = hrp.Position
     end
 
-    local rawEggs = {}
-    local seen = {}
-
-    local function addEgg(model)
-        if model and model:IsA("Instance") and not seen[model] then
-            seen[model] = true
-            table.insert(rawEggs, model)
-        end
-    end
-
     local hwDim = Workspace:FindFirstChild("HalloweenDimension")
     local wEggs = hwDim and hwDim:FindFirstChild("WorldEggs")
     if not wEggs then
         wEggs = Workspace:FindFirstChild("WorldEggs")
     end
     if wEggs then
-        for _, egg in ipairs(wEggs:GetChildren()) do
-            addEgg(egg)
-        end
-
         if Engine.State.HwHookedFolder ~= wEggs then
             if Engine.State.HwFolderConns then
                 for _, c in ipairs(Engine.State.HwFolderConns) do pcall(function() c:Disconnect() end) end
@@ -4627,16 +4459,7 @@ UI.renderHalloweenEggs = function()
         end
     end
 
-    local tagged = CollectionService:GetTagged("HalloweenWorldEgg")
-    if tagged then
-        for _, egg in ipairs(tagged) do
-            addEgg(egg)
-        end
-    end
-
-    local inHw = (LocalPlayer and LocalPlayer:GetAttribute("InHalloweenDimension") == true)
-        or (hwDim ~= nil)
-        or (#rawEggs > 0)
+    local rawEggs = (wEggs and wEggs:GetChildren()) or CollectionService:GetTagged("HalloweenWorldEgg") or {}
 
     local eggList = {}
     for _, model in ipairs(rawEggs) do
@@ -4662,11 +4485,12 @@ UI.renderHalloweenEggs = function()
             local sInfo = Helpers.getSpeciesInfo(eggName, "Halloween Dimension") or Helpers.getSpeciesInfo(eggName)
 
             local disp = (sInfo and sInfo.DisplayName) or eggName
-            local rarity = (sInfo and sInfo.Rarity) or model:GetAttribute("Rarity") or (hitbox and hitbox:GetAttribute("Rarity")) or "Legendary"
+            local uid = model:GetAttribute("HalloweenEggUid") or model.Name
+            local serverRarity = model:GetAttribute("Rarity") or (hitbox and hitbox:GetAttribute("Rarity")) or model:GetAttribute("RarityId") or (Engine.State.RarityByUid and Engine.State.RarityByUid[uid])
+            local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown") and serverRarity or ((sInfo and sInfo.Rarity) or "Legendary")
             local rank = (sInfo and sInfo.Rank) or Config.Taxonomy.RarityRank[rarity] or 5
             local zone = model:GetAttribute("Zone")
             local zoneLabel = zone and ("Zone " .. tostring(zone)) or "Halloween"
-            local uid = model:GetAttribute("HalloweenEggUid") or model.Name
             local dist = charPos and (pos - charPos).Magnitude or 99999
 
             -- Rarity filter for Halloween eggs
@@ -4735,6 +4559,12 @@ Engine.Cleanup = function()
         pcall(function() conn:Disconnect() end)
     end
     table.clear(Engine.Recovery.Connections)
+
+    if Engine.State.HwFolderConns then
+        for _, c in ipairs(Engine.State.HwFolderConns) do pcall(function() c:Disconnect() end) end
+        table.clear(Engine.State.HwFolderConns)
+        Engine.State.HwHookedFolder = nil
+    end
 
     if Engine.Traps then
         if Engine.Traps.ActiveTraps then
