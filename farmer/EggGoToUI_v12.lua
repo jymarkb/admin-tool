@@ -1834,13 +1834,17 @@ UI.getOrCreateHwCard = function(idx)
     }
 
     addConnection(tpBtn.MouseButton1Click:Connect(function()
-        if item.data and item.data.Position then
+        if item.data and Engine.HwPickup and Engine.HwPickup.executeTpSequence then
+            Engine.HwPickup.executeTpSequence(item.data)
+        elseif item.data and item.data.Position then
             Engine.Travel.teleportTo(item.data.Position, true)
         end
     end))
 
     addConnection(walkBtn.MouseButton1Click:Connect(function()
-        if item.data and item.data.Position then
+        if item.data and Engine.HwPickup and Engine.HwPickup.executeGetSequence then
+            Engine.HwPickup.executeGetSequence(item.data)
+        elseif item.data and item.data.Position then
             Engine.Travel.walkToTarget(item.data.Position, 2.5, nil, item.data.Uid)
         end
     end))
@@ -2156,21 +2160,120 @@ end
 Helpers.resolveHalloweenEggName = function(model)
     if not model then return "Hooded Gerbil Egg" end
 
+    local cache = Engine.State and Engine.State.HwNameCache
+    local srcAttr = model:GetAttribute("PreparedSourceName")
+    if cache then
+        local hit = cache[model]
+        if hit and hit.src == srcAttr then return hit.name end
+    end
+
     local hitbox = model:FindFirstChild("Hitbox")
     local raw = model:GetAttribute("PreparedSourceName")
         or (hitbox and hitbox:GetAttribute("PreparedSourceName"))
         or model:GetAttribute("DisplayName")
+        or (hitbox and hitbox:GetAttribute("DisplayName"))
         or model:GetAttribute("EggName")
-        or (model:FindFirstChildWhichIsA("StringValue") and model:FindFirstChildWhichIsA("StringValue").Value)
-        or model.Name
+        or (hitbox and hitbox:GetAttribute("EggName"))
+        or model:GetAttribute("EggType")
+        or (hitbox and hitbox:GetAttribute("EggType"))
+        or model:GetAttribute("Species")
+        or (hitbox and hitbox:GetAttribute("Species"))
+        or model:GetAttribute("AssetCategory")
+        or (hitbox and hitbox:GetAttribute("AssetCategory"))
+        or model:GetAttribute("Category")
 
     if raw and tostring(raw) ~= "" and not Helpers.isGenericEggName(tostring(raw)) then
-        local sInfo = Helpers.getSpeciesInfo(tostring(raw), "Halloween Dimension") or Helpers.getSpeciesInfo(tostring(raw))
-        if sInfo and sInfo.DisplayName then
-            return sInfo.DisplayName
+        local rawLower = tostring(raw):lower()
+        if rawLower ~= "halloween" and rawLower ~= "halloweenegg" and rawLower ~= "halloween egg" and rawLower ~= "egg" then
+            local sInfo = Helpers.getSpeciesInfo(tostring(raw), "Halloween Dimension") or Helpers.getSpeciesInfo(tostring(raw))
+            if sInfo and sInfo.DisplayName then
+                if cache then cache[model] = { src = srcAttr, name = sInfo.DisplayName } end
+                return sInfo.DisplayName
+            end
         end
     end
 
+    -- Child string values and child models
+    for _, ch in ipairs(model:GetChildren()) do
+        if ch:IsA("StringValue") and ch.Value ~= "" and not Helpers.isGenericEggName(ch.Value) then
+            local chLower = ch.Value:lower()
+            if chLower ~= "halloween" and chLower ~= "halloweenegg" and chLower ~= "halloween egg" then
+                local sInfo = Helpers.getSpeciesInfo(ch.Value, "Halloween Dimension") or Helpers.getSpeciesInfo(ch.Value)
+                if sInfo and sInfo.DisplayName then
+                    if cache then cache[model] = { src = srcAttr, name = sInfo.DisplayName } end
+                    return sInfo.DisplayName
+                end
+            end
+        elseif ch:IsA("Model") and ch.Name ~= "Model" and ch.Name ~= "Hitbox" and not Helpers.isGenericEggName(ch.Name) then
+            local chLower = ch.Name:lower()
+            if chLower ~= "halloween" and chLower ~= "halloweenegg" and chLower ~= "halloween egg" then
+                local sInfo = Helpers.getSpeciesInfo(ch.Name, "Halloween Dimension") or Helpers.getSpeciesInfo(ch.Name)
+                if sInfo and sInfo.DisplayName then
+                    if cache then cache[model] = { src = srcAttr, name = sInfo.DisplayName } end
+                    return sInfo.DisplayName
+                end
+            end
+        end
+    end
+
+    -- ProximityPrompt inspection on model descendants (ObjectText, ActionText, Name)
+    local prMatch = nil
+    pcall(function()
+        for _, d in ipairs(model:GetDescendants()) do
+            if d:IsA("ProximityPrompt") then
+                local txt = ((d.ObjectText or "") .. " " .. (d.ActionText or "") .. " " .. (d.Name or "")):lower()
+                local hwTable = Helpers.SpeciesInfoByBiome and (Helpers.SpeciesInfoByBiome["Halloween Dimension"] or Helpers.SpeciesInfoByBiome["Halloween"])
+                if hwTable then
+                    for cleanKey, sInfo in pairs(hwTable) do
+                        if cleanKey ~= "egg" and cleanKey ~= "halloween" and cleanKey ~= "halloweenegg" and cleanKey ~= "halloweendimension" then
+                            if txt:find(cleanKey, 1, true) then
+                                prMatch = sInfo.DisplayName
+                                break
+                            end
+                        end
+                    end
+                end
+                if prMatch then break end
+            end
+        end
+    end)
+    if prMatch then
+        if cache then cache[model] = { src = srcAttr, name = prMatch } end
+        return prMatch
+    end
+
+    -- Child parts check for explicit species keywords (e.g. werewolf)
+    for _, ch in ipairs(model:GetChildren()) do
+        local cName = ch.Name:lower()
+        if not Helpers.isGenericEggName(cName) then
+            local hwTable = Helpers.SpeciesInfoByBiome and (Helpers.SpeciesInfoByBiome["Halloween Dimension"] or Helpers.SpeciesInfoByBiome["Halloween"])
+            if hwTable then
+                for cleanKey, sInfo in pairs(hwTable) do
+                    if cleanKey ~= "egg" and cleanKey ~= "halloween" and cleanKey ~= "halloweenegg" and cleanKey ~= "halloweendimension" then
+                        if cName:find(cleanKey, 1, true) then
+                            local resolved = sInfo.DisplayName
+                            if cache then cache[model] = { src = srcAttr, name = resolved } end
+                            return resolved
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Model name direct check
+    if model.Name and not Helpers.isGenericEggName(model.Name) then
+        local nLower = model.Name:lower()
+        if nLower ~= "halloween" and nLower ~= "halloweenegg" and nLower ~= "halloween egg" then
+            local sInfo = Helpers.getSpeciesInfo(model.Name, "Halloween Dimension") or Helpers.getSpeciesInfo(model.Name)
+            if sInfo and sInfo.DisplayName then
+                if cache then cache[model] = { src = srcAttr, name = sInfo.DisplayName } end
+                return sInfo.DisplayName
+            end
+        end
+    end
+
+    if cache then cache[model] = { src = srcAttr, name = "Hooded Gerbil Egg" } end
     return "Hooded Gerbil Egg"
 end
 
@@ -2282,6 +2385,7 @@ Engine.State = {
     HwPickupToken         = 0,
     EggCacheByUid         = {},
     RarityByUid           = {},
+    HwNameCache           = setmetatable({}, { __mode = "k" }),
     SelectedBiomes        = { ["All"] = true },
     SelectedRarities      = {},
     SelectedHwRarities    = { ["Divine"] = true, ["Eternal"] = true, ["Secret"] = true },
@@ -3324,6 +3428,339 @@ Engine.HwPickup.startAutoPickupSpam = function()
     end)
 end
 
+Engine.HwPickup.DropZone = Vector3.new(-5959.698, -203.718, -7126.994)
+Engine.HwPickup.SafeZone = Vector3.new(-5963.824, -203.718, -7274.822)
+
+-- 2. Halloween TP logic:
+--    - tp towards egg
+--    - pick up
+--    - tp towards dropzone
+--    - drop the egg
+--    - repick up
+--    - walk towards halloween safezone
+Engine.HwPickup.executeTpSequence = function(itemData, onComplete)
+    if not (itemData and itemData.Position) then
+        if onComplete then onComplete(false) end
+        return
+    end
+
+    Engine.Travel.stopWalking()
+    Engine.State.HwPickupToken = (Engine.State.HwPickupToken or 0) + 1
+    local myTok = Engine.State.HwPickupToken
+
+    task.spawn(function()
+        pcall(function()
+            if hum and hum.Parent then
+                if hum.Sit then hum.Sit = false end
+                if hum.PlatformStand then hum.PlatformStand = false end
+                hum:UnequipTools()
+            end
+        end)
+
+        local targetPos = itemData.Position
+        local uid = itemData.Uid
+        local model = itemData.Model
+        local dropPos = Engine.HwPickup.DropZone
+        local safeZone = Engine.HwPickup.SafeZone
+        local hwRf = Helpers.getNetRemote("RF/HalloweenDimension/AskCarryEgg")
+        local dropRf = Helpers.getNetRemote("RF/HalloweenDimension/AskDropEgg")
+
+        -- 1. TP towards egg
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: TP to " .. tostring(itemData.DisplayName or "Egg") .. "..."
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 170, 50)
+        end
+        Engine.Travel.teleportTo(targetPos, true)
+
+        -- 2. Pick up egg (burst loop until held or max 2.5s)
+        local tStart = os.clock()
+        local secured = false
+        while Engine.State.HwPickupToken == myTok and (os.clock() - tStart < 2.5) do
+            Engine.Travel.teleportTo(targetPos, true)
+
+            if Helpers.isHoldingEgg() or (model and model.Parent and model:GetAttribute("HalloweenEggCanPickUp") == false) then
+                secured = true
+                break
+            end
+
+            if model and model.Parent then
+                local hitbox = model:FindFirstChild("Hitbox")
+                local p = (hitbox and hitbox:IsA("BasePart") and hitbox.Position) or (model.PrimaryPart and model.PrimaryPart.Position)
+                if p and (p - targetPos).Magnitude <= 35 then
+                    targetPos = p
+                end
+            end
+
+            if uid and uid ~= "" and hwRf then
+                task.spawn(function() pcall(function() hwRf:InvokeServer(uid) end) end)
+            end
+
+            if model and model.Parent then
+                for _, pr in ipairs(model:GetDescendants()) do
+                    if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                        Helpers.triggerProximityPrompt(pr)
+                    end
+                end
+            end
+
+            task.wait(0.035)
+        end
+
+        if Engine.State.HwPickupToken ~= myTok then
+            if onComplete then onComplete(false) end
+            return
+        end
+
+        if not secured and not Helpers.isHoldingEgg() then
+            if onComplete then onComplete(false) end
+            return
+        end
+
+        Engine.Velocity.setCarry(true)
+
+        -- Check if egg is from Zone 1:
+        -- Zone 1 eggs cannot be dropped via remote at dropPos after direct TP.
+        -- Fallback for Zone 1: TP to egg + pickup, then walk towards dropPos waypoint, then to safezone!
+        local isZone1 = (itemData.Zone == 1)
+            or (itemData.ZoneLabel and tostring(itemData.ZoneLabel):find("1"))
+            or (model and tonumber(model:GetAttribute("Zone")) == 1)
+            or (targetPos.Z < -6500 and targetPos.Z > -7050)
+
+        if isZone1 then
+            if UI.Elements.ActivityStatus then
+                UI.Elements.ActivityStatus.Text = "Status: Zone 1 Egg - Walking to Dropzone..."
+                UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 240, 140)
+            end
+            Engine.Travel.walkToTarget(dropPos, 4.0, function()
+                if UI.Elements.ActivityStatus then
+                    UI.Elements.ActivityStatus.Text = "Status: Walking to Halloween Safezone..."
+                    UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 240, 140)
+                end
+                Engine.Travel.walkToTarget(safeZone, 4.0, function()
+                    pcall(function()
+                        if hum and hum.Parent then hum:UnequipTools() end
+                    end)
+                    Engine.Velocity.setCarry(false)
+                    if UI.Elements.ActivityStatus then
+                        UI.Elements.ActivityStatus.Text = "Status: Delivered to Halloween Safezone"
+                        UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 255, 120)
+                    end
+                    if onComplete then onComplete(true) end
+                end)
+            end)
+            return
+        end
+
+        -- 3. TP towards dropzone (burst 4x setPlayerPos)
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: TP to Dropzone..."
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 170, 50)
+        end
+        for _ = 1, 4 do
+            if Engine.State.HwPickupToken ~= myTok then
+                if onComplete then onComplete(false) end
+                return
+            end
+            Engine.Travel.teleportTo(dropPos, false)
+            task.wait(0.035)
+        end
+
+        -- 4. Drop the egg
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Dropping Egg..."
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 140, 40)
+        end
+        if dropRf then
+            pcall(function() dropRf:InvokeServer() end)
+        end
+        Engine.Velocity.setCarry(false)
+        task.wait(0.04)
+
+        -- 5. Re-pickup the egg at dropzone
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Re-picking Egg..."
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 200, 60)
+        end
+        local rePickStart = os.clock()
+        local reSecured = false
+
+        if uid and uid ~= "" and hwRf then
+            for _ = 1, 4 do
+                task.spawn(function()
+                    local ok = pcall(function() return hwRf:InvokeServer(uid) end)
+                    if ok then reSecured = true end
+                end)
+            end
+        end
+
+        pcall(function()
+            if model and model.Parent then
+                for _, pr in ipairs(model:GetDescendants()) do
+                    if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                        Helpers.triggerProximityPrompt(pr)
+                    end
+                end
+            end
+            local wFolder = Workspace:FindFirstChild("HalloweenDimension") and Workspace.HalloweenDimension:FindFirstChild("WorldEggs")
+            if wFolder then
+                for _, obj in ipairs(wFolder:GetChildren()) do
+                    local hb = obj:FindFirstChild("Hitbox")
+                    local p = (hb and hb:IsA("BasePart") and hb.Position) or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                    if p and (p - dropPos).Magnitude <= 15 then
+                        for _, pr in ipairs(obj:GetDescendants()) do
+                            if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                                Helpers.triggerProximityPrompt(pr)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        while Engine.State.HwPickupToken == myTok and not reSecured and (os.clock() - rePickStart < 0.3) do
+            if Helpers.isHoldingEgg() or (model and model.Parent and model:GetAttribute("HalloweenEggCanPickUp") == false) then
+                reSecured = true
+                break
+            end
+            task.wait(0.02)
+        end
+
+        if Engine.State.HwPickupToken ~= myTok then
+            if onComplete then onComplete(false) end
+            return
+        end
+
+        Engine.Velocity.setCarry(true)
+
+        -- 6. Walk towards halloween safezone
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Walking to Halloween Safezone..."
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 240, 140)
+        end
+        Engine.Travel.walkToTarget(safeZone, 4.0, function()
+            pcall(function()
+                if hum and hum.Parent then hum:UnequipTools() end
+            end)
+            Engine.Velocity.setCarry(false)
+            if UI.Elements.ActivityStatus then
+                UI.Elements.ActivityStatus.Text = "Status: Delivered to Halloween Safezone"
+                UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 255, 120)
+            end
+            if onComplete then onComplete(true) end
+        end)
+    end)
+end
+
+-- 3. Halloween Get logic:
+--    - tp towards egg
+--    - pick up the egg
+--    - walk towards dropzone
+--    - walk towards safezone
+Engine.HwPickup.executeGetSequence = function(itemData, onComplete)
+    if not (itemData and itemData.Position) then
+        if onComplete then onComplete(false) end
+        return
+    end
+
+    Engine.Travel.stopWalking()
+    Engine.State.HwPickupToken = (Engine.State.HwPickupToken or 0) + 1
+    local myTok = Engine.State.HwPickupToken
+
+    task.spawn(function()
+        pcall(function()
+            if hum and hum.Parent then
+                if hum.Sit then hum.Sit = false end
+                if hum.PlatformStand then hum.PlatformStand = false end
+                hum:UnequipTools()
+            end
+        end)
+
+        local targetPos = itemData.Position
+        local uid = itemData.Uid
+        local model = itemData.Model
+        local dropPos = Engine.HwPickup.DropZone
+        local safeZone = Engine.HwPickup.SafeZone
+        local hwRf = Helpers.getNetRemote("RF/HalloweenDimension/AskCarryEgg")
+
+        -- 1. TP towards egg
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: TP to " .. tostring(itemData.DisplayName or "Egg") .. "..."
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 170, 50)
+        end
+        Engine.Travel.teleportTo(targetPos, true)
+
+        -- 2. Pick up the egg (burst loop until held or max 2.5s)
+        local tStart = os.clock()
+        local secured = false
+        while Engine.State.HwPickupToken == myTok and (os.clock() - tStart < 2.5) do
+            Engine.Travel.teleportTo(targetPos, true)
+
+            if Helpers.isHoldingEgg() or (model and model.Parent and model:GetAttribute("HalloweenEggCanPickUp") == false) then
+                secured = true
+                break
+            end
+
+            if model and model.Parent then
+                local hitbox = model:FindFirstChild("Hitbox")
+                local p = (hitbox and hitbox:IsA("BasePart") and hitbox.Position) or (model.PrimaryPart and model.PrimaryPart.Position)
+                if p and (p - targetPos).Magnitude <= 35 then
+                    targetPos = p
+                end
+            end
+
+            if uid and uid ~= "" and hwRf then
+                task.spawn(function() pcall(function() hwRf:InvokeServer(uid) end) end)
+            end
+
+            if model and model.Parent then
+                for _, pr in ipairs(model:GetDescendants()) do
+                    if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                        Helpers.triggerProximityPrompt(pr)
+                    end
+                end
+            end
+
+            task.wait(0.035)
+        end
+
+        if Engine.State.HwPickupToken ~= myTok then
+            if onComplete then onComplete(false) end
+            return
+        end
+
+        if not secured and not Helpers.isHoldingEgg() then
+            if onComplete then onComplete(false) end
+            return
+        end
+
+        Engine.Velocity.setCarry(true)
+
+        -- 3. Walk towards dropzone
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Walking to Dropzone..."
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 240, 140)
+        end
+        Engine.Travel.walkToTarget(dropPos, 4.0, function()
+            -- 4. Walk towards safezone
+            if UI.Elements.ActivityStatus then
+                UI.Elements.ActivityStatus.Text = "Status: Walking to Halloween Safezone..."
+                UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 240, 140)
+            end
+            Engine.Travel.walkToTarget(safeZone, 4.0, function()
+                pcall(function()
+                    if hum and hum.Parent then hum:UnequipTools() end
+                end)
+                Engine.Velocity.setCarry(false)
+                if UI.Elements.ActivityStatus then
+                    UI.Elements.ActivityStatus.Text = "Status: Delivered to Halloween Safezone"
+                    UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(100, 255, 120)
+                end
+                if onComplete then onComplete(true) end
+            end)
+        end)
+    end)
+end
+
 -- 4.5 Auto-Travel, Navigation & SafeZone Return Engine
 Engine.Travel = {}
 
@@ -3352,7 +3789,7 @@ end
 
 -- Reusable Simple Teleport Logic (Admin Abuse TP, Reach Assist & 60-Stud Snap Teleport)
 -- snapBeside: When true, teleports beside the egg at ground level facing it, eliminating excess freefall on large eggs
-Engine.Travel.teleportTo = function(targetPos, snapBeside)
+Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
     if not (hrp and hrp.Parent and targetPos) then return false end
     local ok = pcall(function()
         local rot = hrp.CFrame - hrp.CFrame.Position
@@ -3361,11 +3798,78 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside)
         if snapBeside then
             local diff = Vector3.new(hrp.Position.X - targetPos.X, 0, hrp.Position.Z - targetPos.Z)
             local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(0, 0, 1)
-            local groundY = hrp.Position.Y
-            if math.abs(groundY - targetPos.Y) > 8 then
-                groundY = targetPos.Y
+
+            -- Auto-discover egg model if not explicitly passed to calculate exact bounds on big eggs
+            local eggModel = eggModelOrSize
+            if not eggModel and workspace.GetPartBoundsInRadius then
+                local nearby = workspace:GetPartBoundsInRadius(targetPos, 12)
+                for _, p in ipairs(nearby) do
+                    local m = p:FindFirstAncestorWhichIsA("Model")
+                    if m and m ~= Character and not m:IsDescendantOf(Character) and m ~= Workspace.Terrain then
+                        local mName = m.Name:lower()
+                        if mName:find("egg") or m:FindFirstChild("Hitbox") or m:GetAttribute("PreparedSourceName") or m:GetAttribute("IsEgg") then
+                            eggModel = m
+                            break
+                        end
+                    end
+                end
             end
-            finalPos = Vector3.new(targetPos.X + dir.X * 3.2, groundY, targetPos.Z + dir.Z * 3.2)
+
+            -- Determine geometry to stay outside the egg shell and land firmly on the floor
+            local eggRadius = 3.2
+            local eggHeight = 5.0
+            if typeof(eggModel) == "Instance" then
+                local hb = eggModel:FindFirstChild("Hitbox") or (eggModel:IsA("Model") and eggModel.PrimaryPart) or (eggModel:IsA("BasePart") and eggModel)
+                if hb and hb:IsA("BasePart") then
+                    eggRadius = math.max(3.2, math.max(hb.Size.X, hb.Size.Z) * 0.5 + 1.8)
+                    eggHeight = hb.Size.Y
+                elseif eggModel:IsA("Model") then
+                    local okExt, ext = pcall(eggModel.GetExtentsSize, eggModel)
+                    if okExt and ext then
+                        eggRadius = math.max(3.2, math.max(ext.X, ext.Z) * 0.5 + 1.8)
+                        eggHeight = ext.Y
+                    end
+                end
+            elseif typeof(eggModel) == "number" then
+                eggRadius = math.max(3.2, eggModel + 1.8)
+            elseif typeof(eggModel) == "Vector3" then
+                eggRadius = math.max(3.2, math.max(eggModel.X, eggModel.Z) * 0.5 + 1.8)
+                eggHeight = eggModel.Y
+            end
+
+            local besideX = targetPos.X + dir.X * eggRadius
+            local besideZ = targetPos.Z + dir.Z * eggRadius
+            local eggBottomY = targetPos.Y - (eggHeight * 0.5) + 2.8
+
+            -- Ground raycast to find true floor level beside egg (eliminating excess freefall)
+            local groundY = eggBottomY
+            local rayOk, rayRes = pcall(function()
+                local rParams = RaycastParams.new()
+                rParams.FilterType = RaycastFilterType.Exclude
+                local ign = { Character }
+                if typeof(eggModel) == "Instance" then table.insert(ign, eggModel) end
+                local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+                if cra then table.insert(ign, cra) end
+                rParams.FilterDescendantsInstances = ign
+                rParams.IgnoreWater = true
+                return Workspace:Raycast(Vector3.new(besideX, targetPos.Y + 8, besideZ), Vector3.new(0, -80, 0), rParams)
+            end)
+
+            if rayOk and rayRes and rayRes.Position then
+                groundY = rayRes.Position.Y + 2.8
+            else
+                local curY = hrp.Position.Y
+                if math.abs(curY - eggBottomY) <= 4.0 then
+                    groundY = curY
+                end
+            end
+
+            -- Safety clamp: Ground level must never place player high above egg center
+            if groundY > targetPos.Y + 1.5 then
+                groundY = eggBottomY
+            end
+
+            finalPos = Vector3.new(besideX, groundY, besideZ)
             rot = CFrame.lookAt(finalPos, Vector3.new(targetPos.X, groundY, targetPos.Z)) - finalPos
         else
             local targetY = targetPos.Y
@@ -3770,6 +4274,7 @@ Engine.Sync.clearAllEggs = function(reason)
     end
     table.clear(Engine.State.EggCacheByUid)
     table.clear(Engine.State.RarityByUid)
+    if Engine.State.HwNameCache then table.clear(Engine.State.HwNameCache) end
     if preservedCarry and Engine.State.CarryUid then
         Engine.State.EggCacheByUid[Engine.State.CarryUid] = preservedCarry
     end
@@ -4565,6 +5070,9 @@ Engine.Cleanup = function()
         table.clear(Engine.State.HwFolderConns)
         Engine.State.HwHookedFolder = nil
     end
+    if Engine.State.HwNameCache then
+        table.clear(Engine.State.HwNameCache)
+    end
 
     if Engine.Traps then
         if Engine.Traps.ActiveTraps then
@@ -4616,6 +5124,7 @@ Engine.Cleanup = function()
 
     table.clear(Engine.State.EggCacheByUid)
     table.clear(Engine.State.RarityByUid)
+    if Engine.State.HwNameCache then table.clear(Engine.State.HwNameCache) end
     table.clear(Engine.State.NoclipParts)
     table.clear(UI.CardPool)
     table.clear(UI.HwCardPool)
