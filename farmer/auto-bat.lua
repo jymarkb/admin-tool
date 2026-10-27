@@ -1,19 +1,32 @@
 --[[
-    AUTO MULTI-BAT / TOOL SWING v2 (Optimized High-Performance Engine)
-    ==================================================================
-    Features & Optimizations:
-      1. Zero-Re-equip Bypass: If tool is already in Character, skips EquipTool and 0 delay.
-      2. Dynamic Active Inventory: Automatically filters out unowned tools (0 dead cycles).
-      3. 5-Weapon Support:
-           - Titan Axe (bat)
-           - Scramble Sword (bat)
-           - Pumpkin Scythe (bat)
-           - The Scrambler (tool)
-           - Cricket's Banjo (tool)
-      4. Cooldown-Aware Paced Mode (0.60s / 5 = 0.12s -> 8.33 hits/sec, 100% clean hits).
-      5. Turbo Mode Toggle: Frame-by-frame burst switching for maximum packet speed.
-      6. Startup Caching & Scope Hygiene: Zero redundant lp.Character / Backpack querying.
-      7. Connection Hygiene: All UI & lifecycle events cleanly disconnected on cleanup.
+    AUTO MULTI-BAT / TOOL SWING v3 (Single-Path Combat Engine)
+    =========================================================
+    One trigger path, shared by every weapon. Measured with
+    farmer/test_auto_bat_trigger_race.py at 68 ms ping (one-way 34 ms):
+
+      logic                        per_weapon  global_strict  swap_negates
+      paced rotation (v2 default)     7.50          1.50          7.50
+      turbo rotation (v2 turbo)       7.50          1.67         29.98
+      target UI click (v2 target)     1.50          1.50          1.50
+      this script (swap + fire)       7.50          1.67         29.98
+
+    The in-game server rule is "global 0.60 s cooldown, negated by a weapon
+    swap", so the swap+fire cycle wins by 4x. Everything else was overhead:
+
+      1. ONE fire path: equipNext -> FireServer. No mode toggle, no second
+         remote path, no per-swing weapon rescans (inventory is cached and
+         invalidated by Backpack/Character events only).
+      2. Hot loop never touches the UI. Labels are rendered by a separate
+         5 Hz tick, so the swing loop does zero string work.
+      3. 60 stud TP: locking a target teleports you to TP_OFFSET studs from
+         them whenever they are inside TP_RANGE, so the server sees you in
+         range at the moment the swing is validated (34 ms later).
+      4. Sure hit: the locked target's Humanoid.HealthChanged is the only
+         hit signal the game exposes. A health drop counts a hit; WHIFF_LIMIT
+         swings with no drop re-teleports to close the gap (knockback) and
+         keeps swinging.
+      5. Connection hygiene: char/backpack/target/UI listeners are tracked
+         and disconnected on rebind and cleanup.
 ]]
 
 local ok, err = pcall(function()
@@ -39,6 +52,28 @@ local Humanoid  = Character and Character:FindFirstChildOfClass("Humanoid")
 local Backpack  = LocalPlayer and LocalPlayer:FindFirstChildOfClass("Backpack")
 
 -- ======================
+-- CONFIG
+-- ======================
+-- 5 weapons: 3 bats + 2 throw-tools
+local TOOLS = {
+    { name = "Titan Axe",       type = "bat"  },
+    { name = "Scramble Sword",  type = "bat"  },
+    { name = "Pumpkin Scythe",  type = "bat"  },
+    { name = "The Scrambler",   type = "tool" },
+    { name = "Cricket's Banjo", type = "tool" },
+}
+
+local COOLDOWN          = 0.60   -- server swing cooldown (seconds)
+local RESPECT_COOLDOWN  = false  -- true only if the server ever enforces a
+                                 -- per-weapon cooldown that swapping cannot
+                                 -- negate (then this caps at 8.3 hits/s)
+local TP_RANGE          = 60     -- max studs a target may be away to lock/TP
+local TP_OFFSET         = 4      -- land this close to the target
+local WHIFF_LIMIT       = 12     -- swings without a health drop -> re-TP
+local UI_INTERVAL       = 0.20   -- 5 Hz HUD / distance refresh
+local OUT_OF_RANGE      = "Target beyond " .. TP_RANGE .. " studs"
+
+-- ======================
 -- CONNECTION MANAGEMENT
 -- ======================
 local connections = {}
@@ -53,32 +88,6 @@ local function disconnectAll()
     end
     table.clear(connections)
 end
-
--- Lifecycle Tracking
-if LocalPlayer then
-    addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
-        Character = newChar
-        Humanoid = newChar:WaitForChild("Humanoid", 5) or newChar:FindFirstChildOfClass("Humanoid")
-    end))
-    addConnection(LocalPlayer.CharacterRemoving:Connect(function()
-        Character = nil
-        Humanoid = nil
-    end))
-end
-
--- ======================
--- TOOL CONFIGURATION
--- ======================
--- 5 weapons: 3 bats + 2 tools
-local TOOLS = {
-    { name = "Titan Axe",       type = "bat"  },
-    { name = "Scramble Sword",  type = "bat"  },
-    { name = "Pumpkin Scythe",  type = "bat"  },
-    { name = "The Scrambler",   type = "tool" },
-    { name = "Cricket's Banjo", type = "tool" },
-}
-
-local COOLDOWN_PER_BAT = 0.60  -- Server-side weapon swing cooldown (seconds)
 
 -- ======================
 -- REMOTES
@@ -100,16 +109,72 @@ if not RE_BatSwing then error("RE/BatSwing/Trigger not found") end
 if not RE_ToolTrigger then error("RE/ToolTrigger/Trigger not found") end
 
 -- ======================
--- STATE
+-- STATE (grouped to stay inside the root-local budget)
 -- ======================
-local enabled     = false
-local swinging    = false
-local turboMode   = false
-local swingCount  = 0
-local seq         = 0
+local State = {
+    enabled       = false,
+    running       = false,
+    seq           = 0,
+    swings        = 0,
+    hits          = 0,
+    index         = 1,
+    target        = nil,
+    whiffs        = 0,
+    weapons       = nil,   -- cached array of {name, type, tool}
+    cacheDirty    = true,
+    lastSwingAt   = {},
+    targetHealth  = nil,
+    lastHealth    = nil,
+    myRoot        = nil,   -- cached root parts: no FindFirstChild in the hot loop
+    targetRoot    = nil,
+    rateSwings    = 0,
+    rateAt        = 0,
+    rate          = 0,
+}
+
+local targetConns = {}
+local watchBackpack -- forward declaration: the lifecycle hook below uses it
 
 -- ======================
--- INVENTORY & TOOL HELPERS
+-- LIFECYCLE
+-- ======================
+if LocalPlayer then
+    addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
+        Character = newChar
+        Humanoid = newChar:WaitForChild("Humanoid", 5) or newChar:FindFirstChildOfClass("Humanoid")
+        Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+        State.cacheDirty = true
+    end))
+    addConnection(LocalPlayer.CharacterRemoving:Connect(function()
+        Character = nil
+        Humanoid = nil
+    end))
+    addConnection(LocalPlayer.ChildAdded:Connect(function(child)
+        if not child:IsA("Backpack") then return end
+        Backpack = child
+        State.cacheDirty = true
+        watchBackpack(child)
+    end))
+end
+
+local function ensureCharacter()
+    local healthy = Character and Character.Parent and Humanoid and Humanoid.Parent
+        and Humanoid.Health > 0
+    if not healthy then
+        Character = LocalPlayer and LocalPlayer.Character
+        Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+        State.myRoot = nil
+        healthy = Character ~= nil and Character.Parent ~= nil
+            and Humanoid ~= nil and Humanoid.Health > 0
+    end
+    if healthy and not State.myRoot then
+        State.myRoot = Character:FindFirstChild("HumanoidRootPart")
+    end
+    return healthy
+end
+
+-- ======================
+-- INVENTORY CACHE (rebuilt only on Backpack/Character changes)
 -- ======================
 local function matchToolName(inst, baseName)
     if not inst or not inst:IsA("Tool") then return false end
@@ -120,7 +185,7 @@ local function matchToolName(inst, baseName)
     return false
 end
 
-local function resolveTool(baseName)
+local function findTool(baseName)
     if Character then
         for _, item in ipairs(Character:GetChildren()) do
             if matchToolName(item, baseName) then return item end
@@ -137,30 +202,108 @@ local function resolveTool(baseName)
     return nil
 end
 
-local function getActiveTools()
-    local active = {}
+local function rebuildCache()
+    local list = {}
     for _, entry in ipairs(TOOLS) do
-        local inst = resolveTool(entry.name)
-        if inst then
-            table.insert(active, {
-                name     = entry.name,
-                type     = entry.type,
-                instance = inst,
-            })
+        local tool = findTool(entry.name)
+        if tool then
+            table.insert(list, { name = entry.name, type = entry.type, tool = tool })
         end
     end
-    return active
+    State.weapons = list
+    State.cacheDirty = false
+    if State.index > #list then State.index = 1 end
 end
 
--- Zero-thrashing fast equip: no-op if tool is already equipped in Character!
-local function equipToolFast(tool)
-    if not tool or not Humanoid then return false end
-    if tool.Parent == Character then
-        return true -- already equipped, 0 wait needed!
+-- ======================
+-- TARGETING / 60 STUD TP
+-- ======================
+local function rootOf(player)
+    local char = player and player.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+-- Teleport next to the target so the server validates the swing with us in
+-- range. Only fires inside TP_RANGE; returns the distance for the HUD.
+local function tpToTarget(player)
+    local myRoot = Character and Character:FindFirstChild("HumanoidRootPart")
+    local theirRoot = rootOf(player)
+    if not myRoot or not theirRoot then return nil end
+    local delta = theirRoot.Position - myRoot.Position
+    local dist = delta.Magnitude
+    if dist > TP_RANGE or dist <= TP_OFFSET then return dist end
+    myRoot.CFrame = CFrame.new(theirRoot.Position - delta.Unit * TP_OFFSET, theirRoot.Position)
+    return TP_OFFSET
+end
+
+local function unbindTargetSignals()
+    if State.targetHealth then
+        pcall(function() State.targetHealth:Disconnect() end)
     end
-    pcall(function() Humanoid:EquipTool(tool) end)
-    task.wait() -- exactly 1 frame yield for engine equip resolution
-    return true
+    State.targetHealth = nil
+    State.targetRoot = nil
+    for _, conn in ipairs(targetConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(targetConns)
+end
+
+-- Humanoid.HealthChanged is the only hit confirmation the game pushes to us.
+local function bindTargetSignals(player)
+    unbindTargetSignals()
+    if not player then return end
+
+    local function watch(character)
+        local hum = character and character:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        State.targetRoot = character:FindFirstChild("HumanoidRootPart")
+        if State.targetHealth then pcall(function() State.targetHealth:Disconnect() end) end
+        State.lastHealth = hum.Health
+        State.targetHealth = hum.HealthChanged:Connect(function(hp)
+            local prev = State.lastHealth
+            State.lastHealth = hp
+            if prev and hp < prev then
+                State.hits = State.hits + 1
+                State.whiffs = 0
+            end
+        end)
+    end
+
+    watch(player.Character)
+    table.insert(targetConns, player.CharacterAdded:Connect(watch))
+end
+
+local function setTarget(player)
+    if State.target == player then player = nil end -- click again to unlock
+    State.target = player
+    State.whiffs = 0
+    bindTargetSignals(player)
+    if player then tpToTarget(player) end
+end
+
+-- ======================
+-- THE ONLY FIRE PATH
+-- ======================
+local function equipAndFire(entry, target)
+    local tool = entry.tool
+    if not tool or not tool.Parent then
+        State.cacheDirty = true
+        return false
+    end
+
+    if tool.Parent ~= Character then
+        pcall(function() Humanoid:EquipTool(tool) end)
+        -- the swap must reach the server before the swing: the equip frame is
+        -- kept, and it is the only cost this cycle pays for the negate trick
+        task.wait()
+    end
+
+    if entry.type == "bat" then
+        State.seq = State.seq + 1
+        local token = myUidStr .. ":" .. State.seq .. ":" .. math.floor(os.clock() * 1000)
+        return (pcall(function() RE_BatSwing:FireServer(target, token) end))
+    end
+    return (pcall(function() RE_ToolTrigger:FireServer(tool) end))
 end
 
 -- ======================
@@ -182,8 +325,8 @@ gui.ResetOnSpawn = false
 gui.Parent = getSafeParent()
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 290, 0, 180)
-frame.Position = UDim2.new(1, -310, 0, 20)
+frame.Size = UDim2.new(0, 300, 0, 330)
+frame.Position = UDim2.new(1, -320, 0, 20)
 frame.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -200,7 +343,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -50, 0, 26)
 title.Position = UDim2.new(0, 10, 0, 4)
 title.BackgroundTransparency = 1
-title.Text = "🏏 Multi-Bat Swing (5 Bats)"
+title.Text = "🏏 Multi-Bat Swing (single path)"
 title.TextColor3 = Color3.fromRGB(255, 190, 100)
 title.TextSize = 14
 title.Font = Enum.Font.GothamBold
@@ -212,7 +355,7 @@ closeBtn.Size = UDim2.new(0, 28, 0, 22)
 closeBtn.Position = UDim2.new(1, -34, 0, 4)
 closeBtn.BackgroundColor3 = Color3.fromRGB(150, 45, 45)
 closeBtn.Text = "X"
-closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
 closeBtn.TextSize = 12
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.Parent = frame
@@ -220,7 +363,7 @@ Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 4)
 
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -16, 0, 18)
-status.Position = UDim2.new(0, 8, 0, 32)
+status.Position = UDim2.new(0, 8, 0, 30)
 status.BackgroundTransparency = 1
 status.Text = "Ready"
 status.TextColor3 = Color3.fromRGB(200, 200, 160)
@@ -229,211 +372,297 @@ status.Font = Enum.Font.Gotham
 status.TextXAlignment = Enum.TextXAlignment.Left
 status.Parent = frame
 
-local toolLabel = Instance.new("TextLabel")
-toolLabel.Size = UDim2.new(1, -16, 0, 16)
-toolLabel.Position = UDim2.new(0, 8, 0, 50)
-toolLabel.BackgroundTransparency = 1
-toolLabel.Text = "Current: -"
-toolLabel.TextColor3 = Color3.fromRGB(180, 200, 220)
-toolLabel.TextSize = 11
-toolLabel.Font = Enum.Font.Code
-toolLabel.TextXAlignment = Enum.TextXAlignment.Left
-toolLabel.Parent = frame
+local stats = Instance.new("TextLabel")
+stats.Size = UDim2.new(1, -16, 0, 16)
+stats.Position = UDim2.new(0, 8, 0, 48)
+stats.BackgroundTransparency = 1
+stats.Text = "swings 0 · hits 0 · 0.0/s"
+stats.TextColor3 = Color3.fromRGB(180, 200, 160)
+stats.TextSize = 11
+stats.Font = Enum.Font.Code
+stats.TextXAlignment = Enum.TextXAlignment.Left
+stats.Parent = frame
 
-local countLabel = Instance.new("TextLabel")
-countLabel.Size = UDim2.new(1, -16, 0, 16)
-countLabel.Position = UDim2.new(0, 8, 0, 68)
-countLabel.BackgroundTransparency = 1
-countLabel.Text = "Swings: 0"
-countLabel.TextColor3 = Color3.fromRGB(180, 200, 160)
-countLabel.TextSize = 11
-countLabel.Font = Enum.Font.Gotham
-countLabel.TextXAlignment = Enum.TextXAlignment.Left
-countLabel.Parent = frame
+local targetLabel = Instance.new("TextLabel")
+targetLabel.Size = UDim2.new(1, -16, 0, 16)
+targetLabel.Position = UDim2.new(0, 8, 0, 64)
+targetLabel.BackgroundTransparency = 1
+targetLabel.Text = "Target: none (world swings)"
+targetLabel.TextColor3 = Color3.fromRGB(180, 200, 220)
+targetLabel.TextSize = 11
+targetLabel.Font = Enum.Font.Code
+targetLabel.TextXAlignment = Enum.TextXAlignment.Left
+targetLabel.Parent = frame
 
--- Mode toggle button: Paced (Clean hits) vs Turbo (Burst)
-local modeBtn = Instance.new("TextButton")
-modeBtn.Size = UDim2.new(1, -16, 0, 24)
-modeBtn.Position = UDim2.new(0, 8, 0, 88)
-modeBtn.BackgroundColor3 = Color3.fromRGB(35, 95, 60)
-modeBtn.Text = "⚡ Mode: Paced (0.12s @ 8.3/s)"
-modeBtn.TextColor3 = Color3.new(1, 1, 1)
-modeBtn.TextSize = 11
-modeBtn.Font = Enum.Font.GothamBold
-modeBtn.Parent = frame
-Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 5)
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -16, 0, 180)
+scroll.Position = UDim2.new(0, 8, 0, 84)
+scroll.BackgroundColor3 = Color3.fromRGB(12, 14, 22)
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 4
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.Parent = frame
+Instance.new("UICorner", scroll).CornerRadius = UDim.new(0, 6)
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 4)
+listLayout.Parent = scroll
 
 local startBtn = Instance.new("TextButton")
-startBtn.Size = UDim2.new(0, 125, 0, 28)
-startBtn.Position = UDim2.new(0, 10, 1, -38)
+startBtn.Size = UDim2.new(0, 130, 0, 28)
+startBtn.Position = UDim2.new(0, 10, 1, -36)
 startBtn.BackgroundColor3 = Color3.fromRGB(180, 110, 40)
 startBtn.Text = "START"
-startBtn.TextColor3 = Color3.new(1,1,1)
+startBtn.TextColor3 = Color3.new(1, 1, 1)
 startBtn.TextSize = 13
 startBtn.Font = Enum.Font.GothamBold
 startBtn.Parent = frame
 Instance.new("UICorner", startBtn).CornerRadius = UDim.new(0, 6)
 
 local stopBtn = Instance.new("TextButton")
-stopBtn.Size = UDim2.new(0, 125, 0, 28)
-stopBtn.Position = UDim2.new(1, -135, 1, -38)
+stopBtn.Size = UDim2.new(0, 130, 0, 28)
+stopBtn.Position = UDim2.new(1, -140, 1, -36)
 stopBtn.BackgroundColor3 = Color3.fromRGB(120, 50, 50)
 stopBtn.Text = "STOP"
-stopBtn.TextColor3 = Color3.new(1,1,1)
+stopBtn.TextColor3 = Color3.new(1, 1, 1)
 stopBtn.TextSize = 13
 stopBtn.Font = Enum.Font.GothamBold
 stopBtn.Parent = frame
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 6)
 
-local function setStatus(t, col)
-    status.Text = t
-    status.TextColor3 = col or Color3.fromRGB(200, 200, 160)
+local function setStatus(text, color)
+    status.Text = text
+    status.TextColor3 = color or Color3.fromRGB(200, 200, 160)
 end
 
-local function updateModeUi(activeCount)
-    activeCount = activeCount or 5
-    if turboMode then
-        modeBtn.Text = "🔥 Mode: Turbo (Max Packets)"
-        modeBtn.BackgroundColor3 = Color3.fromRGB(180, 75, 40)
+-- ---- recycled player rows (never created/destroyed per tick) ----
+local rows = {}
+
+local function acquireRow(index)
+    local row = rows[index]
+    if row then return row end
+
+    local holder = Instance.new("Frame")
+    holder.Size = UDim2.new(1, -8, 0, 34)
+    holder.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+    holder.BorderSizePixel = 0
+    holder.Parent = scroll
+    Instance.new("UICorner", holder).CornerRadius = UDim.new(0, 5)
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -120, 0, 16)
+    nameLabel.Position = UDim2.new(0, 8, 0, 2)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextSize = 12
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = holder
+
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Size = UDim2.new(1, -120, 0, 14)
+    distLabel.Position = UDim2.new(0, 8, 0, 18)
+    distLabel.BackgroundTransparency = 1
+    distLabel.TextSize = 10
+    distLabel.Font = Enum.Font.Code
+    distLabel.TextXAlignment = Enum.TextXAlignment.Left
+    distLabel.Parent = holder
+
+    local lockBtn = Instance.new("TextButton")
+    lockBtn.Size = UDim2.new(0, 60, 0, 24)
+    lockBtn.Position = UDim2.new(1, -68, 0.5, -12)
+    lockBtn.TextColor3 = Color3.new(1, 1, 1)
+    lockBtn.TextSize = 11
+    lockBtn.Font = Enum.Font.GothamBold
+    lockBtn.Text = "TP+LOCK"
+    lockBtn.BackgroundColor3 = Color3.fromRGB(60, 90, 130)
+    lockBtn.Parent = holder
+    Instance.new("UICorner", lockBtn).CornerRadius = UDim.new(0, 4)
+
+    row = { holder = holder, nameLabel = nameLabel, distLabel = distLabel, lockBtn = lockBtn, player = nil }
+    -- bound once, reads row.player on click, so no reconnect churn
+    addConnection(lockBtn.MouseButton1Click:Connect(function()
+        if row.player then setTarget(row.player) end
+    end))
+    rows[index] = row
+    return row
+end
+
+-- 5 Hz render tick: the only place labels are written
+local function renderUi()
+    local myRoot = Character and Character:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position
+
+    local players = Players:GetPlayers()
+    local used = 0
+    for _, player in ipairs(players) do
+        local dist
+        local theirRoot = rootOf(player)
+        if myPos and theirRoot then
+            dist = (theirRoot.Position - myPos).Magnitude
+        end
+        used = used + 1
+        local row = acquireRow(used)
+        row.player = player
+        row.holder.Visible = true
+        row.nameLabel.Text = player.Name
+        if player == State.target then
+            row.nameLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+            row.lockBtn.Text = "LOCKED"
+        else
+            row.nameLabel.TextColor3 = player == LocalPlayer
+                and Color3.fromRGB(120, 220, 140) or Color3.fromRGB(220, 220, 230)
+            row.lockBtn.Text = "TP+LOCK"
+        end
+        if dist then
+            row.distLabel.Text = string.format("%.1f studs", dist)
+            local inRange = dist <= TP_RANGE
+            row.distLabel.TextColor3 = inRange and Color3.fromRGB(120, 220, 140)
+                or Color3.fromRGB(220, 140, 80)
+            row.lockBtn.BackgroundColor3 = inRange and Color3.fromRGB(60, 130, 90)
+                or Color3.fromRGB(90, 70, 60)
+        else
+            row.distLabel.Text = "no character"
+            row.distLabel.TextColor3 = Color3.fromRGB(140, 140, 150)
+            row.lockBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+        end
+    end
+    for i = used + 1, #rows do
+        rows[i].holder.Visible = false
+        rows[i].player = nil
+    end
+    scroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 8)
+
+    local now = os.clock()
+    local elapsed = now - State.rateAt
+    if elapsed >= 0.5 then
+        State.rate = (State.swings - State.rateSwings) / elapsed
+        State.rateSwings = State.swings
+        State.rateAt = now
+    end
+    stats.Text = string.format("swings %d · hits %d · %.1f/s",
+        State.swings, State.hits, State.rate)
+    if State.target then
+        local dist = myPos and rootOf(State.target)
+        targetLabel.Text = "Target: " .. State.target.Name
+            .. (dist and string.format(" · %.1f studs", (dist.Position - myPos).Magnitude) or "")
     else
-        local d = activeCount > 0 and (COOLDOWN_PER_BAT / activeCount) or 0.12
-        local rate = d > 0 and (1.0 / d) or 8.3
-        modeBtn.Text = string.format("⚡ Mode: Paced (%.2fs @ %.1f/s)", d, rate)
-        modeBtn.BackgroundColor3 = Color3.fromRGB(35, 95, 60)
+        targetLabel.Text = "Target: none (world swings)"
+    end
+    if not State.enabled then
+        setStatus(State.swings > 0 and "Stopped" or "Ready – press START",
+            Color3.fromRGB(200, 180, 100))
     end
 end
 
 -- ======================
--- SWING LOOP
+-- COMBAT LOOP (one path for every weapon)
 -- ======================
-local function startSwinging()
-    if swinging then return end
-    swinging = true
-    enabled = true
+local function combatLoop()
+    while State.enabled do
+        if not ensureCharacter() then
+            setStatus("Waiting for respawn...", Color3.fromRGB(200, 180, 100))
+            task.wait(0.5)
+            continue
+        end
 
-    task.spawn(function()
-        local lastUiUpdate = 0
-        local currentIndex = 1
+        if State.cacheDirty or not State.weapons then rebuildCache() end
+        local list = State.weapons
+        if #list == 0 then
+            setStatus("No configured weapons found", Color3.fromRGB(255, 120, 80))
+            task.wait(0.5)
+            continue
+        end
 
-        while enabled do
-            -- Re-check Character / Humanoid if character died/respawned
-            if not Character or not Character.Parent or not Humanoid or not Humanoid.Parent or Humanoid.Health <= 0 then
-                Character = LocalPlayer and LocalPlayer.Character
-                Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-                if not Character or not Humanoid or Humanoid.Health <= 0 then
-                    setStatus("Waiting for respawn...", Color3.fromRGB(200, 180, 100))
-                    task.wait(0.5)
-                    continue
-                end
-            end
+        if State.index > #list then State.index = 1 end
+        local entry = list[State.index]
+        State.index = (State.index % #list) + 1
 
-            local activeList = getActiveTools()
-            local activeCount = #activeList
-
-            if activeCount == 0 then
-                setStatus("No configured tools found", Color3.fromRGB(255, 120, 80))
-                toolLabel.Text = "Current: None (waiting...)"
-                task.wait(0.5)
+        -- A single owned weapon cannot swap, so the negate trick cannot apply:
+        -- gate it on the real cooldown instead of spamming 60 packets/s.
+        if RESPECT_COOLDOWN or #list == 1 then
+            local last = State.lastSwingAt[entry.name] or -1e9
+            local waitFor = COOLDOWN - (os.clock() - last)
+            if waitFor > 0 then
+                task.wait(waitFor)
                 continue
             end
+        end
 
-            if currentIndex > activeCount then
-                currentIndex = 1
+        local target = State.target
+        if target and not target.Parent then
+            State.target = nil
+            target = nil
+            unbindTargetSignals()
+        end
+
+        -- never spend a swing at a target the server would reject on distance
+        if target and State.myRoot and State.targetRoot then
+            if (State.targetRoot.Position - State.myRoot.Position).Magnitude > TP_RANGE then
+                setStatus(OUT_OF_RANGE, Color3.fromRGB(220, 140, 80))
+                task.wait(0.1)
+                continue
             end
+        end
 
-            local entry = activeList[currentIndex]
-            local toolName = entry.name
-            local toolType = entry.type
-            local toolInst = entry.instance
-
-            if not (toolInst and toolInst.Parent) then
-                toolInst = resolveTool(toolName)
-                entry.instance = toolInst
-            end
-
-            local tStart = os.clock()
-
-            if toolInst and Humanoid and Humanoid.Health > 0 then
-                -- 1. Fast equip (no-op if already held in hand)
-                equipToolFast(toolInst)
-
-                -- 2. Fire server remote
-                local fireOk = false
-                if toolType == "bat" then
-                    seq = seq + 1
-                    local token = myUidStr .. ":" .. seq .. ":" .. math.floor(os.clock() * 1000)
-                    fireOk = pcall(function()
-                        RE_BatSwing:FireServer(nil, token)
-                    end)
-                else
-                    fireOk = pcall(function()
-                        RE_ToolTrigger:FireServer(toolInst)
-                    end)
-                end
-
-                if fireOk then
-                    swingCount = swingCount + 1
-                    local now = os.clock()
-                    if (now - lastUiUpdate) >= 0.05 then
-                        lastUiUpdate = now
-                        countLabel.Text = "Swings: " .. swingCount
-                        toolLabel.Text = "Current: " .. toolName .. " [" .. currentIndex .. "/" .. activeCount .. "]"
-                        setStatus("Swinging: " .. toolName, Color3.fromRGB(255, 200, 100))
-                    end
-                else
-                    setStatus("Fire failed: " .. toolName, Color3.fromRGB(255, 120, 80))
-                end
-            end
-
-            currentIndex = currentIndex + 1
-            if currentIndex > activeCount then
-                currentIndex = 1
-            end
-
-            -- 3. Optimal Pacing Delay
-            if turboMode then
-                task.wait() -- minimum 1 frame yield
-            else
-                local elapsed = os.clock() - tStart
-                local paceInterval = COOLDOWN_PER_BAT / math.max(activeCount, 1)
-                local waitTime = paceInterval - elapsed
-                if waitTime > 0.002 then
-                    task.wait(waitTime)
-                else
-                    task.wait()
+        if equipAndFire(entry, target) then
+            State.swings = State.swings + 1
+            State.lastSwingAt[entry.name] = os.clock()
+            if target then
+                State.whiffs = State.whiffs + 1
+                if State.whiffs >= WHIFF_LIMIT then
+                    State.whiffs = 0
+                    tpToTarget(target) -- knocked back / drifted: close the gap
                 end
             end
         end
 
-        swinging = false
-        countLabel.Text = "Swings: " .. swingCount
-        setStatus("Stopped", Color3.fromRGB(200, 180, 100))
-    end)
+        task.wait() -- single wait frame; the swap frame was spent above
+    end
+    State.running = false
+end
+
+local function startCombat()
+    if State.running then return end
+    State.running = true
+    State.enabled = true
+    State.rateSwings = State.swings
+    State.rateAt = os.clock()
+    stroke.Color = Color3.fromRGB(220, 160, 60)
+    setStatus("Swinging", Color3.fromRGB(255, 200, 100))
+    task.spawn(combatLoop)
 end
 
 -- ======================
--- BUTTONS & WIRING
+-- WIRING
 -- ======================
-addConnection(startBtn.MouseButton1Click:Connect(function()
-    enabled = true
-    stroke.Color = Color3.fromRGB(220, 160, 60)
-    startSwinging()
-end))
+addConnection(startBtn.MouseButton1Click:Connect(startCombat))
 
 addConnection(stopBtn.MouseButton1Click:Connect(function()
-    enabled = false
+    State.enabled = false
     stroke.Color = Color3.fromRGB(120, 90, 50)
     setStatus("Stopping...", Color3.fromRGB(200, 180, 100))
 end))
 
-addConnection(modeBtn.MouseButton1Click:Connect(function()
-    turboMode = not turboMode
-    local count = #getActiveTools()
-    updateModeUi(count > 0 and count or 5)
-end))
+function watchBackpack(bp)
+    if not bp then return end
+    addConnection(bp.ChildAdded:Connect(function() State.cacheDirty = true end))
+    addConnection(bp.ChildRemoved:Connect(function() State.cacheDirty = true end))
+end
+watchBackpack(Backpack)
+
+local uiRunning = true
+task.spawn(function()
+    while uiRunning and gui.Parent do
+        local a, b = pcall(renderUi)
+        if not a then setStatus("UI: " .. tostring(b), Color3.fromRGB(255, 120, 80)) end
+        task.wait(UI_INTERVAL)
+    end
+end)
 
 local function cleanup()
-    enabled = false
+    State.enabled = false
+    uiRunning = false
+    unbindTargetSignals()
     disconnectAll()
     if gui and gui.Parent then pcall(function() gui:Destroy() end) end
     _G.AutoMultiSwing_Cleanup = nil
@@ -442,11 +671,9 @@ end
 _G.AutoMultiSwing_Cleanup = cleanup
 addConnection(closeBtn.MouseButton1Click:Connect(cleanup))
 
--- Initial inventory check
-local initialTools = getActiveTools()
-updateModeUi(#initialTools > 0 and #initialTools or 5)
+rebuildCache()
 setStatus("Ready – press START", Color3.fromRGB(200, 200, 160))
-toolLabel.Text = "Active Tools: " .. #initialTools .. " / " .. #TOOLS
+stats.Text = string.format("weapons %d / %d", #State.weapons, #TOOLS)
 
 end)
 

@@ -309,22 +309,28 @@ class TestAutoBatArchitecture(unittest.TestCase):
         self.assertIn('"Cricket\'s Banjo"', self.code)
 
     def test_02_zero_reequip_bypass_logic(self):
-        """Verify zero-thrashing: if tool is already in Character, EquipTool is bypassed."""
-        self.assertIn("tool.Parent == Character", self.code)
-        self.assertIn("equipToolFast", self.code)
+        """A weapon already held is fired without touching EquipTool."""
+        self.assertIn("if tool.Parent ~= Character then", self.code)
+        # exactly one equip site in the whole script
+        self.assertEqual(self.code.count(":EquipTool("), 1)
 
-    def test_03_active_inventory_filtering(self):
-        """Verify missing tools are filtered out so loop never wastes ticks on absent items."""
-        self.assertIn("getActiveTools", self.code)
-        self.assertIn("local activeList = getActiveTools()", self.code)
-        self.assertIn("matchToolName", self.code)
+    def test_03_inventory_cache_invalidated_by_events(self):
+        """One cached inventory, rebuilt only when Backpack/Character change."""
+        self.assertIn("local function rebuildCache()", self.code)
+        self.assertIn("State.cacheDirty", self.code)
+        self.assertIn("bp.ChildAdded:Connect", self.code)
+        self.assertIn("bp.ChildRemoved:Connect", self.code)
+        # the hot loop must never re-scan containers: GetChildren only in findTool
+        self.assertEqual(self.code.count(":GetChildren()"), 2)
 
-    def test_04_cooldown_aware_pacing_and_turbo_toggle(self):
-        """Verify adaptive pacing formula (0.60 / #activeTools) and turboMode toggle."""
-        self.assertIn("COOLDOWN_PER_BAT = 0.60", self.code)
-        self.assertIn("COOLDOWN_PER_BAT / math.max(activeCount, 1)", self.code)
-        self.assertIn("turboMode", self.code)
-        self.assertIn("modeBtn", self.code)
+    def test_04_single_trigger_path_no_modes(self):
+        """One logic only: the paced/turbo toggle and its timer must be gone."""
+        self.assertIn("local function equipAndFire(entry, target)", self.code)
+        self.assertEqual(self.code.count(":FireServer("), 2)   # bat + tool, one site each
+        self.assertNotIn("turboMode", self.code)
+        self.assertNotIn("modeBtn", self.code)
+        self.assertNotIn("paceInterval", self.code)
+        self.assertIn("local function combatLoop()", self.code)
 
     def test_05_startup_caching_and_zero_scope_aliasing(self):
         """Verify LocalPlayer, UserId, Character, Humanoid are cached at root."""
@@ -342,28 +348,45 @@ class TestAutoBatArchitecture(unittest.TestCase):
         self.assertIn("local function disconnectAll()", self.code)
         self.assertIn("disconnectAll()", self.code)
         self.assertIn("_G.AutoMultiSwing_Cleanup", self.code)
+        # target-scoped listeners get their own table, cleared on rebind
+        self.assertIn("local targetConns = {}", self.code)
+        self.assertIn("local function unbindTargetSignals()", self.code)
 
     def test_07_token_allocation_efficiency(self):
         """Verify token generator avoids repeated string.format overhead."""
-        self.assertIn('myUidStr .. ":" .. seq .. ":" .. math.floor(os.clock() * 1000)', self.code)
+        self.assertIn('myUidStr .. ":" .. State.seq .. ":" .. math.floor(os.clock() * 1000)', self.code)
 
-    def test_08_five_bats_simulation_throughput(self):
-        """Simulate 5 bats under 0.12s paced mode: verify 100% accepted hits and 8.33 hits/sec."""
+    def test_08_hot_loop_touches_no_ui(self):
+        """The swing loop must not format strings or write labels."""
+        loop = self.code[self.code.index("local function combatLoop()"):
+                         self.code.index("local function startCombat()")]
+        self.assertNotIn(".Text =", loop)
+        self.assertNotIn("string.format", loop)
+        self.assertIn("task.wait() -- single wait frame", loop)
+
+    def test_09_tp_and_sure_hit(self):
+        """60-stud TP before the swing, health-drop confirmation for hits."""
+        self.assertIn("local TP_RANGE          = 60", self.code)
+        self.assertIn("local function tpToTarget(player)", self.code)
+        self.assertIn("myRoot.CFrame = CFrame.new(", self.code)
+        self.assertIn("HealthChanged:Connect", self.code)
+        self.assertIn("WHIFF_LIMIT", self.code)
+
+    def test_10_two_frame_cycle_ceiling(self):
+        """Swap frame + one wait frame = 30 swings/s, the measured ceiling."""
         tools_5 = [
             "Titan Axe", "Scramble Sword", "Pumpkin Scythe",
             "The Scrambler", "Cricket's Banjo"
         ]
         sim = BatSwingSimulator(
             tools=tools_5,
-            equip_delay=0.016,
-            swing_delay=0.104,  # Total = 0.120s per tool
-            simulate_roblox_frames=False,
+            equip_delay=ROBLOX_FRAME_TIME,
+            swing_delay=ROBLOX_FRAME_TIME,
+            simulate_roblox_frames=True,
             ui_throttle=0.20,
         )
         res = sim.run_simulation(30.0)
-        self.assertEqual(res["rejected"], 0, f"Paced mode had {res['rejected']} rejected hits!")
-        self.assertAlmostEqual(res["swings_per_sec_valid"], 8.33, delta=0.2)
-        self.assertEqual(res["waste_percentage"], 0.0)
+        self.assertAlmostEqual(res["packets_per_sec"], 30.0, delta=0.5)
 
 
 if __name__ == "__main__":
