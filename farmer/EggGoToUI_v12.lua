@@ -665,7 +665,6 @@ UI.Elements = {
 
     -- TabUtility Elements
     TogglePickupBtn    = nil,
-    ToggleHwPickupBtn  = nil,
     ToggleRecoveryBtn  = nil,
     ToggleNoclipBtn    = nil,
     ToggleTrapEvadeBtn = nil,
@@ -698,12 +697,6 @@ UI.syncPickupToggles = function()
         UI.Elements.TogglePickupBtn.Text = w1En and "ON" or "OFF"
         UI.Elements.TogglePickupBtn.BackgroundColor3 = w1En and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
         UI.Elements.TogglePickupBtn.TextColor3 = w1En and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-    end
-
-    if UI.Elements.ToggleHwPickupBtn then
-        UI.Elements.ToggleHwPickupBtn.Text = hwEn and "ON" or "OFF"
-        UI.Elements.ToggleHwPickupBtn.BackgroundColor3 = hwEn and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
-        UI.Elements.ToggleHwPickupBtn.TextColor3 = hwEn and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
     end
 
     if UI.Elements.HwFilterPickupBtn then
@@ -1557,39 +1550,6 @@ UI.build = function()
     toggleBfBtn.Parent = rowBf
     Instance.new("UICorner", toggleBfBtn).CornerRadius = UDim.new(0, 5)
     UI.Elements.ToggleButterflyBtn = toggleBfBtn
-
-    -- Row 2.4.9: Halloween Fast Pickup [E] Row
-    local rowHwP = Instance.new("Frame")
-    rowHwP.Name = "RowHwPickup"
-    rowHwP.Size = UDim2.new(1, -16, 0, 36)
-    rowHwP.Position = UDim2.new(0, 8, 0, 346)
-    rowHwP.BackgroundColor3 = Color3.fromRGB(26, 30, 44)
-    rowHwP.Parent = tabUtility
-    Instance.new("UICorner", rowHwP).CornerRadius = UDim.new(0, 6)
-
-    local lblHwP = Instance.new("TextLabel")
-    lblHwP.Size = UDim2.new(1, -80, 1, 0)
-    lblHwP.Position = UDim2.new(0, 12, 0, 0)
-    lblHwP.BackgroundTransparency = 1
-    lblHwP.Text = "Halloween Fast Pickup [E]"
-    lblHwP.TextColor3 = Color3.fromRGB(225, 235, 255)
-    lblHwP.Font = Enum.Font.GothamBold
-    lblHwP.TextSize = 12
-    lblHwP.TextXAlignment = Enum.TextXAlignment.Left
-    lblHwP.Parent = rowHwP
-
-    local toggleHwPBtn = Instance.new("TextButton")
-    toggleHwPBtn.Name = "ToggleHwPickupBtn"
-    toggleHwPBtn.Size = UDim2.new(0, 56, 0, 24)
-    toggleHwPBtn.Position = UDim2.new(1, -66, 0.5, -12)
-    toggleHwPBtn.BackgroundColor3 = (Config.HwPickup and Config.HwPickup.Enabled) and theme.GreenOn or theme.GrayOff
-    toggleHwPBtn.Text = (Config.HwPickup and Config.HwPickup.Enabled) and "ON" or "OFF"
-    toggleHwPBtn.TextColor3 = (Config.HwPickup and Config.HwPickup.Enabled) and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
-    toggleHwPBtn.Font = Enum.Font.GothamBold
-    toggleHwPBtn.TextSize = 11
-    toggleHwPBtn.Parent = rowHwP
-    Instance.new("UICorner", toggleHwPBtn).CornerRadius = UDim.new(0, 5)
-    UI.Elements.ToggleHwPickupBtn = toggleHwPBtn
 
     -- 2.5 Panel 3: TabHalloween (Halloween Dimension Egg List)
     local tabHalloween = Instance.new("Frame")
@@ -4167,6 +4127,7 @@ Engine.Sync.startPushMonitor = function()
                     return
                 end
                 Engine.State.EggCacheByUid[uid] = nil
+                Engine.State.RarityByUid[uid] = nil
                 Engine.State.ListDirty = true
             end
         end))
@@ -4921,13 +4882,7 @@ addConnection(UI.Elements.TogglePickupBtn.MouseButton1Click:Connect(function()
     Engine.Pickup.toggle()
 end))
 
--- Halloween Fast Pickup Toggle Buttons
-if UI.Elements.ToggleHwPickupBtn then
-    addConnection(UI.Elements.ToggleHwPickupBtn.MouseButton1Click:Connect(function()
-        Engine.HwPickup.toggle()
-    end))
-end
-
+-- Halloween Fast Pickup Toggle Button (on Halloween Panel)
 if UI.Elements.HwFilterPickupBtn then
     addConnection(UI.Elements.HwFilterPickupBtn.MouseButton1Click:Connect(function()
         Engine.HwPickup.toggle()
