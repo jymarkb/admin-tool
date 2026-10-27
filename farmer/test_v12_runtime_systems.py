@@ -178,15 +178,14 @@ class TestV12RuntimeSystems(unittest.TestCase):
         # Lingering getup/fall/ragdoll animation tracks stopped cleanly
         self.assertIn('animName:find("getup")', self.code)
         self.assertIn('track:Stop(0.05)', self.code)
-        # Anti-fling bump location anchoring & zero horizontal fling velocity (v10/v11 logic)
-        self.assertIn('Engine.State.LastGoodCFrame = hrp.CFrame', self.code)
-        self.assertIn('local lastGood = Engine.State.LastGoodCFrame', self.code)
-        self.assertIn('dist > 2.0 and dist < 150.0', self.code)
+        # Anti-fling braking and fast grounding on boss/player hit (from v10)
         self.assertIn('hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)', self.code)
+        self.assertIn('fastY = -45', self.code)
+        self.assertIn('timeSinceHit < 0.5', self.code)
+        self.assertNotIn('math.clamp(curVel.Y', self.code)
+        self.assertNotIn('math.clamp(vy', self.code)
         self.assertIn('hrp.AssemblyAngularVelocity = Vector3.zero', self.code)
-        self.assertIn('hum.FloorMaterial == Enum.Material.Air', self.code)
         self.assertIn('Engine.Travel.stopWalking()', self.code)
-        self.assertNotIn('fastY = -45', self.code)
 
     def test_12_night_reset_clears_all_eggs(self):
         """Verify farmable egg list is cleared cleanly on night reset and stale eggs are purged."""
@@ -279,6 +278,91 @@ class TestV12RuntimeSystems(unittest.TestCase):
         self.assertIn('Engine.State.AutoReturnActive = false', q_block)
         self.assertIn('Engine.State.AutoReturnTargetUid = nil', q_block)
         self.assertIn('Engine.State.ReturnTripInProgress = false', q_block)
+
+    def test_16_speed_velocity_carry_persistence_and_other_player_isolation(self):
+        """Verify speed velocity does NOT swap to go speed when other players claim/drop eggs or during non-drop recoveries."""
+        # Other player drops/claims must NOT falsely reset our carry state
+        shifted_block = self.code.split('connectRemote("RE/EggWorld/FieldEggShifted"')[1].split('connectRemote("RE/EggWorld/FieldEggGone"')[0]
+        self.assertNotIn('or Engine.State.IsCarry) then', shifted_block)
+        self.assertIn('(state == "Claimed" or state == "Dropped") and (Engine.State.CarryUid == u or (payload.CarrierUserId and tostring(payload.CarrierUserId) == myUidStr))', shifted_block)
+
+        # Other player OwnerDropped must NOT falsely reset our carry state
+        owner_drop_block = self.code.split('connectRemote("RE/EggWorld/OwnerDropped"')[1].split('connectRemote')[0] if 'connectRemote' in self.code.split('connectRemote("RE/EggWorld/OwnerDropped"')[1] else self.code.split('connectRemote("RE/EggWorld/OwnerDropped"')[1]
+        self.assertNotIn('or Engine.State.IsCarry\n', owner_drop_block)
+
+        # Helpers.isHoldingEgg inspects physical hold (equipped tool/model or ClientRenderedAssets proximity)
+        self.assertIn('Helpers.isHoldingEgg = function()', self.code)
+        self.assertIn('myUidStr .. "_" .. tostring(Engine.State.CarryUid)', self.code)
+
+        # Engine.Velocity.updatePhysics syncs carry state with Helpers.isHoldingEgg
+        self.assertIn('Helpers.isHoldingEgg and Helpers.isHoldingEgg()', self.code)
+        self.assertIn('Engine.Velocity.setCarry(true)', self.code)
+
+        # Engine.Recovery.execute does NOT blindly clear carry state if egg is still held
+        recovery_exec = self.code.split('Engine.Recovery.execute = function(reason)')[1].split('Engine.Recovery.installHooks')[0]
+        self.assertIn('local stillHolding = Helpers.isHoldingEgg and Helpers.isHoldingEgg()', recovery_exec)
+        self.assertIn('if not stillHolding then', recovery_exec)
+
+    def test_17_instant_recovery_zero_wait_base_logic_alignment(self):
+        """Verify instant recovery base logic aligns with instant-ragdoll-recovery.lua: zero debounce, motor health check, R15 hips, and slam dampener."""
+        # 1. Zero debounce window prevents dropping consecutive stuns
+        self.assertIn('DebounceWindow  = 0', self.code)
+
+        # 2. R15 hip joints included in BodyJointNames
+        body_joints = self.code.split('BodyJointNames  = {')[1].split('}')[0]
+        self.assertIn('["LeftHip"]', body_joints)
+        self.assertIn('["RightHip"]', body_joints)
+
+        # 3. Heartbeat checks disabled motors in Engine.Recovery.Joints
+        self.assertIn('for _, m in ipairs(Engine.Recovery.Joints) do', self.code)
+        self.assertIn('m.Enabled = true', self.code)
+
+        # 4. Humanoid state and posture checked directly on Heartbeat
+        self.assertIn('hum.PlatformStand or hum.Sit', self.code)
+        self.assertIn('s == Enum.HumanoidStateType.Ragdoll', self.code)
+
+        # 5. Anti-fling braking on hit from v10 preserves position at bump location
+        self.assertIn('hrp.AssemblyLinearVelocity = Vector3.new(0, fastY, 0)', self.code)
+        self.assertIn('fastY = -45', self.code)
+        self.assertIn('timeSinceHit < 0.5', self.code)
+
+        # 6. Zero artificial falling down slow & zero vertical clamping (no math.clamp on Y velocity)
+        self.assertNotIn('math.clamp(curVel.Y', self.code)
+        self.assertNotIn('math.clamp(vy', self.code)
+
+    def test_18_world1_safezone_delivery_speed_reset(self):
+        """Verify delivery of an egg to SafeZone in World 1 properly resets speed to BaseGoSpeed / SavedWalkSpeed."""
+        # 1. Delivery grace period in Engine.State
+        self.assertIn('DeliveryGraceUntil', self.code)
+        self.assertIn('LastDeliveredUid', self.code)
+
+        # 2. handleEggDelivered enforces grace period, sets carry to false, and restores speed
+        deliv_block = self.code.split('Engine.Travel.handleEggDelivered = function(uid)')[1].split('Engine.Travel.getEggPosition')[0]
+        self.assertIn('Engine.State.DeliveryGraceUntil = os.clock() + 1.5', deliv_block)
+        self.assertIn('Engine.Velocity.setCarry(false)', deliv_block)
+        self.assertIn('hum.WalkSpeed = resetSpeed', deliv_block)
+        self.assertIn('Engine.State.AutoReturnActive = false', deliv_block)
+        self.assertIn('Engine.State.ReturnTripInProgress = false', deliv_block)
+
+        # 3. startReturnTrip invokes handleEggDelivered upon arriving at SafeZone
+        return_trip = self.code.split('Engine.Travel.startReturnTrip = function()')[1].split('Engine.Travel.handleEggDropped')[0]
+        self.assertIn('Engine.Travel.handleEggDelivered(delivUid)', return_trip)
+
+        # 4. Helpers.isHoldingEgg respects DeliveryGraceUntil and excludes SafeZone nest eggs
+        holding_block = self.code.split('Helpers.isHoldingEgg = function()')[1].split('Helpers.applyReachAssist')[0]
+        self.assertIn('Engine.State.DeliveryGraceUntil', holding_block)
+        self.assertIn('inSafeZone', holding_block)
+        self.assertNotIn('if Engine.State and Engine.State.IsCarry then return true end', holding_block)
+
+        # 5. Engine.Velocity.updatePhysics clears carry state when physical holding ceases
+        physics_block = self.code.split('Engine.Velocity.updatePhysics = function(isCarry)')[1].split('Engine.Recovery = {')[0]
+        self.assertIn('Engine.Velocity.setCarry(false)', physics_block)
+        self.assertIn('targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed', physics_block)
+
+        # 6. FieldEggShifted Claimed state calls handleEggDelivered even if AutoReturnActive was cleared
+        shifted_block = self.code.split('connectRemote("RE/EggWorld/FieldEggShifted"')[1].split('connectRemote("RE/EggWorld/FieldEggGone"')[0]
+        self.assertIn('state == "Claimed"', shifted_block)
+        self.assertIn('Engine.Travel.handleEggDelivered(u)', shifted_block)
 
 if __name__ == "__main__":
     unittest.main()

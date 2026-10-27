@@ -1953,10 +1953,12 @@ Helpers.isAlive = function()
 end
 
 Helpers.isHoldingEgg = function()
-    if Engine.State and Engine.State.IsCarry then return true end
+    if Engine.State and Engine.State.DeliveryGraceUntil and os.clock() < Engine.State.DeliveryGraceUntil then
+        return false
+    end
     if Character then
         for _, c in ipairs(Character:GetChildren()) do
-            if (c:IsA("Tool") or c:IsA("Model")) and c.Name:lower():find("egg", 1, true) then
+            if c:IsA("Tool") and (c.Name:lower():find("egg", 1, true) or c:GetAttribute("IsEgg") == true or c:GetAttribute("HalloweenEggUid") ~= nil) then
                 return true
             end
         end
@@ -1965,7 +1967,9 @@ Helpers.isHoldingEgg = function()
     if cra and myUidStr ~= "" then
         local expName = Engine.State and Engine.State.CarryUid and (myUidStr .. "_" .. tostring(Engine.State.CarryUid))
         if expName and cra:FindFirstChild(expName) then return true end
-        if hrp and hrp.Parent then
+        local safePos = Config.Velocity.SafeZonePosition
+        local inSafeZone = safePos and hrp and hrp.Parent and (hrp.Position - safePos).Magnitude <= 35
+        if not inSafeZone and hrp and hrp.Parent then
             local pfx = myUidStr .. "_"
             for _, m in ipairs(cra:GetChildren()) do
                 if m.Name:sub(1, #pfx) == pfx then
@@ -2395,6 +2399,8 @@ Engine.State = {
     IsRecovering          = false,
     LastRecoveryTime      = 0,
     SavedWalkSpeed        = 16.0,
+    DeliveryGraceUntil    = 0,
+    LastDeliveredUid      = nil,
     CachedControls        = nil,
     LastGoodCFrame        = nil,
 }
@@ -2472,9 +2478,14 @@ Engine.Velocity.updatePhysics = function(isCarry)
     end
 
     -- Keep carry state synced with physical egg holding
-    if Helpers.isHoldingEgg and Helpers.isHoldingEgg() then
+    local stillHolding = Helpers.isHoldingEgg and Helpers.isHoldingEgg()
+    if stillHolding then
         if not Engine.State.IsCarry then
             Engine.Velocity.setCarry(true)
+        end
+    elseif Engine.State.IsCarry and not Engine.State.ReturnTripInProgress then
+        if not (Engine.State.DeliveryGraceUntil and os.clock() < Engine.State.DeliveryGraceUntil) then
+            Engine.Velocity.setCarry(false)
         end
     end
 
@@ -4004,18 +4015,8 @@ Engine.Travel.startReturnTrip = function()
     end
 
     Engine.Travel.walkToTarget(safePos, 6.0, function()
-        pcall(function()
-            if hrp and hrp.Parent then hrp.AssemblyLinearVelocity = Vector3.zero end
-            if hum and hum.Parent then
-                hum:UnequipTools()
-                local resetSpeed = Engine.State.VelocityEnabled and Engine.State.BaseGoSpeed or math.max(Engine.State.SavedWalkSpeed or 16.0, 16.0)
-                hum.WalkSpeed = resetSpeed
-            end
-        end)
-        Engine.State.AutoReturnActive = false
-        Engine.State.AutoReturnTargetUid = nil
-        Engine.State.ReturnTripInProgress = false
-        Engine.Velocity.setCarry(false)
+        local delivUid = Engine.State.AutoReturnTargetUid or Engine.State.CarryUid
+        Engine.Travel.handleEggDelivered(delivUid)
         if UI.Elements.ActivityStatus then
             UI.Elements.ActivityStatus.Text = "Status: Arrived at SafeZone with Egg"
             UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(120, 240, 160)
@@ -4061,6 +4062,10 @@ Engine.Travel.handleEggDropped = function(u, payload)
 end
 
 Engine.Travel.handleEggDelivered = function(uid)
+    Engine.State.DeliveryGraceUntil = os.clock() + 1.5
+    if uid and uid ~= "" then
+        Engine.State.LastDeliveredUid = tostring(uid)
+    end
     Engine.State.AutoReturnActive = false
     Engine.State.AutoReturnTargetUid = nil
     Engine.State.ReturnTripInProgress = false
@@ -4316,6 +4321,8 @@ Engine.Sync.startPushMonitor = function()
                 elseif state == "Claimed" then
                     Engine.Travel.handleEggDelivered(u)
                 end
+            elseif state == "Claimed" then
+                Engine.Travel.handleEggDelivered(u)
             end
         elseif state == "Carried" and payload.CarrierUserId and tostring(payload.CarrierUserId) ~= myUidStr then
             if Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u then
@@ -4330,7 +4337,7 @@ Engine.Sync.startPushMonitor = function()
             end
         elseif state == "Dropped" and Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u then
             Engine.Travel.handleEggDropped(u, payload)
-        elseif state == "Claimed" and Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u then
+        elseif state == "Claimed" and (Engine.State.LastDeliveredUid == u or (Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid == u)) then
             Engine.Travel.handleEggDelivered(u)
         end
 
@@ -4514,6 +4521,9 @@ Engine.Sync.startPushMonitor = function()
     connectRemote("RE/EggWorld/FieldEggGone", function(uid)
         local u = tostring(uid or "")
         if u ~= "" then
+            if Engine.State.CarryUid == u or Engine.State.LastDeliveredUid == u then
+                Engine.Travel.handleEggDelivered(u)
+            end
             Engine.State.EggCacheByUid[u] = nil
             Engine.State.RarityByUid[u] = nil
             Engine.State.ListDirty = true
