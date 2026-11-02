@@ -480,8 +480,8 @@ Config.Taxonomy = {
             { Name = "Voidseer Pumpkin Egg", Rarity = "Divine", Aliases = { "Voidseer Pumpkin" } },
 
             -- Eternal
-            { Name = "Gorillastein Egg", Rarity = "Eternal", Aliases = { "Gorillastein", "Gorillastine", "Gorillastines", "Gorillastein Egg", "Gorillastine Egg", "Gorillastines Egg", "Gorilla Stein", "Gorilla Stein Egg", "Abomination Kong", "Abomination Kong Egg" } },
-            { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong", "Gorillastein", "Gorillastine", "Gorillastines", "Gorillastein Egg", "Gorillastine Egg", "Gorillastines Egg", "Gorilla Stein" } },
+            { Name = "Gorillastein Egg", Rarity = "Eternal", Aliases = { "Gorillastein", "Gorillastine", "Gorillastines", "Gorillastein Egg", "Gorillastine Egg", "Gorillastines Egg", "Gorilla Stein", "Gorilla Stein Egg", "Abomination Kong", "Abomination Kong Egg", "Frankenstein Kong", "Frankenstein Kong Egg" } },
+            { Name = "Abomination Kong Egg", Rarity = "Eternal", Aliases = { "Abomination Kong", "Gorillastein", "Gorillastine", "Gorillastines", "Gorillastein Egg", "Gorillastine Egg", "Gorillastines Egg", "Gorilla Stein", "Frankenstein Kong", "Frankenstein Kong Egg" } },
             { Name = "Ghost Reaper Egg", Rarity = "Eternal", Aliases = { "Ghost Reaper" } },
             { Name = "Shelltide Voyager Egg", Rarity = "Eternal", Aliases = { "Shelltide Voyager" } },
             { Name = "Halloween Dimension Egg", Rarity = "Eternal", Aliases = { "Dimension Egg", "Halloween Dimension" } },
@@ -492,7 +492,7 @@ Config.Taxonomy = {
             { Name = "Phantom Dragon Egg", Rarity = "Secret", Aliases = { "Phantom Dragon" } },
             { Name = "Pumpkin Golem Egg", Rarity = "Secret", Aliases = { "Pumpkin Golem" } },
             { Name = "Soul Phantom Egg", Rarity = "Secret", Aliases = { "Soul Phantom" } },
-            { Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } },
+            { Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf", "Dread Wolf", "Dread Wolf Egg" } },
 
             -- Cosmic
             { Name = "Halloween Boss Egg", Rarity = "Cosmic", Aliases = { "Halloween Boss" } },
