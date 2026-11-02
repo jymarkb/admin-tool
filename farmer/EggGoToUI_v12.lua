@@ -1985,6 +1985,42 @@ Helpers.isHoldingEgg = function()
     return false
 end
 
+Helpers.getEggInstance = function(uid)
+    if not uid or uid == "" then return nil end
+    local slots = Workspace:FindFirstChild("AreaEggSlotsClient")
+    local inst = slots and slots:FindFirstChild(uid)
+    if inst then return inst end
+    local eggs = Workspace:FindFirstChild("Eggs")
+    inst = eggs and eggs:FindFirstChild(uid)
+    if inst then return inst end
+    return nil
+end
+
+Helpers.getPlayerInputVector = function()
+    if Engine.State and Engine.State.CachedControls and Engine.State.CachedControls.GetMoveVector then
+        local ok, mv = pcall(function() return Engine.State.CachedControls:GetMoveVector() end)
+        if ok and typeof(mv) == "Vector3" and mv.Magnitude > 0.05 then
+            return mv
+        end
+    end
+    local ps = LocalPlayer and (LocalPlayer:FindFirstChildOfClass("PlayerScripts") or LocalPlayer:FindFirstChild("PlayerScripts"))
+    local pm = ps and ps:FindFirstChild("PlayerModule")
+    if pm then
+        local okReq, mod = pcall(require, pm)
+        if okReq and mod and mod.GetControls then
+            local ctrl = mod:GetControls()
+            if ctrl and ctrl.GetMoveVector then
+                if Engine.State then Engine.State.CachedControls = ctrl end
+                local okMv, mv = pcall(function() return ctrl:GetMoveVector() end)
+                if okMv and typeof(mv) == "Vector3" and mv.Magnitude > 0.05 then
+                    return mv
+                end
+            end
+        end
+    end
+    return Vector3.zero
+end
+
 Helpers.applyReachAssist = function(targetPos)
     if not (hrp and hrp.Parent and targetPos) then return false end
     local dist = (hrp.Position - targetPos).Magnitude
@@ -2412,6 +2448,7 @@ end
 
 -- 4.2 Velocity Engine (Continuous Speed with isCarry true/false param)
 Engine.Velocity = {}
+Engine.Velocity.ZeroFriction = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 
 Engine.Velocity.setCarry = function(isCarry)
     local carryBool = (isCarry == true)
@@ -2470,6 +2507,11 @@ Engine.Velocity.updatePhysics = function(isCarry)
     if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then return end
     if Engine.State.IsRecovering then return end
 
+    -- Ensure zero-friction properties on hrp to eliminate ground friction drag
+    if Engine.Velocity.ZeroFriction and hrp.CustomPhysicalProperties ~= Engine.Velocity.ZeroFriction then
+        pcall(function() hrp.CustomPhysicalProperties = Engine.Velocity.ZeroFriction end)
+    end
+
     -- Void death check: if falling into void below Y = -400, cancel auto-walk & velocity
     if hrp.Position.Y < -400 then
         Engine.Travel.stopWalking()
@@ -2504,12 +2546,27 @@ Engine.Velocity.updatePhysics = function(isCarry)
         local curPos = hrp.Position
         local diff = Vector3.new(Engine.State.ActiveWalkTarget.X - curPos.X, 0, Engine.State.ActiveWalkTarget.Z - curPos.Z)
         local targetDir = diff.Magnitude > 0.1 and diff.Unit or Vector3.zero
-        hum:Move(targetDir, false)
-        if targetDir.Magnitude > 0.05 then
+
+        local inputVec = Helpers.getPlayerInputVector and Helpers.getPlayerInputVector() or Vector3.zero
+        local moveDir = targetDir
+        if inputVec.Magnitude > 0.05 then
+            local cam = Workspace.CurrentCamera
+            local camLook = cam and cam.CFrame.LookVector or Vector3.new(0, 0, -1)
+            local camRight = cam and cam.CFrame.RightVector or Vector3.new(1, 0, 0)
+            local camFwdFlat = Vector3.new(camLook.X, 0, camLook.Z).Unit
+            local camRtFlat = Vector3.new(camRight.X, 0, camRight.Z).Unit
+            local worldManualDir = (camRtFlat * inputVec.X - camFwdFlat * inputVec.Z)
+            if worldManualDir.Magnitude > 0.05 then
+                moveDir = (targetDir + worldManualDir.Unit * 1.0).Unit
+            end
+        end
+
+        hum:Move(moveDir, false)
+        if moveDir.Magnitude > 0.05 then
             hrp.AssemblyLinearVelocity = Vector3.new(
-                targetDir.X * targetSpeed,
+                moveDir.X * targetSpeed,
                 hrp.AssemblyLinearVelocity.Y,
-                targetDir.Z * targetSpeed
+                moveDir.Z * targetSpeed
             )
         end
         return
@@ -3195,14 +3252,17 @@ Engine.Pickup = {}
 
 Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
     if not uid or uid == "" then return false end
-    burstCount = burstCount or Config.Pickup.SpamBurstCount
+    burstCount = burstCount or 15
     local rf = Helpers.getNetRemote("RF/EggWorld/AskFieldEggCarry")
     if not rf then return false end
 
     local payload = { Uid = uid }
     task.spawn(function()
+        local eggInst = Helpers.getEggInstance and Helpers.getEggInstance(uid)
         for _ = 1, burstCount do
-            if Engine.State.IsCarry then
+            if Engine.State.IsCarry or (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then
+                Engine.Velocity.setCarry(true)
+                Engine.State.CarryUid = uid
                 if onCarried then task.spawn(onCarried) end
                 if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
                     if Engine.Travel and Engine.Travel.startReturnTrip then
@@ -3211,6 +3271,18 @@ Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
                 end
                 return
             end
+
+            -- Ensure we trigger prompt on targeted egg instance if available
+            if not eggInst then
+                eggInst = Helpers.getEggInstance and Helpers.getEggInstance(uid)
+            end
+            if eggInst then
+                local pr = eggInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if pr and Helpers.isCarryPrompt(pr) then
+                    Helpers.triggerProximityPrompt(pr)
+                end
+            end
+
             local ok, res = pcall(function() return rf:InvokeServer(payload) end)
             if ok and res == true then
                 Engine.Velocity.setCarry(true)
@@ -3229,8 +3301,10 @@ Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
     return true
 end
 
-Engine.Pickup.startAutoPickupSpam = function()
-    if Engine.State.IsCarry then
+Engine.Pickup.startAutoPickupSpam = function(targetUid)
+    targetUid = targetUid or (Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid)
+
+    if Engine.State.IsCarry or (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then
         if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
             if Engine.Travel and Engine.Travel.startReturnTrip then
                 Engine.Travel.startReturnTrip()
@@ -3239,13 +3313,56 @@ Engine.Pickup.startAutoPickupSpam = function()
         return
     end
 
+    if targetUid and targetUid ~= "" then
+        -- Targeted Pickup: When a specific egg was selected (TP or WALK), ONLY carry that egg!
+        -- Never grab an adjacent/different egg when multiple eggs are close.
+        local targetInst = Helpers.getEggInstance and Helpers.getEggInstance(targetUid)
+        local targetPos = nil
+        if targetInst then
+            if targetInst:IsA("BasePart") then targetPos = targetInst.Position
+            elseif targetInst:IsA("Model") then
+                local okP, piv = pcall(function() return targetInst:GetPivot().Position end)
+                if okP and piv and piv.Magnitude > 10 then targetPos = piv end
+                if not targetPos and targetInst.PrimaryPart then targetPos = targetInst.PrimaryPart.Position end
+            end
+            local pr = targetInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if pr and Helpers.isCarryPrompt(pr) then
+                Helpers.triggerProximityPrompt(pr)
+            end
+        end
+        if not targetPos and Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[targetUid] then
+            targetPos = Engine.Travel.getEggPosition(Engine.State.EggCacheByUid[targetUid], targetUid)
+        end
+
+        -- Only trigger SmartPromptPart if it is placed on our target egg (within 3.5 studs)
+        local spp = Workspace:FindFirstChild("SmartPromptPart")
+        if spp and targetPos and (spp.Position - targetPos).Magnitude <= 3.5 then
+            for _, pr in ipairs(spp:GetDescendants()) do
+                if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                    Helpers.triggerProximityPrompt(pr)
+                    break
+                end
+            end
+        end
+
+        Engine.Pickup.carryEgg(targetUid, 15, function()
+            if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                if Engine.Travel and Engine.Travel.startReturnTrip then
+                    Engine.Travel.startReturnTrip()
+                end
+            end
+        end)
+        return
+    end
+
+    -- General Proximity Pickup (E key manual press): Target closest egg within reach
     Engine.State.AutoPickupToken = Engine.State.AutoPickupToken + 1
     local myToken = Engine.State.AutoPickupToken
 
     task.spawn(function()
         local tStart = os.clock()
         while Engine.State.AutoPickupToken == myToken and Config.Pickup.Enabled and (os.clock() - tStart < Config.Pickup.BurstMaxDuration) do
-            if Engine.State.IsCarry then
+            if Engine.State.IsCarry or (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then
                 if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
                     if Engine.Travel and Engine.Travel.startReturnTrip then
                         Engine.Travel.startReturnTrip()
@@ -3813,7 +3930,7 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
             -- Auto-discover egg model if not explicitly passed to calculate exact bounds on big eggs
             local eggModel = eggModelOrSize
             if not eggModel and workspace.GetPartBoundsInRadius then
-                local nearby = workspace:GetPartBoundsInRadius(targetPos, 12)
+                local nearby = workspace:GetPartBoundsInRadius(targetPos, 8)
                 for _, p in ipairs(nearby) do
                     local m = p:FindFirstAncestorWhichIsA("Model")
                     if m and m ~= Character and not m:IsDescendantOf(Character) and m ~= Workspace.Terrain then
@@ -3827,24 +3944,24 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
             end
 
             -- Determine geometry to stay outside the egg shell and land firmly on the floor
-            local eggRadius = 3.2
-            local eggHeight = 5.0
+            local eggRadius = 2.6
+            local eggHeight = 4.5
             if typeof(eggModel) == "Instance" then
                 local hb = eggModel:FindFirstChild("Hitbox") or (eggModel:IsA("Model") and eggModel.PrimaryPart) or (eggModel:IsA("BasePart") and eggModel)
                 if hb and hb:IsA("BasePart") then
-                    eggRadius = math.max(3.2, math.max(hb.Size.X, hb.Size.Z) * 0.5 + 1.8)
+                    eggRadius = math.clamp(math.max(hb.Size.X, hb.Size.Z) * 0.5 + 1.2, 2.2, 3.8)
                     eggHeight = hb.Size.Y
                 elseif eggModel:IsA("Model") then
                     local okExt, ext = pcall(eggModel.GetExtentsSize, eggModel)
                     if okExt and ext then
-                        eggRadius = math.max(3.2, math.max(ext.X, ext.Z) * 0.5 + 1.8)
+                        eggRadius = math.clamp(math.max(ext.X, ext.Z) * 0.5 + 1.2, 2.2, 3.8)
                         eggHeight = ext.Y
                     end
                 end
             elseif typeof(eggModel) == "number" then
-                eggRadius = math.max(3.2, eggModel + 1.8)
+                eggRadius = math.clamp(eggModel + 1.2, 2.2, 3.8)
             elseif typeof(eggModel) == "Vector3" then
-                eggRadius = math.max(3.2, math.max(eggModel.X, eggModel.Z) * 0.5 + 1.8)
+                eggRadius = math.clamp(math.max(eggModel.X, eggModel.Z) * 0.5 + 1.2, 2.2, 3.8)
                 eggHeight = eggModel.Y
             end
 
@@ -3926,7 +4043,8 @@ Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, sna
 
             -- 60 studs teleport snap towards egg/location to stop and not overpass the target
             if dist <= snapDist or dist <= arriveDist then
-                Engine.Travel.teleportTo(targetPos, snapBeside)
+                local eggInst = uid and Helpers.getEggInstance and Helpers.getEggInstance(uid)
+                Engine.Travel.teleportTo(targetPos, snapBeside, eggInst)
                 Engine.Travel.stopWalking()
                 if onArrived then task.spawn(onArrived) end
                 break
@@ -3939,7 +4057,9 @@ Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, sna
 
             if flatDelta.Magnitude > 0.1 then
                 hum:Move(flatDelta.Unit, false)
-                hum:MoveTo(targetPos)
+                if not Engine.State.VelocityEnabled then
+                    hum:MoveTo(targetPos)
+                end
             end
 
             task.wait(0.03)
@@ -3959,21 +4079,25 @@ Engine.Travel.teleportToEgg = function(itemData)
     Engine.State.AutoReturnTargetUid = itemData.Uid
     Engine.State.ReturnTripInProgress = false
 
-    local ok = Engine.Travel.teleportTo(itemData.Position, true)
+    local eggInst = Helpers.getEggInstance and Helpers.getEggInstance(itemData.Uid)
+    local ok = Engine.Travel.teleportTo(itemData.Position, true, eggInst)
     if ok and itemData.Uid then
-        Engine.Pickup.carryEgg(itemData.Uid, 8, function()
+        Engine.Pickup.carryEgg(itemData.Uid, 15, function()
             if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
                 Engine.Travel.startReturnTrip()
             end
         end)
-        Engine.Pickup.startAutoPickupSpam()
+        Engine.Pickup.startAutoPickupSpam(itemData.Uid)
     end
     return ok
 end
 
 Engine.Travel.walkToEgg = function(itemData)
     if not itemData then return end
-    local targetPos = itemData.Position or (itemData.Record and Engine.Travel.getEggPosition(itemData.Record, itemData.Uid))
+    local eggInst = Helpers.getEggInstance and Helpers.getEggInstance(itemData.Uid)
+    local targetPos = (eggInst and ((eggInst:IsA("BasePart") and eggInst.Position) or (eggInst:IsA("Model") and (eggInst.PrimaryPart and eggInst.PrimaryPart.Position or eggInst:GetPivot().Position))))
+        or itemData.Position
+        or (itemData.Record and Engine.Travel.getEggPosition(itemData.Record, itemData.Uid))
     if not targetPos then return end
 
     Engine.Travel.stopWalking()
@@ -3993,12 +4117,12 @@ Engine.Travel.walkToEgg = function(itemData)
 
     Engine.Travel.walkToTarget(targetPos, 4.0, function()
         if itemData.Uid then
-            Engine.Pickup.carryEgg(itemData.Uid, 8, function()
+            Engine.Pickup.carryEgg(itemData.Uid, 15, function()
                 if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
                     Engine.Travel.startReturnTrip()
                 end
             end)
-            Engine.Pickup.startAutoPickupSpam()
+            Engine.Pickup.startAutoPickupSpam(itemData.Uid)
         end
     end, itemData.Uid, 60.0, true)
 end
@@ -4056,8 +4180,12 @@ Engine.Travel.handleEggDropped = function(u, payload)
     end
 
     Engine.Travel.walkToTarget(dropPos, 3.5, function()
-        Engine.Pickup.carryEgg(u, 8)
-        Engine.Pickup.startAutoPickupSpam()
+        Engine.Pickup.carryEgg(u, 15, function()
+            if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+                Engine.Travel.startReturnTrip()
+            end
+        end)
+        Engine.Pickup.startAutoPickupSpam(u)
     end, u, 60.0, true)
 end
 
@@ -4702,27 +4830,89 @@ Engine.Loops.start = function()
         pcall(Engine.Recovery.installHooks)
     end
 
+    -- RenderStepped Loop: Continuous Humanoid Move Injection for Auto-Walk
+    -- Overrides PlayerModule's zero-move so humanoid motor drives at full speed without needing W/S
+    addConnection(RunService.RenderStepped:Connect(function()
+        if Engine.State.ActiveWalkTarget and hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0 and not Engine.State.IsRecovering then
+            local curPos = hrp.Position
+            local diff = Vector3.new(Engine.State.ActiveWalkTarget.X - curPos.X, 0, Engine.State.ActiveWalkTarget.Z - curPos.Z)
+            if diff.Magnitude > 0.1 then
+                local targetDir = diff.Unit
+                local inputVec = Helpers.getPlayerInputVector and Helpers.getPlayerInputVector() or Vector3.zero
+                local moveDir = targetDir
+                if inputVec.Magnitude > 0.05 then
+                    local cam = Workspace.CurrentCamera
+                    local camLook = cam and cam.CFrame.LookVector or Vector3.new(0, 0, -1)
+                    local camRight = cam and cam.CFrame.RightVector or Vector3.new(1, 0, 0)
+                    local camFwdFlat = Vector3.new(camLook.X, 0, camLook.Z).Unit
+                    local camRtFlat = Vector3.new(camRight.X, 0, camRight.Z).Unit
+                    local worldManualDir = (camRtFlat * inputVec.X - camFwdFlat * inputVec.Z)
+                    if worldManualDir.Magnitude > 0.05 then
+                        moveDir = (targetDir + worldManualDir.Unit * 1.0).Unit
+                    end
+                end
+                hum:Move(moveDir, false)
+            end
+        end
+    end))
+
     -- Stepped Loop: No-Clip
     local lastNoclipRefresh = 0
     addConnection(RunService.Stepped:Connect(function()
-        if not Engine.State.NoclipActive then return end
-        local now = os.clock()
-        local firstPart = Engine.State.NoclipParts[1]
-        if #Engine.State.NoclipParts == 0 or not (firstPart and firstPart.Parent) or (now - lastNoclipRefresh > 2.0) then
-            lastNoclipRefresh = now
-            table.clear(Engine.State.NoclipParts)
-            if Character then
-                for _, p in ipairs(Character:GetDescendants()) do
-                    if p:IsA("BasePart") and not p:FindFirstAncestorWhichIsA("Tool") then
-                        table.insert(Engine.State.NoclipParts, p)
+        if Engine.State.NoclipActive then
+            local now = os.clock()
+            local firstPart = Engine.State.NoclipParts[1]
+            if #Engine.State.NoclipParts == 0 or not (firstPart and firstPart.Parent) or (now - lastNoclipRefresh > 2.0) then
+                lastNoclipRefresh = now
+                table.clear(Engine.State.NoclipParts)
+                if Character then
+                    for _, p in ipairs(Character:GetDescendants()) do
+                        if p:IsA("BasePart") and not p:FindFirstAncestorWhichIsA("Tool") then
+                            table.insert(Engine.State.NoclipParts, p)
+                        end
                     end
                 end
             end
+            for i = 1, #Engine.State.NoclipParts do
+                local p = Engine.State.NoclipParts[i]
+                if p and p.Parent and p.CanCollide then
+                    p.CanCollide = false
+                end
+            end
         end
-        for i = 1, #Engine.State.NoclipParts do
-            local p = Engine.State.NoclipParts[i]
-            if p and p.Parent and p.CanCollide then
-                p.CanCollide = false
+
+        -- Auto-Walk Pre-Physics: Ensure Humanoid.MoveDirection & velocity are set right before physics simulation
+        -- so PlayerModule's RenderStepped zero-move cannot brake or slow down auto-walk
+        if Engine.State.ActiveWalkTarget and hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0 and not Engine.State.IsRecovering then
+            local curPos = hrp.Position
+            local diff = Vector3.new(Engine.State.ActiveWalkTarget.X - curPos.X, 0, Engine.State.ActiveWalkTarget.Z - curPos.Z)
+            if diff.Magnitude > 0.1 then
+                local targetDir = diff.Unit
+                local inputVec = Helpers.getPlayerInputVector and Helpers.getPlayerInputVector() or Vector3.zero
+                local moveDir = targetDir
+                if inputVec.Magnitude > 0.05 then
+                    local cam = Workspace.CurrentCamera
+                    local camLook = cam and cam.CFrame.LookVector or Vector3.new(0, 0, -1)
+                    local camRight = cam and cam.CFrame.RightVector or Vector3.new(1, 0, 0)
+                    local camFwdFlat = Vector3.new(camLook.X, 0, camLook.Z).Unit
+                    local camRtFlat = Vector3.new(camRight.X, 0, camRight.Z).Unit
+                    local worldManualDir = (camRtFlat * inputVec.X - camFwdFlat * inputVec.Z)
+                    if worldManualDir.Magnitude > 0.05 then
+                        moveDir = (targetDir + worldManualDir.Unit * 1.0).Unit
+                    end
+                end
+                hum:Move(moveDir, false)
+                if Engine.State.VelocityEnabled then
+                    local targetSpeed = Engine.State.IsCarry and Engine.State.BaseCarrySpeed or Engine.State.BaseGoSpeed
+                    hrp.AssemblyLinearVelocity = Vector3.new(
+                        moveDir.X * targetSpeed,
+                        hrp.AssemblyLinearVelocity.Y,
+                        moveDir.Z * targetSpeed
+                    )
+                    if hum.WalkSpeed ~= targetSpeed then
+                        pcall(function() hum.WalkSpeed = targetSpeed end)
+                    end
+                end
             end
         end
     end))
@@ -5130,6 +5320,9 @@ Engine.Cleanup = function()
             hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed
             hum:Move(Vector3.zero, false)
         end
+        if hrp and hrp.Parent then
+            hrp.CustomPhysicalProperties = nil
+        end
     end)
 
     table.clear(Engine.State.EggCacheByUid)
@@ -5202,6 +5395,13 @@ addConnection(UI.Elements.VelToggleBtn.MouseButton1Click:Connect(function()
     if not enabled then
         pcall(function()
             if hum and hum.Parent then hum.WalkSpeed = Config.Velocity.DefaultWalkSpeed end
+            if hrp and hrp.Parent then hrp.CustomPhysicalProperties = nil end
+        end)
+    else
+        pcall(function()
+            if hrp and hrp.Parent and Engine.Velocity.ZeroFriction then
+                hrp.CustomPhysicalProperties = Engine.Velocity.ZeroFriction
+            end
         end)
     end
     UI.updateActivityStatus()
@@ -5469,6 +5669,9 @@ local function bindLifecycle(newChar)
         task.wait(0.2)
         Engine.Recovery.bindCharacter(newChar)
         Engine.Velocity.setCarry(false)
+        if Engine.State.VelocityEnabled and r and r.Parent and Engine.Velocity.ZeroFriction then
+            pcall(function() r.CustomPhysicalProperties = Engine.Velocity.ZeroFriction end)
+        end
     end)
 end
 
