@@ -587,6 +587,7 @@ Config.Pickup = {
 -- 1.4.1 Halloween Fast Pickup Configuration
 Config.HwPickup = {
     Enabled           = false,
+    EventEnded        = true,
     SpamBurstCount    = 8,
     PickupInterval    = 0.035,
     BurstMaxDuration  = 1.5,
@@ -702,9 +703,15 @@ UI.syncPickupToggles = function()
     end
 
     if UI.Elements.HwFilterPickupBtn then
-        UI.Elements.HwFilterPickupBtn.Text = hwEn and "⚡ Fast Pick: ON" or "⚡ Fast Pick: OFF"
-        UI.Elements.HwFilterPickupBtn.BackgroundColor3 = hwEn and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
-        UI.Elements.HwFilterPickupBtn.TextColor3 = hwEn and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+        if Config.HwPickup and Config.HwPickup.EventEnded then
+            UI.Elements.HwFilterPickupBtn.Text = "⚡ Fast Pick: OFF (Ended)"
+            UI.Elements.HwFilterPickupBtn.BackgroundColor3 = Config.UI.Theme.GrayOff
+            UI.Elements.HwFilterPickupBtn.TextColor3 = Color3.fromRGB(150, 150, 160)
+        else
+            UI.Elements.HwFilterPickupBtn.Text = hwEn and "⚡ Fast Pick: ON" or "⚡ Fast Pick: OFF"
+            UI.Elements.HwFilterPickupBtn.BackgroundColor3 = hwEn and Config.UI.Theme.GreenOn or Config.UI.Theme.GrayOff
+            UI.Elements.HwFilterPickupBtn.TextColor3 = hwEn and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+        end
     end
 end
 
@@ -1044,6 +1051,7 @@ UI.build = function()
     tabBtnHalloween.TextColor3 = Color3.fromRGB(150, 170, 200)
     tabBtnHalloween.TextSize = 18
     tabBtnHalloween.Font = Enum.Font.GothamBold
+    tabBtnHalloween.Visible = not (Config.HwPickup and Config.HwPickup.EventEnded)
     tabBtnHalloween.Parent = sidebar
     Instance.new("UICorner", tabBtnHalloween).CornerRadius = UDim.new(0, 6)
     UI.Elements.TabBtnHalloween = tabBtnHalloween
@@ -3455,6 +3463,12 @@ end
 Engine.HwPickup = {}
 
 Engine.HwPickup.toggle = function(enabled)
+    if Config.HwPickup and Config.HwPickup.EventEnded then
+        if Config.HwPickup then Config.HwPickup.Enabled = false end
+        if Config.Pickup then Config.Pickup.Enabled = true end
+        if UI.syncPickupToggles then UI.syncPickupToggles() end
+        return
+    end
     if enabled == nil then
         enabled = not (Config.HwPickup and Config.HwPickup.Enabled)
     end
@@ -3486,6 +3500,9 @@ Engine.HwPickup.carryEgg = function(uid, burstCount)
 end
 
 Engine.HwPickup.startAutoPickupSpam = function()
+    if Config.HwPickup and (Config.HwPickup.EventEnded or not Config.HwPickup.Enabled) then
+        return
+    end
     Engine.State.HwPickupToken = (Engine.State.HwPickupToken or 0) + 1
     local myToken = Engine.State.HwPickupToken
 
@@ -3567,6 +3584,14 @@ Engine.HwPickup.SafeZone = Vector3.new(-5963.824, -203.718, -7274.822)
 --    - repick up
 --    - walk towards halloween safezone
 Engine.HwPickup.executeTpSequence = function(itemData, onComplete)
+    if Config.HwPickup and Config.HwPickup.EventEnded then
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Halloween Event has ended"
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(200, 100, 100)
+        end
+        if onComplete then onComplete(false) end
+        return false
+    end
     if not (itemData and itemData.Position) then
         if onComplete then onComplete(false) end
         return
@@ -3785,6 +3810,14 @@ end
 --    - walk towards dropzone
 --    - walk towards safezone
 Engine.HwPickup.executeGetSequence = function(itemData, onComplete)
+    if Config.HwPickup and Config.HwPickup.EventEnded then
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Halloween Event has ended"
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(200, 100, 100)
+        end
+        if onComplete then onComplete(false) end
+        return false
+    end
     if not (itemData and itemData.Position) then
         if onComplete then onComplete(false) end
         return
@@ -5134,6 +5167,14 @@ UI.renderFarmableEggs = function()
 end
 
 UI.renderHalloweenEggs = function()
+    if Config.HwPickup and Config.HwPickup.EventEnded then
+        if UI.Elements.HwEmptyNotice then
+            UI.Elements.HwEmptyNotice.Text = "Halloween Event has ended.\nPanel logics are disabled."
+            UI.Elements.HwEmptyNotice.Visible = true
+        end
+        return
+    end
+
     local charPos = nil
     if hrp and hrp.Parent then
         charPos = hrp.Position
