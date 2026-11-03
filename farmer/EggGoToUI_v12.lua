@@ -1974,17 +1974,33 @@ Helpers.isHoldingEgg = function()
     local cra = Workspace:FindFirstChild("ClientRenderedAssets")
     if cra and myUidStr ~= "" then
         local expName = Engine.State and Engine.State.CarryUid and (myUidStr .. "_" .. tostring(Engine.State.CarryUid))
-        if expName and cra:FindFirstChild(expName) then return true end
+        if expName and cra:FindFirstChild(expName) then
+            local rec = Engine.State and Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[Engine.State.CarryUid]
+            local isDropped = rec and (rec.State == "Dropped" or rec.State == "Field" or rec.State == "Slot")
+            if not isDropped then
+                local m = cra:FindFirstChild(expName)
+                local okP, pv = pcall(function() return m:GetPivot().Position end)
+                local pos = (okP and pv) or (m:IsA("BasePart") and m.Position)
+                if pos and hrp and hrp.Parent and (pos - hrp.Position).Magnitude <= 4.5 then
+                    return true
+                end
+            end
+        end
         local safePos = Config.Velocity.SafeZonePosition
         local inSafeZone = safePos and hrp and hrp.Parent and (hrp.Position - safePos).Magnitude <= 35
         if not inSafeZone and hrp and hrp.Parent then
             local pfx = myUidStr .. "_"
             for _, m in ipairs(cra:GetChildren()) do
                 if m.Name:sub(1, #pfx) == pfx then
-                    local okP, pv = pcall(function() return m:GetPivot().Position end)
-                    local pos = (okP and pv) or (m:IsA("BasePart") and m.Position)
-                    if pos and (pos - hrp.Position).Magnitude <= 12 then
-                        return true
+                    local eggUid = m.Name:sub(#pfx + 1)
+                    local rec = Engine.State and Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[eggUid]
+                    local isDropped = rec and (rec.State == "Dropped" or rec.State == "Field" or rec.State == "Slot")
+                    if not isDropped then
+                        local okP, pv = pcall(function() return m:GetPivot().Position end)
+                        local pos = (okP and pv) or (m:IsA("BasePart") and m.Position)
+                        if pos and (pos - hrp.Position).Magnitude <= 4.0 then
+                            return true
+                        end
                     end
                 end
             end
@@ -2001,6 +2017,12 @@ Helpers.getEggInstance = function(uid)
     local eggs = Workspace:FindFirstChild("Eggs")
     inst = eggs and eggs:FindFirstChild(uid)
     if inst then return inst end
+    local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+    if cra then
+        local myPat = myUidStr ~= "" and (myUidStr .. "_" .. uid) or nil
+        inst = (myPat and cra:FindFirstChild(myPat)) or cra:FindFirstChild(uid)
+        if inst then return inst end
+    end
     return nil
 end
 
@@ -2686,8 +2708,12 @@ Engine.Recovery.execute = function(reason)
                 Engine.Velocity.setCarryingState(false, nil)
             end
             Engine.Velocity.setCarry(false)
-            if Engine.Travel and Engine.Travel.stopWalking then
-                Engine.Travel.stopWalking()
+            Engine.State.CarryUid = nil
+            if Engine.State.ReturnTripInProgress then
+                Engine.State.ReturnTripInProgress = false
+                if Engine.Travel and Engine.Travel.stopWalking then
+                    Engine.Travel.stopWalking()
+                end
             end
         end
 
@@ -3021,21 +3047,68 @@ Engine.Plot.getPlot = function()
         return Engine.Plot.CachedPlot, Engine.Plot.CachedPlotIndex
     end
 
-    local plotsFolder = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("Bases")
+    local plotsFolder = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("Bases") or (Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Plots"))
     if not plotsFolder then return nil, nil end
 
-    local myName = LocalPlayer and LocalPlayer.Name or ""
+    local myIdStr = tostring(LocalPlayer and LocalPlayer.UserId or "")
+    local myName = LocalPlayer and LocalPlayer.Name and LocalPlayer.Name:lower() or ""
+    local myDisp = LocalPlayer and LocalPlayer.DisplayName and LocalPlayer.DisplayName:lower() or ""
 
+    -- Pass 1: Authoritative Owner attribute check (Owner, OwnerId, UserId, Player, ClaimedBy)
     for _, plot in ipairs(plotsFolder:GetChildren()) do
-        local sign = plot:FindFirstChild("PlotSign")
-        local pName = sign and sign:FindFirstChild("PlayerPlotSign")
-        local frame = pName and pName:FindFirstChild("Frame")
-        local label = frame and frame:FindFirstChild("PlayerName")
-        if label and label:IsA("TextLabel") and label.Text == myName then
-            local idx = tonumber(plot.Name) or tonumber(string.match(plot.Name, "%d+"))
-            Engine.Plot.CachedPlot = plot
-            Engine.Plot.CachedPlotIndex = idx
-            return plot, idx
+        local pAttrs = plot:GetAttributes()
+        local ownerAttr = pAttrs.Owner or pAttrs.OwnerId or pAttrs.Player or pAttrs.UserId or pAttrs.ClaimedBy
+        if ownerAttr then
+            local strOwner = tostring(ownerAttr):lower()
+            if (myIdStr ~= "" and strOwner == myIdStr) or (myName ~= "" and strOwner == myName) or (myDisp ~= "" and strOwner == myDisp) then
+                local idx = tonumber(plot.Name) or tonumber(string.match(plot.Name, "%d+"))
+                Engine.Plot.CachedPlot = plot
+                Engine.Plot.CachedPlotIndex = idx
+                return plot, idx
+            end
+        end
+    end
+
+    -- Pass 2: Search for any TextLabel or Sign inside plot matching Username or DisplayName
+    for _, plot in ipairs(plotsFolder:GetChildren()) do
+        for _, desc in ipairs(plot:GetDescendants()) do
+            if desc:IsA("TextLabel") and desc.Text ~= "" then
+                local txt = desc.Text:lower()
+                if (myName ~= "" and string.find(txt, myName, 1, true)) or (myDisp ~= "" and string.find(txt, myDisp, 1, true)) or (myIdStr ~= "" and string.find(txt, myIdStr, 1, true)) then
+                    local idx = tonumber(plot.Name) or tonumber(string.match(plot.Name, "%d+"))
+                    Engine.Plot.CachedPlot = plot
+                    Engine.Plot.CachedPlotIndex = idx
+                    return plot, idx
+                end
+            end
+        end
+    end
+
+    -- Pass 3: Proximity to SafeZone (each player's plot/base is located closest to their SafeZone)
+    local safePos = Config.Velocity.SafeZonePosition
+    if safePos then
+        local bestPlot, bestDist, bestIdx = nil, math.huge, nil
+        for _, plot in ipairs(plotsFolder:GetChildren()) do
+            local pPos = nil
+            if plot:IsA("Model") then
+                local ok, piv = pcall(function() return plot:GetPivot().Position end)
+                pPos = ok and piv or (plot.PrimaryPart and plot.PrimaryPart.Position)
+            elseif plot:IsA("BasePart") then
+                pPos = plot.Position
+            end
+            if pPos then
+                local d = (Vector3.new(pPos.X, 0, pPos.Z) - Vector3.new(safePos.X, 0, safePos.Z)).Magnitude
+                if d < bestDist then
+                    bestDist = d
+                    bestPlot = plot
+                    bestIdx = tonumber(plot.Name) or tonumber(string.match(plot.Name, "%d+"))
+                end
+            end
+        end
+        if bestPlot then
+            Engine.Plot.CachedPlot = bestPlot
+            Engine.Plot.CachedPlotIndex = bestIdx
+            return bestPlot, bestIdx
         end
     end
 
@@ -3048,7 +3121,11 @@ Engine.Treadmill = {
     CachedPosition = nil,
 }
 
-Engine.Treadmill.findTreadmill = function()
+Engine.Treadmill.findTreadmill = function(forceRefresh)
+    if forceRefresh then
+        Engine.Treadmill.CachedPosition = nil
+        Engine.Treadmill.CachedModel = nil
+    end
     if Engine.Treadmill.CachedPosition and Engine.Treadmill.CachedModel and Engine.Treadmill.CachedModel.Parent then
         return Engine.Treadmill.CachedModel, Engine.Treadmill.CachedPosition
     end
@@ -3056,29 +3133,79 @@ Engine.Treadmill.findTreadmill = function()
     local plot, plotIdx = Engine.Plot.getPlot()
     local clientRenders = Workspace:FindFirstChild("__ClientTreadmillRenders")
 
+    local candidate = nil
+
     -- 1. Targeted TreadmillRender_<plotIdx> in __ClientTreadmillRenders
     if plotIdx and clientRenders then
-        local target = clientRenders:FindFirstChild("TreadmillRender_" .. tostring(plotIdx))
-        if target then
-            local ok, piv = pcall(function() return target:GetPivot().Position end)
-            if ok and piv then
-                Engine.Treadmill.CachedModel = target
-                Engine.Treadmill.CachedPosition = piv
-                return target, piv
+        candidate = clientRenders:FindFirstChild("TreadmillRender_" .. tostring(plotIdx))
+    end
+
+    -- 2. If not found by index, find closest treadmill in __ClientTreadmillRenders to plot or SafeZone
+    if not candidate and clientRenders then
+        local refPos = (plot and (plot:IsA("Model") and plot:GetPivot().Position or (plot:IsA("BasePart") and plot.Position))) or Config.Velocity.SafeZonePosition
+        local bestDist = math.huge
+        for _, tm in ipairs(clientRenders:GetChildren()) do
+            local ok, piv = pcall(function() return tm:GetPivot().Position end)
+            local p = ok and piv or (tm:IsA("BasePart") and tm.Position)
+            if p then
+                local d = refPos and (p - refPos).Magnitude or 0
+                if d < bestDist then
+                    bestDist = d
+                    candidate = tm
+                end
             end
         end
     end
 
-    -- 2. Direct match inside own Plot model
-    if plot then
-        local tu = plot:FindFirstChild("TreadmillUpgrade")
-        if tu then
-            local ok, piv = pcall(function() return tu:GetPivot().Position end)
-            if ok and piv then
-                Engine.Treadmill.CachedModel = tu
-                Engine.Treadmill.CachedPosition = piv
-                return tu, piv
+    -- 3. Match inside own Plot model
+    if not candidate and plot then
+        for _, desc in ipairs(plot:GetDescendants()) do
+            if desc:IsA("Model") or desc:IsA("BasePart") then
+                local nm = desc.Name:lower()
+                if nm:find("treadmill") then
+                    candidate = desc
+                    break
+                end
             end
+        end
+    end
+
+    -- 4. Global Workspace Treadmill fallback
+    if not candidate then
+        local wsTm = Workspace:FindFirstChild("Treadmill") or Workspace:FindFirstChild("Treadmills")
+        if wsTm then
+            candidate = wsTm:IsA("Model") and wsTm or wsTm:FindFirstChildWhichIsA("Model", true)
+        end
+    end
+
+    if candidate then
+        -- Find actual running belt/pad surface
+        local belt = nil
+        for _, p in ipairs(candidate:GetDescendants()) do
+            if p:IsA("BasePart") then
+                local ln = p.Name:lower()
+                if ln:find("belt") or ln:find("cube.015") or ln:find("running") or ln:find("surface") or ln:find("pad") then
+                    belt = p
+                    break
+                end
+            end
+        end
+        if not belt then
+            belt = candidate:IsA("BasePart") and candidate or candidate:FindFirstChildWhichIsA("BasePart", true)
+        end
+
+        local pos = nil
+        if belt then
+            pos = belt.Position
+        else
+            local ok, piv = pcall(function() return candidate:GetPivot().Position end)
+            if ok and piv then pos = piv end
+        end
+
+        if pos then
+            Engine.Treadmill.CachedModel = candidate
+            Engine.Treadmill.CachedPosition = pos
+            return candidate, pos
         end
     end
 
@@ -3101,13 +3228,19 @@ Engine.Treadmill.isOnTreadmill = function()
 end
 
 Engine.Treadmill.goToTreadmill = function()
-    if Engine.Treadmill.isOnTreadmill() then return end
-
-    local tmModel, tmPos = Engine.Treadmill.findTreadmill()
+    local tmModel, tmPos = Engine.Treadmill.findTreadmill(true)
     if not tmPos then
         if UI.Elements.ActivityStatus then
             UI.Elements.ActivityStatus.Text = "Status: Treadmill not found"
             UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(255, 120, 120)
+        end
+        return
+    end
+
+    if Engine.Treadmill.isOnTreadmill() then
+        if UI.Elements.ActivityStatus then
+            UI.Elements.ActivityStatus.Text = "Status: Already on Treadmill"
+            UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(120, 240, 160)
         end
         return
     end
@@ -3133,6 +3266,8 @@ Engine.Treadmill.goToTreadmill = function()
         local rfWear = Helpers.getNetRemote("RF/Treadmill/AskWearStill")
         if rfWear then
             pcall(function() rfWear:InvokeServer() end)
+            local _, plotIdx = Engine.Plot.getPlot()
+            if plotIdx then pcall(function() rfWear:InvokeServer(plotIdx) end) end
             if tmModel then pcall(function() rfWear:InvokeServer(tmModel) end) end
         end
 
@@ -3140,7 +3275,7 @@ Engine.Treadmill.goToTreadmill = function()
             UI.Elements.ActivityStatus.Text = "Status: On Treadmill"
             UI.Elements.ActivityStatus.TextColor3 = Color3.fromRGB(120, 240, 160)
         end
-    end, "TREADMILL", 60.0, false)
+    end, "TREADMILL", nil, false)
 end
 
 Engine.Treadmill.dismount = function()
@@ -3268,18 +3403,6 @@ Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
     task.spawn(function()
         local eggInst = Helpers.getEggInstance and Helpers.getEggInstance(uid)
         for _ = 1, burstCount do
-            if Engine.State.IsCarry or (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then
-                Engine.Velocity.setCarry(true)
-                Engine.State.CarryUid = uid
-                if onCarried then task.spawn(onCarried) end
-                if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
-                    if Engine.Travel and Engine.Travel.startReturnTrip then
-                        Engine.Travel.startReturnTrip()
-                    end
-                end
-                return
-            end
-
             -- Ensure we trigger prompt on targeted egg instance if available
             if not eggInst then
                 eggInst = Helpers.getEggInstance and Helpers.getEggInstance(uid)
@@ -3292,7 +3415,8 @@ Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
             end
 
             local ok, res = pcall(function() return rf:InvokeServer(payload) end)
-            if ok and res == true then
+            local confirmedHolding = (Helpers.isHoldingEgg and Helpers.isHoldingEgg())
+            if (ok and res == true) or (Engine.State.CarryUid == uid and Engine.State.IsCarry) or confirmedHolding then
                 Engine.Velocity.setCarry(true)
                 Engine.State.CarryUid = uid
                 if onCarried then task.spawn(onCarried) end
@@ -3311,15 +3435,6 @@ end
 
 Engine.Pickup.startAutoPickupSpam = function(targetUid)
     targetUid = targetUid or (Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid)
-
-    if Engine.State.IsCarry or (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then
-        if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
-            if Engine.Travel and Engine.Travel.startReturnTrip then
-                Engine.Travel.startReturnTrip()
-            end
-        end
-        return
-    end
 
     if targetUid and targetUid ~= "" then
         -- Targeted Pickup: When a specific egg was selected (TP or WALK), ONLY carry that egg!
@@ -3360,6 +3475,15 @@ Engine.Pickup.startAutoPickupSpam = function(targetUid)
                 end
             end
         end)
+        return
+    end
+
+    if Engine.State.IsCarry or (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then
+        if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
+            if Engine.Travel and Engine.Travel.startReturnTrip then
+                Engine.Travel.startReturnTrip()
+            end
+        end
         return
     end
 
@@ -3963,7 +4087,7 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
             -- Auto-discover egg model if not explicitly passed to calculate exact bounds on big eggs
             local eggModel = eggModelOrSize
             if not eggModel and workspace.GetPartBoundsInRadius then
-                local nearby = workspace:GetPartBoundsInRadius(targetPos, 8)
+                local nearby = workspace:GetPartBoundsInRadius(targetPos, 20)
                 for _, p in ipairs(nearby) do
                     local m = p:FindFirstAncestorWhichIsA("Model")
                     if m and m ~= Character and not m:IsDescendantOf(Character) and m ~= Workspace.Terrain then
@@ -3977,69 +4101,80 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
             end
 
             -- Determine geometry to stay outside the egg shell and land firmly on the floor
-            local eggRadius = 2.6
-            local eggHeight = 4.5
+            local eggRadius = 2.8
+            local eggHeight = 5.0
             if typeof(eggModel) == "Instance" then
                 local hb = eggModel:FindFirstChild("Hitbox") or (eggModel:IsA("Model") and eggModel.PrimaryPart) or (eggModel:IsA("BasePart") and eggModel)
                 if hb and hb:IsA("BasePart") then
-                    eggRadius = math.clamp(math.max(hb.Size.X, hb.Size.Z) * 0.5 + 1.2, 2.2, 3.8)
+                    eggRadius = math.max(hb.Size.X, hb.Size.Z) * 0.5 + 2.2
                     eggHeight = hb.Size.Y
                 elseif eggModel:IsA("Model") then
                     local okExt, ext = pcall(eggModel.GetExtentsSize, eggModel)
                     if okExt and ext then
-                        eggRadius = math.clamp(math.max(ext.X, ext.Z) * 0.5 + 1.2, 2.2, 3.8)
+                        eggRadius = math.max(ext.X, ext.Z) * 0.5 + 2.2
                         eggHeight = ext.Y
                     end
                 end
             elseif typeof(eggModel) == "number" then
-                eggRadius = math.clamp(eggModel + 1.2, 2.2, 3.8)
+                eggRadius = eggModel + 2.2
             elseif typeof(eggModel) == "Vector3" then
-                eggRadius = math.clamp(math.max(eggModel.X, eggModel.Z) * 0.5 + 1.2, 2.2, 3.8)
+                eggRadius = math.max(eggModel.X, eggModel.Z) * 0.5 + 2.2
                 eggHeight = eggModel.Y
             end
+            eggRadius = math.clamp(eggRadius, 2.5, 4.0)
+            eggHeight = math.clamp(eggHeight, 4.0, 7.0)
 
             local besideX = targetPos.X + dir.X * eggRadius
             local besideZ = targetPos.Z + dir.Z * eggRadius
             local eggBottomY = targetPos.Y - (eggHeight * 0.5) + 2.8
 
-            -- Ground raycast to find true floor level beside egg (eliminating excess freefall)
+            -- Ground raycast from above egg to find true floor level beside egg (eliminating excess freefall)
             local groundY = eggBottomY
+            local rayStartY = targetPos.Y + (eggHeight * 0.5) + 12
             local rayOk, rayRes = pcall(function()
                 local rParams = RaycastParams.new()
                 rParams.FilterType = RaycastFilterType.Exclude
                 local ign = { Character }
                 if typeof(eggModel) == "Instance" then table.insert(ign, eggModel) end
+                local eggs = Workspace:FindFirstChild("Eggs")
+                if eggs then table.insert(ign, eggs) end
+                local slots = Workspace:FindFirstChild("AreaEggSlotsClient")
+                if slots then table.insert(ign, slots) end
                 local cra = Workspace:FindFirstChild("ClientRenderedAssets")
                 if cra then table.insert(ign, cra) end
                 rParams.FilterDescendantsInstances = ign
                 rParams.IgnoreWater = true
-                return Workspace:Raycast(Vector3.new(besideX, targetPos.Y + 8, besideZ), Vector3.new(0, -80, 0), rParams)
+                return Workspace:Raycast(Vector3.new(besideX, rayStartY, besideZ), Vector3.new(0, -150, 0), rParams)
             end)
 
             if rayOk and rayRes and rayRes.Position then
                 groundY = rayRes.Position.Y + 2.8
             else
                 local curY = hrp.Position.Y
-                if math.abs(curY - eggBottomY) <= 4.0 then
+                if math.abs(curY - eggBottomY) <= 6.0 then
                     groundY = curY
                 end
-            end
-
-            -- Safety clamp: Ground level must never place player high above egg center
-            if groundY > targetPos.Y + 1.5 then
-                groundY = eggBottomY
             end
 
             finalPos = Vector3.new(besideX, groundY, besideZ)
             rot = CFrame.lookAt(finalPos, Vector3.new(targetPos.X, groundY, targetPos.Z)) - finalPos
         else
-            local targetY = targetPos.Y
-            if math.abs(hrp.Position.Y - targetPos.Y) <= 4 then
-                targetY = hrp.Position.Y
+            local groundY = targetPos.Y
+            local rayOk, rayRes = pcall(function()
+                local rParams = RaycastParams.new()
+                rParams.FilterType = RaycastFilterType.Exclude
+                rParams.FilterDescendantsInstances = { Character }
+                rParams.IgnoreWater = true
+                return Workspace:Raycast(Vector3.new(targetPos.X, targetPos.Y + 12, targetPos.Z), Vector3.new(0, -60, 0), rParams)
+            end)
+            if rayOk and rayRes and rayRes.Position then
+                groundY = rayRes.Position.Y + 2.8
+            elseif math.abs(hrp.Position.Y - targetPos.Y) <= 4 then
+                groundY = hrp.Position.Y
             else
-                targetY = targetPos.Y + 2.5
+                groundY = targetPos.Y + 2.5
             end
-            finalPos = Vector3.new(targetPos.X, targetY, targetPos.Z)
+            finalPos = Vector3.new(targetPos.X, groundY, targetPos.Z)
         end
 
         hrp.CFrame = CFrame.new(finalPos) * rot
@@ -4059,7 +4194,31 @@ end
 Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, snapDist, snapBeside)
     if not targetPos then return end
     arriveDist = arriveDist or 4.0
-    snapDist = snapDist or Config.Velocity.TargetSnapDist or 60.0
+    local isSafeZone = (uid == "SAFE_ZONE")
+
+    -- Egg proximity threshold: strictly bounded so character reaches pickup interaction range
+    local eggInst = uid and uid ~= "SAFE_ZONE" and Helpers.getEggInstance and Helpers.getEggInstance(uid)
+    local eggPaddingRadius = 2.6
+    if eggInst then
+        local hb = eggInst:FindFirstChild("Hitbox")
+            or (eggInst:IsA("Model") and eggInst.PrimaryPart)
+            or (eggInst:IsA("BasePart") and eggInst)
+        if hb and hb:IsA("BasePart") then
+            eggPaddingRadius = math.clamp(math.max(hb.Size.X, hb.Size.Z) * 0.5 + 1.2, 2.6, 4.0)
+        elseif eggInst:IsA("Model") then
+            local okExt, ext = pcall(eggInst.GetExtentsSize, eggInst)
+            if okExt and ext then
+                eggPaddingRadius = math.clamp(math.max(ext.X, ext.Z) * 0.5 + 1.2, 2.6, 4.0)
+            end
+        end
+    end
+    if eggPaddingRadius > arriveDist then
+        arriveDist = eggPaddingRadius
+    end
+    if not isSafeZone then
+        arriveDist = math.clamp(arriveDist, 3.5, 4.0)
+    end
+    snapDist = snapDist or (isSafeZone and (Config.Velocity.TargetSnapDist or 60.0)) or arriveDist
 
     Engine.State.ActiveWalkToken = Engine.State.ActiveWalkToken + 1
     local myToken = Engine.State.ActiveWalkToken
@@ -4070,11 +4229,29 @@ Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, sna
             if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then break end
             if hrp.Position.Y < -400 then break end
 
+            -- Dynamic egg position tracking: if target egg moved or rolled, track live position
+            if uid and uid ~= "SAFE_ZONE" then
+                local eggInst = Helpers.getEggInstance and Helpers.getEggInstance(uid)
+                if eggInst then
+                    local p = (eggInst:IsA("BasePart") and eggInst.Position) or (eggInst:IsA("Model") and (eggInst.PrimaryPart and eggInst.PrimaryPart.Position or eggInst:GetPivot().Position))
+                    if p and p.Magnitude > 10 then
+                        targetPos = p
+                        Engine.State.ActiveWalkTarget = targetPos
+                    end
+                elseif Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[uid] then
+                    local p = Engine.Travel.getEggPosition(Engine.State.EggCacheByUid[uid], uid)
+                    if p and p.Magnitude > 10 then
+                        targetPos = p
+                        Engine.State.ActiveWalkTarget = targetPos
+                    end
+                end
+            end
+
             local currentPos = hrp.Position
             local flatDelta = Vector3.new(targetPos.X - currentPos.X, 0, targetPos.Z - currentPos.Z)
             local dist = flatDelta.Magnitude
 
-            -- 60 studs teleport snap towards egg/location to stop and not overpass the target
+            -- Arrival snap towards target when within effective snap distance
             if dist <= snapDist or dist <= arriveDist then
                 local eggInst = uid and Helpers.getEggInstance and Helpers.getEggInstance(uid)
                 Engine.Travel.teleportTo(targetPos, snapBeside, eggInst)
@@ -4103,6 +4280,8 @@ end
 Engine.Travel.teleportToEgg = function(itemData)
     if not itemData or not itemData.Position then return false end
     Engine.Travel.stopWalking()
+    Engine.Velocity.setCarry(false)
+    Engine.State.CarryUid = nil
     pcall(function()
         if hum and hum.Parent then
             hum:UnequipTools()
@@ -4129,11 +4308,14 @@ Engine.Travel.walkToEgg = function(itemData)
     if not itemData then return end
     local eggInst = Helpers.getEggInstance and Helpers.getEggInstance(itemData.Uid)
     local targetPos = (eggInst and ((eggInst:IsA("BasePart") and eggInst.Position) or (eggInst:IsA("Model") and (eggInst.PrimaryPart and eggInst.PrimaryPart.Position or eggInst:GetPivot().Position))))
+        or (Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[itemData.Uid] and Engine.Travel.getEggPosition(Engine.State.EggCacheByUid[itemData.Uid], itemData.Uid))
         or itemData.Position
         or (itemData.Record and Engine.Travel.getEggPosition(itemData.Record, itemData.Uid))
     if not targetPos then return end
 
     Engine.Travel.stopWalking()
+    Engine.Velocity.setCarry(false)
+    Engine.State.CarryUid = nil
     pcall(function()
         if hum and hum.Parent then
             hum:UnequipTools()
@@ -4157,7 +4339,7 @@ Engine.Travel.walkToEgg = function(itemData)
             end)
             Engine.Pickup.startAutoPickupSpam(itemData.Uid)
         end
-    end, itemData.Uid, 60.0, true)
+    end, itemData.Uid, nil, true)
 end
 
 Engine.Travel.startReturnTrip = function()
@@ -4219,7 +4401,7 @@ Engine.Travel.handleEggDropped = function(u, payload)
             end
         end)
         Engine.Pickup.startAutoPickupSpam(u)
-    end, u, 60.0, true)
+    end, u, nil, true)
 end
 
 Engine.Travel.handleEggDelivered = function(uid)
@@ -4307,6 +4489,29 @@ Engine.Travel.getEggPosition = function(rec, uid)
                         return p
                     end
                     local ok, piv = pcall(em.GetPivot, em)
+                    if ok and piv and piv.Position.Magnitude > 10 then
+                        if typeof(rec) == "table" then rec.BoundsCFrame = piv end
+                        return piv.Position
+                    end
+                end
+            end
+        end
+        local cra = Workspace:FindFirstChild("ClientRenderedAssets")
+        if cra then
+            local myPat = myUidStr ~= "" and (myUidStr .. "_" .. u) or nil
+            local inst = (myPat and cra:FindFirstChild(myPat)) or cra:FindFirstChild(u)
+            if inst then
+                if inst:IsA("BasePart") and inst.Position.Magnitude > 10 then
+                    if typeof(rec) == "table" then rec.BoundsCFrame = inst.CFrame end
+                    return inst.Position
+                end
+                if inst:IsA("Model") then
+                    local p = inst.PrimaryPart and inst.PrimaryPart.Position
+                    if p and p.Magnitude > 10 then
+                        if typeof(rec) == "table" then rec.BoundsCFrame = inst.PrimaryPart.CFrame end
+                        return p
+                    end
+                    local ok, piv = pcall(inst.GetPivot, inst)
                     if ok and piv and piv.Position.Magnitude > 10 then
                         if typeof(rec) == "table" then rec.BoundsCFrame = piv end
                         return piv.Position
@@ -4998,7 +5203,7 @@ Engine.Loops.start = function()
                     if hum.FloorMaterial == Enum.Material.Air and vy > -30 then
                         vy = -45
                     end
-                    if hum.MoveDirection.Magnitude <= 0.05 then
+                    if hum.MoveDirection.Magnitude <= 0.05 and not Engine.State.ActiveWalkTarget then
                         hrp.AssemblyLinearVelocity = Vector3.new(0, vy, 0)
                         hrp.AssemblyAngularVelocity = Vector3.zero
                     else
