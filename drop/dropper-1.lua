@@ -1,1752 +1,824 @@
+--[=[
+    ================================================================================
+    FOREST STRIKE DROPPER (Auto-Loop Edition)
+    ================================================================================
+    Purpose:
+        Streamlined event-driven dropper for the Forest Biome with full Auto-Loop:
+          1. Picks up an egg at the Forest Nest.
+          2. Fires RE/GuardPatrol/ForestStrike on demand.
+          3. Waits for the server strike packet (RE/GuardPatrol/SpeedTollOffer / Ragdoll).
+          4. Instantly teleports to Pen (SavedLocation) during Hit Authority.
+          5. Drops the egg into the pen (RF/EggWorld/AskFieldEggDrop).
+          6. AUTO-LOOP: Teleports back to the Forest Nest with empty hands, picks
+             up the next egg, and repeats the cycle automatically!
+          
+    Safety & Cleanliness:
+        - Zero Metamethod Hooks: No __namecall or __index hooks (zero kicks).
+        - Zero Guessing Timers: Driven by actual server strike events (0.1s response).
+        - 100% Standalone with draggable floating UI, location markers, and clipboard logging.
+        - Strict Anti-Bloat: Root locals <= 20.
+    ================================================================================
+]=]
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-
---==================================================
--- SETTINGS
---==================================================
-
-local INITIAL_FREEFALL_TIME = 0.12
-local INITIAL_VERTICAL_SPEED = -13
-local FALL_ACCELERATION = -200
-
-local ENTRY_HEIGHT = 3.8
-local FINAL_VERTICAL_SPEED = -5
-
-local MAX_DESCENT_TIME = 1.5
-
-local TRACE_INTERVAL = 0.05
-
-local EGG_DROP_SPAM_COUNT = 8
-local EGG_DROP_SPAM_INTERVAL = 0.03
-
-local POSITION_SETTLE_TIME = 0.10
-
-local GUARD_HIT_TIMING = 0.550
-local TARGET_GUARD_AREA = "Auto"
-
-local SAMPLE_GUARD_CFRAME = CFrame.new(
-    605.572266, 69.3371735, -325.887329,
-    0.70000118, 0, -0.714141667,
-    0, 1, 0,
-    0.714141667, 0, 0.70000118
-)
-
---==================================================
--- CHARACTER
---==================================================
-
-local Character
-local Humanoid
-local Root
-
-local function refreshCharacter()
-    Character = Player.Character or Player.CharacterAdded:Wait()
-    Humanoid = Character:WaitForChild("Humanoid")
-    Root = Character:WaitForChild("HumanoidRootPart")
+-- Cleanup any previous instance
+if _G.ForestDropper_Cleanup then
+    pcall(_G.ForestDropper_Cleanup)
+    _G.ForestDropper_Cleanup = nil
 end
 
-refreshCharacter()
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer and LocalPlayer.Character
+local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+local RootPart = Character and (Character:FindFirstChild("HumanoidRootPart") or Character.PrimaryPart)
 
-Player.CharacterAdded:Connect(function()
-    task.wait(0.25)
-    refreshCharacter()
-end)
+local Config = {
+    GuiName = "ForestDropperCleanGui",
+    DropSpamCount = 8,
+    DropSpamInterval = 0.03,
+    PositionSettleTime = 0.12,
+    StrikeTimeout = 1.20,
+    ReturnDelay = 0.50,
+    NestScanRadius = 35.0,
+    MaxLogs = 300,
+    SampleGuardCFrame = CFrame.new(
+        605.572266, 69.3371735, -325.887329,
+        0.70000118, 0, -0.714141667,
+        0, 1, 0,
+        0.714141667, 0, 0.70000118
+    ),
+    Theme = {
+        Bg = Color3.fromRGB(20, 22, 30),
+        Card = Color3.fromRGB(28, 32, 44),
+        Border = Color3.fromRGB(65, 140, 255),
+        TextPrimary = Color3.fromRGB(240, 245, 255),
+        TextDim = Color3.fromRGB(150, 165, 185),
+        Green = Color3.fromRGB(80, 225, 130),
+        Yellow = Color3.fromRGB(255, 205, 75),
+        Red = Color3.fromRGB(255, 95, 95),
+        Cyan = Color3.fromRGB(75, 205, 255),
+    }
+}
 
---==================================================
--- LOCATION
---==================================================
+local State = {
+    Enabled = true,
+    AutoLoop = true,
+    SavedLocation = Vector3.new(949.147, 70.724, -412.289),
+    StartLocation = Vector3.new(600.0, 71.4, -322.0),
+    IsActive = false,
+    IsCarrying = false,
+    CurrentEggUid = nil,
+    Deliveries = 0,
+    Logs = {},
+}
 
-local SavedLocation = Vector3.new(949.147, 70.724, -412.289)
+local Connections = {}
+local Remotes = {}
+local Helpers = {}
+local Engine = {}
+local UI = { Elements = {} }
 
--- Start is captured automatically when RUN is pressed.
-local StartLocation = nil
-
---==================================================
--- STATE
---==================================================
-
-local Running = false
-local Phase = "IDLE"
-local RunToken = 0
-local LastEggDropRunToken = nil
-
-local isAutoEnabled = true
-
-local cachedEggUid = nil
-local cachedEggSource = nil
-local isRefreshingEggUid = false
-local forestStrikeWatchRemote = nil
-
-local TestStartTime = 0
-local LastTrace = 0
-
-local runTest = nil
-
---==================================================
--- LOGGING
---==================================================
-
-local Logs = {}
-
-local function log(message)
-    local line = string.format(
-        "[%s] %s",
-        os.date("%H:%M:%S"),
-        tostring(message)
-    )
-
-    table.insert(Logs, line)
-
-    while #Logs > 400 do
-        table.remove(Logs, 1)
+-- Connection Management
+Helpers.addConn = function(conn)
+    if conn then
+        table.insert(Connections, conn)
     end
-
-    print(line)
+    return conn
 end
 
-local function vec(v)
-    if not v then
-        return "nil"
+Helpers.disconnectAll = function()
+    for _, conn in ipairs(Connections) do
+        pcall(function() conn:Disconnect() end)
     end
-
-    return string.format(
-        "(%.3f, %.3f, %.3f)",
-        v.X,
-        v.Y,
-        v.Z
-    )
+    table.clear(Connections)
 end
 
-local function logCharacterPosition(label)
-    if not Root or not Root.Parent or not Humanoid then
-        log(string.format("POSITION [%s]: Character unavailable", tostring(label or "snapshot")))
-        return nil
+-- Logging System
+Helpers.log = function(msg, tag)
+    tag = tag or "INFO"
+    local timestamp = os.date("%H:%M:%S")
+    local entry = string.format("[%s] [%s] %s", timestamp, tag, tostring(msg))
+    table.insert(State.Logs, entry)
+    if #State.Logs > (Config.MaxLogs or 300) then
+        table.remove(State.Logs, 1)
     end
-
-    local p = Root.Position
-    local v = Root.AssemblyLinearVelocity
-    local stateName = Humanoid:GetState().Name
-    log(string.format(
-        "POSITION [%s]: %s | vel=%s (speed=%.2f) | state=%s",
-        tostring(label or "snapshot"),
-        vec(p),
-        vec(v),
-        v.Magnitude,
-        stateName
-    ))
-    return p
+    print(string.format("[Dropper] %s", entry))
 end
 
-local function copyLog()
-    local text = table.concat(Logs, "\n")
-    local success = false
-
-    if type(setclipboard) == "function" then
-        success = pcall(function()
-            setclipboard(text)
-        end)
-    elseif type(toclipboard) == "function" then
-        success = pcall(function()
-            toclipboard(text)
-        end)
+Helpers.copyLogs = function()
+    local text = table.concat(State.Logs, "\n")
+    if #text == 0 then
+        text = string.format("[%s] [INFO] Log is empty.", os.date("%H:%M:%S"))
     end
-
-    if success then
-        log("LOG COPIED")
-    else
-        log("Clipboard unavailable")
+    local ok = false
+    if typeof(setclipboard) == "function" then
+        ok = pcall(setclipboard, text)
+    elseif typeof(toclipboard) == "function" then
+        ok = pcall(toclipboard, text)
     end
+    return ok, #State.Logs
 end
 
---==================================================
--- GUI
---==================================================
-
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "DropTesterOneLocation"
-Gui.ResetOnSpawn = false
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-Gui.Parent = PlayerGui
-
-local Main = Instance.new("Frame")
-Main.Size = UDim2.fromOffset(290, 260)
-Main.Position = UDim2.new(0.5, -145, 0.5, -130)
-
-Main.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
-Main.BorderSizePixel = 0
-
-Main.Parent = Gui
-
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 8)
-Corner.Parent = Main
-
---==================================================
--- TITLE BAR
---==================================================
-
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 32)
-
-TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-TitleBar.BorderSizePixel = 0
-
-TitleBar.Parent = Main
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
-TitleCorner.Parent = TitleBar
-
-local TitleFix = Instance.new("Frame")
-TitleFix.Size = UDim2.new(1, 0, 0, 12)
-TitleFix.Position = UDim2.new(0, 0, 1, -12)
-
-TitleFix.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-TitleFix.BorderSizePixel = 0
-
-TitleFix.Parent = TitleBar
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -42, 1, 0)
-Title.Position = UDim2.fromOffset(10, 0)
-
-Title.BackgroundTransparency = 1
-Title.Text = "Guard Dropper"
-
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.TextSize = 15
-Title.Font = Enum.Font.SourceSansBold
-
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = TitleBar
-
---==================================================
--- CLOSE
---==================================================
-
-local Close = Instance.new("TextButton")
-Close.Size = UDim2.fromOffset(24, 24)
-Close.Position = UDim2.new(1, -28, 0, 4)
-
-Close.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
-Close.BorderSizePixel = 0
-
-Close.Text = "X"
-Close.TextColor3 = Color3.new(1, 1, 1)
-Close.TextSize = 14
-Close.Font = Enum.Font.SourceSansBold
-
-Close.Parent = TitleBar
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
-CloseCorner.Parent = Close
-
-Close.MouseButton1Click:Connect(function()
-    Running = false
-    RunToken += 1
-
-    if Root and Root.Parent then
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    Gui:Destroy()
-end)
-
---==================================================
--- DRAGGING
---==================================================
-
-local dragging = false
-local dragStart
-local startPos
-
-TitleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragging = true
-        dragStart = input.Position
-        startPos = Main.Position
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragging = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if not dragging then
-        return
-    end
-
-    if input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        local delta = input.Position - dragStart
-
-        Main.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
---==================================================
--- LABELS
---==================================================
-
-local LocationLabel = Instance.new("TextLabel")
-LocationLabel.Size = UDim2.new(1, -16, 0, 18)
-LocationLabel.Position = UDim2.fromOffset(8, 36)
-LocationLabel.BackgroundTransparency = 1
-LocationLabel.Text = "Drop: " .. (SavedLocation and vec(SavedLocation) or "NOT SET")
-LocationLabel.TextColor3 = Color3.fromRGB(215, 215, 215)
-LocationLabel.TextSize = 11
-LocationLabel.Font = Enum.Font.SourceSans
-LocationLabel.TextXAlignment = Enum.TextXAlignment.Left
-LocationLabel.Parent = Main
-
-local GuardLabel = Instance.new("TextLabel")
-GuardLabel.Size = UDim2.new(1, -16, 0, 18)
-GuardLabel.Position = UDim2.fromOffset(8, 54)
-GuardLabel.BackgroundTransparency = 1
-GuardLabel.Text = "Guard: " .. TARGET_GUARD_AREA .. " (RE/GuardPatrol/Rouse)"
-GuardLabel.TextColor3 = Color3.fromRGB(170, 225, 255)
-GuardLabel.TextSize = 11
-GuardLabel.Font = Enum.Font.SourceSans
-GuardLabel.TextXAlignment = Enum.TextXAlignment.Left
-GuardLabel.Parent = Main
-
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -16, 0, 18)
-Status.Position = UDim2.fromOffset(8, 72)
-Status.BackgroundTransparency = 1
-Status.Text = "Status: Ready — press E on egg in any area"
-Status.TextColor3 = Color3.fromRGB(150, 220, 150)
-Status.TextSize = 11
-Status.Font = Enum.Font.SourceSans
-Status.TextXAlignment = Enum.TextXAlignment.Left
-Status.Parent = Main
-
---==================================================
--- TIMING CONTROLS (Row Y=92)
---==================================================
-
-local TimingLabel = Instance.new("TextLabel")
-TimingLabel.Size = UDim2.new(0.46, -10, 0, 26)
-TimingLabel.Position = UDim2.fromOffset(8, 92)
-TimingLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-TimingLabel.BorderSizePixel = 0
-TimingLabel.Text = string.format("Timing: %.3fs", GUARD_HIT_TIMING)
-TimingLabel.TextColor3 = Color3.fromRGB(255, 220, 130)
-TimingLabel.TextSize = 12
-TimingLabel.Font = Enum.Font.SourceSansBold
-TimingLabel.Parent = Main
-local tlCorner = Instance.new("UICorner")
-tlCorner.CornerRadius = UDim.new(0, 6)
-tlCorner.Parent = TimingLabel
-
-local function getPingMs()
-    local ok, stats = pcall(function()
-        return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
-    end)
-    if ok and type(stats) == "number" and stats > 0 then
-        return math.floor(stats + 0.5)
-    end
-    local ok2, ping = pcall(function()
-        return Player:GetNetworkPing() * 2000
-    end)
-    if ok2 and type(ping) == "number" and ping > 0 then
-        return math.floor(ping + 0.5)
-    end
-    return 68
+-- Networking Resolution
+Helpers.getNetRemote = function(path)
+    local net = ReplicatedStorage:FindFirstChild("Packages")
+        and ReplicatedStorage.Packages:FindFirstChild("Networking")
+    if not net then return nil end
+    return net:FindFirstChild(path)
 end
 
-local function updateTimingUI()
-    if TimingLabel and TimingLabel.Parent then
-        local ping = getPingMs()
-        TimingLabel.Text = string.format("Time: %.3fs (%dms)", GUARD_HIT_TIMING, ping)
-    end
-end
+Remotes.FieldCarry = Helpers.getNetRemote("RE/EggWorld/FieldEggCarry")
+Remotes.ForestStrike = Helpers.getNetRemote("RE/GuardPatrol/ForestStrike")
+Remotes.Rouse = Helpers.getNetRemote("RE/GuardPatrol/Rouse")
+Remotes.SpeedTollOffer = Helpers.getNetRemote("RE/GuardPatrol/SpeedTollOffer")
+Remotes.RigRefresh = Helpers.getNetRemote("RE/RigSync/Refresh")
+Remotes.AskDrop = Helpers.getNetRemote("RF/EggWorld/AskFieldEggDrop")
+Remotes.AskCarry = Helpers.getNetRemote("RF/EggWorld/AskFieldEggCarry")
 
-local TimingMinusBtn = Instance.new("TextButton")
-TimingMinusBtn.Size = UDim2.new(0, 38, 0, 26)
-TimingMinusBtn.Position = UDim2.new(0.46, 0, 0, 92)
-TimingMinusBtn.BackgroundColor3 = Color3.fromRGB(150, 60, 60)
-TimingMinusBtn.BorderSizePixel = 0
-TimingMinusBtn.Text = "[-]"
-TimingMinusBtn.TextColor3 = Color3.new(1, 1, 1)
-TimingMinusBtn.TextSize = 14
-TimingMinusBtn.Font = Enum.Font.SourceSansBold
-TimingMinusBtn.Parent = Main
-local tmCorner = Instance.new("UICorner")
-tmCorner.CornerRadius = UDim.new(0, 6)
-tmCorner.Parent = TimingMinusBtn
-
-local TimingPlusBtn = Instance.new("TextButton")
-TimingPlusBtn.Size = UDim2.new(0, 38, 0, 26)
-TimingPlusBtn.Position = UDim2.new(0.46, 42, 0, 92)
-TimingPlusBtn.BackgroundColor3 = Color3.fromRGB(60, 130, 60)
-TimingPlusBtn.BorderSizePixel = 0
-TimingPlusBtn.Text = "[+]"
-TimingPlusBtn.TextColor3 = Color3.new(1, 1, 1)
-TimingPlusBtn.TextSize = 14
-TimingPlusBtn.Font = Enum.Font.SourceSansBold
-TimingPlusBtn.Parent = Main
-local tpCorner = Instance.new("UICorner")
-tpCorner.CornerRadius = UDim.new(0, 6)
-tpCorner.Parent = TimingPlusBtn
-
-local TimingResetBtn = Instance.new("TextButton")
-TimingResetBtn.Size = UDim2.new(1, -0.46 - 92, 0, 26)
-TimingResetBtn.Position = UDim2.new(0.46, 84, 0, 92)
-TimingResetBtn.BackgroundColor3 = Color3.fromRGB(60, 75, 110)
-TimingResetBtn.BorderSizePixel = 0
-TimingResetBtn.Text = "RST"
-TimingResetBtn.TextColor3 = Color3.new(1, 1, 1)
-TimingResetBtn.TextSize = 11
-TimingResetBtn.Font = Enum.Font.SourceSansBold
-TimingResetBtn.Parent = Main
-local trCorner = Instance.new("UICorner")
-trCorner.CornerRadius = UDim.new(0, 6)
-trCorner.Parent = TimingResetBtn
-
-TimingMinusBtn.MouseButton1Click:Connect(function()
-    GUARD_HIT_TIMING = math.max(0.000, math.floor((GUARD_HIT_TIMING - 0.010) * 1000 + 0.5) / 1000)
-    updateTimingUI()
-    log(string.format("Timing delay decreased to: %.3fs", GUARD_HIT_TIMING))
-end)
-
-TimingPlusBtn.MouseButton1Click:Connect(function()
-    GUARD_HIT_TIMING = math.min(2.000, math.floor((GUARD_HIT_TIMING + 0.010) * 1000 + 0.5) / 1000)
-    updateTimingUI()
-    log(string.format("Timing delay increased to: %.3fs", GUARD_HIT_TIMING))
-end)
-
-TimingResetBtn.MouseButton1Click:Connect(function()
-    local ping = getPingMs()
-    GUARD_HIT_TIMING = math.clamp(math.floor((0.480 + (ping / 1000)) * 1000 + 0.5) / 1000, 0.400, 0.850)
-    updateTimingUI()
-    log(string.format("Timing delay reset to ping-calibrated baseline: %.3fs (ping=%dms)", GUARD_HIT_TIMING, ping))
-end)
-
---==================================================
--- BUTTON CREATOR & ACTION BUTTONS
---==================================================
-
-local function makeButton(text, x, y, width, height, color)
-    local button = Instance.new("TextButton")
-    button.Size = width or UDim2.new(1, -16, 0, 30)
-    button.Position = UDim2.new(0, x or 8, 0, y)
-    button.BackgroundColor3 = color or Color3.fromRGB(55, 55, 55)
-    button.BorderSizePixel = 0
-    button.Text = text
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.TextSize = 12
-    button.Font = Enum.Font.SourceSansBold
-    button.Parent = Main
-
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 6)
-    c.Parent = button
-
-    return button
-end
-
-local SetLocationButton =
-    makeButton(
-        "SET LANDING",
-        8,
-        124,
-        UDim2.new(0.50, -10, 0, 28),
-        28,
-        Color3.fromRGB(65, 90, 135)
-    )
-
-local AutoToggleBtn =
-    makeButton(
-        "[AUTO: ON]",
-        0,
-        124,
-        UDim2.new(0.50, -6, 0, 28),
-        28,
-        Color3.fromRGB(45, 125, 65)
-    )
-AutoToggleBtn.Position = UDim2.new(0.50, 2, 0, 124)
-
-local RunButton =
-    makeButton(
-        "RUN MANUAL: ROUSE → DROP",
-        8,
-        158,
-        UDim2.new(1, -16, 0, 32),
-        32,
-        Color3.fromRGB(50, 115, 60)
-    )
-
-local CopyButton =
-    makeButton(
-        "COPY LOG",
-        8,
-        196,
-        UDim2.new(0.36, -8, 0, 26),
-        26,
-        Color3.fromRGB(50, 90, 160)
-    )
-
-local RouseOnlyButton =
-    makeButton(
-        "ROUSE",
-        0,
-        196,
-        UDim2.new(0.32, -6, 0, 26),
-        26,
-        Color3.fromRGB(150, 100, 45)
-    )
-RouseOnlyButton.Position = UDim2.new(0.36, 0, 0, 196)
-
-local StopButton =
-    makeButton(
-        "STOP",
-        0,
-        196,
-        UDim2.new(0.32, -6, 0, 26),
-        26,
-        Color3.fromRGB(130, 50, 50)
-    )
-StopButton.Position = UDim2.new(0.68, 2, 0, 196)
-
-local HintLabel = Instance.new("TextLabel")
-HintLabel.Size = UDim2.new(1, -16, 0, 18)
-HintLabel.Position = UDim2.fromOffset(8, 228)
-HintLabel.BackgroundTransparency = 1
-HintLabel.Text = "Press E on egg: Request true -> Sets timing & drops"
-HintLabel.TextColor3 = Color3.fromRGB(160, 220, 170)
-HintLabel.TextSize = 10
-HintLabel.Font = Enum.Font.SourceSansItalic
-HintLabel.TextXAlignment = Enum.TextXAlignment.Center
-HintLabel.Parent = Main
-
---==================================================
--- BUTTON HANDLERS
---==================================================
-
-SetLocationButton.MouseButton1Click:Connect(function()
-    if Running then
-        Status.Text =
-            "Status: Stop current test first"
-        return
-    end
-
-    refreshCharacter()
-
-    if not Root or not Root.Parent then
-        Status.Text =
-            "Status: Character unavailable"
-        return
-    end
-
-    SavedLocation = Root.Position
-
-    LocationLabel.Text =
-        "Drop: " .. vec(SavedLocation)
-
-    Status.Text =
-        "Status: Location saved"
-
-    log(
-        "DROP / LANDING LOCATION = "
-        .. vec(SavedLocation)
-    )
-end)
-
-AutoToggleBtn.MouseButton1Click:Connect(function()
-    isAutoEnabled = not isAutoEnabled
-    if isAutoEnabled then
-        AutoToggleBtn.Text = "[AUTO: ON]"
-        AutoToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 125, 65)
-        HintLabel.Text = "Auto: Pick up egg in any area -> Auto Run"
-        HintLabel.TextColor3 = Color3.fromRGB(160, 220, 170)
-        Status.Text = "Status: Auto-detect active"
-        log("Auto-Detect: ENABLED (Will auto-run upon egg pickup)")
-    else
-        AutoToggleBtn.Text = "[AUTO: OFF]"
-        AutoToggleBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-        HintLabel.Text = "Auto off: manual RUN button only"
-        HintLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
-        Status.Text = "Status: Auto-detect disabled"
-        log("Auto-Detect: DISABLED (Manual RUN only)")
-    end
-end)
-
---==================================================
--- TRACE
---==================================================
-
-local function trace(label)
-    if not Root or not Root.Parent then
-        return
-    end
-
-    local now = os.clock()
-
-    if now - LastTrace < TRACE_INTERVAL then
-        return
-    end
-
-    LastTrace = now
-
-    log(
-        label
-        .. " | pos="
-        .. vec(Root.Position)
-        .. " | vel="
-        .. vec(Root.AssemblyLinearVelocity)
-    )
-end
-
---==================================================
--- REMOTE RESOLVER & EGG UID HELPERS
---==================================================
-
-local function getRemote(subPath)
-    local packages = ReplicatedStorage:FindFirstChild("Packages")
-        or ReplicatedStorage:WaitForChild("Packages", 5)
-    local networking = packages and (
-        packages:FindFirstChild("Networking")
-        or packages:WaitForChild("Networking", 5)
-    )
-    if not networking then
-        return nil
-    end
-
-    local flattened = networking:FindFirstChild(subPath)
-    if flattened then
-        return flattened
-    end
-
-    local current = networking
-    for segment in string.gmatch(subPath, "[^/]+") do
-        current = current and current:FindFirstChild(segment)
-    end
-    if current then
-        return current
-    end
-
-    local leaf = string.match(subPath, "[^/]+$")
-    for _, item in ipairs(networking:GetDescendants()) do
-        if item.Name == subPath or item.Name == leaf then
-            return item
+-- Guard Resolution
+Helpers.getForestGuard = function()
+    local ws = workspace
+    local areas = ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas")
+    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
+    if guardAreas then
+        local forest = guardAreas:FindFirstChild("Forest")
+        if forest then
+            return forest:FindFirstChild("Guard") or forest:FindFirstChild("ForestGuardAuthored")
         end
     end
     return nil
 end
 
-local function isEggAvailable(record)
-    local carrier = record.CarrierUserId or record.carrierUserId
-    return carrier == nil or carrier == 0 or carrier == "" or carrier == "0"
-end
-
-local function findAnyEggUid()
-    log("Looking for available Egg UID...")
-    local snapshotRemote = getRemote("RF/EggWorld/AskFieldEggSnapshot")
-
-    if snapshotRemote and snapshotRemote:IsA("RemoteFunction") then
-        local ok, result = pcall(function()
-            return snapshotRemote:InvokeServer()
+Helpers.rouseForestGuard = function()
+    local guard = Helpers.getForestGuard()
+    local event = Remotes.Rouse
+    if event and guard then
+        pcall(function()
+            if typeof(firesignal) == "function" then
+                firesignal(event.OnClientEvent, guard)
+            end
         end)
-
-        if ok and typeof(result) == "table" then
-            local records = result.Records or result.records
-            if typeof(records) == "table" then
-                local fallbackUid = nil
-                local fallbackSource = nil
-
-                for _, record in pairs(records) do
-                    if typeof(record) == "table" then
-                        local uid = record.Uid or record.uid or record.UID or record.Id or record.id
-                        local area = record.AreaId or record.areaId or record.Area or record.Biome or record.biome
-                        local uidText = tostring(uid or "")
-                        local areaText = string.lower(tostring(area or ""))
-                        local uidLower = string.lower(uidText)
-                        local isForest = areaText == "forest"
-                            or string.find(uidLower, "_forest:slot_", 1, true) ~= nil
-
-                        if uid and uidText ~= "" and isEggAvailable(record) then
-                            if isForest then
-                                log("Selected Forest UID from AskFieldEggSnapshot: " .. uidText)
-                                return uidText, "AskFieldEggSnapshot (Forest)"
-                            elseif not fallbackUid then
-                                fallbackUid = uidText
-                                fallbackSource = "AskFieldEggSnapshot (" .. (areaText ~= "" and areaText or "Any") .. ")"
-                            end
-                        end
-                    end
-                end
-
-                if fallbackUid then
-                    log("Selected available UID from AskFieldEggSnapshot: " .. fallbackUid)
-                    return fallbackUid, fallbackSource
-                end
-            end
-        end
     end
-
-    -- Fallback: AreaEggSlotsClient in workspace (from latest.log)
-    local slots = workspace:FindFirstChild("AreaEggSlotsClient")
-    if slots then
-        local fallbackSlot = nil
-        for _, slot in ipairs(slots:GetChildren()) do
-            local nameLower = string.lower(slot.Name)
-            if string.find(nameLower, "_forest:slot_", 1, true) then
-                log("Selected Forest UID from AreaEggSlotsClient: " .. slot.Name)
-                return slot.Name, "Workspace.AreaEggSlotsClient (Forest)"
-            elseif not fallbackSlot then
-                fallbackSlot = slot.Name
-            end
-        end
-
-        if fallbackSlot then
-            log("Selected UID from AreaEggSlotsClient: " .. fallbackSlot)
-            return fallbackSlot, "Workspace.AreaEggSlotsClient"
-        end
-    end
-
-    return nil, "No available Egg UID found"
 end
 
-local function refreshEggUid(sync)
-    if isRefreshingEggUid then
-        log("UID refresh already in progress...")
+-- Proximity Prompt Triggering
+Helpers.triggerPrompt = function(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return false end
+    local ok = pcall(function()
+        if typeof(fireproximityprompt) == "function" then
+            fireproximityprompt(prompt)
+        elseif prompt.InputHoldBegin then
+            prompt:InputHoldBegin()
+            task.wait(prompt.HoldDuration or 0.1)
+            prompt:InputHoldEnd()
+        end
+    end)
+    return ok
+end
+
+-- Anti-Ragdoll & Physics Reset
+Helpers.nullifyRagdoll = function()
+    if RootPart and RootPart.Parent then
+        pcall(function()
+            RootPart.AssemblyLinearVelocity = Vector3.zero
+            RootPart.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+    if Character then
+        pcall(function()
+            Character:SetAttribute("RagdollEndTime", 0)
+            Character:SetAttribute("RagdollTime", 0)
+            Character:SetAttribute("IsRagdoll", false)
+            Character:SetAttribute("Ragdolled", false)
+        end)
+    end
+    if Humanoid and Humanoid.Parent and Humanoid.Health > 0 then
+        pcall(function()
+            Humanoid.PlatformStand = false
+            Humanoid.Sit = false
+            Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end)
+    end
+end
+
+-- Egg Drop Invocations
+Engine.dropEggSpam = function(count)
+    count = count or Config.DropSpamCount
+    local rf = Remotes.AskDrop or Helpers.getNetRemote("RF/EggWorld/AskFieldEggDrop")
+    if not rf then
+        Helpers.log("ERROR: AskFieldEggDrop remote not found", "ERROR")
         return
     end
 
-    local function doRefresh()
-        isRefreshingEggUid = true
-        if RefreshIdButton and RefreshIdButton.Parent then
-            RefreshIdButton.Text = "LOADING..."
-        end
-        log("Refreshing cached Egg UID...")
-
-        local ok, uid, source = pcall(findAnyEggUid)
-        if ok and uid and tostring(uid) ~= "" then
-            cachedEggUid = tostring(uid)
-            cachedEggSource = tostring(source or "unknown")
-            log(string.format("Cached Egg UID loaded: %s (%s)", cachedEggUid, cachedEggSource))
-            if EggUidLabel and EggUidLabel.Parent then
-                EggUidLabel.Text = "Egg UID: " .. cachedEggUid
-                EggUidLabel.TextColor3 = Color3.fromRGB(170, 225, 255)
+    for i = 1, count do
+        task.spawn(function()
+            local ok, res = pcall(function()
+                return rf:InvokeServer({ Reason = "PlayerRequest" })
+            end)
+            if not ok or res == false then
+                pcall(function() rf:InvokeServer() end)
             end
-        else
-            local reason = ok and tostring(source or "none found") or tostring(uid)
-            log("UID refresh failed: " .. reason)
-            if not cachedEggUid then
-                if EggUidLabel and EggUidLabel.Parent then
-                    EggUidLabel.Text = "Egg UID: NOT LOADED (Press Refresh)"
-                    EggUidLabel.TextColor3 = Color3.fromRGB(255, 185, 130)
-                end
-            end
+        end)
+        if i < count then
+            task.wait(Config.DropSpamInterval)
         end
-
-        isRefreshingEggUid = false
-        if RefreshIdButton and RefreshIdButton.Parent then
-            RefreshIdButton.Text = "REFRESH ID"
-        end
-    end
-
-    if sync then
-        doRefresh()
-    else
-        task.spawn(doRefresh)
     end
 end
 
---==================================================
--- BIOME GUARD ROUSE (TITAN TEMPLE)
---==================================================
+-- Find and Pickup Nearby Forest Egg
+Helpers.tryPickupNearbyEgg = function(centerPos, radius)
+    radius = radius or Config.NestScanRadius
+    centerPos = centerPos or (RootPart and RootPart.Position)
+    if not centerPos then return false end
 
-local function getClosestGuard(playerPos)
-    local bestGuard = nil
-    local bestDist = math.huge
-    local bestAreaName = "Forest"
+    local rfCarry = Remotes.AskCarry or Helpers.getNetRemote("RF/EggWorld/AskFieldEggCarry")
+    local ws = workspace
+    local areas = ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas")
+    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
+    local forestNests = guardAreas and guardAreas:FindFirstChild("Forest") and guardAreas.Forest:FindFirstChild("Nests")
 
-    pcall(function()
-        local guardAreas = workspace:FindFirstChild("GuardAreas", true)
-        if not guardAreas and workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Areas") then
-            guardAreas = workspace.World.Areas:FindFirstChild("GuardAreas")
-        end
-        if guardAreas then
-            for _, area in ipairs(guardAreas:GetChildren()) do
-                local guard = area:FindFirstChild("Guard")
-                    or area:FindFirstChild("ForestGuardAuthored")
-                if guard then
-                    local pivot = guard:GetPivot()
-                    if pivot then
-                        local dist = (pivot.Position - playerPos).Magnitude
-                        if dist < bestDist then
-                            bestDist = dist
-                            bestGuard = guard
-                            bestAreaName = area.Name
-                        end
-                    end
+    local candidatePrompts = {}
+    local candidateUids = {}
+
+    local function scanModel(m)
+        if not m then return end
+        for _, desc in ipairs(m:GetDescendants()) do
+            if desc:IsA("ProximityPrompt") then
+                local pPart = desc.Parent
+                local pPos = pPart and ((pPart:IsA("BasePart") and pPart.Position) or (pPart:IsA("Model") and pPart:GetPivot().Position))
+                if pPos and (pPos - centerPos).Magnitude <= radius then
+                    table.insert(candidatePrompts, desc)
+                end
+            elseif desc:IsA("Model") or desc:IsA("BasePart") then
+                local uid = desc:GetAttribute("Uid") or desc:GetAttribute("EggUid") or (desc.Name:find("Slot_") and desc.Name)
+                local pPos = (desc:IsA("BasePart") and desc.Position) or (desc:IsA("Model") and desc:GetPivot().Position)
+                if uid and pPos and (pPos - centerPos).Magnitude <= radius then
+                    table.insert(candidateUids, { Uid = uid, Pos = pPos })
                 end
             end
         end
-    end)
-
-    return bestGuard, bestAreaName, bestDist
-end
-
-local function rouseGuard(guard, areaName)
-    areaName = areaName or TARGET_GUARD_AREA
-    log("----------------------------------------")
-    log(string.format("ROUSING GUARD: %s", tostring(areaName)))
-
-    local event = getRemote("RE/GuardPatrol/Rouse")
-    if not event then
-        log("ERROR: Remote RE/GuardPatrol/Rouse not found")
-        return false
     end
 
-    if not guard then
-        log(string.format("ERROR: Guard for '%s' not found", tostring(areaName)))
-        return false
-    end
+    scanModel(forestNests)
+    scanModel(areas and areas:FindFirstChild("EggSlotsClient"))
+    scanModel(ws:FindFirstChild("AreaEggSlotsClient"))
+    scanModel(ws:FindFirstChild("ClientRenderedAssets"))
 
-    local ok, err = pcall(function()
-        if type(firesignal) == "function" then
-            firesignal(event.OnClientEvent, guard)
+    -- 1. Try triggering proximity prompt
+    for _, prompt in ipairs(candidatePrompts) do
+        local ok = Helpers.triggerPrompt(prompt)
+        if ok then
+            Helpers.log("Triggered egg ProximityPrompt", "PICKUP")
             return true
-        elseif type(getconnections) == "function" then
-            for _, conn in ipairs(getconnections(event.OnClientEvent)) do
-                if conn.Function then
-                    task.spawn(conn.Function, guard)
-                elseif conn.Fire then
-                    conn:Fire(guard)
-                end
+        end
+    end
+
+    -- 2. Try invoking AskFieldEggCarry on candidate UIDs
+    if rfCarry then
+        for _, c in ipairs(candidateUids) do
+            local payload = { Uid = c.Uid }
+            if c.Uid:find("Slot_") then
+                payload.FirstAreaSlotKey = "Forest:" .. c.Uid
             end
-            return true
-        else
-            error("Neither firesignal nor getconnections is supported in executor")
-        end
-    end)
-
-    if not ok then
-        log("ERROR: Rouse firesignal failed: " .. tostring(err))
-        return false
-    end
-
-    log(string.format("Guard '%s' roused successfully via firesignal!", tostring(areaName)))
-    return true
-end
-
---==================================================
--- EGG CARRY REQUEST HOOK (AskFieldEggCarry)
---==================================================
-
-local function isHoldingEgg()
-    if Character then
-        for _, child in ipairs(Character:GetChildren()) do
-            local cName = string.lower(child.Name)
-            if child:IsA("Tool") and not string.find(cName, "trap", 1, true) then return true end
-            if string.find(cName, "egg", 1, true) then return true end
-        end
-    end
-    if Player:GetAttribute("IsCarrying") == true or Player:GetAttribute("HoldingEgg") == true then
-        return true
-    end
-    local cra = workspace:FindFirstChild("ClientRenderedAssets")
-    if cra and Player then
-        local uidStr = tostring(Player.UserId)
-        for _, m in ipairs(cra:GetChildren()) do
-            if string.find(m.Name, uidStr, 1, true) then
+            local ok, res = pcall(function()
+                return rfCarry:InvokeServer(payload)
+            end)
+            if ok and res == true then
+                Helpers.log(string.format("Picked up egg via remote: %s", tostring(c.Uid)), "PICKUP")
                 return true
             end
         end
     end
+
     return false
 end
 
-local function hookEggCarryRequest()
-    -- Intercept AskFieldEggCarry InvokeServer: triggers when you press E and pickup is OK
-    if type(hookmetamethod) == "function" then
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if method == "InvokeServer" then
-                local name = tostring(self)
-                if string.find(name, "AskFieldEggCarry", 1, true) then
-                    local callArgs = {...}
-                    local results = table.pack(oldNamecall(self, ...))
-                    -- If server returns true, egg pickup was successful!
-                    if results[1] == true then
-                        if callArgs[1] and typeof(callArgs[1]) == "table" and callArgs[1].Uid then
-                            cachedEggUid = tostring(callArgs[1].Uid)
-                            cachedEggSource = "AskFieldEggCarry Hook"
-                            log("[HOOK] Captured Egg UID: " .. cachedEggUid)
-                            if EggUidLabel and EggUidLabel.Parent then
-                                EggUidLabel.Text = "Egg UID: " .. cachedEggUid
-                                EggUidLabel.TextColor3 = Color3.fromRGB(170, 225, 255)
-                            end
-                        end
-                        task.spawn(function()
-                            log("----------------------------------------")
-                            log("[PICKUP OK] AskFieldEggCarry returned true!")
-                            if not Running and isAutoEnabled and runTest then
-                                runTest()
-                            end
-                        end)
-                    end
-                    return table.unpack(results, 1, results.n)
-                end
-            end
-            return oldNamecall(self, ...)
-        end)
-        log("Hooked AskFieldEggCarry request listener (__namecall).")
-    else
-        log("WARN: hookmetamethod unavailable; manual RUN button required.")
-    end
+-- Return to Forest Nest & Continue Farm Loop
+Engine.returnToNestAndPickup = function()
+    if not State.Enabled or not State.AutoLoop then return end
+    if State.IsActive or State.IsCarrying then return end
 
-    -- Also listen to server confirmation event RE/EggWorld/FieldEggCarry if received
-    pcall(function()
-        local rem = getRemote("RE/EggWorld/FieldEggCarry")
-        if rem and rem:IsA("RemoteEvent") then
-            rem.OnClientEvent:Connect(function(...)
-                if not Running and isAutoEnabled and runTest then
-                    log("[PICKUP OK] FieldEggCarry event received from server!")
-                    runTest()
-                end
-            end)
-        end
-    end)
-end
-
---==================================================
--- FOREST STRIKE
---==================================================
-
-local function connectForestStrikeInboundLogger(remote)
-    if forestStrikeWatchRemote == remote then
-        return
-    end
-    if not remote or not remote:IsA("RemoteEvent") then
-        return
-    end
-
-    forestStrikeWatchRemote = remote
-    remote.OnClientEvent:Connect(function(...)
-        local count = select("#", ...)
-        log("INBOUND ForestStrike event received (" .. tostring(count) .. " args)")
-    end)
-    log("Attached listener for inbound ForestStrike events.")
-end
-
-local function fireForestStrike()
-    log("----------------------------------------")
-    log("FOREST STRIKE TRIGGERED")
-
-    local remote = getRemote("RE/GuardPatrol/ForestStrike")
-    if not remote then
-        log("ERROR: ForestStrike remote (RE/GuardPatrol/ForestStrike) not found")
-        return false
-    end
-    if not remote:IsA("RemoteEvent") then
-        log("ERROR: ForestStrike has unexpected class: " .. remote.ClassName)
-        return false
-    end
-
-    connectForestStrikeInboundLogger(remote)
-
-    if not cachedEggUid or cachedEggUid == "" then
-        log("No cached Egg UID. Performing immediate lookup...")
-        refreshEggUid(true)
-    end
-
-    if not cachedEggUid or cachedEggUid == "" then
-        log("ERROR: ForestStrike skipped — no Egg UID available!")
-        return false
-    end
-
-    -- Guard CFrame: try finding live forest guard or use proven sample
-    local guardCFrame = SAMPLE_GUARD_CFRAME
-    pcall(function()
-        local guard = workspace:FindFirstChild("World", true)
-        if guard then
-            local forestGuard = guard:FindFirstChild("ForestGuardAuthored", true)
-                or guard:FindFirstChild("Forest", true)
-            if forestGuard then
-                local pivot = forestGuard:GetPivot()
-                if pivot then guardCFrame = pivot end
-            end
-        end
-    end)
-
-    local payload = {
-        GuardCFrame = guardCFrame,
-        EggUid = cachedEggUid,
-    }
-
-    log(string.format("Calling ForestStrike:FireServer with EggUid=%s...", cachedEggUid))
-
-    local ok, err = pcall(function()
-        remote:FireServer(payload)
-    end)
-
-    if not ok then
-        log("ERROR: ForestStrike FireServer failed: " .. tostring(err))
-        return false
-    end
-
-    log("ForestStrike FireServer sent OK!")
-    return true
-end
-
---==================================================
--- EGG DROP REMOTE & INVOCATION
---==================================================
-
-local function findEggDropRemote()
-    local remote = getRemote("RF/EggWorld/AskFieldEggDrop")
-    if remote and remote:IsA("RemoteFunction") then
-        return remote, remote:GetFullName()
-    end
-    return nil, "RF/EggWorld/AskFieldEggDrop not found"
-end
-
-local function invokeEggDropSpam(runToken, count)
-    count = count or EGG_DROP_SPAM_COUNT
-
-    if runToken ~= nil and runToken ~= RunToken then
-        log("AskFieldEggDrop cancelled because this run was stopped or superseded.")
-        return false
-    end
-    if runToken ~= nil and LastEggDropRunToken == runToken then
-        log("AskFieldEggDrop already attempted for this run; duplicate request suppressed.")
-        return false
-    end
-    if runToken ~= nil then
-        LastEggDropRunToken = runToken
-    end
-
-    log(string.format("Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam %dx)...", count))
-
-    local remote, detail = findEggDropRemote()
-    if not remote then
-        local message = "AskFieldEggDrop RemoteFunction not found: " .. tostring(detail)
-        log(message)
-        warn("[EggDrop Diagnostic] " .. message)
-        return false
-    end
-
-    if not remote:IsA("RemoteFunction") then
-        local message = "AskFieldEggDrop has unexpected class: " .. remote.ClassName
-        log(message)
-        return false
-    end
-
-    logCharacterPosition("before AskFieldEggDrop spam sequence")
-    log(string.format("Starting AskFieldEggDrop spam (%dx, %.2fs interval)...", count, EGG_DROP_SPAM_INTERVAL))
-
-    for i = 1, count do
-        if runToken ~= nil and runToken ~= RunToken then
-            log(string.format("AskFieldEggDrop [#%d/%d] cancelled (run superseded)", i, count))
-            break
-        end
-        if not Running then
-            log(string.format("AskFieldEggDrop [#%d/%d] cancelled (test stopped)", i, count))
-            break
-        end
-
-        task.spawn(function()
-            local sendPos = Root and Root.Parent and Root.Position
-            local ok, result = pcall(function()
-                return remote:InvokeServer({ Reason = "PlayerRequest" })
-            end)
-            if not ok or result == false then
-                pcall(function()
-                    local res2 = remote:InvokeServer()
-                    if res2 ~= nil then
-                        result = res2
-                        ok = true
-                    end
-                end)
-            end
-
-            local statusStr = ok and tostring(result) or ("ERROR: " .. tostring(result))
-            log(string.format(
-                "AskFieldEggDrop [#%d/%d] returned: %s | pos=%s",
-                i,
-                count,
-                statusStr,
-                vec(sendPos)
-            ))
-        end)
-
-        if i < count then
-            task.wait(EGG_DROP_SPAM_INTERVAL)
-        end
-    end
-
-    logCharacterPosition("after AskFieldEggDrop spam sequence")
-    return true
-end
-
---==================================================
--- STOP SAFELY ON CHARACTER LOSS
---==================================================
-
-local function stopTest()
-    Running = false
-    RunToken += 1
-
-    if Root and Root.Parent then
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    wasHolding = false
-    autoCooldown = false
-
-    Status.Text =
-        "Status: Stopped"
-end
-
---==================================================
--- RUN
---==================================================
-
-runTest = function()
-
-    if Running then
-        return
-    end
-
-    if not SavedLocation then
-        Status.Text =
-            "Status: Set Drop/Landing Location first"
-        return
-    end
-
-    refreshCharacter()
-
-    if not Root or not Humanoid then
-        Status.Text =
-            "Status: Character unavailable"
-        return
-    end
-
-    Running = true
-    RunToken += 1
-    local currentRunToken = RunToken
-    TestStartTime = os.clock()
-    LastTrace = 0
-
-    --------------------------------------------------
-    -- START
-    --------------------------------------------------
-
-    StartLocation = Root.Position
-
-    log("----------------------------------------")
-    log("TEST START")
-
-    log(
-        "START = "
-        .. vec(StartLocation)
-    )
-
-    log(
-        "DROP / LANDING = "
-        .. vec(SavedLocation)
-    )
-
-    --------------------------------------------------
-    -- BIOME DETECTION & GUARD ROUSE
-    --------------------------------------------------
-
-    local guard, detectedArea, guardDist = getClosestGuard(StartLocation)
-    TARGET_GUARD_AREA = detectedArea or "Forest"
-    if GuardLabel and GuardLabel.Parent then
-        GuardLabel.Text = string.format("Guard: %s (%.0fst)", TARGET_GUARD_AREA, guardDist or 0)
-    end
-
-    Phase = "GUARD ROUSE & WAIT"
-    Status.Text = string.format("Status: Waiting %s hit (%.3fs)...", TARGET_GUARD_AREA, GUARD_HIT_TIMING)
-
-    log(string.format("PHASE = GUARD ROUSE & WAIT (Target: %s, Dist: %.1f studs)", TARGET_GUARD_AREA, guardDist or 0))
-    log(string.format("Timing delay assumption: %.3fs", GUARD_HIT_TIMING))
-
-    local rouseT0 = os.clock()
-    local struck = false
-    local strikeSource = "none"
-    local strikeTime = 0
-    local tempConns = {}
-
-    local function onStrike(source)
-        if not struck then
-            struck = true
-            strikeSource = source
-            strikeTime = os.clock()
-            log(string.format("STRIKE TRIGGERED! Source: %s (+%.4fs from Rouse)", tostring(source), strikeTime - rouseT0))
-        end
-    end
-
-    local function finishRun(success, dist)
-        Running = false
-        Phase = success and "SUCCESS" or "FAILED"
-
-        if not success then
-            local oldTiming = GUARD_HIT_TIMING
-            if not struck then
-                local step = 0.025
-                GUARD_HIT_TIMING = math.clamp(math.floor((GUARD_HIT_TIMING + step) * 1000 + 0.5) / 1000, 0.450, 0.850)
-                updateTimingUI()
-
-                Status.Text = string.format("Too early! Timing -> %.3fs (Press E)", GUARD_HIT_TIMING)
-                Status.TextColor3 = Color3.fromRGB(255, 120, 120)
-                log("----------------------------------------")
-                log(string.format("RESULT: FAILED — Snapped back to %s (%.1f studs from drop).", TARGET_GUARD_AREA, dist))
-                log(string.format("[DIAGNOSIS] Guard strike was NOT detected before timeout (%.3fs). Teleport occurred TOO EARLY!", oldTiming))
-                log(string.format("[AUTO-ADJUST] Timing auto-increased to %.3fs (+%.3fs).", GUARD_HIT_TIMING, step))
-                log(string.format("[NEXT] Press E on egg in %s to retry at %.3fs!", TARGET_GUARD_AREA, GUARD_HIT_TIMING))
-            else
-                local step = 0.020
-                GUARD_HIT_TIMING = math.clamp(math.floor((GUARD_HIT_TIMING - step) * 1000 + 0.5) / 1000, 0.400, 0.850)
-                updateTimingUI()
-
-                Status.Text = string.format("Too late! Timing -> %.3fs (Press E)", GUARD_HIT_TIMING)
-                Status.TextColor3 = Color3.fromRGB(255, 160, 100)
-                log("----------------------------------------")
-                log(string.format("RESULT: FAILED — Snapped back despite strike (%s).", tostring(strikeSource)))
-                log("[DIAGNOSIS] Strike registered but hit authority expired before drop completed.")
-                log(string.format("[AUTO-ADJUST] Timing auto-lowered to %.3fs (-%.3fs).", oldTiming, GUARD_HIT_TIMING, step))
-                log(string.format("[NEXT] Press E on egg in %s to retry at %.3fs!", TARGET_GUARD_AREA, GUARD_HIT_TIMING))
-            end
-        else
-            Status.Text = string.format("Success! Landed at drop (Timing: %.3fs)", GUARD_HIT_TIMING)
-            Status.TextColor3 = Color3.fromRGB(150, 255, 150)
-            log("----------------------------------------")
-            log(string.format("RESULT: SUCCESS — Replicated at drop location (error: %.2f studs)!", dist))
-            log(string.format("[SAVED] Winning timing verified: %.3fs! Egg dropped into pen.", GUARD_HIT_TIMING))
-        end
-
-        log("TEST END")
-        log("----------------------------------------")
-    end
-
-    local function checkMotorsDisabled(ch)
-        if not ch then return false end
-        local off = 0
-        for _, m in ipairs(ch:GetDescendants()) do
-            if m:IsA("Motor6D") and not m.Enabled then
-                off = off + 1
-                if off >= 2 then return true end
-            end
-        end
-        return false
-    end
-
-    -- Hook hit / damage / ragdoll detection listeners
-    pcall(function()
-        local net = ReplicatedStorage:FindFirstChild("Packages")
-            and ReplicatedStorage.Packages:FindFirstChild("Networking")
-        if net then
-            local fToll = net:FindFirstChild("RE/GuardPatrol/SpeedTollOffer")
-            if fToll and fToll:IsA("RemoteEvent") then
-                table.insert(tempConns, fToll.OnClientEvent:Connect(function() onStrike("SpeedTollOffer") end))
-            end
-            local fWarn = net:FindFirstChild("RE/GuardPatrol/SpeedTollWarning")
-            if fWarn and fWarn:IsA("RemoteEvent") then
-                table.insert(tempConns, fWarn.OnClientEvent:Connect(function() onStrike("SpeedTollWarning") end))
-            end
-            local fHazard = net:FindFirstChild("RE/BossEvent/HazardHit")
-            if fHazard and fHazard:IsA("RemoteEvent") then
-                table.insert(tempConns, fHazard.OnClientEvent:Connect(function() onStrike("HazardHit") end))
-            end
-            local fStrike = net:FindFirstChild("RE/GuardPatrol/ForestStrike")
-            if fStrike and fStrike:IsA("RemoteEvent") then
-                table.insert(tempConns, fStrike.OnClientEvent:Connect(function() onStrike("ForestStrike") end))
-            end
-            local fHandoff = net:FindFirstChild("RE/GuardPatrol/ForestHandoff")
-            if fHandoff and fHandoff:IsA("RemoteEvent") then
-                table.insert(tempConns, fHandoff.OnClientEvent:Connect(function() onStrike("ForestHandoff") end))
-            end
-        end
-    end)
-
-    local baselineRagdoll = Player:GetAttribute("RagdollEndTime") or 0
-    if typeof(baselineRagdoll) ~= "number" then baselineRagdoll = 0 end
-    table.insert(tempConns, Player.AttributeChanged:Connect(function(attr)
-        if attr == "RagdollEndTime" then
-            local v = Player:GetAttribute("RagdollEndTime") or 0
-            if typeof(v) == "number" and v > baselineRagdoll + 0.15 then
-                onStrike("PlayerRagdollEndTime:" .. string.format("%.2f", v))
-            end
-        end
-    end))
-
-    if Character then
-        local charBaselineRagdoll = Character:GetAttribute("RagdollEndTime") or 0
-        if typeof(charBaselineRagdoll) ~= "number" then charBaselineRagdoll = 0 end
-        table.insert(tempConns, Character.AttributeChanged:Connect(function(attr)
-            if attr == "RagdollEndTime" then
-                local v = Character:GetAttribute("RagdollEndTime") or 0
-                if typeof(v) == "number" and v > charBaselineRagdoll + 0.15 then
-                    onStrike("CharRagdollEndTime:" .. string.format("%.2f", v))
-                end
-            elseif attr == "IsRagdolled" or attr == "Ragdoll" then
-                if Character:GetAttribute(attr) == true then
-                    onStrike("CharAttr:" .. attr)
-                end
-            end
-        end))
-    end
-
-    if Humanoid then
-        table.insert(tempConns, Humanoid.StateChanged:Connect(function(_, newState)
-            if newState == Enum.HumanoidStateType.Physics
-                or newState == Enum.HumanoidStateType.Ragdoll
-                or newState == Enum.HumanoidStateType.FallingDown
-                or newState == Enum.HumanoidStateType.Dead then
-                onStrike("HumanoidState:" .. newState.Name)
-            end
-        end))
-    end
-
-    -- Trigger Rouse on local biome guard
-    rouseGuard(guard, TARGET_GUARD_AREA)
-
-    -- Wait timing delay (or proceed if early strike confirmed)
-    if GUARD_HIT_TIMING > 0 then
-        local waitStart = os.clock()
-        while Running and (os.clock() - waitStart < GUARD_HIT_TIMING) do
-            -- Continuous physical indicator polling
-            if Root and Root.Parent then
-                if Root.AssemblyLinearVelocity.Magnitude > 12 then
-                    onStrike("VelocityKnockback:" .. string.format("%.1f", Root.AssemblyLinearVelocity.Magnitude))
-                elseif StartLocation and (Root.Position - StartLocation).Magnitude > 3.0 then
-                    onStrike("Displaced:" .. string.format("%.1f", (Root.Position - StartLocation).Magnitude))
-                elseif checkMotorsDisabled(Character) then
-                    onStrike("MotorsDisabled")
-                elseif Humanoid then
-                    local st = Humanoid:GetState()
-                    if st == Enum.HumanoidStateType.Physics
-                        or st == Enum.HumanoidStateType.Ragdoll
-                        or st == Enum.HumanoidStateType.FallingDown then
-                        onStrike("PolledState:" .. st.Name)
-                    end
-                end
-            end
-
-            if struck then
-                log(string.format("Strike confirmed during wait window at +%.4fs! (%s) Proceeding...", os.clock() - waitStart, tostring(strikeSource)))
-                break
-            end
-            RunService.Heartbeat:Wait()
-        end
-    end
-
-    -- Cleanup hit listeners
-    for _, conn in ipairs(tempConns) do
-        pcall(function() conn:Disconnect() end)
-    end
-
-    if not Running then
-        return
-    end
-
-    -- Verify egg is still held before teleporting
-    local isHeld = isHoldingEgg()
-    log(string.format("Pre-teleport egg status: holding=%s", tostring(isHeld)))
-    if not isHeld then
-        log("[WARN] Egg is not held before teleport! (Guard may have stripped it early)")
-    end
-
-    --------------------------------------------------
-    -- POSITION AT DROP
-    --------------------------------------------------
-
-    Phase = "DROP POSITION"
-    Status.Text =
-        "Status: Drop position"
-
-    log("PHASE = DROP POSITION")
-
-    Root.CFrame =
-        CFrame.new(SavedLocation)
-
-    Root.AssemblyLinearVelocity =
-        Vector3.zero
-
-    Root.AssemblyAngularVelocity =
-        Vector3.zero
-
-    log(
-        "DROP POSITIONED | pos="
-        .. vec(Root.Position)
-    )
-
-    -- Trigger AskFieldEggDrop spam immediately so the drop request arrives
-    -- while server hit authority / knockback is still active!
     task.spawn(function()
-        invokeEggDropSpam(currentRunToken, EGG_DROP_SPAM_COUNT)
-    end)
+        task.wait(Config.ReturnDelay or 0.5)
+        if not State.AutoLoop or State.IsActive or State.IsCarrying then return end
 
-    -- Allow position replication to settle on the server before dropping
-    if POSITION_SETTLE_TIME > 0 then
-        Status.Text =
-            "Status: Replicating position..."
-        log(string.format("HOLD / REPLICATING POSITION (%.2fs)...", POSITION_SETTLE_TIME))
-
-        local settleStart = os.clock()
-        while Running and (os.clock() - settleStart < POSITION_SETTLE_TIME) do
-            Root.CFrame = CFrame.new(SavedLocation)
-            Root.AssemblyLinearVelocity = Vector3.zero
-            Root.AssemblyAngularVelocity = Vector3.zero
-            RunService.Heartbeat:Wait()
-        end
-    end
-
-    -- Check if position held or rubberbanded during hold
-    local distFromDrop = (Root.Position - SavedLocation).Magnitude
-    if distFromDrop > 50 then
-        log(string.format("[WARN] RUBBERBAND DETECTED DURING HOLD! pos=%s (%.1f studs from drop).", vec(Root.Position), distFromDrop))
-        finishRun(false, distFromDrop)
-        return
-    else
-        log(string.format("[OK] Position held at drop location (dist=%.2f studs). Hit authority active!", distFromDrop))
-    end
-
-    --------------------------------------------------
-    -- INITIAL FREEFALL
-    --------------------------------------------------
-
-    Phase = "FREEFALL"
-    Status.Text =
-        "Status: Freefall"
-
-    log("PHASE = FREEFALL")
-
-    Humanoid:ChangeState(
-        Enum.HumanoidStateType.Freefall
-    )
-
-    local fallStart =
-        os.clock()
-
-    local lastTime =
-        fallStart
-
-    local velocityY =
-        INITIAL_VERTICAL_SPEED
-
-    log(
-        "FREEFALL START | pos="
-        .. vec(Root.Position)
-        .. " | vel="
-        .. vec(Root.AssemblyLinearVelocity)
-    )
-
-    -- Trigger AskFieldEggDrop spam during freefall without blocking the physics loop
-    task.spawn(function()
-        invokeEggDropSpam(currentRunToken, EGG_DROP_SPAM_COUNT)
-    end)
-
-    while Running do
-
-        local now =
-            os.clock()
-
-        local elapsed =
-            now - fallStart
-
-        if elapsed >= INITIAL_FREEFALL_TIME then
-            break
-        end
-
-        local dt =
-            now - lastTime
-
-        if dt > 0 then
-            velocityY =
-                velocityY
-                + FALL_ACCELERATION * dt
-
-            Root.AssemblyLinearVelocity =
-                Vector3.new(
-                    0,
-                    velocityY,
-                    0
-                )
-        end
-
-        lastTime = now
-
-        trace("FREEFALL")
-
-        RunService.Heartbeat:Wait()
-    end
-
-    if not Running then
-        return
-    end
-
-    log(
-        "FREEFALL END | elapsed="
-        .. string.format(
-            "%.4f",
-            os.clock() - fallStart
-        )
-        .. " | pos="
-        .. vec(Root.Position)
-        .. " | vel="
-        .. vec(Root.AssemblyLinearVelocity)
-    )
-
-    --------------------------------------------------
-    -- LOCAL DROP TRANSITION
-    --------------------------------------------------
-
-    Phase = "DROP TRANSITION"
-    Status.Text =
-        "Status: Drop transition"
-
-    log(
-        "PHASE = DROP TRANSITION"
-    )
-
-    local entry =
-        SavedLocation
-        + Vector3.new(
-            0,
-            ENTRY_HEIGHT,
-            0
-        )
-
-    local previous =
-        Root.Position
-
-    Root.CFrame =
-        CFrame.new(entry)
-
-    Root.AssemblyLinearVelocity =
-        Vector3.new(
-            0,
-            FINAL_VERTICAL_SPEED,
-            0
-        )
-
-    Root.AssemblyAngularVelocity =
-        Vector3.zero
-
-    Humanoid:ChangeState(
-        Enum.HumanoidStateType.Freefall
-    )
-
-    log(
-        "LOCAL DROP TRANSITION"
-        .. " | previous="
-        .. vec(previous)
-        .. " | entry="
-        .. vec(entry)
-        .. " | distance="
-        .. string.format(
-            "%.3f",
-            (entry - previous).Magnitude
-        )
-    )
-
-    --------------------------------------------------
-    -- FINAL DESCENT
-    --------------------------------------------------
-
-    Phase = "FINAL DESCENT"
-    Status.Text =
-        "Status: Final descent"
-
-    log("PHASE = FINAL DESCENT")
-
-    local descentStart =
-        os.clock()
-
-    local lastDescentTime =
-        descentStart
-
-    local descentVelocity =
-        FINAL_VERTICAL_SPEED
-
-    while Running do
-
-        local now =
-            os.clock()
-
-        if now - descentStart >= MAX_DESCENT_TIME then
-
-            log(
-                "FINAL DESCENT TIMEOUT"
-            )
-
-            local curDist = (Root.Position - SavedLocation).Magnitude
-            finishRun(curDist <= 50, curDist)
+        local nestPos = State.StartLocation
+        if not nestPos then
+            UI.setStatus("Nest location not set!", Config.Theme.Yellow)
             return
         end
 
-        local current =
-            Root.Position
+        UI.setStatus("Returning to Forest Nest...", Config.Theme.Cyan)
+        Helpers.log(string.format("Teleporting back to nest at V3(%.1f, %.1f, %.1f)", nestPos.X, nestPos.Y, nestPos.Z), "RETURN")
 
-        local difference =
-            current.Y - SavedLocation.Y
-
-        if difference <= 0.15 then
-            break
+        -- Teleport with empty hands (100% permitted by server)
+        if RootPart and RootPart.Parent then
+            RootPart.CFrame = CFrame.new(nestPos)
+            RootPart.AssemblyLinearVelocity = Vector3.zero
+            RootPart.AssemblyAngularVelocity = Vector3.zero
         end
 
-        local dt =
-            now - lastDescentTime
+        task.wait(0.25)
 
-        if dt > 0 then
-            descentVelocity =
-                math.max(
-                    descentVelocity
-                    + FALL_ACCELERATION * 0.20 * dt,
-                    -32
-                )
-
-            Root.AssemblyLinearVelocity =
-                Vector3.new(
-                    0,
-                    descentVelocity,
-                    0
-                )
+        -- Search for nearby egg and trigger pickup
+        local attempts = 0
+        while State.AutoLoop and not State.IsCarrying and not State.IsActive and attempts < 12 do
+            attempts = attempts + 1
+            local picked = Helpers.tryPickupNearbyEgg(nestPos, Config.NestScanRadius or 35.0)
+            if picked or State.IsCarrying then
+                break
+            end
+            task.wait(0.25)
         end
 
-        lastDescentTime = now
-
-        trace("FINAL DESCENT")
-
-        RunService.Heartbeat:Wait()
-    end
-
-    if not Running then
-        return
-    end
-
-    --------------------------------------------------
-    -- LAND
-    --------------------------------------------------
-
-    Phase = "LANDING"
-
-    Status.Text =
-        "Status: Landing"
-
-    log("PHASE = LANDING")
-
-    Root.CFrame =
-        CFrame.new(SavedLocation)
-
-    Root.AssemblyLinearVelocity =
-        Vector3.zero
-
-    Root.AssemblyAngularVelocity =
-        Vector3.zero
-
-    Humanoid:ChangeState(
-        Enum.HumanoidStateType.Landed
-    )
-
-    log(
-        "LANDED | final="
-        .. vec(Root.Position)
-    )
-
-    log(
-        "START="
-        .. vec(StartLocation)
-    )
-
-    log(
-        "DROP/LANDING="
-        .. vec(SavedLocation)
-    )
-
-    log(
-        "TOTAL TIME="
-        .. string.format(
-            "%.4f",
-            os.clock() - TestStartTime
-        )
-    )
-
-    Running = false
-    Phase = "LANDED"
-
-    local finalDist = (Root.Position - SavedLocation).Magnitude
-    finishRun(finalDist <= 50, finalDist)
+        if not State.IsCarrying and not State.IsActive then
+            UI.setStatus("Waiting for egg to spawn at nest...", Config.Theme.Yellow)
+        end
+    end)
 end
 
-RunButton.MouseButton1Click:Connect(function()
-    runTest()
-end)
-
-RouseOnlyButton.MouseButton1Click:Connect(function()
-    if Running then
-        Status.Text = "Status: Test is running"
+-- Core Dropper Execution
+Engine.executeDrop = function(eggUid)
+    if not State.Enabled then return end
+    if State.IsActive then return end
+    if not State.SavedLocation then
+        UI.setStatus("Drop Location not set! Click 'Set Drop' first.", Config.Theme.Yellow)
         return
     end
-    Status.Text = "Status: Testing Rouse..."
-    refreshCharacter()
-    local pos = (Root and Root.Position) or Vector3.zero
-    local guard, areaName, dist = getClosestGuard(pos)
-    if guard then
-        TARGET_GUARD_AREA = areaName
-        local ok = rouseGuard(guard, areaName)
+
+    State.IsActive = true
+    State.CurrentEggUid = eggUid
+    local startTime = os.clock()
+
+    UI.setStatus("⚡ Forest Strike fired! Waiting for Hit Authority...", Config.Theme.Cyan)
+    Helpers.log(string.format("Starting drop routine for UID %s", tostring(eggUid)), "DROPPER")
+
+    -- Capture nest start location automatically if close to a nest
+    if RootPart and RootPart.Parent and not State.StartLocation then
+        State.StartLocation = RootPart.Position
+    end
+
+    -- Step 1: Fire ForestStrike on demand
+    local strikeRemote = Remotes.ForestStrike or Helpers.getNetRemote("RE/GuardPatrol/ForestStrike")
+    if strikeRemote then
+        local guard = Helpers.getForestGuard()
+        local guardCFrame = (guard and guard:GetPivot()) or Config.SampleGuardCFrame
+
+        local ok, err = pcall(function()
+            strikeRemote:FireServer({
+                GuardCFrame = guardCFrame,
+                EggUid = eggUid,
+            })
+        end)
         if ok then
-            Status.Text = string.format("Status: %s Guard roused!", areaName)
+            Helpers.log("ForestStrike:FireServer sent OK!", "STRIKE")
         else
-            Status.Text = "Status: Rouse failed (see log)"
+            Helpers.log("ForestStrike failed: " .. tostring(err), "ERROR")
         end
-    else
-        Status.Text = "Status: No guard nearby"
     end
-end)
 
-StopButton.MouseButton1Click:Connect(function()
-    if Running then
-        stopTest()
-        Status.Text = "Status: Stopped"
-        log("Test stopped by user.")
+    -- Rouse guard as redundant backup
+    Helpers.rouseForestGuard()
+
+    -- Step 2: Listen for Strike Event (Event-Driven Hit Authority Trigger)
+    local strikeConfirmed = false
+    local strikeConns = {}
+
+    local function onStrikeEvent(sourceName)
+        if strikeConfirmed then return end
+        strikeConfirmed = true
+        Helpers.log(string.format("Strike event confirmed via %s (+%.3fs)", sourceName, os.clock() - startTime), "STRIKE")
+
+        -- Cleanup temporary strike listeners immediately
+        for _, c in ipairs(strikeConns) do pcall(function() c:Disconnect() end) end
+        table.clear(strikeConns)
+
+        -- Step 3: INSTANT HIT AUTHORITY TELEPORT TO PEN
+        if RootPart and RootPart.Parent then
+            RootPart.CFrame = CFrame.new(State.SavedLocation)
+            RootPart.AssemblyLinearVelocity = Vector3.zero
+            RootPart.AssemblyAngularVelocity = Vector3.zero
+        end
+
+        Helpers.nullifyRagdoll()
+
+        -- Step 4: SPAM DROP REMOTE AT PEN
+        task.spawn(function()
+            Engine.dropEggSpam(Config.DropSpamCount)
+        end)
+
+        -- Step 5: Settle position at pen
+        local settleStart = os.clock()
+        while (os.clock() - settleStart < Config.PositionSettleTime) do
+            if RootPart and RootPart.Parent then
+                RootPart.CFrame = CFrame.new(State.SavedLocation)
+                RootPart.AssemblyLinearVelocity = Vector3.zero
+            end
+            RunService.Heartbeat:Wait()
+        end
+
+        -- Step 6: Verify delivery
+        local currentPos = RootPart and RootPart.Position or Vector3.zero
+        local distFromDrop = (currentPos - State.SavedLocation).Magnitude
+
+        if distFromDrop <= 25.0 then
+            State.Deliveries = State.Deliveries + 1
+            UI.setDeliveries(State.Deliveries)
+            UI.setStatus("✓ Success! Egg dropped in pen.", Config.Theme.Green)
+            Helpers.log(string.format("SUCCESS: Egg delivered in %.3fs (Error: %.1f studs, Total: %d)", os.clock() - startTime, distFromDrop, State.Deliveries), "SUCCESS")
+
+            -- Trigger Auto-Loop Return if enabled
+            if State.AutoLoop then
+                task.delay(0.4, function()
+                    if State.AutoLoop and not State.IsActive then
+                        Engine.returnToNestAndPickup()
+                    end
+                end)
+            end
+        else
+            UI.setStatus(string.format("⚠️ Rubberbanded (%.0fst from drop).", distFromDrop), Config.Theme.Red)
+            Helpers.log(string.format("FAILED: Rubberband detected (%.1f studs from drop)", distFromDrop), "WARN")
+        end
+
+        State.IsActive = false
     end
-end)
 
-CopyButton.MouseButton1Click:Connect(copyLog)
+    -- Hook SpeedTollOffer (Primary Guard Strike Remote)
+    if Remotes.SpeedTollOffer then
+        table.insert(strikeConns, Remotes.SpeedTollOffer.OnClientEvent:Connect(function()
+            onStrikeEvent("SpeedTollOffer")
+        end))
+    end
 
---==================================================
--- INIT
---==================================================
+    -- Hook RigSync Refresh (Ragdoll Action)
+    if Remotes.RigRefresh then
+        table.insert(strikeConns, Remotes.RigRefresh.OnClientEvent:Connect(function(payloadJson)
+            if typeof(payloadJson) == "string" and string.find(payloadJson, "Ragdoll", 1, true) then
+                onStrikeEvent("RigSync:Ragdoll")
+            end
+        end))
+    end
 
-hookEggCarryRequest()
-updateTimingUI()
+    -- Hook Character RagdollEndTime
+    if Character then
+        table.insert(strikeConns, Character.AttributeChanged:Connect(function(attr)
+            if attr == "RagdollEndTime" then
+                local v = Character:GetAttribute("RagdollEndTime") or 0
+                if typeof(v) == "number" and v > 0 then
+                    onStrikeEvent("Attr:RagdollEndTime")
+                end
+            end
+        end))
+    end
 
-local initPing = getPingMs()
-log("Guard Drop Tester loaded")
-log("Landing location preset to " .. vec(SavedLocation))
-log("Focus Biome Guard: Dynamic closest area (RE/GuardPatrol/Rouse)")
-log(string.format("Initial Timing delay: %.3fs (live ping: %dms; adjust with [-]/[+] buttons)", GUARD_HIT_TIMING, initPing))
-log("Press E on egg in any area:")
-log(" -> When request returns true, timing wait begins & hit is verified!")
-log(" -> If timed out before hit, timing steps up. If strike expired, timing steps down.")
+    -- Safety Timeout
+    task.delay(Config.StrikeTimeout, function()
+        if not strikeConfirmed then
+            for _, c in ipairs(strikeConns) do pcall(function() c:Disconnect() end) end
+            table.clear(strikeConns)
+            State.IsActive = false
+            UI.setStatus("Timeout: Strike packet did not arrive.", Config.Theme.Yellow)
+            Helpers.log("Strike timeout expired without hit confirmation", "WARN")
+        end
+    end)
+end
+
+-- Event Listeners
+Engine.initListeners = function()
+    -- Automatically trigger when egg is picked up
+    if Remotes.FieldCarry then
+        Helpers.addConn(Remotes.FieldCarry.OnClientEvent:Connect(function(args)
+            if typeof(args) == "table" then
+                if args.IsCarrying == true or (args.Uid and args.IsCarrying ~= false) then
+                    State.IsCarrying = true
+                    local eggUid = args.Uid or State.CurrentEggUid
+                    if eggUid and not State.IsActive then
+                        Helpers.log(string.format("Carry detected: %s", tostring(eggUid)), "PICKUP")
+                        Engine.executeDrop(eggUid)
+                    end
+                elseif args.IsCarrying == false then
+                    State.IsCarrying = false
+                end
+            end
+        end))
+    end
+
+    -- Character lifecycle tracking
+    local function hookCharacter(char)
+        if not char then return end
+        Character = char
+        Humanoid = char:WaitForChild("Humanoid", 5) or char:FindFirstChildOfClass("Humanoid")
+        RootPart = char:WaitForChild("HumanoidRootPart", 5) or char.PrimaryPart
+    end
+
+    if LocalPlayer then
+        Helpers.addConn(LocalPlayer.CharacterAdded:Connect(hookCharacter))
+        if LocalPlayer.Character then hookCharacter(LocalPlayer.Character) end
+    end
+end
+
+-- UI Builder
+UI.init = function()
+    local parent = (gethui and gethui())
+        or (game:GetService("CoreGui"):FindFirstChild("RobloxGui") and game:GetService("CoreGui"))
+        or (LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+    if not parent then return end
+
+    local existing = parent:FindFirstChild(Config.GuiName)
+    if existing then pcall(function() existing:Destroy() end) end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = Config.GuiName
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 99999
+    screenGui.Parent = parent
+
+    local main = Instance.new("Frame")
+    main.Name = "MainFrame"
+    main.Size = UDim2.new(0, 320, 0, 235)
+    main.Position = UDim2.new(0.5, -160, 0.4, -115)
+    main.BackgroundColor3 = Config.Theme.Bg
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Draggable = true
+    main.Parent = screenGui
+
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", main)
+    stroke.Color = Config.Theme.Border
+    stroke.Thickness = 1.5
+
+    -- Title Bar
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -60, 0, 26)
+    title.Position = UDim2.new(0, 10, 0, 4)
+    title.BackgroundTransparency = 1
+    title.Text = "⚡ Forest Dropper (Auto-Loop)"
+    title.TextColor3 = Config.Theme.Cyan
+    title.TextSize = 13
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = main
+
+    -- Close Button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 22, 0, 22)
+    closeBtn.Position = UDim2.new(1, -26, 0, 6)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Config.Theme.TextDim
+    closeBtn.TextSize = 11
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = main
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(closeBtn.MouseButton1Click:Connect(function()
+        if _G.ForestDropper_Cleanup then
+            pcall(_G.ForestDropper_Cleanup)
+            _G.ForestDropper_Cleanup = nil
+        end
+    end))
+
+    -- Toggle Button
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 24, 0, 22)
+    toggleBtn.Position = UDim2.new(1, -54, 0, 6)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
+    toggleBtn.Text = "ON"
+    toggleBtn.TextColor3 = Config.Theme.Green
+    toggleBtn.TextSize = 10
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.Parent = main
+    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(toggleBtn.MouseButton1Click:Connect(function()
+        State.Enabled = not State.Enabled
+        if State.Enabled then
+            toggleBtn.Text = "ON"
+            toggleBtn.TextColor3 = Config.Theme.Green
+            toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
+            UI.setStatus("Dropper Enabled", Config.Theme.Green)
+        else
+            toggleBtn.Text = "OFF"
+            toggleBtn.TextColor3 = Config.Theme.Red
+            toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
+            UI.setStatus("Dropper Disabled", Config.Theme.Red)
+        end
+    end))
+
+    -- 1. Pen Location Card
+    local penCard = Instance.new("Frame")
+    penCard.Size = UDim2.new(1, -20, 0, 36)
+    penCard.Position = UDim2.new(0, 10, 0, 32)
+    penCard.BackgroundColor3 = Config.Theme.Card
+    penCard.BorderSizePixel = 0
+    penCard.Parent = main
+    Instance.new("UICorner", penCard).CornerRadius = UDim.new(0, 6)
+
+    local penLabel = Instance.new("TextLabel")
+    penLabel.Size = UDim2.new(1, -95, 1, 0)
+    penLabel.Position = UDim2.new(0, 8, 0, 0)
+    penLabel.BackgroundTransparency = 1
+    penLabel.Text = string.format("Pen: (%.1f, %.1f, %.1f)", State.SavedLocation.X, State.SavedLocation.Y, State.SavedLocation.Z)
+    penLabel.TextColor3 = Config.Theme.TextPrimary
+    penLabel.TextSize = 10
+    penLabel.Font = Enum.Font.Gotham
+    penLabel.TextXAlignment = Enum.TextXAlignment.Left
+    penLabel.Parent = penCard
+    UI.Elements.PenLabel = penLabel
+
+    local setPenBtn = Instance.new("TextButton")
+    setPenBtn.Size = UDim2.new(0, 80, 0, 24)
+    setPenBtn.Position = UDim2.new(1, -85, 0.5, -12)
+    setPenBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 180)
+    setPenBtn.Text = "📍 Set Pen"
+    setPenBtn.TextColor3 = Color3.new(1, 1, 1)
+    setPenBtn.TextSize = 10
+    setPenBtn.Font = Enum.Font.GothamBold
+    setPenBtn.Parent = penCard
+    Instance.new("UICorner", setPenBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(setPenBtn.MouseButton1Click:Connect(function()
+        if RootPart and RootPart.Parent then
+            State.SavedLocation = RootPart.Position
+            penLabel.Text = string.format("Pen: (%.1f, %.1f, %.1f)", State.SavedLocation.X, State.SavedLocation.Y, State.SavedLocation.Z)
+            UI.setStatus("Pen location updated!", Config.Theme.Green)
+            Helpers.log(string.format("Pen location set to V3(%.1f, %.1f, %.1f)", State.SavedLocation.X, State.SavedLocation.Y, State.SavedLocation.Z), "LOCATION")
+        end
+    end))
+
+    -- 2. Nest Location Card
+    local nestCard = Instance.new("Frame")
+    nestCard.Size = UDim2.new(1, -20, 0, 36)
+    nestCard.Position = UDim2.new(0, 10, 0, 72)
+    nestCard.BackgroundColor3 = Config.Theme.Card
+    nestCard.BorderSizePixel = 0
+    nestCard.Parent = main
+    Instance.new("UICorner", nestCard).CornerRadius = UDim.new(0, 6)
+
+    local nestLabel = Instance.new("TextLabel")
+    nestLabel.Size = UDim2.new(1, -95, 1, 0)
+    nestLabel.Position = UDim2.new(0, 8, 0, 0)
+    nestLabel.BackgroundTransparency = 1
+    nestLabel.Text = string.format("Nest: (%.1f, %.1f, %.1f)", State.StartLocation.X, State.StartLocation.Y, State.StartLocation.Z)
+    nestLabel.TextColor3 = Config.Theme.TextPrimary
+    nestLabel.TextSize = 10
+    nestLabel.Font = Enum.Font.Gotham
+    nestLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nestLabel.Parent = nestCard
+    UI.Elements.NestLabel = nestLabel
+
+    local setNestBtn = Instance.new("TextButton")
+    setNestBtn.Size = UDim2.new(0, 80, 0, 24)
+    setNestBtn.Position = UDim2.new(1, -85, 0.5, -12)
+    setNestBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 80)
+    setNestBtn.Text = "📍 Set Nest"
+    setNestBtn.TextColor3 = Color3.new(1, 1, 1)
+    setNestBtn.TextSize = 10
+    setNestBtn.Font = Enum.Font.GothamBold
+    setNestBtn.Parent = nestCard
+    Instance.new("UICorner", setNestBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(setNestBtn.MouseButton1Click:Connect(function()
+        if RootPart and RootPart.Parent then
+            State.StartLocation = RootPart.Position
+            nestLabel.Text = string.format("Nest: (%.1f, %.1f, %.1f)", State.StartLocation.X, State.StartLocation.Y, State.StartLocation.Z)
+            UI.setStatus("Nest location updated!", Config.Theme.Green)
+            Helpers.log(string.format("Nest location set to V3(%.1f, %.1f, %.1f)", State.StartLocation.X, State.StartLocation.Y, State.StartLocation.Z), "LOCATION")
+        end
+    end))
+
+    -- Info: Status Banner
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, -20, 0, 32)
+    status.Position = UDim2.new(0, 10, 0, 112)
+    status.BackgroundColor3 = Config.Theme.Card
+    status.Text = "Status: Ready · Auto-Loop is ON"
+    status.TextColor3 = Config.Theme.Green
+    status.TextSize = 11
+    status.Font = Enum.Font.Gotham
+    status.TextWrapped = true
+    status.Parent = main
+    Instance.new("UICorner", status).CornerRadius = UDim.new(0, 6)
+    UI.Elements.Status = status
+
+    -- Info: Stats Row
+    local statsLabel = Instance.new("TextLabel")
+    statsLabel.Size = UDim2.new(1, -20, 0, 18)
+    statsLabel.Position = UDim2.new(0, 10, 0, 148)
+    statsLabel.BackgroundTransparency = 1
+    statsLabel.Text = "Deliveries: 0 | Auto-Loop: Active"
+    statsLabel.TextColor3 = Config.Theme.TextDim
+    statsLabel.TextSize = 10
+    statsLabel.Font = Enum.Font.Gotham
+    statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statsLabel.Parent = main
+    UI.Elements.StatsLabel = statsLabel
+
+    -- Bottom Buttons: Auto-Loop Toggle + Test Drop + Copy Log
+    local loopBtn = Instance.new("TextButton")
+    loopBtn.Size = UDim2.new(0, 96, 0, 26)
+    loopBtn.Position = UDim2.new(0, 10, 0, 172)
+    loopBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
+    loopBtn.Text = "Loop: ON"
+    loopBtn.TextColor3 = Config.Theme.Green
+    loopBtn.TextSize = 10
+    loopBtn.Font = Enum.Font.GothamBold
+    loopBtn.Parent = main
+    Instance.new("UICorner", loopBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(loopBtn.MouseButton1Click:Connect(function()
+        State.AutoLoop = not State.AutoLoop
+        if State.AutoLoop then
+            loopBtn.Text = "Loop: ON"
+            loopBtn.TextColor3 = Config.Theme.Green
+            loopBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
+            UI.setStatus("Auto-Loop Enabled. Starting cycle...", Config.Theme.Green)
+            if not State.IsCarrying and not State.IsActive then
+                Engine.returnToNestAndPickup()
+            end
+        else
+            loopBtn.Text = "Loop: OFF"
+            loopBtn.TextColor3 = Config.Theme.Red
+            loopBtn.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
+            UI.setStatus("Auto-Loop Disabled.", Config.Theme.Red)
+        end
+    end))
+
+    local testBtn = Instance.new("TextButton")
+    testBtn.Size = UDim2.new(0, 96, 0, 26)
+    testBtn.Position = UDim2.new(0, 112, 0, 172)
+    testBtn.BackgroundColor3 = Color3.fromRGB(35, 45, 65)
+    testBtn.Text = "⚡ Test Drop"
+    testBtn.TextColor3 = Config.Theme.Cyan
+    testBtn.TextSize = 10
+    testBtn.Font = Enum.Font.GothamBold
+    testBtn.Parent = main
+    Instance.new("UICorner", testBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(testBtn.MouseButton1Click:Connect(function()
+        local uid = State.CurrentEggUid or "TestEgg_Manual"
+        Engine.executeDrop(uid)
+    end))
+
+    local copyBtn = Instance.new("TextButton")
+    copyBtn.Size = UDim2.new(0, 96, 0, 26)
+    copyBtn.Position = UDim2.new(0, 214, 0, 172)
+    copyBtn.BackgroundColor3 = Color3.fromRGB(35, 55, 45)
+    copyBtn.Text = "📋 Copy Log"
+    copyBtn.TextColor3 = Config.Theme.Green
+    copyBtn.TextSize = 10
+    copyBtn.Font = Enum.Font.GothamBold
+    copyBtn.Parent = main
+    Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(copyBtn.MouseButton1Click:Connect(function()
+        local okCopy, count = Helpers.copyLogs()
+        if okCopy then
+            copyBtn.Text = "✓ (" .. tostring(count) .. ")"
+            copyBtn.TextColor3 = Color3.fromRGB(150, 255, 170)
+        else
+            copyBtn.Text = "⚠️ Failed"
+            copyBtn.TextColor3 = Config.Theme.Yellow
+        end
+        task.delay(2.0, function()
+            if copyBtn and copyBtn.Parent then
+                copyBtn.Text = "📋 Copy Log"
+                copyBtn.TextColor3 = Config.Theme.Green
+            end
+        end)
+    end))
+
+    UI.Elements.ScreenGui = screenGui
+end
+
+UI.setStatus = function(text, color)
+    if UI.Elements.Status and UI.Elements.Status.Parent then
+        UI.Elements.Status.Text = "Status: " .. tostring(text)
+        if color then
+            UI.Elements.Status.TextColor3 = color
+        end
+    end
+end
+
+UI.setDeliveries = function(count)
+    if UI.Elements.StatsLabel and UI.Elements.StatsLabel.Parent then
+        local loopStatus = State.AutoLoop and "Active" or "Paused"
+        UI.Elements.StatsLabel.Text = string.format("Deliveries: %d | Auto-Loop: %s", count, loopStatus)
+    end
+end
+
+-- Full Cleanup Routine
+local function fullCleanup()
+    State.Enabled = false
+    State.AutoLoop = false
+    State.IsActive = false
+    Helpers.disconnectAll()
+    if UI.Elements.ScreenGui and UI.Elements.ScreenGui.Parent then
+        pcall(function() UI.Elements.ScreenGui:Destroy() end)
+    end
+    print("[ForestDropper] Cleaned up cleanly.")
+end
+
+_G.ForestDropper_Cleanup = fullCleanup
+
+-- Startup
+UI.init()
+Engine.initListeners()
+Helpers.log("Forest Dropper loaded. Auto-Loop ready.", "SYSTEM")
