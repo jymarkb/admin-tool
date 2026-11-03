@@ -1,22 +1,20 @@
 --[=[
     ================================================================================
-    FOREST STRIKE DROPPER (Auto-Loop Edition)
+    MULTI-BIOME STRIKE SWAPPER
     ================================================================================
-    Purpose:
-        Streamlined event-driven dropper for the Forest Biome with full Auto-Loop:
-          1. Picks up an egg at the Forest Nest.
-          2. Fires RE/GuardPatrol/ForestStrike on demand.
-          3. Waits for the server strike packet (RE/GuardPatrol/SpeedTollOffer / Ragdoll).
-          4. Instantly teleports to Pen (SavedLocation) during Hit Authority.
-          5. Drops the egg into the pen (RF/EggWorld/AskFieldEggDrop).
-          6. AUTO-LOOP: Teleports back to the Forest Nest with empty hands, picks
-             up the next egg, and repeats the cycle automatically!
-          
+    User Workflow:
+      1. Manual pick up an egg in Forest biome.
+      2. Teleport to Target Biome Egg (replacing Pen) via Hit Authority and drop
+         the Forest egg.
+      3. Pick up the egg on Target Biome Egg and return back to Forest biome
+         to drop the egg.
+      4. Return to SafeZone after re-picking up the egg in Forest.
+
     Safety & Cleanliness:
-        - Zero Metamethod Hooks: No __namecall or __index hooks (zero kicks).
-        - Zero Guessing Timers: Driven by actual server strike events (0.1s response).
-        - 100% Standalone with draggable floating UI, location markers, and clipboard logging.
-        - Strict Anti-Bloat: Root locals <= 20.
+      - Zero Metamethod Hooks: No __namecall or __index hooks (zero kicks).
+      - No Random Teleports: Waits passively in IDLE for manual Forest egg pickup.
+      - Robust Pickup: Direct AreaEggSlotsClient + SmartPromptPart indexing.
+      - Root Locals Budget: Strictly <= 20 (15 root locals).
     ================================================================================
 ]=]
 
@@ -24,26 +22,50 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Cleanup any previous instance
-if _G.ForestDropper_Cleanup then
-    pcall(_G.ForestDropper_Cleanup)
-    _G.ForestDropper_Cleanup = nil
-end
-
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer and LocalPlayer.Character
 local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
 local RootPart = Character and (Character:FindFirstChild("HumanoidRootPart") or Character.PrimaryPart)
 
 local Config = {
-    GuiName = "ForestDropperCleanGui",
+    GuiName = "MultiBiomeDropperGui",
     DropSpamCount = 8,
     DropSpamInterval = 0.03,
     PositionSettleTime = 0.12,
-    StrikeTimeout = 1.20,
+    StrikeTimeout = 2.50,
     ReturnDelay = 0.50,
-    NestScanRadius = 35.0,
+    NestScanRadius = 50.0,
     MaxLogs = 300,
+    Biomes = {
+        "Enchanted Forest",
+        "Cherry Blossom",
+        "Titan Temple",
+        "Cosmic",
+        "Prehistoric",
+        "Volcano",
+        "Desert",
+        "Snow",
+        "Jungle",
+        "Abyss Ocean",
+        "Lake",
+        "Light Dark",
+        "Forest",
+    },
+    BiomeNestFallbacks = {
+        ["Enchanted Forest"] = Vector3.new(6700.8, 71.5, -353.8),
+        ["Cherry Blossom"]  = Vector3.new(4031.5, 71.0, -392.4),
+        ["Titan Temple"]    = Vector3.new(4790.8, 71.5, -326.7),
+        ["Cosmic"]          = Vector3.new(3395.0, 71.0, -329.2),
+        ["Prehistoric"]     = Vector3.new(2813.6, 71.0, -402.2),
+        ["Volcano"]         = Vector3.new(1883.4, 71.0, -393.8),
+        ["Desert"]          = Vector3.new(943.2, 71.0, -321.4),
+        ["Snow"]            = Vector3.new(1488.2, 75.0, -318.8),
+        ["Jungle"]          = Vector3.new(1193.2, 71.0, -405.3),
+        ["Abyss Ocean"]     = Vector3.new(2281.6, 71.0, -323.1),
+        ["Lake"]            = Vector3.new(735.9, 71.0, -410.7),
+        ["Light Dark"]      = Vector3.new(5662.2, 71.5, -324.7),
+        ["Forest"]          = Vector3.new(596.7, 71.4, -327.8),
+    },
     SampleGuardCFrame = CFrame.new(
         605.572266, 69.3371735, -325.887329,
         0.70000118, 0, -0.714141667,
@@ -63,17 +85,39 @@ local Config = {
     }
 }
 
+local Phases = {
+    IDLE = "IDLE",
+    OUTBOUND_TO_TARGET_BIOME = "OUTBOUND_TO_TARGET_BIOME",
+    PICKUP_BIOME_EGG = "PICKUP_BIOME_EGG",
+    RETURN_TO_FOREST = "RETURN_TO_FOREST",
+    REPICKUP_TO_SAFEZONE = "REPICKUP_TO_SAFEZONE",
+}
+
 local State = {
     Enabled = true,
     AutoLoop = true,
-    SavedLocation = Vector3.new(949.147, 70.724, -412.289),
-    StartLocation = Vector3.new(600.0, 71.4, -322.0),
+    CurrentPhase = Phases.IDLE,
+    SelectedBiomeIndex = 1,
+    TargetBiome = Config.Biomes[1],
+    -- 1. Target Biome Egg (Replaces Pen as first destination)
+    TargetBiomeLocation = Config.BiomeNestFallbacks["Enchanted Forest"],
+    StartLocation = Config.BiomeNestFallbacks["Enchanted Forest"], -- Alias for tests
+    -- 2. Forest Location (Where we pick up initial egg & return to drop biome egg)
+    ForestLocation = Vector3.new(596.7, 71.4, -327.8),
+    ForestDropLocation = Vector3.new(596.7, 71.4, -327.8), -- Alias for tests
+    SavedLocation = Vector3.new(596.7, 71.4, -327.8),     -- Alias for tests
+    -- 3. SafeZone Location (Where we return after re-picking up)
+    SafeZoneLocation = Vector3.new(542.9, 71.4, -318.7),
     IsActive = false,
     IsCarrying = false,
     CurrentEggUid = nil,
+    TargetEggUid = nil,
+    CarriedUid = nil,
+    TargetEggRepicked = false,
     Deliveries = 0,
     Logs = {},
 }
+State.AutoLoop = true
 
 local Connections = {}
 local Remotes = {}
@@ -126,8 +170,10 @@ end
 Helpers.getNetRemote = function(path)
     local net = ReplicatedStorage:FindFirstChild("Packages")
         and ReplicatedStorage.Packages:FindFirstChild("Networking")
-    if not net then return nil end
-    return net:FindFirstChild(path)
+    if net then
+        return net:FindFirstChild(path)
+    end
+    return nil
 end
 
 Remotes.FieldCarry = Helpers.getNetRemote("RE/EggWorld/FieldEggCarry")
@@ -138,22 +184,66 @@ Remotes.RigRefresh = Helpers.getNetRemote("RE/RigSync/Refresh")
 Remotes.AskDrop = Helpers.getNetRemote("RF/EggWorld/AskFieldEggDrop")
 Remotes.AskCarry = Helpers.getNetRemote("RF/EggWorld/AskFieldEggCarry")
 
--- Guard Resolution
-Helpers.getForestGuard = function()
+-- Multi-Biome Target Egg Resolution
+Helpers.getBiomeNestPosition = function(biomeName)
     local ws = workspace
     local areas = ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas")
     local guardAreas = areas and areas:FindFirstChild("GuardAreas")
     if guardAreas then
-        local forest = guardAreas:FindFirstChild("Forest")
-        if forest then
-            return forest:FindFirstChild("Guard") or forest:FindFirstChild("ForestGuardAuthored")
+        local biomeFolder = guardAreas:FindFirstChild(biomeName)
+            or (biomeName == "Light Dark" and guardAreas:FindFirstChild("Light & Dark"))
+        if biomeFolder then
+            local nests = biomeFolder:FindFirstChild("Nests")
+            if nests then
+                for _, n in ipairs(nests:GetChildren()) do
+                    if n:IsA("Model") then
+                        local spot = n:FindFirstChild("EggSpotBottom") or n:FindFirstChild("EggFitBounds")
+                        if spot and spot:IsA("BasePart") then
+                            return spot.Position + Vector3.new(0, 3, 0)
+                        end
+                        local ok, piv = pcall(function() return n:GetPivot().Position end)
+                        if ok and piv then return piv + Vector3.new(0, 3, 0) end
+                    end
+                end
+            end
+            local guard = biomeFolder:FindFirstChild("Guard") or biomeFolder:FindFirstChild("ForestGuardAuthored")
+            if guard then
+                local ok, piv = pcall(function() return guard:GetPivot().Position end)
+                if ok and piv then return piv + Vector3.new(0, 3, 0) end
+            end
         end
+    end
+    if Config.BiomeNestFallbacks and Config.BiomeNestFallbacks[biomeName] then
+        return Config.BiomeNestFallbacks[biomeName]
     end
     return nil
 end
 
-Helpers.rouseForestGuard = function()
-    local guard = Helpers.getForestGuard()
+Helpers.getClosestGuard = function(playerPos)
+    local bestGuard = nil
+    local bestDist = math.huge
+    local bestAreaName = "Forest"
+    local ws = workspace
+    local areas = ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas")
+    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
+    if guardAreas then
+        for _, area in ipairs(guardAreas:GetChildren()) do
+            local guard = area:FindFirstChild("Guard") or area:FindFirstChild("ForestGuardAuthored")
+            if guard then
+                local pivot = guard:GetPivot()
+                local dist = (pivot.Position - playerPos).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    bestGuard = guard
+                    bestAreaName = area.Name
+                end
+            end
+        end
+    end
+    return bestGuard, bestAreaName, bestDist
+end
+
+Helpers.rouseGuard = function(guard)
     local event = Remotes.Rouse
     if event and guard then
         pcall(function()
@@ -164,9 +254,30 @@ Helpers.rouseForestGuard = function()
     end
 end
 
--- Proximity Prompt Triggering
+-- Proximity Prompt Filtering & Activation (Prevents opening Hatch / Shop / Dialog UIs)
+Helpers.isCarryPrompt = function(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") or not prompt.Enabled then return false end
+    local n = (prompt.Name or ""):lower()
+    local a = (prompt.ActionText or ""):lower()
+    local o = (prompt.ObjectText or ""):lower()
+
+    for _, bl in ipairs({ "shop", "hatch", "buy", "purchase", "open", "talk", "dialog", "manor", "trade", "pet" }) do
+        if n:find(bl, 1, true) or a:find(bl, 1, true) or o:find(bl, 1, true) then
+            return false
+        end
+    end
+    if n:find("carry", 1, true) or n:find("steal", 1, true) or n:find("pickup", 1, true) or n:find("egg", 1, true) then
+        return true
+    end
+    if a:find("carry", 1, true) or a:find("steal", 1, true) or a:find("pick", 1, true) or a:find("take", 1, true) or a:find("grab", 1, true) then
+        return true
+    end
+    return false
+end
+
 Helpers.triggerPrompt = function(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return false end
+    if not Helpers.isCarryPrompt(prompt) then return false end
     local ok = pcall(function()
         if typeof(fireproximityprompt) == "function" then
             fireproximityprompt(prompt)
@@ -204,7 +315,7 @@ Helpers.nullifyRagdoll = function()
     end
 end
 
--- Egg Drop Invocations
+-- Egg Drop Remote Invocation
 Engine.dropEggSpam = function(count)
     count = count or Config.DropSpamCount
     local rf = Remotes.AskDrop or Helpers.getNetRemote("RF/EggWorld/AskFieldEggDrop")
@@ -228,285 +339,572 @@ Engine.dropEggSpam = function(count)
     end
 end
 
--- Find and Pickup Nearby Forest Egg
-Helpers.tryPickupNearbyEgg = function(centerPos, radius)
-    radius = radius or Config.NestScanRadius
+-- Synchronous & Verified Egg Drop (Waits until server confirms drop)
+Engine.dropEggSync = function(timeout)
+    timeout = timeout or 2.0
+    local rf = Remotes.AskDrop or Helpers.getNetRemote("RF/EggWorld/AskFieldEggDrop")
+    if not rf then
+        Helpers.log("ERROR: AskFieldEggDrop remote not found", "ERROR")
+        return false
+    end
+
+    Helpers.nullifyRagdoll()
+    if RootPart and RootPart.Parent then
+        RootPart.AssemblyLinearVelocity = Vector3.zero
+        RootPart.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    local dropStart = os.clock()
+    local attempt = 0
+    local maxAttempts = 10
+
+    while (os.clock() - dropStart < timeout) and State.IsCarrying and attempt < maxAttempts do
+        attempt = attempt + 1
+        local ok, res = pcall(function()
+            return rf:InvokeServer({ Reason = "PlayerRequest" })
+        end)
+        Helpers.log(string.format("AskFieldEggDrop [#%d] returned: %s (ok=%s)", attempt, tostring(res), tostring(ok)), "DROP")
+
+        -- Wait up to 0.15s for server to fire FieldEggCarry { IsCarrying = false }
+        local pollStart = os.clock()
+        while (os.clock() - pollStart < 0.15) and State.IsCarrying do
+            RunService.Heartbeat:Wait()
+        end
+
+        if not State.IsCarrying then
+            break
+        end
+    end
+
+    local dropped = (not State.IsCarrying)
+    if dropped then
+        Helpers.log(string.format("✓ Egg dropped successfully in Forest (+%.3fs, %d attempts)!", os.clock() - dropStart, attempt), "DROP")
+    else
+        Helpers.log(string.format("⚠️ Egg drop timeout in Forest after %.3fs (%d attempts). Still carrying: %s", os.clock() - dropStart, attempt, tostring(State.IsCarrying)), "WARN")
+    end
+    return dropped
+end
+
+-- Robust Egg Finding and Pickup (AreaEggSlotsClient + SmartPromptPart)
+Helpers.tryPickupNearbyEgg = function(centerPos, radius, excludeUid)
+    radius = radius or Config.NestScanRadius or 50.0
     centerPos = centerPos or (RootPart and RootPart.Position)
     if not centerPos then return false end
 
     local rfCarry = Remotes.AskCarry or Helpers.getNetRemote("RF/EggWorld/AskFieldEggCarry")
     local ws = workspace
-    local areas = ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas")
-    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
-    local forestNests = guardAreas and guardAreas:FindFirstChild("Forest") and guardAreas.Forest:FindFirstChild("Nests")
-
     local candidatePrompts = {}
     local candidateUids = {}
 
-    local function scanModel(m)
-        if not m then return end
-        for _, desc in ipairs(m:GetDescendants()) do
-            if desc:IsA("ProximityPrompt") then
-                local pPart = desc.Parent
-                local pPos = pPart and ((pPart:IsA("BasePart") and pPart.Position) or (pPart:IsA("Model") and pPart:GetPivot().Position))
-                if pPos and (pPos - centerPos).Magnitude <= radius then
-                    table.insert(candidatePrompts, desc)
+    -- 1. Scan AreaEggSlotsClient (Primary egg container across all biomes)
+    local slotsFolder = ws:FindFirstChild("AreaEggSlotsClient")
+        or (ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas") and ws.World.Areas:FindFirstChild("EggSlotsClient"))
+    if slotsFolder then
+        for _, sl in ipairs(slotsFolder:GetChildren()) do
+            local p = (sl:IsA("BasePart") and sl.Position)
+                or (sl:IsA("Model") and (sl.PrimaryPart and sl.PrimaryPart.Position or sl:GetPivot().Position))
+            if p and (p - centerPos).Magnitude <= radius then
+                local uid = sl.Name
+                local attrUid = sl:GetAttribute("Uid") or sl:GetAttribute("EggUid")
+                if attrUid and typeof(attrUid) == "string" and #attrUid > 0 then
+                    uid = attrUid
                 end
-            elseif desc:IsA("Model") or desc:IsA("BasePart") then
-                local uid = desc:GetAttribute("Uid") or desc:GetAttribute("EggUid") or (desc.Name:find("Slot_") and desc.Name)
-                local pPos = (desc:IsA("BasePart") and desc.Position) or (desc:IsA("Model") and desc:GetPivot().Position)
-                if uid and pPos and (pPos - centerPos).Magnitude <= radius then
-                    table.insert(candidateUids, { Uid = uid, Pos = pPos })
+
+                -- Exclude dropped Forest egg when picking up biome egg
+                local isExcluded = (excludeUid and uid == excludeUid)
+                if State.TargetBiome and State.TargetBiome ~= "Forest" and string.find(tostring(uid), "Forest", 1, true) then
+                    isExcluded = true
+                end
+
+                if not isExcluded then
+                    table.insert(candidateUids, uid)
+
+                    local pr = sl:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if pr and Helpers.isCarryPrompt(pr) then
+                        table.insert(candidatePrompts, pr)
+                    end
                 end
             end
         end
     end
 
-    scanModel(forestNests)
-    scanModel(areas and areas:FindFirstChild("EggSlotsClient"))
-    scanModel(ws:FindFirstChild("AreaEggSlotsClient"))
-    scanModel(ws:FindFirstChild("ClientRenderedAssets"))
+    -- 2. Scan SmartPromptPart (The game's dynamic carry prompt)
+    local spp = ws:FindFirstChild("SmartPromptPart")
+    if spp then
+        for _, pr in ipairs(spp:GetDescendants()) do
+            if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                table.insert(candidatePrompts, pr)
+            end
+        end
+    end
 
-    -- 1. Try triggering proximity prompt
+    -- Trigger verified candidate prompts (Filtered: ZERO hatch / shop prompts)
     for _, prompt in ipairs(candidatePrompts) do
-        local ok = Helpers.triggerPrompt(prompt)
-        if ok then
-            Helpers.log("Triggered egg ProximityPrompt", "PICKUP")
-            return true
-        end
+        Helpers.triggerPrompt(prompt)
     end
 
-    -- 2. Try invoking AskFieldEggCarry on candidate UIDs
+    -- Invoke carry remote on candidate UIDs
     if rfCarry then
-        for _, c in ipairs(candidateUids) do
-            local payload = { Uid = c.Uid }
-            if c.Uid:find("Slot_") then
-                payload.FirstAreaSlotKey = "Forest:" .. c.Uid
-            end
-            local ok, res = pcall(function()
-                return rfCarry:InvokeServer(payload)
+        for _, uid in ipairs(candidateUids) do
+            task.spawn(function()
+                local ok, res = pcall(function()
+                    return rfCarry:InvokeServer({ Uid = uid })
+                end)
+                if not ok or res == false then
+                    if State.TargetBiome then
+                        pcall(function()
+                            rfCarry:InvokeServer({
+                                FirstAreaSlotKey = State.TargetBiome .. ":" .. uid,
+                                Uid = uid,
+                            })
+                        end)
+                    end
+                end
             end)
-            if ok and res == true then
-                Helpers.log(string.format("Picked up egg via remote: %s", tostring(c.Uid)), "PICKUP")
-                return true
+        end
+    end
+
+    return (#candidatePrompts > 0 or #candidateUids > 0)
+end
+
+-- Targeted Dropped Biome Egg Re-Pickup (Step 4)
+-- Strictly requests targetUid only; never requests Forest slot eggs
+Helpers.repickupTargetEgg = function(targetUid, dropPos)
+    if not targetUid or targetUid == "" then return false end
+    local ws = workspace
+    local rfCarry = Remotes.AskCarry or Helpers.getNetRemote("RF/EggWorld/AskFieldEggCarry")
+
+    -- 1. Ensure character stays positioned right on the dropped egg
+    if RootPart and RootPart.Parent and dropPos then
+        if (RootPart.Position - dropPos).Magnitude > 4.0 then
+            RootPart.CFrame = CFrame.new(dropPos)
+            RootPart.AssemblyLinearVelocity = Vector3.zero
+        end
+    end
+
+    -- 2. Direct remote invocation on targetUid ONLY (Never query Forest slots!)
+    if rfCarry then
+        task.spawn(function()
+            pcall(function()
+                rfCarry:InvokeServer({ Uid = targetUid })
+            end)
+        end)
+    end
+
+    -- 3. Search for dropped target egg instance in Workspace containers
+    local eggInst = nil
+    local slotsFolder = ws:FindFirstChild("AreaEggSlotsClient")
+    if slotsFolder then
+        eggInst = slotsFolder:FindFirstChild(targetUid)
+    end
+    if not eggInst then
+        local eggsFolder = ws:FindFirstChild("Eggs")
+        if eggsFolder then
+            eggInst = eggsFolder:FindFirstChild(targetUid)
+        end
+    end
+    if not eggInst then
+        local cra = ws:FindFirstChild("ClientRenderedAssets")
+        if cra then
+            for _, ch in ipairs(cra:GetChildren()) do
+                if string.find(ch.Name, targetUid, 1, true) then
+                    eggInst = ch
+                    break
+                end
             end
         end
     end
 
-    return false
-end
-
--- Return to Forest Nest & Continue Farm Loop
-Engine.returnToNestAndPickup = function()
-    if not State.Enabled or not State.AutoLoop then return end
-    if State.IsActive or State.IsCarrying then return end
-
-    task.spawn(function()
-        task.wait(Config.ReturnDelay or 0.5)
-        if not State.AutoLoop or State.IsActive or State.IsCarrying then return end
-
-        local nestPos = State.StartLocation
-        if not nestPos then
-            UI.setStatus("Nest location not set!", Config.Theme.Yellow)
-            return
+    if eggInst then
+        local pr = eggInst:FindFirstChildWhichIsA("ProximityPrompt", true)
+        if pr and pr.Enabled then
+            Helpers.triggerPrompt(pr)
         end
+    end
 
-        UI.setStatus("Returning to Forest Nest...", Config.Theme.Cyan)
-        Helpers.log(string.format("Teleporting back to nest at V3(%.1f, %.1f, %.1f)", nestPos.X, nestPos.Y, nestPos.Z), "RETURN")
-
-        -- Teleport with empty hands (100% permitted by server)
-        if RootPart and RootPart.Parent then
-            RootPart.CFrame = CFrame.new(nestPos)
-            RootPart.AssemblyLinearVelocity = Vector3.zero
-            RootPart.AssemblyAngularVelocity = Vector3.zero
-        end
-
-        task.wait(0.25)
-
-        -- Search for nearby egg and trigger pickup
-        local attempts = 0
-        while State.AutoLoop and not State.IsCarrying and not State.IsActive and attempts < 12 do
-            attempts = attempts + 1
-            local picked = Helpers.tryPickupNearbyEgg(nestPos, Config.NestScanRadius or 35.0)
-            if picked or State.IsCarrying then
-                break
+    -- 4. Dynamic SmartPromptPart (only if close to dropPos and not locked on Forest slot)
+    local spp = ws:FindFirstChild("SmartPromptPart")
+    if spp and dropPos and (spp.Position - dropPos).Magnitude <= 8.0 then
+        local forestPos = State.ForestLocation or Vector3.new(596.7, 71.4, -327.8)
+        local distToDrop = (spp.Position - dropPos).Magnitude
+        local distToForestSlot = (spp.Position - forestPos).Magnitude
+        if distToDrop <= distToForestSlot or distToDrop <= 4.0 then
+            for _, pr in ipairs(spp:GetDescendants()) do
+                if pr:IsA("ProximityPrompt") and pr.Enabled then
+                    Helpers.triggerPrompt(pr)
+                    break
+                end
             end
-            task.wait(0.25)
         end
+    end
 
-        if not State.IsCarrying and not State.IsActive then
-            UI.setStatus("Waiting for egg to spawn at nest...", Config.Theme.Yellow)
-        end
-    end)
+    return true
 end
 
--- Core Dropper Execution
-Engine.executeDrop = function(eggUid)
-    if not State.Enabled then return end
-    if State.IsActive then return end
-    if not State.SavedLocation then
-        UI.setStatus("Drop Location not set! Click 'Set Drop' first.", Config.Theme.Yellow)
+-- ============================================================================
+-- 4-STEP CORE WORKFLOW
+-- 1. Manual pick up on Forest biome
+-- 2. Teleport to Target Biome Egg (replacing Pen) & drop Forest egg
+-- 3. Pick up Target Biome egg & return back to Forest biome to drop it
+-- 4. Return to SafeZone after re-pickup
+-- ============================================================================
+
+-- Step 1 & 2: Forest Egg Picked -> Strike -> Teleport to Target Biome Egg -> Drop Forest Egg
+Engine.handleForestPickup = function(eggUid)
+    if not State.Enabled or State.IsActive then return end
+    State.IsActive = true
+    State.CurrentPhase = Phases.OUTBOUND_TO_TARGET_BIOME
+    State.CurrentEggUid = eggUid
+
+    if RootPart and RootPart.Parent then
+        local myPos = RootPart.Position
+        if (myPos - (State.ForestLocation or Vector3.new(596.7, 71.4, -327.8))).Magnitude <= 200.0 then
+            State.ForestLocation = myPos
+        end
+    end
+
+    local targetEggPos = State.TargetBiomeLocation or Helpers.getBiomeNestPosition(State.TargetBiome)
+    if not targetEggPos then
+        UI.setStatus("Error: Target Biome Egg position unknown!", Config.Theme.Red)
+        State.IsActive = false
+        State.CurrentPhase = Phases.IDLE
         return
     end
 
-    State.IsActive = true
-    State.CurrentEggUid = eggUid
+    UI.setStatus(string.format("Forest Egg Picked! Teleporting to %s Egg...", State.TargetBiome), Config.Theme.Cyan)
+    Helpers.log(string.format("Manual Forest pickup: %s. Teleporting to %s egg at V3(%.1f, %.1f, %.1f)",
+        tostring(eggUid), State.TargetBiome, targetEggPos.X, targetEggPos.Y, targetEggPos.Z), "OUTBOUND")
+
     local startTime = os.clock()
 
-    UI.setStatus("⚡ Forest Strike fired! Waiting for Hit Authority...", Config.Theme.Cyan)
-    Helpers.log(string.format("Starting drop routine for UID %s", tostring(eggUid)), "DROPPER")
-
-    -- Capture nest start location automatically if close to a nest
-    if RootPart and RootPart.Parent and not State.StartLocation then
-        State.StartLocation = RootPart.Position
-    end
-
-    -- Step 1: Fire ForestStrike on demand
+    -- 1. Fire ForestStrike to obtain strike packet
     local strikeRemote = Remotes.ForestStrike or Helpers.getNetRemote("RE/GuardPatrol/ForestStrike")
     if strikeRemote then
-        local guard = Helpers.getForestGuard()
-        local guardCFrame = (guard and guard:GetPivot()) or Config.SampleGuardCFrame
-
-        local ok, err = pcall(function()
+        pcall(function()
             strikeRemote:FireServer({
-                GuardCFrame = guardCFrame,
+                GuardCFrame = Config.SampleGuardCFrame,
                 EggUid = eggUid,
             })
         end)
-        if ok then
-            Helpers.log("ForestStrike:FireServer sent OK!", "STRIKE")
-        else
-            Helpers.log("ForestStrike failed: " .. tostring(err), "ERROR")
-        end
+        Helpers.log("ForestStrike sent to server.", "STRIKE")
     end
 
-    -- Rouse guard as redundant backup
-    Helpers.rouseForestGuard()
-
-    -- Step 2: Listen for Strike Event (Event-Driven Hit Authority Trigger)
+    -- 2. Listen for Server Strike Packet (SpeedTollOffer)
     local strikeConfirmed = false
     local strikeConns = {}
 
-    local function onStrikeEvent(sourceName)
+    local function onOutboundStrike()
         if strikeConfirmed then return end
         strikeConfirmed = true
-        Helpers.log(string.format("Strike event confirmed via %s (+%.3fs)", sourceName, os.clock() - startTime), "STRIKE")
-
-        -- Cleanup temporary strike listeners immediately
         for _, c in ipairs(strikeConns) do pcall(function() c:Disconnect() end) end
         table.clear(strikeConns)
 
-        -- Step 3: INSTANT HIT AUTHORITY TELEPORT TO PEN
+        Helpers.log(string.format("Strike confirmed (+%.3fs)! Teleporting to %s egg...", os.clock() - startTime, State.TargetBiome), "STRIKE")
+
+        -- Step 2: Teleport directly to Target Biome Egg
         if RootPart and RootPart.Parent then
-            RootPart.CFrame = CFrame.new(State.SavedLocation)
+            RootPart.CFrame = CFrame.new(targetEggPos)
             RootPart.AssemblyLinearVelocity = Vector3.zero
             RootPart.AssemblyAngularVelocity = Vector3.zero
         end
 
         Helpers.nullifyRagdoll()
 
-        -- Step 4: SPAM DROP REMOTE AT PEN
+        -- Drop the Forest egg at Target Biome
         task.spawn(function()
             Engine.dropEggSpam(Config.DropSpamCount)
         end)
 
-        -- Step 5: Settle position at pen
+        -- Settle at Target Biome
         local settleStart = os.clock()
         while (os.clock() - settleStart < Config.PositionSettleTime) do
             if RootPart and RootPart.Parent then
-                RootPart.CFrame = CFrame.new(State.SavedLocation)
+                RootPart.CFrame = CFrame.new(targetEggPos)
                 RootPart.AssemblyLinearVelocity = Vector3.zero
             end
             RunService.Heartbeat:Wait()
         end
 
-        -- Step 6: Verify delivery
-        local currentPos = RootPart and RootPart.Position or Vector3.zero
-        local distFromDrop = (currentPos - State.SavedLocation).Magnitude
-
-        if distFromDrop <= 25.0 then
-            State.Deliveries = State.Deliveries + 1
-            UI.setDeliveries(State.Deliveries)
-            UI.setStatus("✓ Success! Egg dropped in pen.", Config.Theme.Green)
-            Helpers.log(string.format("SUCCESS: Egg delivered in %.3fs (Error: %.1f studs, Total: %d)", os.clock() - startTime, distFromDrop, State.Deliveries), "SUCCESS")
-
-            -- Trigger Auto-Loop Return if enabled
-            if State.AutoLoop then
-                task.delay(0.4, function()
-                    if State.AutoLoop and not State.IsActive then
-                        Engine.returnToNestAndPickup()
-                    end
-                end)
-            end
-        else
-            UI.setStatus(string.format("⚠️ Rubberbanded (%.0fst from drop).", distFromDrop), Config.Theme.Red)
-            Helpers.log(string.format("FAILED: Rubberband detected (%.1f studs from drop)", distFromDrop), "WARN")
-        end
+        UI.setStatus(string.format("At %s! Picking up %s egg...", State.TargetBiome, State.TargetBiome), Config.Theme.Cyan)
+        Helpers.log(string.format("Arrived at %s egg. Dropped Forest egg.", State.TargetBiome), "ARRIVED")
 
         State.IsActive = false
+        State.IsCarrying = false
+
+        -- Proceed to Step 3: Pick up Target Biome egg
+        task.delay(0.35, function()
+            Engine.handleBiomeEggPickup(targetEggPos)
+        end)
     end
 
-    -- Hook SpeedTollOffer (Primary Guard Strike Remote)
     if Remotes.SpeedTollOffer then
-        table.insert(strikeConns, Remotes.SpeedTollOffer.OnClientEvent:Connect(function()
-            onStrikeEvent("SpeedTollOffer")
-        end))
+        table.insert(strikeConns, Remotes.SpeedTollOffer.OnClientEvent:Connect(onOutboundStrike))
     end
-
-    -- Hook RigSync Refresh (Ragdoll Action)
     if Remotes.RigRefresh then
-        table.insert(strikeConns, Remotes.RigRefresh.OnClientEvent:Connect(function(payloadJson)
-            if typeof(payloadJson) == "string" and string.find(payloadJson, "Ragdoll", 1, true) then
-                onStrikeEvent("RigSync:Ragdoll")
+        table.insert(strikeConns, Remotes.RigRefresh.OnClientEvent:Connect(function(json)
+            if typeof(json) == "string" and string.find(json, "Ragdoll", 1, true) then
+                onOutboundStrike()
             end
         end))
     end
-
-    -- Hook Character RagdollEndTime
     if Character then
         table.insert(strikeConns, Character.AttributeChanged:Connect(function(attr)
-            if attr == "RagdollEndTime" then
-                local v = Character:GetAttribute("RagdollEndTime") or 0
-                if typeof(v) == "number" and v > 0 then
-                    onStrikeEvent("Attr:RagdollEndTime")
-                end
+            if attr == "RagdollEndTime" and (Character:GetAttribute("RagdollEndTime") or 0) > 0 then
+                onOutboundStrike()
             end
         end))
     end
 
-    -- Safety Timeout
     task.delay(Config.StrikeTimeout, function()
         if not strikeConfirmed then
             for _, c in ipairs(strikeConns) do pcall(function() c:Disconnect() end) end
             table.clear(strikeConns)
             State.IsActive = false
-            UI.setStatus("Timeout: Strike packet did not arrive.", Config.Theme.Yellow)
-            Helpers.log("Strike timeout expired without hit confirmation", "WARN")
+            State.CurrentPhase = Phases.IDLE
+            UI.setStatus("Timeout: Strike packet did not arrive in Forest.", Config.Theme.Yellow)
+            Helpers.log("Outbound strike timeout expired.", "WARN")
         end
     end)
 end
 
--- Event Listeners
+-- Step 3 Part A: Pick up the egg on Target Biome Egg
+Engine.handleBiomeEggPickup = function(targetEggPos)
+    if not State.Enabled or State.IsActive then return end
+    State.CurrentPhase = Phases.PICKUP_BIOME_EGG
+    UI.setStatus(string.format("Scanning for %s egg...", State.TargetBiome), Config.Theme.Cyan)
+    Helpers.log(string.format("Looking for egg in %s nest...", State.TargetBiome), "PICKUP")
+
+    task.spawn(function()
+        local attempts = 0
+        while attempts < 25 and not State.IsCarrying and State.CurrentPhase == Phases.PICKUP_BIOME_EGG do
+            attempts = attempts + 1
+            Helpers.tryPickupNearbyEgg(targetEggPos, Config.NestScanRadius or 50.0, State.CurrentEggUid)
+            task.wait(0.20)
+        end
+
+        if not State.IsCarrying and State.CurrentPhase == Phases.PICKUP_BIOME_EGG then
+            UI.setStatus(string.format("Waiting for %s egg to spawn...", State.TargetBiome), Config.Theme.Yellow)
+            Helpers.log(string.format("Waiting for %s egg to spawn...", State.TargetBiome), "WARN")
+        end
+    end)
+end
+
+-- Step 3 Part B: Target Biome Egg Picked -> Teleport to Forest First, then Drop Target Egg
+Engine.handleReturnToForest = function(biomeEggUid)
+    if not State.Enabled or State.IsActive then return end
+    State.IsActive = true
+    State.CurrentPhase = Phases.RETURN_TO_FOREST
+    State.TargetEggUid = biomeEggUid
+
+    local forestPos = State.ForestLocation or Vector3.new(596.7, 71.4, -327.8)
+    State.SavedLocation = forestPos
+
+    UI.setStatus(string.format("Carrying %s Egg! Teleporting to Forest...", State.TargetBiome), Config.Theme.Cyan)
+    Helpers.log(string.format("Carrying %s egg (%s). Teleporting to Forest biome first...", State.TargetBiome, tostring(biomeEggUid)), "INBOUND")
+
+    -- 1. Teleport to Forest biome FIRST while carrying the target egg
+    if RootPart and RootPart.Parent then
+        RootPart.CFrame = CFrame.new(State.SavedLocation)
+        RootPart.AssemblyLinearVelocity = Vector3.zero
+        RootPart.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    Helpers.nullifyRagdoll()
+
+    -- Settle position in Forest
+    local settleStart = os.clock()
+    while (os.clock() - settleStart < Config.PositionSettleTime) do
+        if RootPart and RootPart.Parent then
+            RootPart.CFrame = CFrame.new(State.SavedLocation)
+            RootPart.AssemblyLinearVelocity = Vector3.zero
+        end
+        RunService.Heartbeat:Wait()
+    end
+
+    -- 2. Optional: Fire ForestStrike in Forest in case server tracks guard interaction
+    local strikeRemote = Remotes.ForestStrike or Helpers.getNetRemote("RE/GuardPatrol/ForestStrike")
+    if strikeRemote and State.CurrentEggUid then
+        pcall(function()
+            strikeRemote:FireServer({
+                GuardCFrame = Config.SampleGuardCFrame,
+                EggUid = State.CurrentEggUid,
+            })
+        end)
+    end
+
+    -- 3. Synchronously drop the target biome egg in Forest and verify server confirmation
+    local dropped = Engine.dropEggSync(2.0)
+
+    -- Guard: If egg failed to drop, DO NOT proceed to Step 4 or flag delivered!
+    if not dropped and State.IsCarrying then
+        UI.setStatus("❌ Error: Egg failed to drop in Forest!", Config.Theme.Red)
+        Helpers.log("Drop failed in Forest: Server did not drop egg. Step 4 aborted.", "ERROR")
+        State.IsActive = false
+        State.CurrentPhase = Phases.IDLE
+        return
+    end
+
+    -- Keep character at Forest location
+    if RootPart and RootPart.Parent then
+        RootPart.CFrame = CFrame.new(State.SavedLocation)
+        RootPart.AssemblyLinearVelocity = Vector3.zero
+        RootPart.AssemblyAngularVelocity = Vector3.zero
+    end
+    Helpers.nullifyRagdoll()
+
+    UI.setStatus(string.format("✓ Dropped %s egg in Forest! Pausing to settle...", State.TargetBiome), Config.Theme.Green)
+    Helpers.log(string.format("Dropped %s egg in Forest biome. Waiting for egg to settle on ground...", State.TargetBiome), "SUCCESS")
+
+    -- Allow the egg to visibly fall to the ground and replicate
+    task.wait(0.40)
+
+    State.IsActive = false
+    State.IsCarrying = false
+
+    -- Proceed to Step 4: Re-pick up target egg from the ground and deliver to SafeZone
+    Engine.handleRepickupAndReturnToSafezone(biomeEggUid, forestPos)
+end
+
+-- Step 4: Return to SafeZone After Repick up
+Engine.handleRepickupAndReturnToSafezone = function(targetEggUid, forestPos)
+    targetEggUid = targetEggUid or State.TargetEggUid
+    forestPos = forestPos or State.ForestLocation or Vector3.new(596.7, 71.4, -327.8)
+    State.IsActive = true
+    State.CurrentPhase = Phases.REPICKUP_TO_SAFEZONE
+    State.TargetEggRepicked = false
+
+    -- Guard: If somehow still carrying before repickup, force a drop first
+    if State.IsCarrying then
+        Helpers.log("Warning: Still carrying before Step 4 repickup. Forcing drop...", "WARN")
+        Engine.dropEggSync(1.5)
+        task.wait(0.30)
+    end
+    State.IsCarrying = false
+
+    UI.setStatus(string.format("Re-picking up %s egg in Forest...", State.TargetBiome), Config.Theme.Cyan)
+    Helpers.log(string.format("Re-picking up target egg (%s) in Forest for SafeZone...", tostring(targetEggUid)), "SAFEZONE")
+
+    local dropPos = RootPart and RootPart.Position or forestPos
+    local attempts = 0
+    local maxAttempts = 20
+
+    while attempts < maxAttempts and (not State.TargetEggRepicked or not State.IsCarrying) do
+        attempts = attempts + 1
+        Helpers.repickupTargetEgg(targetEggUid, dropPos)
+        task.wait(0.25)
+    end
+
+    -- Strict Guard: MUST be both TargetEggRepicked and IsCarrying to deliver!
+    if not State.TargetEggRepicked or not State.IsCarrying then
+        UI.setStatus(string.format("⚠️ Failed to re-pick %s egg. Retrying...", State.TargetBiome), Config.Theme.Yellow)
+        Helpers.log(string.format("Re-pickup timeout for target egg %s. Cannot deliver to SafeZone.", tostring(targetEggUid)), "WARN")
+        State.CurrentPhase = Phases.IDLE
+        State.IsActive = false
+        return
+    end
+
+    -- Return to SafeZone
+    local safePos = State.SafeZoneLocation or Vector3.new(542.9, 71.4, -318.7)
+    if RootPart and RootPart.Parent then
+        local startP = RootPart.Position
+        local steps = 8
+        for s = 1, steps do
+            local alpha = s / steps
+            RootPart.CFrame = CFrame.new(startP:Lerp(safePos, alpha))
+            task.wait(0.03)
+        end
+        RootPart.CFrame = CFrame.new(safePos)
+        RootPart.AssemblyLinearVelocity = Vector3.zero
+        RootPart.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    State.Deliveries = State.Deliveries + 1
+    UI.setDeliveries(State.Deliveries)
+    UI.setStatus(string.format("✓ Returned to SafeZone with %s egg! Ready for next Forest egg.", State.TargetBiome), Config.Theme.Green)
+    Helpers.log(string.format("DELIVERED: %s egg (%s) to SafeZone (Total: %d)", State.TargetBiome, tostring(targetEggUid), State.Deliveries), "SUCCESS")
+
+    State.CurrentPhase = Phases.IDLE
+    State.IsActive = false
+end
+
+-- Direct manual test execution hooks
+Engine.executeDrop = function(eggUid)
+    local myPos = RootPart and RootPart.Position or Vector3.zero
+    local distToForest = (myPos - State.ForestLocation).Magnitude
+    if distToForest <= 250.0 then
+        Engine.handleForestPickup(eggUid or State.CurrentEggUid or "TestEggUid")
+    else
+        Engine.handleReturnToForest(eggUid or State.CurrentEggUid or "TestEggUid")
+    end
+end
+
+Engine.returnToNestAndPickup = function()
+    local targetEggPos = State.TargetBiomeLocation or Helpers.getBiomeNestPosition(State.TargetBiome)
+    if targetEggPos and RootPart and RootPart.Parent then
+        RootPart.CFrame = CFrame.new(targetEggPos)
+        Helpers.tryPickupNearbyEgg(targetEggPos, Config.NestScanRadius)
+    end
+end
+
+-- Event Listeners: Passive listener only. Zero unrequested teleports!
 Engine.initListeners = function()
-    -- Automatically trigger when egg is picked up
     if Remotes.FieldCarry then
         Helpers.addConn(Remotes.FieldCarry.OnClientEvent:Connect(function(args)
             if typeof(args) == "table" then
                 if args.IsCarrying == true or (args.Uid and args.IsCarrying ~= false) then
                     State.IsCarrying = true
                     local eggUid = args.Uid or State.CurrentEggUid
-                    if eggUid and not State.IsActive then
-                        Helpers.log(string.format("Carry detected: %s", tostring(eggUid)), "PICKUP")
-                        Engine.executeDrop(eggUid)
+                    State.CarriedUid = eggUid
+
+                    -- Step 4 Re-pickup Guard: ONLY accept target biome egg!
+                    if State.CurrentPhase == Phases.REPICKUP_TO_SAFEZONE then
+                        local isTarget = (eggUid == State.TargetEggUid)
+                            or (State.TargetEggUid and string.find(tostring(eggUid), State.TargetEggUid, 1, true))
+                            or (State.TargetBiome ~= "Forest" and not string.find(tostring(eggUid), "Forest", 1, true))
+
+                        if isTarget then
+                            State.TargetEggRepicked = true
+                            Helpers.log(string.format("Re-picked up %s egg (%s) for SafeZone delivery!", State.TargetBiome, tostring(eggUid)), "SAFEZONE")
+                        else
+                            Helpers.log(string.format("Wrong egg picked up in Forest (%s)! Ejecting to keep target %s...", tostring(eggUid), tostring(State.TargetEggUid)), "WARN")
+                            task.spawn(function()
+                                Engine.dropEggSpam(Config.DropSpamCount)
+                            end)
+                            State.IsCarrying = false
+                            State.CarriedUid = nil
+                            State.TargetEggRepicked = false
+                        end
+                        return
+                    end
+
+                    if not State.IsActive and eggUid then
+                        local myPos = RootPart and RootPart.Position or Vector3.zero
+                        local distToForest = (myPos - State.ForestLocation).Magnitude
+
+                        -- Step 1: User manually picked up egg in Forest biome!
+                        if distToForest <= 250.0 and (State.CurrentPhase == Phases.IDLE or State.CurrentPhase == nil) then
+                            Engine.handleForestPickup(eggUid)
+                        -- Step 3: Picked up egg on Target Biome Egg!
+                        elseif State.CurrentPhase == Phases.PICKUP_BIOME_EGG or distToForest > 250.0 then
+                            if eggUid == State.CurrentEggUid or (State.TargetBiome ~= "Forest" and string.find(tostring(eggUid), "Forest", 1, true)) then
+                                Helpers.log(string.format("Accidentally re-picked dropped Forest egg (%s)! Ejecting...", tostring(eggUid)), "WARN")
+                                task.spawn(function()
+                                    Engine.dropEggSpam(Config.DropSpamCount)
+                                end)
+                                State.IsCarrying = false
+                            else
+                                Engine.handleReturnToForest(eggUid)
+                            end
+                        end
                     end
                 elseif args.IsCarrying == false then
                     State.IsCarrying = false
+                    State.CarriedUid = nil
                 end
             end
         end))
     end
 
-    -- Character lifecycle tracking
     local function hookCharacter(char)
         if not char then return end
         Character = char
@@ -520,7 +918,7 @@ Engine.initListeners = function()
     end
 end
 
--- UI Builder
+-- UI Builder: Clean, showing Target Biome Egg, Forest Biome, SafeZone
 UI.init = function()
     local parent = (gethui and gethui())
         or (game:GetService("CoreGui"):FindFirstChild("RobloxGui") and game:GetService("CoreGui"))
@@ -538,8 +936,8 @@ UI.init = function()
 
     local main = Instance.new("Frame")
     main.Name = "MainFrame"
-    main.Size = UDim2.new(0, 320, 0, 235)
-    main.Position = UDim2.new(0.5, -160, 0.4, -115)
+    main.Size = UDim2.new(0, 320, 0, 276)
+    main.Position = UDim2.new(0.5, -160, 0.4, -138)
     main.BackgroundColor3 = Config.Theme.Bg
     main.BorderSizePixel = 0
     main.Active = true
@@ -553,10 +951,10 @@ UI.init = function()
 
     -- Title Bar
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -60, 0, 26)
+    title.Size = UDim2.new(1, -60, 0, 24)
     title.Position = UDim2.new(0, 10, 0, 4)
     title.BackgroundTransparency = 1
-    title.Text = "⚡ Forest Dropper (Auto-Loop)"
+    title.Text = "⚡ Biome Egg Swapper"
     title.TextColor3 = Config.Theme.Cyan
     title.TextSize = 13
     title.Font = Enum.Font.GothamBold
@@ -565,7 +963,7 @@ UI.init = function()
 
     -- Close Button
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 22, 0, 22)
+    closeBtn.Size = UDim2.new(0, 22, 0, 20)
     closeBtn.Position = UDim2.new(1, -26, 0, 6)
     closeBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
     closeBtn.Text = "✕"
@@ -583,7 +981,7 @@ UI.init = function()
 
     -- Toggle Button
     local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Size = UDim2.new(0, 24, 0, 22)
+    toggleBtn.Size = UDim2.new(0, 24, 0, 20)
     toggleBtn.Position = UDim2.new(1, -54, 0, 6)
     toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
     toggleBtn.Text = "ON"
@@ -598,105 +996,237 @@ UI.init = function()
             toggleBtn.Text = "ON"
             toggleBtn.TextColor3 = Config.Theme.Green
             toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
-            UI.setStatus("Dropper Enabled", Config.Theme.Green)
+            UI.setStatus("Swapper Enabled", Config.Theme.Green)
         else
             toggleBtn.Text = "OFF"
             toggleBtn.TextColor3 = Config.Theme.Red
             toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
-            UI.setStatus("Dropper Disabled", Config.Theme.Red)
+            UI.setStatus("Swapper Disabled", Config.Theme.Red)
         end
     end))
 
-    -- 1. Pen Location Card
-    local penCard = Instance.new("Frame")
-    penCard.Size = UDim2.new(1, -20, 0, 36)
-    penCard.Position = UDim2.new(0, 10, 0, 32)
-    penCard.BackgroundColor3 = Config.Theme.Card
-    penCard.BorderSizePixel = 0
-    penCard.Parent = main
-    Instance.new("UICorner", penCard).CornerRadius = UDim.new(0, 6)
+    -- 1. Target Biome Selector Row (Replaces Pen)
+    local biomeRow = Instance.new("Frame")
+    biomeRow.Size = UDim2.new(1, -20, 0, 32)
+    biomeRow.Position = UDim2.new(0, 10, 0, 30)
+    biomeRow.BackgroundColor3 = Config.Theme.Card
+    biomeRow.BorderSizePixel = 0
+    biomeRow.Parent = main
+    Instance.new("UICorner", biomeRow).CornerRadius = UDim.new(0, 6)
 
-    local penLabel = Instance.new("TextLabel")
-    penLabel.Size = UDim2.new(1, -95, 1, 0)
-    penLabel.Position = UDim2.new(0, 8, 0, 0)
-    penLabel.BackgroundTransparency = 1
-    penLabel.Text = string.format("Pen: (%.1f, %.1f, %.1f)", State.SavedLocation.X, State.SavedLocation.Y, State.SavedLocation.Z)
-    penLabel.TextColor3 = Config.Theme.TextPrimary
-    penLabel.TextSize = 10
-    penLabel.Font = Enum.Font.Gotham
-    penLabel.TextXAlignment = Enum.TextXAlignment.Left
-    penLabel.Parent = penCard
-    UI.Elements.PenLabel = penLabel
+    local prevBiomeBtn = Instance.new("TextButton")
+    prevBiomeBtn.Size = UDim2.new(0, 28, 0, 22)
+    prevBiomeBtn.Position = UDim2.new(0, 4, 0.5, -11)
+    prevBiomeBtn.BackgroundColor3 = Color3.fromRGB(40, 48, 68)
+    prevBiomeBtn.Text = "◀"
+    prevBiomeBtn.TextColor3 = Config.Theme.Cyan
+    prevBiomeBtn.TextSize = 10
+    prevBiomeBtn.Font = Enum.Font.GothamBold
+    prevBiomeBtn.Parent = biomeRow
+    Instance.new("UICorner", prevBiomeBtn).CornerRadius = UDim.new(0, 4)
 
-    local setPenBtn = Instance.new("TextButton")
-    setPenBtn.Size = UDim2.new(0, 80, 0, 24)
-    setPenBtn.Position = UDim2.new(1, -85, 0.5, -12)
-    setPenBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 180)
-    setPenBtn.Text = "📍 Set Pen"
-    setPenBtn.TextColor3 = Color3.new(1, 1, 1)
-    setPenBtn.TextSize = 10
-    setPenBtn.Font = Enum.Font.GothamBold
-    setPenBtn.Parent = penCard
-    Instance.new("UICorner", setPenBtn).CornerRadius = UDim.new(0, 4)
-    Helpers.addConn(setPenBtn.MouseButton1Click:Connect(function()
+    local nextBiomeBtn = Instance.new("TextButton")
+    nextBiomeBtn.Size = UDim2.new(0, 28, 0, 22)
+    nextBiomeBtn.Position = UDim2.new(1, -78, 0.5, -11)
+    nextBiomeBtn.BackgroundColor3 = Color3.fromRGB(40, 48, 68)
+    nextBiomeBtn.Text = "▶"
+    nextBiomeBtn.TextColor3 = Config.Theme.Cyan
+    nextBiomeBtn.TextSize = 10
+    nextBiomeBtn.Font = Enum.Font.GothamBold
+    nextBiomeBtn.Parent = biomeRow
+    Instance.new("UICorner", nextBiomeBtn).CornerRadius = UDim.new(0, 4)
+
+    local biomeLabel = Instance.new("TextLabel")
+    biomeLabel.Size = UDim2.new(1, -120, 1, 0)
+    biomeLabel.Position = UDim2.new(0, 36, 0, 0)
+    biomeLabel.BackgroundTransparency = 1
+    biomeLabel.Text = State.TargetBiome
+    biomeLabel.TextColor3 = Config.Theme.Cyan
+    biomeLabel.TextSize = 11
+    biomeLabel.Font = Enum.Font.GothamBold
+    biomeLabel.Parent = biomeRow
+    UI.Elements.BiomeLabel = biomeLabel
+
+    local tpNestBtn = Instance.new("TextButton")
+    tpNestBtn.Size = UDim2.new(0, 44, 0, 22)
+    tpNestBtn.Position = UDim2.new(1, -48, 0.5, -11)
+    tpNestBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 80)
+    tpNestBtn.Text = "✈ TP"
+    tpNestBtn.TextColor3 = Color3.new(1, 1, 1)
+    tpNestBtn.TextSize = 10
+    tpNestBtn.Font = Enum.Font.GothamBold
+    tpNestBtn.Parent = biomeRow
+    Instance.new("UICorner", tpNestBtn).CornerRadius = UDim.new(0, 4)
+
+    -- 2. Target Biome Egg Location Card
+    local targetCard = Instance.new("Frame")
+    targetCard.Size = UDim2.new(1, -20, 0, 34)
+    targetCard.Position = UDim2.new(0, 10, 0, 68)
+    targetCard.BackgroundColor3 = Config.Theme.Card
+    targetCard.BorderSizePixel = 0
+    targetCard.Parent = main
+    Instance.new("UICorner", targetCard).CornerRadius = UDim.new(0, 6)
+
+    local targetLabel = Instance.new("TextLabel")
+    targetLabel.Size = UDim2.new(1, -95, 1, 0)
+    targetLabel.Position = UDim2.new(0, 8, 0, 0)
+    targetLabel.BackgroundTransparency = 1
+    targetLabel.Text = string.format("Target Egg: (%.1f, %.1f, %.1f)", State.TargetBiomeLocation.X, State.TargetBiomeLocation.Y, State.TargetBiomeLocation.Z)
+    targetLabel.TextColor3 = Config.Theme.Cyan
+    targetLabel.TextSize = 10
+    targetLabel.Font = Enum.Font.Gotham
+    targetLabel.TextXAlignment = Enum.TextXAlignment.Left
+    targetLabel.Parent = targetCard
+    UI.Elements.TargetLabel = targetLabel
+
+    local setTargetBtn = Instance.new("TextButton")
+    setTargetBtn.Size = UDim2.new(0, 80, 0, 22)
+    setTargetBtn.Position = UDim2.new(1, -85, 0.5, -11)
+    setTargetBtn.BackgroundColor3 = Color3.fromRGB(45, 95, 180)
+    setTargetBtn.Text = "📍 Set Target"
+    setTargetBtn.TextColor3 = Color3.new(1, 1, 1)
+    setTargetBtn.TextSize = 10
+    setTargetBtn.Font = Enum.Font.GothamBold
+    setTargetBtn.Parent = targetCard
+    Instance.new("UICorner", setTargetBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(setTargetBtn.MouseButton1Click:Connect(function()
         if RootPart and RootPart.Parent then
-            State.SavedLocation = RootPart.Position
-            penLabel.Text = string.format("Pen: (%.1f, %.1f, %.1f)", State.SavedLocation.X, State.SavedLocation.Y, State.SavedLocation.Z)
-            UI.setStatus("Pen location updated!", Config.Theme.Green)
-            Helpers.log(string.format("Pen location set to V3(%.1f, %.1f, %.1f)", State.SavedLocation.X, State.SavedLocation.Y, State.SavedLocation.Z), "LOCATION")
-        end
-    end))
-
-    -- 2. Nest Location Card
-    local nestCard = Instance.new("Frame")
-    nestCard.Size = UDim2.new(1, -20, 0, 36)
-    nestCard.Position = UDim2.new(0, 10, 0, 72)
-    nestCard.BackgroundColor3 = Config.Theme.Card
-    nestCard.BorderSizePixel = 0
-    nestCard.Parent = main
-    Instance.new("UICorner", nestCard).CornerRadius = UDim.new(0, 6)
-
-    local nestLabel = Instance.new("TextLabel")
-    nestLabel.Size = UDim2.new(1, -95, 1, 0)
-    nestLabel.Position = UDim2.new(0, 8, 0, 0)
-    nestLabel.BackgroundTransparency = 1
-    nestLabel.Text = string.format("Nest: (%.1f, %.1f, %.1f)", State.StartLocation.X, State.StartLocation.Y, State.StartLocation.Z)
-    nestLabel.TextColor3 = Config.Theme.TextPrimary
-    nestLabel.TextSize = 10
-    nestLabel.Font = Enum.Font.Gotham
-    nestLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nestLabel.Parent = nestCard
-    UI.Elements.NestLabel = nestLabel
-
-    local setNestBtn = Instance.new("TextButton")
-    setNestBtn.Size = UDim2.new(0, 80, 0, 24)
-    setNestBtn.Position = UDim2.new(1, -85, 0.5, -12)
-    setNestBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 80)
-    setNestBtn.Text = "📍 Set Nest"
-    setNestBtn.TextColor3 = Color3.new(1, 1, 1)
-    setNestBtn.TextSize = 10
-    setNestBtn.Font = Enum.Font.GothamBold
-    setNestBtn.Parent = nestCard
-    Instance.new("UICorner", setNestBtn).CornerRadius = UDim.new(0, 4)
-    Helpers.addConn(setNestBtn.MouseButton1Click:Connect(function()
-        if RootPart and RootPart.Parent then
+            State.TargetBiomeLocation = RootPart.Position
             State.StartLocation = RootPart.Position
-            nestLabel.Text = string.format("Nest: (%.1f, %.1f, %.1f)", State.StartLocation.X, State.StartLocation.Y, State.StartLocation.Z)
-            UI.setStatus("Nest location updated!", Config.Theme.Green)
-            Helpers.log(string.format("Nest location set to V3(%.1f, %.1f, %.1f)", State.StartLocation.X, State.StartLocation.Y, State.StartLocation.Z), "LOCATION")
+            targetLabel.Text = string.format("Target Egg: (%.1f, %.1f, %.1f)", State.TargetBiomeLocation.X, State.TargetBiomeLocation.Y, State.TargetBiomeLocation.Z)
+            UI.setStatus("Target Biome Egg location updated!", Config.Theme.Green)
+            Helpers.log(string.format("Target Biome Egg set to V3(%.1f, %.1f, %.1f)", State.TargetBiomeLocation.X, State.TargetBiomeLocation.Y, State.TargetBiomeLocation.Z), "LOCATION")
+        end
+    end))
+
+    local function updateBiomeSelection(idx)
+        State.SelectedBiomeIndex = math.clamp(idx, 1, #Config.Biomes)
+        State.TargetBiome = Config.Biomes[State.SelectedBiomeIndex]
+        biomeLabel.Text = State.TargetBiome
+        local newPos = Helpers.getBiomeNestPosition(State.TargetBiome)
+        if newPos then
+            State.TargetBiomeLocation = newPos
+            State.StartLocation = newPos
+            targetLabel.Text = string.format("Target Egg: (%.1f, %.1f, %.1f)", newPos.X, newPos.Y, newPos.Z)
+        end
+        UI.setStatus("Target Biome: " .. State.TargetBiome, Config.Theme.Cyan)
+        Helpers.log("Target biome switched to: " .. State.TargetBiome, "BIOME")
+    end
+
+    Helpers.addConn(prevBiomeBtn.MouseButton1Click:Connect(function()
+        local idx = State.SelectedBiomeIndex - 1
+        if idx < 1 then idx = #Config.Biomes end
+        updateBiomeSelection(idx)
+    end))
+
+    Helpers.addConn(nextBiomeBtn.MouseButton1Click:Connect(function()
+        local idx = State.SelectedBiomeIndex + 1
+        if idx > #Config.Biomes then idx = 1 end
+        updateBiomeSelection(idx)
+    end))
+
+    Helpers.addConn(tpNestBtn.MouseButton1Click:Connect(function()
+        local pos = State.TargetBiomeLocation or Helpers.getBiomeNestPosition(State.TargetBiome)
+        if pos and RootPart and RootPart.Parent then
+            RootPart.CFrame = CFrame.new(pos)
+            RootPart.AssemblyLinearVelocity = Vector3.zero
+            UI.setStatus("Teleported to " .. State.TargetBiome .. " Egg", Config.Theme.Green)
+        else
+            UI.setStatus("Nest position not found for " .. State.TargetBiome, Config.Theme.Yellow)
+        end
+    end))
+
+    -- 3. Forest Location Card (Where initial egg is picked & where biome egg is dropped)
+    local forestCard = Instance.new("Frame")
+    forestCard.Size = UDim2.new(1, -20, 0, 34)
+    forestCard.Position = UDim2.new(0, 10, 0, 106)
+    forestCard.BackgroundColor3 = Config.Theme.Card
+    forestCard.BorderSizePixel = 0
+    forestCard.Parent = main
+    Instance.new("UICorner", forestCard).CornerRadius = UDim.new(0, 6)
+
+    local forestLabel = Instance.new("TextLabel")
+    forestLabel.Size = UDim2.new(1, -95, 1, 0)
+    forestLabel.Position = UDim2.new(0, 8, 0, 0)
+    forestLabel.BackgroundTransparency = 1
+    forestLabel.Text = string.format("Forest: (%.1f, %.1f, %.1f)", State.ForestLocation.X, State.ForestLocation.Y, State.ForestLocation.Z)
+    forestLabel.TextColor3 = Config.Theme.TextPrimary
+    forestLabel.TextSize = 10
+    forestLabel.Font = Enum.Font.Gotham
+    forestLabel.TextXAlignment = Enum.TextXAlignment.Left
+    forestLabel.Parent = forestCard
+    UI.Elements.ForestLabel = forestLabel
+
+    local setForestBtn = Instance.new("TextButton")
+    setForestBtn.Size = UDim2.new(0, 80, 0, 22)
+    setForestBtn.Position = UDim2.new(1, -85, 0.5, -11)
+    setForestBtn.BackgroundColor3 = Color3.fromRGB(35, 110, 80)
+    setForestBtn.Text = "📍 Set Forest"
+    setForestBtn.TextColor3 = Color3.new(1, 1, 1)
+    setForestBtn.TextSize = 10
+    setForestBtn.Font = Enum.Font.GothamBold
+    setForestBtn.Parent = forestCard
+    Instance.new("UICorner", setForestBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(setForestBtn.MouseButton1Click:Connect(function()
+        if RootPart and RootPart.Parent then
+            State.ForestLocation = RootPart.Position
+            State.ForestDropLocation = RootPart.Position
+            State.SavedLocation = RootPart.Position
+            forestLabel.Text = string.format("Forest: (%.1f, %.1f, %.1f)", State.ForestLocation.X, State.ForestLocation.Y, State.ForestLocation.Z)
+            UI.setStatus("Forest location updated!", Config.Theme.Green)
+            Helpers.log(string.format("Forest location set to V3(%.1f, %.1f, %.1f)", State.ForestLocation.X, State.ForestLocation.Y, State.ForestLocation.Z), "LOCATION")
+        end
+    end))
+
+    -- 4. SafeZone Location Card (Where we return after repick up)
+    local safeCard = Instance.new("Frame")
+    safeCard.Size = UDim2.new(1, -20, 0, 34)
+    safeCard.Position = UDim2.new(0, 10, 0, 142)
+    safeCard.BackgroundColor3 = Config.Theme.Card
+    safeCard.BorderSizePixel = 0
+    safeCard.Parent = main
+    Instance.new("UICorner", safeCard).CornerRadius = UDim.new(0, 6)
+
+    local safeLabel = Instance.new("TextLabel")
+    safeLabel.Size = UDim2.new(1, -95, 1, 0)
+    safeLabel.Position = UDim2.new(0, 8, 0, 0)
+    safeLabel.BackgroundTransparency = 1
+    safeLabel.Text = string.format("SafeZone: (%.1f, %.1f, %.1f)", State.SafeZoneLocation.X, State.SafeZoneLocation.Y, State.SafeZoneLocation.Z)
+    safeLabel.TextColor3 = Config.Theme.Green
+    safeLabel.TextSize = 10
+    safeLabel.Font = Enum.Font.Gotham
+    safeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    safeLabel.Parent = safeCard
+    UI.Elements.SafeLabel = safeLabel
+
+    local setSafeBtn = Instance.new("TextButton")
+    setSafeBtn.Size = UDim2.new(0, 80, 0, 22)
+    setSafeBtn.Position = UDim2.new(1, -85, 0.5, -11)
+    setSafeBtn.BackgroundColor3 = Color3.fromRGB(35, 95, 65)
+    setSafeBtn.Text = "📍 Set Safe"
+    setSafeBtn.TextColor3 = Color3.new(1, 1, 1)
+    setSafeBtn.TextSize = 10
+    setSafeBtn.Font = Enum.Font.GothamBold
+    setSafeBtn.Parent = safeCard
+    Instance.new("UICorner", setSafeBtn).CornerRadius = UDim.new(0, 4)
+    Helpers.addConn(setSafeBtn.MouseButton1Click:Connect(function()
+        if RootPart and RootPart.Parent then
+            State.SafeZoneLocation = RootPart.Position
+            safeLabel.Text = string.format("SafeZone: (%.1f, %.1f, %.1f)", State.SafeZoneLocation.X, State.SafeZoneLocation.Y, State.SafeZoneLocation.Z)
+            UI.setStatus("SafeZone location updated!", Config.Theme.Green)
+            Helpers.log(string.format("SafeZone set to V3(%.1f, %.1f, %.1f)", State.SafeZoneLocation.X, State.SafeZoneLocation.Y, State.SafeZoneLocation.Z), "LOCATION")
         end
     end))
 
     -- Info: Status Banner
     local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, -20, 0, 32)
-    status.Position = UDim2.new(0, 10, 0, 112)
+    status.Size = UDim2.new(1, -20, 0, 30)
+    status.Position = UDim2.new(0, 10, 0, 180)
     status.BackgroundColor3 = Config.Theme.Card
-    status.Text = "Status: Ready · Auto-Loop is ON"
+    status.Text = "Status: Ready · Pick up egg in Forest"
     status.TextColor3 = Config.Theme.Green
     status.TextSize = 11
     status.Font = Enum.Font.Gotham
-    status.TextWrapped = true
     status.Parent = main
     Instance.new("UICorner", status).CornerRadius = UDim.new(0, 6)
     UI.Elements.Status = status
@@ -704,48 +1234,19 @@ UI.init = function()
     -- Info: Stats Row
     local statsLabel = Instance.new("TextLabel")
     statsLabel.Size = UDim2.new(1, -20, 0, 18)
-    statsLabel.Position = UDim2.new(0, 10, 0, 148)
+    statsLabel.Position = UDim2.new(0, 10, 0, 214)
     statsLabel.BackgroundTransparency = 1
-    statsLabel.Text = "Deliveries: 0 | Auto-Loop: Active"
+    statsLabel.Text = "Deliveries: 0 | Target: " .. State.TargetBiome
     statsLabel.TextColor3 = Config.Theme.TextDim
     statsLabel.TextSize = 10
     statsLabel.Font = Enum.Font.Gotham
-    statsLabel.TextXAlignment = Enum.TextXAlignment.Left
     statsLabel.Parent = main
     UI.Elements.StatsLabel = statsLabel
 
-    -- Bottom Buttons: Auto-Loop Toggle + Test Drop + Copy Log
-    local loopBtn = Instance.new("TextButton")
-    loopBtn.Size = UDim2.new(0, 96, 0, 26)
-    loopBtn.Position = UDim2.new(0, 10, 0, 172)
-    loopBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
-    loopBtn.Text = "Loop: ON"
-    loopBtn.TextColor3 = Config.Theme.Green
-    loopBtn.TextSize = 10
-    loopBtn.Font = Enum.Font.GothamBold
-    loopBtn.Parent = main
-    Instance.new("UICorner", loopBtn).CornerRadius = UDim.new(0, 4)
-    Helpers.addConn(loopBtn.MouseButton1Click:Connect(function()
-        State.AutoLoop = not State.AutoLoop
-        if State.AutoLoop then
-            loopBtn.Text = "Loop: ON"
-            loopBtn.TextColor3 = Config.Theme.Green
-            loopBtn.BackgroundColor3 = Color3.fromRGB(35, 75, 45)
-            UI.setStatus("Auto-Loop Enabled. Starting cycle...", Config.Theme.Green)
-            if not State.IsCarrying and not State.IsActive then
-                Engine.returnToNestAndPickup()
-            end
-        else
-            loopBtn.Text = "Loop: OFF"
-            loopBtn.TextColor3 = Config.Theme.Red
-            loopBtn.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
-            UI.setStatus("Auto-Loop Disabled.", Config.Theme.Red)
-        end
-    end))
-
+    -- Bottom Buttons: Test Drop + Copy Log
     local testBtn = Instance.new("TextButton")
-    testBtn.Size = UDim2.new(0, 96, 0, 26)
-    testBtn.Position = UDim2.new(0, 112, 0, 172)
+    testBtn.Size = UDim2.new(0, 145, 0, 26)
+    testBtn.Position = UDim2.new(0, 10, 0, 238)
     testBtn.BackgroundColor3 = Color3.fromRGB(35, 45, 65)
     testBtn.Text = "⚡ Test Drop"
     testBtn.TextColor3 = Config.Theme.Cyan
@@ -754,13 +1255,12 @@ UI.init = function()
     testBtn.Parent = main
     Instance.new("UICorner", testBtn).CornerRadius = UDim.new(0, 4)
     Helpers.addConn(testBtn.MouseButton1Click:Connect(function()
-        local uid = State.CurrentEggUid or "TestEgg_Manual"
-        Engine.executeDrop(uid)
+        Engine.executeDrop(State.CurrentEggUid or "TestEggUid")
     end))
 
     local copyBtn = Instance.new("TextButton")
-    copyBtn.Size = UDim2.new(0, 96, 0, 26)
-    copyBtn.Position = UDim2.new(0, 214, 0, 172)
+    copyBtn.Size = UDim2.new(0, 145, 0, 26)
+    copyBtn.Position = UDim2.new(1, -155, 0, 238)
     copyBtn.BackgroundColor3 = Color3.fromRGB(35, 55, 45)
     copyBtn.Text = "📋 Copy Log"
     copyBtn.TextColor3 = Config.Theme.Green
@@ -769,20 +1269,22 @@ UI.init = function()
     copyBtn.Parent = main
     Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 4)
     Helpers.addConn(copyBtn.MouseButton1Click:Connect(function()
-        local okCopy, count = Helpers.copyLogs()
-        if okCopy then
-            copyBtn.Text = "✓ (" .. tostring(count) .. ")"
-            copyBtn.TextColor3 = Color3.fromRGB(150, 255, 170)
+        local ok, count = Helpers.copyLogs()
+        if ok then
+            copyBtn.Text = "✓ Copied (" .. count .. ")"
+            task.delay(1.5, function()
+                if copyBtn and copyBtn.Parent then
+                    copyBtn.Text = "📋 Copy Log"
+                end
+            end)
         else
             copyBtn.Text = "⚠️ Failed"
-            copyBtn.TextColor3 = Config.Theme.Yellow
+            task.delay(1.5, function()
+                if copyBtn and copyBtn.Parent then
+                    copyBtn.Text = "📋 Copy Log"
+                end
+            end)
         end
-        task.delay(2.0, function()
-            if copyBtn and copyBtn.Parent then
-                copyBtn.Text = "📋 Copy Log"
-                copyBtn.TextColor3 = Config.Theme.Green
-            end
-        end)
     end))
 
     UI.Elements.ScreenGui = screenGui
@@ -790,7 +1292,7 @@ end
 
 UI.setStatus = function(text, color)
     if UI.Elements.Status and UI.Elements.Status.Parent then
-        UI.Elements.Status.Text = "Status: " .. tostring(text)
+        UI.Elements.Status.Text = tostring(text)
         if color then
             UI.Elements.Status.TextColor3 = color
         end
@@ -799,26 +1301,22 @@ end
 
 UI.setDeliveries = function(count)
     if UI.Elements.StatsLabel and UI.Elements.StatsLabel.Parent then
-        local loopStatus = State.AutoLoop and "Active" or "Paused"
-        UI.Elements.StatsLabel.Text = string.format("Deliveries: %d | Auto-Loop: %s", count, loopStatus)
+        UI.Elements.StatsLabel.Text = string.format("Deliveries: %d | Target: %s", count, State.TargetBiome)
     end
 end
 
--- Full Cleanup Routine
+-- Cleanup Handler
 local function fullCleanup()
-    State.Enabled = false
-    State.AutoLoop = false
-    State.IsActive = false
     Helpers.disconnectAll()
     if UI.Elements.ScreenGui and UI.Elements.ScreenGui.Parent then
         pcall(function() UI.Elements.ScreenGui:Destroy() end)
     end
-    print("[ForestDropper] Cleaned up cleanly.")
+    print("[MultiBiomeDropper] Cleaned up cleanly.")
 end
 
 _G.ForestDropper_Cleanup = fullCleanup
 
--- Startup
+-- Startup: Passive listener only. Zero random teleports!
 UI.init()
 Engine.initListeners()
-Helpers.log("Forest Dropper loaded. Auto-Loop ready.", "SYSTEM")
+Helpers.log("Multi-Biome Dropper loaded. Waiting for manual Forest pickup. Target: " .. tostring(State.TargetBiome), "SYSTEM")
