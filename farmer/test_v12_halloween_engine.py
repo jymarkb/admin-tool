@@ -173,8 +173,8 @@ class TestV12HalloweenEngine(unittest.TestCase):
         self.assertNotIn("Helpers.matchTemplateEgg", self.code)
         self.assertNotIn("Helpers.GenericPartNames", self.code)
 
-        # Verify Werewolf Egg is in taxonomy as Secret
-        self.assertIn('{ Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } }', self.code)
+        # Verify Werewolf Egg is in taxonomy as Secret with Dread Wolf alias (live PreparedSourceName)
+        self.assertIn('{ Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf", "Dread Wolf", "Dread Wolf Egg" } }', self.code)
 
     def test_20_hooded_gerbil_not_hijacked_by_graveyard_brute(self):
         """Verify Hooded Gerbil Egg resolves via taxonomy alias in O(1) without speculative template false-positives."""
@@ -214,8 +214,8 @@ class TestV12HalloweenEngine(unittest.TestCase):
 
     def test_22_werewolf_egg_visible_under_divine_eternal_secret_filter(self):
         """Verify Werewolf Egg resolves to Secret rarity and is visible under Divine, Eternal, Secret filter."""
-        # 1. Taxonomy entry is Secret
-        self.assertIn('{ Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf" } }', self.code)
+        # 1. Taxonomy entry is Secret with Dread Wolf alias (live PreparedSourceName from server)
+        self.assertIn('{ Name = "Werewolf Egg", Rarity = "Secret", Aliases = { "Werewolf", "Dread Wolf", "Dread Wolf Egg" } }', self.code)
 
         # 2. resolveHalloweenEggName inspects ProximityPrompt and children before falling back to Hooded Gerbil
         resolve_snippet = re.search(r"Helpers\.resolveHalloweenEggName\s*=\s*function\(model\)(.*?)\nend", self.code, re.DOTALL)

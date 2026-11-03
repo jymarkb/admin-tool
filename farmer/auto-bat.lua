@@ -71,7 +71,8 @@ end
 -- ======================
 -- 5 weapons: 3 bats + 2 tools
 local TOOLS = {
-    { name = "Titan Axe",       type = "bat"  },
+
+    { name = "Enchanted Hammer",type = "bat"  },
     { name = "Scramble Sword",  type = "bat"  },
     { name = "Pumpkin Scythe",  type = "bat"  },
     { name = "The Scrambler",   type = "tool" },

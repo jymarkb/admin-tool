@@ -1,0 +1,322 @@
+[01:15:22] Hooked AskFieldEggCarry request listener (__namecall).
+[01:15:22] Guard Drop Tester loaded
+[01:15:22] Landing location preset to (949.147, 70.724, -412.289)
+[01:15:22] Focus Biome Guard: Dynamic closest area (RE/GuardPatrol/Rouse)
+[01:15:22] Initial Timing delay: 0.650s (live ping: 100ms; adjust with [-]/[+] buttons)
+[01:15:22] Press E on egg in any area:
+[01:15:22]  -> When request returns true, timing wait begins & hit is verified!
+[01:15:22]  -> If timed out before hit, timing steps up. If strike expired, timing steps down.
+[01:15:29] DROP / LANDING LOCATION = (1370.351, 71.410, -335.180)
+[01:15:39] [HOOK] Captured Egg UID: FirstAreaEgg_11924439055_5978511_Forest:Slot_005
+[01:15:39] ----------------------------------------
+[01:15:39] [PICKUP OK] AskFieldEggCarry returned true!
+[01:15:39] ----------------------------------------
+[01:15:39] TEST START
+[01:15:39] START = (606.740, 71.411, -321.763)
+[01:15:39] DROP / LANDING = (1370.351, 71.410, -335.180)
+[01:15:39] PHASE = GUARD ROUSE & WAIT (Target: Forest, Dist: 11.3 studs)
+[01:15:39] Timing delay assumption: 0.650s
+[01:15:39] ----------------------------------------
+[01:15:39] FOREST STRIKE TRIGGERED
+[01:15:39] Attached listener for inbound ForestStrike events.
+[01:15:39] Calling ForestStrike:FireServer with EggUid=FirstAreaEgg_11924439055_5978511_Forest:Slot_005...
+[01:15:39] ForestStrike FireServer sent OK!
+[01:15:39] ----------------------------------------
+[01:15:39] ROUSING GUARD: Forest
+[01:15:39] Guard 'Forest' roused successfully via firesignal!
+[01:15:39] STRIKE TRIGGERED! Source: SpeedTollOffer (+0.1893s from Rouse)
+[01:15:39] Strike confirmed during wait window at +0.2128s! (SpeedTollOffer) Proceeding...
+[01:15:39] Pre-teleport egg status: holding=false
+[01:15:39] [WARN] Egg is not held before teleport! (Guard may have stripped it early)
+[01:15:39] PHASE = DROP POSITION
+[01:15:39] DROP POSITIONED | pos=(1370.351, 71.410, -335.180)
+[01:15:39] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[01:15:39] POSITION [before AskFieldEggDrop spam sequence]: (1370.351, 71.410, -335.180) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:15:39] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[01:15:39] HOLD / REPLICATING POSITION (0.10s)...
+[01:15:39] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(606.740, 71.411, -321.763) (763.7 studs from drop).
+[01:15:39] ----------------------------------------
+[01:15:39] RESULT: FAILED — Snapped back despite strike (SpeedTollOffer).
+[01:15:39] [DIAGNOSIS] Strike registered but hit authority expired before drop completed.
+[01:15:39] [AUTO-ADJUST] Timing auto-lowered to 0.650s (-0.630s).
+[01:15:39] [NEXT] Press E on egg in Forest to retry at 0.630s!
+[01:15:39] TEST END
+[01:15:39] ----------------------------------------
+[01:15:39] AskFieldEggDrop [#5/8] cancelled (test stopped)
+[01:15:39] POSITION [after AskFieldEggDrop spam sequence]: (606.740, 71.411, -321.763) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:15:40] AskFieldEggDrop [#1/8] returned: false | pos=(1370.351, 71.410, -335.180)
+[01:15:40] AskFieldEggDrop [#2/8] returned: false | pos=(606.740, 71.411, -321.763)
+[01:15:40] AskFieldEggDrop [#3/8] returned: false | pos=(606.740, 71.411, -321.763)
+[01:15:40] AskFieldEggDrop [#4/8] returned: false | pos=(606.740, 71.411, -321.763)
+[01:15:42] [HOOK] Captured Egg UID: FirstAreaEgg_11924439055_5978511_Forest:Slot_005
+[01:15:42] ----------------------------------------
+[01:15:42] [PICKUP OK] AskFieldEggCarry returned true!
+[01:15:42] ----------------------------------------
+[01:15:42] TEST START
+[01:15:42] START = (604.760, 71.411, -321.649)
+[01:15:42] DROP / LANDING = (1370.351, 71.410, -335.180)
+[01:15:42] PHASE = GUARD ROUSE & WAIT (Target: Forest, Dist: 9.5 studs)
+[01:15:42] Timing delay assumption: 0.630s
+[01:15:42] ----------------------------------------
+[01:15:42] FOREST STRIKE TRIGGERED
+[01:15:42] Calling ForestStrike:FireServer with EggUid=FirstAreaEgg_11924439055_5978511_Forest:Slot_005...
+[01:15:42] ForestStrike FireServer sent OK!
+[01:15:42] ----------------------------------------
+[01:15:42] ROUSING GUARD: Forest
+[01:15:42] Guard 'Forest' roused successfully via firesignal!
+[01:15:42] STRIKE TRIGGERED! Source: SpeedTollOffer (+0.1279s from Rouse)
+[01:15:42] Strike confirmed during wait window at +0.1473s! (SpeedTollOffer) Proceeding...
+[01:15:42] Pre-teleport egg status: holding=false
+[01:15:42] [WARN] Egg is not held before teleport! (Guard may have stripped it early)
+[01:15:42] PHASE = DROP POSITION
+[01:15:42] DROP POSITIONED | pos=(1370.351, 71.410, -335.180)
+[01:15:42] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[01:15:42] POSITION [before AskFieldEggDrop spam sequence]: (1370.351, 71.410, -335.180) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:15:42] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[01:15:42] HOLD / REPLICATING POSITION (0.10s)...
+[01:15:43] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(604.760, 71.411, -321.649) (765.7 studs from drop).
+[01:15:43] ----------------------------------------
+[01:15:43] RESULT: FAILED — Snapped back despite strike (SpeedTollOffer).
+[01:15:43] [DIAGNOSIS] Strike registered but hit authority expired before drop completed.
+[01:15:43] [AUTO-ADJUST] Timing auto-lowered to 0.630s (-0.610s).
+[01:15:43] [NEXT] Press E on egg in Forest to retry at 0.610s!
+[01:15:43] TEST END
+[01:15:43] ----------------------------------------
+[01:15:43] AskFieldEggDrop [#4/8] cancelled (test stopped)
+[01:15:43] POSITION [after AskFieldEggDrop spam sequence]: (604.760, 71.411, -321.649) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:15:43] AskFieldEggDrop [#1/8] returned: false | pos=(1370.351, 71.410, -335.180)
+[01:15:43] AskFieldEggDrop [#2/8] returned: false | pos=(604.760, 71.411, -321.649)
+[01:15:43] AskFieldEggDrop [#3/8] returned: false | pos=(604.760, 71.411, -321.649)
+[01:15:46] [HOOK] Captured Egg UID: FirstAreaEgg_11924439055_5978511_Forest:Slot_005
+[01:15:46] ----------------------------------------
+[01:15:46] [PICKUP OK] AskFieldEggCarry returned true!
+[01:15:46] ----------------------------------------
+[01:15:46] TEST START
+[01:15:46] START = (601.353, 71.411, -321.456)
+[01:15:46] DROP / LANDING = (1370.351, 71.410, -335.180)
+[01:15:46] PHASE = GUARD ROUSE & WAIT (Target: Forest, Dist: 6.8 studs)
+[01:15:46] Timing delay assumption: 0.610s
+[01:15:46] ----------------------------------------
+[01:15:46] FOREST STRIKE TRIGGERED
+[01:15:46] Calling ForestStrike:FireServer with EggUid=FirstAreaEgg_11924439055_5978511_Forest:Slot_005...
+[01:15:46] ForestStrike FireServer sent OK!
+[01:15:46] ----------------------------------------
+[01:15:46] ROUSING GUARD: Forest
+[01:15:46] Guard 'Forest' roused successfully via firesignal!
+[01:15:46] STRIKE TRIGGERED! Source: SpeedTollOffer (+0.1364s from Rouse)
+[01:15:46] Strike confirmed during wait window at +0.1577s! (SpeedTollOffer) Proceeding...
+[01:15:46] Pre-teleport egg status: holding=false
+[01:15:46] [WARN] Egg is not held before teleport! (Guard may have stripped it early)
+[01:15:46] PHASE = DROP POSITION
+[01:15:46] DROP POSITIONED | pos=(1370.351, 71.410, -335.180)
+[01:15:46] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[01:15:46] POSITION [before AskFieldEggDrop spam sequence]: (1370.351, 71.410, -335.180) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:15:46] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[01:15:46] HOLD / REPLICATING POSITION (0.10s)...
+[01:15:46] [OK] Position held at drop location (dist=0.00 studs). Hit authority active!
+[01:15:46] PHASE = FREEFALL
+[01:15:46] FREEFALL START | pos=(1370.351, 71.411, -335.180) | vel=(0.000, 0.012, 0.000)
+[01:15:46] AskFieldEggDrop already attempted for this run; duplicate request suppressed.
+[01:15:46] FREEFALL | pos=(1370.351, 71.411, -335.180) | vel=(0.000, -13.026, 0.000)
+[01:15:46] FREEFALL | pos=(1370.351, 71.322, -335.180) | vel=(0.000, -27.558, 0.000)
+[01:15:46] AskFieldEggDrop [#1/8] returned: false | pos=(1370.351, 71.410, -335.180)
+[01:15:46] FREEFALL END | elapsed=0.1281 | pos=(1370.351, 71.295, -335.180) | vel=(0.000, 3.463, 0.000)
+[01:15:46] PHASE = DROP TRANSITION
+[01:15:46] LOCAL DROP TRANSITION | previous=(1370.351, 71.295, -335.180) | entry=(1370.351, 75.210, -335.180) | distance=3.915
+[01:15:46] PHASE = FINAL DESCENT
+[01:15:46] FINAL DESCENT | pos=(1370.351, 75.210, -335.180) | vel=(0.000, -5.000, 0.000)
+[01:15:46] AskFieldEggDrop [#2/8] returned: false | pos=(1371.008, 72.134, -338.761)
+[01:15:46] AskFieldEggDrop [#3/8] returned: false | pos=(1370.351, 71.290, -335.180)
+[01:15:46] AskFieldEggDrop [#4/8] returned: false | pos=(1370.351, 71.411, -335.180)
+[01:15:46] POSITION [after AskFieldEggDrop spam sequence]: (1370.351, 71.962, -335.180) | vel=(0.000, -52.358, 0.000) (speed=52.36) | state=Freefall
+[01:15:46] FINAL DESCENT | pos=(1370.351, 71.962, -335.180) | vel=(0.000, -7.567, 0.000)
+[01:15:46] PHASE = LANDING
+[01:15:46] LANDED | final=(1370.351, 71.410, -335.180)
+[01:15:46] START=(601.353, 71.411, -321.456)
+[01:15:46] DROP/LANDING=(1370.351, 71.410, -335.180)
+[01:15:46] TOTAL TIME=0.5156
+[01:15:46] ----------------------------------------
+[01:15:46] RESULT: SUCCESS — Replicated at drop location (error: 0.00 studs)!
+[01:15:46] [SAVED] Winning timing verified: 0.610s! Egg dropped into pen.
+[01:15:46] TEST END
+[01:15:46] ----------------------------------------
+[01:15:46] AskFieldEggDrop [#5/8] returned: false | pos=(1370.351, 71.330, -335.180)
+[01:15:46] AskFieldEggDrop [#6/8] returned: false | pos=(1370.351, 71.320, -335.180)
+[01:15:46] AskFieldEggDrop [#7/8] returned: false | pos=(1370.351, 73.802, -335.180)
+[01:15:46] AskFieldEggDrop [#8/8] returned: false | pos=(1370.351, 71.962, -335.180)
+[01:16:15] DROP / LANDING LOCATION = (5663.354, 71.411, -303.022)
+[01:16:47] [HOOK] Captured Egg UID: FirstAreaEgg_11924439055_5978511_Forest:Slot_005
+[01:16:47] ----------------------------------------
+[01:16:47] [PICKUP OK] AskFieldEggCarry returned true!
+[01:16:47] ----------------------------------------
+[01:16:47] TEST START
+[01:16:47] START = (598.524, 71.411, -322.326)
+[01:16:47] DROP / LANDING = (5663.354, 71.411, -303.022)
+[01:16:47] PHASE = GUARD ROUSE & WAIT (Target: Forest, Dist: 5.9 studs)
+[01:16:47] Timing delay assumption: 0.610s
+[01:16:47] ----------------------------------------
+[01:16:47] FOREST STRIKE TRIGGERED
+[01:16:47] Calling ForestStrike:FireServer with EggUid=FirstAreaEgg_11924439055_5978511_Forest:Slot_005...
+[01:16:47] ForestStrike FireServer sent OK!
+[01:16:47] ----------------------------------------
+[01:16:47] ROUSING GUARD: Forest
+[01:16:47] Guard 'Forest' roused successfully via firesignal!
+[01:16:47] STRIKE TRIGGERED! Source: SpeedTollOffer (+0.1300s from Rouse)
+[01:16:47] Strike confirmed during wait window at +0.1527s! (SpeedTollOffer) Proceeding...
+[01:16:47] Pre-teleport egg status: holding=false
+[01:16:47] [WARN] Egg is not held before teleport! (Guard may have stripped it early)
+[01:16:47] PHASE = DROP POSITION
+[01:16:47] DROP POSITIONED | pos=(5663.354, 71.411, -303.022)
+[01:16:47] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[01:16:47] POSITION [before AskFieldEggDrop spam sequence]: (5663.354, 71.411, -303.022) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:16:47] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[01:16:47] HOLD / REPLICATING POSITION (0.10s)...
+[01:16:48] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(598.524, 71.411, -322.326) (5064.9 studs from drop).
+[01:16:48] ----------------------------------------
+[01:16:48] RESULT: FAILED — Snapped back despite strike (SpeedTollOffer).
+[01:16:48] [DIAGNOSIS] Strike registered but hit authority expired before drop completed.
+[01:16:48] [AUTO-ADJUST] Timing auto-lowered to 0.610s (-0.590s).
+[01:16:48] [NEXT] Press E on egg in Forest to retry at 0.590s!
+[01:16:48] TEST END
+[01:16:48] ----------------------------------------
+[01:16:48] AskFieldEggDrop [#4/8] cancelled (test stopped)
+[01:16:48] POSITION [after AskFieldEggDrop spam sequence]: (598.524, 71.411, -322.326) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:16:48] AskFieldEggDrop [#1/8] returned: false | pos=(5663.354, 71.411, -303.022)
+[01:16:48] AskFieldEggDrop [#2/8] returned: false | pos=(598.524, 71.411, -322.326)
+[01:16:48] AskFieldEggDrop [#3/8] returned: false | pos=(598.524, 71.411, -322.326)
+[01:16:52] [HOOK] Captured Egg UID: FirstAreaEgg_11924439055_5978511_Forest:Slot_003
+[01:16:52] ----------------------------------------
+[01:16:52] [PICKUP OK] AskFieldEggCarry returned true!
+[01:16:52] ----------------------------------------
+[01:16:52] TEST START
+[01:16:52] START = (598.524, 71.411, -322.326)
+[01:16:52] DROP / LANDING = (5663.354, 71.411, -303.022)
+[01:16:52] PHASE = GUARD ROUSE & WAIT (Target: Forest, Dist: 5.9 studs)
+[01:16:52] Timing delay assumption: 0.590s
+[01:16:52] ----------------------------------------
+[01:16:52] FOREST STRIKE TRIGGERED
+[01:16:52] Calling ForestStrike:FireServer with EggUid=FirstAreaEgg_11924439055_5978511_Forest:Slot_003...
+[01:16:52] ForestStrike FireServer sent OK!
+[01:16:52] ----------------------------------------
+[01:16:52] ROUSING GUARD: Forest
+[01:16:52] Guard 'Forest' roused successfully via firesignal!
+[01:16:53] STRIKE TRIGGERED! Source: SpeedTollOffer (+0.1313s from Rouse)
+[01:16:53] Strike confirmed during wait window at +0.1502s! (SpeedTollOffer) Proceeding...
+[01:16:53] Pre-teleport egg status: holding=false
+[01:16:53] [WARN] Egg is not held before teleport! (Guard may have stripped it early)
+[01:16:53] PHASE = DROP POSITION
+[01:16:53] DROP POSITIONED | pos=(5663.354, 71.411, -303.022)
+[01:16:53] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[01:16:53] POSITION [before AskFieldEggDrop spam sequence]: (5663.354, 71.411, -303.022) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:16:53] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[01:16:53] HOLD / REPLICATING POSITION (0.10s)...
+[01:16:53] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(598.524, 71.411, -322.326) (5064.9 studs from drop).
+[01:16:53] ----------------------------------------
+[01:16:53] RESULT: FAILED — Snapped back despite strike (SpeedTollOffer).
+[01:16:53] [DIAGNOSIS] Strike registered but hit authority expired before drop completed.
+[01:16:53] [AUTO-ADJUST] Timing auto-lowered to 0.590s (-0.570s).
+[01:16:53] [NEXT] Press E on egg in Forest to retry at 0.570s!
+[01:16:53] TEST END
+[01:16:53] ----------------------------------------
+[01:16:53] AskFieldEggDrop [#4/8] cancelled (test stopped)
+[01:16:53] POSITION [after AskFieldEggDrop spam sequence]: (598.524, 71.411, -322.326) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:16:53] AskFieldEggDrop [#1/8] returned: false | pos=(5663.354, 71.411, -303.022)
+[01:16:53] AskFieldEggDrop [#2/8] returned: false | pos=(598.524, 71.411, -322.326)
+[01:16:53] AskFieldEggDrop [#3/8] returned: false | pos=(598.524, 71.411, -322.326)
+[01:16:58] [HOOK] Captured Egg UID: FirstAreaEgg_11924439055_5978511_Forest:Slot_005
+[01:16:58] ----------------------------------------
+[01:16:58] [PICKUP OK] AskFieldEggCarry returned true!
+[01:16:58] ----------------------------------------
+[01:16:58] TEST START
+[01:16:58] START = (597.137, 71.411, -326.844)
+[01:16:58] DROP / LANDING = (5663.354, 71.411, -303.022)
+[01:16:58] PHASE = GUARD ROUSE & WAIT (Target: Forest, Dist: 10.0 studs)
+[01:16:58] Timing delay assumption: 0.570s
+[01:16:58] ----------------------------------------
+[01:16:58] FOREST STRIKE TRIGGERED
+[01:16:58] Calling ForestStrike:FireServer with EggUid=FirstAreaEgg_11924439055_5978511_Forest:Slot_005...
+[01:16:58] ForestStrike FireServer sent OK!
+[01:16:58] ----------------------------------------
+[01:16:58] ROUSING GUARD: Forest
+[01:16:58] Guard 'Forest' roused successfully via firesignal!
+[01:16:58] STRIKE TRIGGERED! Source: SpeedTollOffer (+0.1187s from Rouse)
+[01:16:58] Strike confirmed during wait window at +0.1388s! (SpeedTollOffer) Proceeding...
+[01:16:58] Pre-teleport egg status: holding=false
+[01:16:58] [WARN] Egg is not held before teleport! (Guard may have stripped it early)
+[01:16:58] PHASE = DROP POSITION
+[01:16:58] DROP POSITIONED | pos=(5663.354, 71.411, -303.022)
+[01:16:58] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[01:16:58] POSITION [before AskFieldEggDrop spam sequence]: (5663.354, 71.411, -303.022) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:16:58] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[01:16:58] HOLD / REPLICATING POSITION (0.10s)...
+[01:16:58] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(597.137, 71.411, -326.844) (5066.3 studs from drop).
+[01:16:58] ----------------------------------------
+[01:16:58] RESULT: FAILED — Snapped back despite strike (SpeedTollOffer).
+[01:16:58] [DIAGNOSIS] Strike registered but hit authority expired before drop completed.
+[01:16:58] [AUTO-ADJUST] Timing auto-lowered to 0.570s (-0.550s).
+[01:16:58] [NEXT] Press E on egg in Forest to retry at 0.550s!
+[01:16:58] TEST END
+[01:16:58] ----------------------------------------
+[01:16:58] AskFieldEggDrop [#5/8] cancelled (test stopped)
+[01:16:58] POSITION [after AskFieldEggDrop spam sequence]: (597.137, 71.411, -326.844) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:16:58] AskFieldEggDrop [#1/8] returned: false | pos=(5663.354, 71.411, -303.022)
+[01:16:58] AskFieldEggDrop [#2/8] returned: false | pos=(597.137, 71.411, -326.844)
+[01:16:58] AskFieldEggDrop [#3/8] returned: false | pos=(597.137, 71.411, -326.844)
+[01:16:58] AskFieldEggDrop [#4/8] returned: false | pos=(597.137, 71.411, -326.844)
+[01:17:01] [HOOK] Captured Egg UID: FirstAreaEgg_11924439055_5978511_Forest:Slot_005
+[01:17:01] ----------------------------------------
+[01:17:01] [PICKUP OK] AskFieldEggCarry returned true!
+[01:17:01] ----------------------------------------
+[01:17:01] TEST START
+[01:17:01] START = (597.137, 71.411, -326.844)
+[01:17:01] DROP / LANDING = (5663.354, 71.411, -303.022)
+[01:17:01] PHASE = GUARD ROUSE & WAIT (Target: Forest, Dist: 10.0 studs)
+[01:17:01] Timing delay assumption: 0.550s
+[01:17:01] ----------------------------------------
+[01:17:01] FOREST STRIKE TRIGGERED
+[01:17:01] Calling ForestStrike:FireServer with EggUid=FirstAreaEgg_11924439055_5978511_Forest:Slot_005...
+[01:17:01] ForestStrike FireServer sent OK!
+[01:17:01] ----------------------------------------
+[01:17:01] ROUSING GUARD: Forest
+[01:17:01] Guard 'Forest' roused successfully via firesignal!
+[01:17:01] STRIKE TRIGGERED! Source: SpeedTollOffer (+0.1263s from Rouse)
+[01:17:01] Strike confirmed during wait window at +0.1455s! (SpeedTollOffer) Proceeding...
+[01:17:01] Pre-teleport egg status: holding=false
+[01:17:01] [WARN] Egg is not held before teleport! (Guard may have stripped it early)
+[01:17:01] PHASE = DROP POSITION
+[01:17:01] DROP POSITIONED | pos=(5663.354, 71.411, -303.022)
+[01:17:01] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[01:17:01] POSITION [before AskFieldEggDrop spam sequence]: (5663.354, 71.411, -303.022) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[01:17:01] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[01:17:01] HOLD / REPLICATING POSITION (0.10s)...
+[01:17:01] [OK] Position held at drop location (dist=0.00 studs). Hit authority active!
+[01:17:01] PHASE = FREEFALL
+[01:17:01] FREEFALL START | pos=(5663.354, 71.411, -303.022) | vel=(0.000, 0.000, 0.000)
+[01:17:01] AskFieldEggDrop already attempted for this run; duplicate request suppressed.
+[01:17:01] FREEFALL | pos=(5663.354, 71.411, -303.022) | vel=(0.000, -13.030, 0.000)
+[01:17:01] FREEFALL | pos=(5663.354, 71.306, -303.022) | vel=(0.000, -25.127, 0.000)
+[01:17:01] AskFieldEggDrop [#1/8] returned: false | pos=(5663.354, 71.411, -303.022)
+[01:17:01] AskFieldEggDrop [#2/8] returned: false | pos=(5663.267, 72.134, -306.674)
+[01:17:01] AskFieldEggDrop [#3/8] returned: false | pos=(5663.354, 71.411, -303.022)
+[01:17:01] FREEFALL END | elapsed=0.1342 | pos=(5663.354, 71.252, -303.022) | vel=(0.000, 4.232, 0.000)
+[01:17:01] PHASE = DROP TRANSITION
+[01:17:01] LOCAL DROP TRANSITION | previous=(5663.354, 71.252, -303.022) | entry=(5663.354, 75.211, -303.022) | distance=3.959
+[01:17:01] PHASE = FINAL DESCENT
+[01:17:01] FINAL DESCENT | pos=(5663.354, 75.211, -303.022) | vel=(0.000, -5.000, 0.000)
+[01:17:02] POSITION [after AskFieldEggDrop spam sequence]: (5663.354, 72.818, -303.022) | vel=(0.000, -49.905, 0.000) (speed=49.91) | state=Freefall
+[01:17:02] FINAL DESCENT | pos=(5663.354, 72.818, -303.022) | vel=(0.000, -7.032, 0.000)
+[01:17:02] AskFieldEggDrop [#4/8] returned: false | pos=(5663.354, 71.411, -303.022)
+[01:17:02] PHASE = LANDING
+[01:17:02] LANDED | final=(5663.354, 71.411, -303.022)
+[01:17:02] START=(597.137, 71.411, -326.844)
+[01:17:02] DROP/LANDING=(5663.354, 71.411, -303.022)
+[01:17:02] TOTAL TIME=0.5333
+[01:17:02] ----------------------------------------
+[01:17:02] RESULT: SUCCESS — Replicated at drop location (error: 0.00 studs)!
+[01:17:02] [SAVED] Winning timing verified: 0.550s! Egg dropped into pen.
+[01:17:02] TEST END
+[01:17:02] ----------------------------------------
+[01:17:02] AskFieldEggDrop [#5/8] returned: false | pos=(5663.354, 71.291, -303.022)
+[01:17:02] AskFieldEggDrop [#6/8] returned: false | pos=(5663.354, 71.316, -303.022)
+[01:17:02] AskFieldEggDrop [#7/8] returned: false | pos=(5663.354, 71.252, -303.022)
+[01:17:02] AskFieldEggDrop [#8/8] returned: false | pos=(5663.354, 72.818, -303.022)

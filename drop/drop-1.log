@@ -1,0 +1,281 @@
+[00:31:50] Hooked AskFieldEggCarry request listener (__namecall).
+[00:31:50] Titan Guard Drop Tester loaded
+[00:31:50] Landing location preset to (949.147, 70.724, -412.289)
+[00:31:50] Focus Biome Guard: Titan Temple (RE/GuardPatrol/Rouse)
+[00:31:50] Initial Timing delay: 0.300s (live ping: 88ms; adjust with [-]/[+] buttons)
+[00:31:50] Press E on egg in Titan Temple:
+[00:31:50]  -> When request returns true, timing wait begins & hit is verified!
+[00:31:50]  -> If timed out before hit, timing steps up. If strike expired, timing steps down.
+[00:31:55] ----------------------------------------
+[00:31:55] [PICKUP OK] AskFieldEggCarry returned true!
+[00:31:55] ----------------------------------------
+[00:31:55] TEST START
+[00:31:55] START = (4805.327, 71.411, -336.393)
+[00:31:55] DROP / LANDING = (949.147, 70.724, -412.289)
+[00:31:55] PHASE = GUARD ROUSE & WAIT (Target: Titan Temple)
+[00:31:55] Timing delay assumption: 0.300s
+[00:31:55] ----------------------------------------
+[00:31:55] ROUSING GUARD: Titan Temple
+[00:31:55] Guard 'Titan Temple' roused successfully via firesignal!
+[00:31:55] PHASE = DROP POSITION
+[00:31:55] DROP POSITIONED | pos=(949.147, 70.724, -412.289)
+[00:31:55] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[00:31:55] POSITION [before AskFieldEggDrop spam sequence]: (949.147, 70.724, -412.289) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[00:31:55] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[00:31:55] HOLD / REPLICATING POSITION (0.10s)...
+[00:31:55] AskFieldEggDrop [#1/8] returned: true | pos=(949.147, 70.724, -412.289)
+[00:31:55] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(4805.327, 71.411, -336.393) (3856.9 studs from drop).
+[00:31:55] [ADVICE] No strike was detected within 0.300s. Guard attack arrived too late! INCREASE timing using [+] and retry.
+[00:31:55] PHASE = FREEFALL
+[00:31:55] FREEFALL START | pos=(4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000)
+[00:31:55] AskFieldEggDrop already attempted for this run; duplicate request suppressed.
+[00:31:55] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -13.025, 0.000)
+[00:31:55] AskFieldEggDrop [#2/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:31:55] AskFieldEggDrop [#3/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:31:55] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -24.545, 0.000)
+[00:31:55] AskFieldEggDrop [#4/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:31:55] AskFieldEggDrop [#5/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:31:55] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -34.869, 0.000)
+[00:31:55] FREEFALL END | elapsed=0.1606 | pos=(4805.327, 71.365, -336.393) | vel=(0.000, 1.892, 0.000)
+[00:31:55] PHASE = DROP TRANSITION
+[00:31:55] LOCAL DROP TRANSITION | previous=(4805.327, 71.365, -336.393) | entry=(949.147, 74.524, -412.289) | distance=3856.928
+[00:31:55] PHASE = FINAL DESCENT
+[00:31:55] FINAL DESCENT | pos=(949.147, 74.524, -412.289) | vel=(0.000, -5.000, 0.000)
+[00:31:55] POSITION [after AskFieldEggDrop spam sequence]: (4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Freefall
+[00:31:55] AskFieldEggDrop [#6/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:31:55] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -7.221, 0.000)
+[00:31:56] AskFieldEggDrop [#7/8] returned: false | pos=(4805.327, 71.365, -336.393)
+[00:31:56] AskFieldEggDrop [#8/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -9.318, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -11.384, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -13.415, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.349, -336.393) | vel=(0.000, -16.412, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.323, -336.393) | vel=(0.000, -18.584, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.313, -336.393) | vel=(0.000, -20.678, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.302, -336.393) | vel=(0.000, -22.702, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.283, -336.393) | vel=(0.000, -24.832, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.293, -336.393) | vel=(0.000, -27.041, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.319, -336.393) | vel=(0.000, -29.340, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.314, -336.393) | vel=(0.000, -31.430, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.332, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.347, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.286, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.255, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.234, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.247, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:56] FINAL DESCENT | pos=(4805.327, 71.354, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT | pos=(4805.327, 71.271, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT | pos=(4805.327, 71.232, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT | pos=(4805.327, 71.268, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT | pos=(4805.327, 71.258, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT | pos=(4805.327, 71.307, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT | pos=(4805.327, 71.262, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT | pos=(4805.327, 71.248, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:31:57] FINAL DESCENT TIMEOUT
+[00:31:58] Timing delay decreased to: 0.290s
+[00:31:58] Timing delay decreased to: 0.280s
+[00:31:58] Timing delay decreased to: 0.270s
+[00:31:59] Timing delay decreased to: 0.260s
+[00:31:59] Timing delay decreased to: 0.250s
+[00:32:01] ----------------------------------------
+[00:32:01] [PICKUP OK] AskFieldEggCarry returned true!
+[00:32:01] ----------------------------------------
+[00:32:01] TEST START
+[00:32:01] START = (4805.327, 71.411, -336.393)
+[00:32:01] DROP / LANDING = (949.147, 70.724, -412.289)
+[00:32:01] PHASE = GUARD ROUSE & WAIT (Target: Titan Temple)
+[00:32:01] Timing delay assumption: 0.250s
+[00:32:01] ----------------------------------------
+[00:32:01] ROUSING GUARD: Titan Temple
+[00:32:01] Guard 'Titan Temple' roused successfully via firesignal!
+[00:32:02] PHASE = DROP POSITION
+[00:32:02] DROP POSITIONED | pos=(949.147, 70.724, -412.289)
+[00:32:02] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[00:32:02] POSITION [before AskFieldEggDrop spam sequence]: (949.147, 70.724, -412.289) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[00:32:02] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[00:32:02] HOLD / REPLICATING POSITION (0.10s)...
+[00:32:02] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(4805.327, 71.411, -336.393) (3856.9 studs from drop).
+[00:32:02] [ADVICE] No strike was detected within 0.250s. Guard attack arrived too late! INCREASE timing using [+] and retry.
+[00:32:02] PHASE = FREEFALL
+[00:32:02] FREEFALL START | pos=(4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000)
+[00:32:02] AskFieldEggDrop already attempted for this run; duplicate request suppressed.
+[00:32:02] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -13.030, 0.000)
+[00:32:02] AskFieldEggDrop [#1/8] returned: true | pos=(949.147, 70.724, -412.289)
+[00:32:02] AskFieldEggDrop [#2/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:02] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -27.731, 0.000)
+[00:32:02] AskFieldEggDrop [#3/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:02] FREEFALL END | elapsed=0.1294 | pos=(4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000)
+[00:32:02] PHASE = DROP TRANSITION
+[00:32:02] LOCAL DROP TRANSITION | previous=(4805.327, 71.411, -336.393) | entry=(949.147, 74.524, -412.289) | distance=3856.928
+[00:32:02] PHASE = FINAL DESCENT
+[00:32:02] FINAL DESCENT | pos=(949.147, 74.524, -412.289) | vel=(0.000, -5.000, 0.000)
+[00:32:02] AskFieldEggDrop [#4/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:02] AskFieldEggDrop [#5/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:02] AskFieldEggDrop [#6/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:02] POSITION [after AskFieldEggDrop spam sequence]: (4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Freefall
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -7.652, 0.000)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -10.039, 0.000)
+[00:32:02] AskFieldEggDrop [#7/8] returned: false | pos=(949.147, 74.283, -412.289)
+[00:32:02] AskFieldEggDrop [#8/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -12.123, 0.000)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -14.201, 0.000)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.330, -336.393) | vel=(0.000, -17.222, 0.000)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.301, -336.393) | vel=(0.000, -20.060, 0.000)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.324, -336.393) | vel=(0.000, -22.121, 0.000)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.306, -336.393) | vel=(0.000, -24.927, 0.000)
+[00:32:02] FINAL DESCENT | pos=(4805.327, 71.271, -336.393) | vel=(0.000, -26.965, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.268, -336.393) | vel=(0.000, -30.006, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.233, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.270, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.350, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.301, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.260, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.208, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.260, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.297, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.232, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.215, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] Timing delay decreased to: 0.240s
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.228, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.226, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] FINAL DESCENT | pos=(4805.327, 71.236, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:03] Timing delay decreased to: 0.230s
+[00:32:03] FINAL DESCENT TIMEOUT
+[00:32:04] Timing delay decreased to: 0.220s
+[00:32:04] Timing delay decreased to: 0.210s
+[00:32:04] Timing delay decreased to: 0.200s
+[00:32:05] Timing delay decreased to: 0.190s
+[00:32:06] Timing delay decreased to: 0.180s
+[00:32:06] Timing delay decreased to: 0.170s
+[00:32:06] Timing delay decreased to: 0.160s
+[00:32:07] Timing delay decreased to: 0.150s
+[00:32:09] ----------------------------------------
+[00:32:09] [PICKUP OK] AskFieldEggCarry returned true!
+[00:32:09] ----------------------------------------
+[00:32:09] TEST START
+[00:32:09] START = (4805.327, 71.411, -336.393)
+[00:32:09] DROP / LANDING = (949.147, 70.724, -412.289)
+[00:32:09] PHASE = GUARD ROUSE & WAIT (Target: Titan Temple)
+[00:32:09] Timing delay assumption: 0.150s
+[00:32:09] ----------------------------------------
+[00:32:09] ROUSING GUARD: Titan Temple
+[00:32:09] Guard 'Titan Temple' roused successfully via firesignal!
+[00:32:09] PHASE = DROP POSITION
+[00:32:09] DROP POSITIONED | pos=(949.147, 70.724, -412.289)
+[00:32:09] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[00:32:09] POSITION [before AskFieldEggDrop spam sequence]: (949.147, 70.724, -412.289) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[00:32:09] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[00:32:09] HOLD / REPLICATING POSITION (0.10s)...
+[00:32:09] AskFieldEggDrop [#1/8] returned: true | pos=(949.147, 70.724, -412.289)
+[00:32:09] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(4805.327, 71.411, -336.393) (3856.9 studs from drop).
+[00:32:09] [ADVICE] No strike was detected within 0.150s. Guard attack arrived too late! INCREASE timing using [+] and retry.
+[00:32:09] PHASE = FREEFALL
+[00:32:09] FREEFALL START | pos=(4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000)
+[00:32:09] AskFieldEggDrop already attempted for this run; duplicate request suppressed.
+[00:32:09] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -13.030, 0.000)
+[00:32:09] AskFieldEggDrop [#2/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:09] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -24.464, 0.000)
+[00:32:09] AskFieldEggDrop [#3/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:09] AskFieldEggDrop [#4/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:09] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -36.452, 0.000)
+[00:32:09] FREEFALL END | elapsed=0.1439 | pos=(4805.327, 71.304, -336.393) | vel=(0.000, 3.020, 0.000)
+[00:32:09] PHASE = DROP TRANSITION
+[00:32:09] LOCAL DROP TRANSITION | previous=(4805.327, 71.304, -336.393) | entry=(949.147, 74.524, -412.289) | distance=3856.928
+[00:32:09] PHASE = FINAL DESCENT
+[00:32:09] FINAL DESCENT | pos=(949.147, 74.283, -412.289) | vel=(0.000, -6.144, 0.000)
+[00:32:09] AskFieldEggDrop [#5/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:09] POSITION [after AskFieldEggDrop spam sequence]: (4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Landed
+[00:32:09] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -8.511, 0.000)
+[00:32:09] AskFieldEggDrop [#6/8] returned: false | pos=(4805.327, 71.304, -336.393)
+[00:32:09] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -10.774, 0.000)
+[00:32:09] AskFieldEggDrop [#7/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:09] AskFieldEggDrop [#8/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:09] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -12.893, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.375, -336.393) | vel=(0.000, -15.935, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.345, -336.393) | vel=(0.000, -18.839, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.335, -336.393) | vel=(0.000, -20.885, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.279, -336.393) | vel=(0.000, -23.747, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.271, -336.393) | vel=(0.000, -25.783, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.251, -336.393) | vel=(0.000, -28.675, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.279, -336.393) | vel=(0.000, -30.733, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.353, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.302, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.269, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.250, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.245, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.251, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.220, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.231, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.210, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:10] FINAL DESCENT | pos=(4805.327, 71.239, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:11] FINAL DESCENT | pos=(4805.327, 71.282, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:11] Timing delay decreased to: 0.140s
+[00:32:11] FINAL DESCENT | pos=(4805.327, 71.251, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:11] FINAL DESCENT | pos=(4805.327, 71.234, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:11] FINAL DESCENT TIMEOUT
+[00:32:11] Timing delay decreased to: 0.130s
+[00:32:11] Timing delay decreased to: 0.120s
+[00:32:11] Timing delay decreased to: 0.110s
+[00:32:12] Timing delay decreased to: 0.100s
+[00:32:14] ----------------------------------------
+[00:32:14] [PICKUP OK] AskFieldEggCarry returned true!
+[00:32:14] ----------------------------------------
+[00:32:14] TEST START
+[00:32:14] START = (4805.327, 71.411, -336.393)
+[00:32:14] DROP / LANDING = (949.147, 70.724, -412.289)
+[00:32:14] PHASE = GUARD ROUSE & WAIT (Target: Titan Temple)
+[00:32:14] Timing delay assumption: 0.100s
+[00:32:14] ----------------------------------------
+[00:32:14] ROUSING GUARD: Titan Temple
+[00:32:14] Guard 'Titan Temple' roused successfully via firesignal!
+[00:32:14] PHASE = DROP POSITION
+[00:32:14] DROP POSITIONED | pos=(949.147, 70.724, -412.289)
+[00:32:14] Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam 8x)...
+[00:32:14] POSITION [before AskFieldEggDrop spam sequence]: (949.147, 70.724, -412.289) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[00:32:14] Starting AskFieldEggDrop spam (8x, 0.03s interval)...
+[00:32:14] HOLD / REPLICATING POSITION (0.10s)...
+[00:32:14] [WARN] RUBBERBAND DETECTED DURING HOLD! pos=(4805.327, 71.411, -336.393) (3856.9 studs from drop).
+[00:32:14] [ADVICE] No strike was detected within 0.100s. Guard attack arrived too late! INCREASE timing using [+] and retry.
+[00:32:14] PHASE = FREEFALL
+[00:32:14] FREEFALL START | pos=(4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000)
+[00:32:14] AskFieldEggDrop already attempted for this run; duplicate request suppressed.
+[00:32:14] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -13.024, 0.000)
+[00:32:14] AskFieldEggDrop [#1/8] returned: true | pos=(949.147, 70.724, -412.289)
+[00:32:14] AskFieldEggDrop [#2/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:14] FREEFALL | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -27.497, 0.000)
+[00:32:14] AskFieldEggDrop [#3/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:14] AskFieldEggDrop [#4/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:14] FREEFALL END | elapsed=0.1349 | pos=(4805.327, 71.348, -336.393) | vel=(0.000, 1.938, 0.000)
+[00:32:14] PHASE = DROP TRANSITION
+[00:32:14] LOCAL DROP TRANSITION | previous=(4805.327, 71.348, -336.393) | entry=(949.147, 74.524, -412.289) | distance=3856.928
+[00:32:14] PHASE = FINAL DESCENT
+[00:32:14] FINAL DESCENT | pos=(949.147, 74.524, -412.289) | vel=(0.000, -5.000, 0.000)
+[00:32:14] AskFieldEggDrop [#5/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:14] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -7.154, 0.000)
+[00:32:14] POSITION [after AskFieldEggDrop spam sequence]: (4805.327, 71.411, -336.393) | vel=(0.000, 0.000, 0.000) (speed=0.00) | state=Running
+[00:32:14] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -9.192, 0.000)
+[00:32:14] AskFieldEggDrop [#6/8] returned: false | pos=(4805.327, 71.348, -336.393)
+[00:32:14] AskFieldEggDrop [#7/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:14] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -11.233, 0.000)
+[00:32:14] AskFieldEggDrop [#8/8] returned: false | pos=(4805.327, 71.411, -336.393)
+[00:32:14] FINAL DESCENT | pos=(4805.327, 71.411, -336.393) | vel=(0.000, -14.209, 0.000)
+[00:32:14] FINAL DESCENT | pos=(4805.327, 71.343, -336.393) | vel=(0.000, -17.102, 0.000)
+[00:32:14] FINAL DESCENT | pos=(4805.327, 71.328, -336.393) | vel=(0.000, -20.017, 0.000)
+[00:32:14] FINAL DESCENT | pos=(4805.327, 71.291, -336.393) | vel=(0.000, -22.870, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.267, -336.393) | vel=(0.000, -25.897, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.235, -336.393) | vel=(0.000, -28.699, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.281, -336.393) | vel=(0.000, -31.956, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.223, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.274, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.241, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.275, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.288, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.325, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.360, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.289, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.256, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.234, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.250, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.244, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:15] FINAL DESCENT | pos=(4805.327, 71.260, -336.393) | vel=(0.000, -32.000, 0.000)
+[00:32:16] FINAL DESCENT TIMEOUT

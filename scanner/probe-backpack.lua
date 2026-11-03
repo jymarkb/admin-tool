@@ -90,7 +90,7 @@ local function runBackpackProbe()
             local bpChildren = bp:GetChildren()
             log(string.format("Backpack has %d items:", #bpChildren))
             for i, item in ipairs(bpChildren) do
-                if i <= 30 then
+                if i <= 500 then
                     local attrs = item:GetAttributes()
                     local attrParts = {}
                     for ak, av in pairs(attrs) do
@@ -100,8 +100,8 @@ local function runBackpackProbe()
                     log(string.format("  [%d] [%s] %s%s", i, item.ClassName, item.Name, attrStr))
                 end
             end
-            if #bpChildren > 30 then
-                log(string.format("  ... (%d more items in Backpack)", #bpChildren - 30))
+            if #bpChildren > 500 then
+                log(string.format("  ... (%d more items in Backpack)", #bpChildren - 500))
             end
         else
             log("LocalPlayer.Backpack NOT found!")

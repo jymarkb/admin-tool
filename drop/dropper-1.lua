@@ -24,10 +24,10 @@ local TRACE_INTERVAL = 0.05
 local EGG_DROP_SPAM_COUNT = 8
 local EGG_DROP_SPAM_INTERVAL = 0.03
 
-local POSITION_SETTLE_TIME = 0.30
+local POSITION_SETTLE_TIME = 0.10
 
-local GUARD_HIT_TIMING = 0.5
-local TARGET_GUARD_AREA = "Titan Temple"
+local GUARD_HIT_TIMING = 0.550
+local TARGET_GUARD_AREA = "Auto"
 
 local SAMPLE_GUARD_CFRAME = CFrame.new(
     605.572266, 69.3371735, -325.887329,
@@ -216,7 +216,7 @@ Title.Size = UDim2.new(1, -42, 1, 0)
 Title.Position = UDim2.fromOffset(10, 0)
 
 Title.BackgroundTransparency = 1
-Title.Text = "Titan Guard Dropper"
+Title.Text = "Guard Dropper"
 
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.TextSize = 15
@@ -335,7 +335,7 @@ local Status = Instance.new("TextLabel")
 Status.Size = UDim2.new(1, -16, 0, 18)
 Status.Position = UDim2.fromOffset(8, 72)
 Status.BackgroundTransparency = 1
-Status.Text = "Status: Ready — press E on egg in Titan Temple"
+Status.Text = "Status: Ready — press E on egg in any area"
 Status.TextColor3 = Color3.fromRGB(150, 220, 150)
 Status.TextSize = 11
 Status.Font = Enum.Font.SourceSans
@@ -360,9 +360,26 @@ local tlCorner = Instance.new("UICorner")
 tlCorner.CornerRadius = UDim.new(0, 6)
 tlCorner.Parent = TimingLabel
 
+local function getPingMs()
+    local ok, stats = pcall(function()
+        return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+    end)
+    if ok and type(stats) == "number" and stats > 0 then
+        return math.floor(stats + 0.5)
+    end
+    local ok2, ping = pcall(function()
+        return Player:GetNetworkPing() * 2000
+    end)
+    if ok2 and type(ping) == "number" and ping > 0 then
+        return math.floor(ping + 0.5)
+    end
+    return 68
+end
+
 local function updateTimingUI()
     if TimingLabel and TimingLabel.Parent then
-        TimingLabel.Text = string.format("Timing: %.3fs", GUARD_HIT_TIMING)
+        local ping = getPingMs()
+        TimingLabel.Text = string.format("Time: %.3fs (%dms)", GUARD_HIT_TIMING, ping)
     end
 end
 
@@ -421,9 +438,10 @@ TimingPlusBtn.MouseButton1Click:Connect(function()
 end)
 
 TimingResetBtn.MouseButton1Click:Connect(function()
-    GUARD_HIT_TIMING = 0.050
+    local ping = getPingMs()
+    GUARD_HIT_TIMING = math.clamp(math.floor((0.480 + (ping / 1000)) * 1000 + 0.5) / 1000, 0.400, 0.850)
     updateTimingUI()
-    log(string.format("Timing delay reset to: %.3fs", GUARD_HIT_TIMING))
+    log(string.format("Timing delay reset to ping-calibrated baseline: %.3fs (ping=%dms)", GUARD_HIT_TIMING, ping))
 end)
 
 --==================================================
@@ -561,7 +579,7 @@ AutoToggleBtn.MouseButton1Click:Connect(function()
     if isAutoEnabled then
         AutoToggleBtn.Text = "[AUTO: ON]"
         AutoToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 125, 65)
-        HintLabel.Text = "Auto: Pick up egg in Titan Temple -> Auto Run"
+        HintLabel.Text = "Auto: Pick up egg in any area -> Auto Run"
         HintLabel.TextColor3 = Color3.fromRGB(160, 220, 170)
         Status.Text = "Status: Auto-detect active"
         log("Auto-Detect: ENABLED (Will auto-run upon egg pickup)")
@@ -761,29 +779,42 @@ end
 -- BIOME GUARD ROUSE (TITAN TEMPLE)
 --==================================================
 
-local function getTitanGuard()
-    local guard = nil
-    pcall(function()
-        guard = workspace.World.Areas.GuardAreas[TARGET_GUARD_AREA].Guard
-    end)
-    if guard then
-        return guard
-    end
+local function getClosestGuard(playerPos)
+    local bestGuard = nil
+    local bestDist = math.huge
+    local bestAreaName = "Forest"
 
     pcall(function()
         local guardAreas = workspace:FindFirstChild("GuardAreas", true)
+        if not guardAreas and workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Areas") then
+            guardAreas = workspace.World.Areas:FindFirstChild("GuardAreas")
+        end
         if guardAreas then
-            local area = guardAreas:FindFirstChild(TARGET_GUARD_AREA)
-                or guardAreas:FindFirstChild("Titan")
-            guard = area and area:FindFirstChild("Guard")
+            for _, area in ipairs(guardAreas:GetChildren()) do
+                local guard = area:FindFirstChild("Guard")
+                    or area:FindFirstChild("ForestGuardAuthored")
+                if guard then
+                    local pivot = guard:GetPivot()
+                    if pivot then
+                        local dist = (pivot.Position - playerPos).Magnitude
+                        if dist < bestDist then
+                            bestDist = dist
+                            bestGuard = guard
+                            bestAreaName = area.Name
+                        end
+                    end
+                end
+            end
         end
     end)
-    return guard
+
+    return bestGuard, bestAreaName, bestDist
 end
 
-local function rouseTitanGuard()
+local function rouseGuard(guard, areaName)
+    areaName = areaName or TARGET_GUARD_AREA
     log("----------------------------------------")
-    log(string.format("ROUSING GUARD: %s", TARGET_GUARD_AREA))
+    log(string.format("ROUSING GUARD: %s", tostring(areaName)))
 
     local event = getRemote("RE/GuardPatrol/Rouse")
     if not event then
@@ -791,9 +822,8 @@ local function rouseTitanGuard()
         return false
     end
 
-    local guard = getTitanGuard()
     if not guard then
-        log(string.format("ERROR: Guard for '%s' not found in Workspace.World.Areas.GuardAreas", TARGET_GUARD_AREA))
+        log(string.format("ERROR: Guard for '%s' not found", tostring(areaName)))
         return false
     end
 
@@ -820,13 +850,36 @@ local function rouseTitanGuard()
         return false
     end
 
-    log(string.format("Guard '%s' roused successfully via firesignal!", TARGET_GUARD_AREA))
+    log(string.format("Guard '%s' roused successfully via firesignal!", tostring(areaName)))
     return true
 end
 
 --==================================================
 -- EGG CARRY REQUEST HOOK (AskFieldEggCarry)
 --==================================================
+
+local function isHoldingEgg()
+    if Character then
+        for _, child in ipairs(Character:GetChildren()) do
+            local cName = string.lower(child.Name)
+            if child:IsA("Tool") and not string.find(cName, "trap", 1, true) then return true end
+            if string.find(cName, "egg", 1, true) then return true end
+        end
+    end
+    if Player:GetAttribute("IsCarrying") == true or Player:GetAttribute("HoldingEgg") == true then
+        return true
+    end
+    local cra = workspace:FindFirstChild("ClientRenderedAssets")
+    if cra and Player then
+        local uidStr = tostring(Player.UserId)
+        for _, m in ipairs(cra:GetChildren()) do
+            if string.find(m.Name, uidStr, 1, true) then
+                return true
+            end
+        end
+    end
+    return false
+end
 
 local function hookEggCarryRequest()
     -- Intercept AskFieldEggCarry InvokeServer: triggers when you press E and pickup is OK
@@ -837,9 +890,19 @@ local function hookEggCarryRequest()
             if method == "InvokeServer" then
                 local name = tostring(self)
                 if string.find(name, "AskFieldEggCarry", 1, true) then
+                    local callArgs = {...}
                     local results = table.pack(oldNamecall(self, ...))
                     -- If server returns true, egg pickup was successful!
                     if results[1] == true then
+                        if callArgs[1] and typeof(callArgs[1]) == "table" and callArgs[1].Uid then
+                            cachedEggUid = tostring(callArgs[1].Uid)
+                            cachedEggSource = "AskFieldEggCarry Hook"
+                            log("[HOOK] Captured Egg UID: " .. cachedEggUid)
+                            if EggUidLabel and EggUidLabel.Parent then
+                                EggUidLabel.Text = "Egg UID: " .. cachedEggUid
+                                EggUidLabel.TextColor3 = Color3.fromRGB(170, 225, 255)
+                            end
+                        end
                         task.spawn(function()
                             log("----------------------------------------")
                             log("[PICKUP OK] AskFieldEggCarry returned true!")
@@ -1013,6 +1076,15 @@ local function invokeEggDropSpam(runToken, count)
             local ok, result = pcall(function()
                 return remote:InvokeServer({ Reason = "PlayerRequest" })
             end)
+            if not ok or result == false then
+                pcall(function()
+                    local res2 = remote:InvokeServer()
+                    if res2 ~= nil then
+                        result = res2
+                        ok = true
+                    end
+                end)
+            end
 
             local statusStr = ok and tostring(result) or ("ERROR: " .. tostring(result))
             log(string.format(
@@ -1103,13 +1175,19 @@ runTest = function()
     )
 
     --------------------------------------------------
-    -- GUARD ROUSE & HIT WAITING LOGIC (TITAN TEMPLE)
+    -- BIOME DETECTION & GUARD ROUSE
     --------------------------------------------------
 
-    Phase = "GUARD ROUSE & WAIT"
-    Status.Text = string.format("Status: Waiting Titan hit (%.3fs)...", GUARD_HIT_TIMING)
+    local guard, detectedArea, guardDist = getClosestGuard(StartLocation)
+    TARGET_GUARD_AREA = detectedArea or "Forest"
+    if GuardLabel and GuardLabel.Parent then
+        GuardLabel.Text = string.format("Guard: %s (%.0fst)", TARGET_GUARD_AREA, guardDist or 0)
+    end
 
-    log(string.format("PHASE = GUARD ROUSE & WAIT (Target: %s)", TARGET_GUARD_AREA))
+    Phase = "GUARD ROUSE & WAIT"
+    Status.Text = string.format("Status: Waiting %s hit (%.3fs)...", TARGET_GUARD_AREA, GUARD_HIT_TIMING)
+
+    log(string.format("PHASE = GUARD ROUSE & WAIT (Target: %s, Dist: %.1f studs)", TARGET_GUARD_AREA, guardDist or 0))
     log(string.format("Timing delay assumption: %.3fs", GUARD_HIT_TIMING))
 
     local rouseT0 = os.clock()
@@ -1127,6 +1205,61 @@ runTest = function()
         end
     end
 
+    local function finishRun(success, dist)
+        Running = false
+        Phase = success and "SUCCESS" or "FAILED"
+
+        if not success then
+            local oldTiming = GUARD_HIT_TIMING
+            if not struck then
+                local step = 0.025
+                GUARD_HIT_TIMING = math.clamp(math.floor((GUARD_HIT_TIMING + step) * 1000 + 0.5) / 1000, 0.450, 0.850)
+                updateTimingUI()
+
+                Status.Text = string.format("Too early! Timing -> %.3fs (Press E)", GUARD_HIT_TIMING)
+                Status.TextColor3 = Color3.fromRGB(255, 120, 120)
+                log("----------------------------------------")
+                log(string.format("RESULT: FAILED — Snapped back to %s (%.1f studs from drop).", TARGET_GUARD_AREA, dist))
+                log(string.format("[DIAGNOSIS] Guard strike was NOT detected before timeout (%.3fs). Teleport occurred TOO EARLY!", oldTiming))
+                log(string.format("[AUTO-ADJUST] Timing auto-increased to %.3fs (+%.3fs).", GUARD_HIT_TIMING, step))
+                log(string.format("[NEXT] Press E on egg in %s to retry at %.3fs!", TARGET_GUARD_AREA, GUARD_HIT_TIMING))
+            else
+                local step = 0.020
+                GUARD_HIT_TIMING = math.clamp(math.floor((GUARD_HIT_TIMING - step) * 1000 + 0.5) / 1000, 0.400, 0.850)
+                updateTimingUI()
+
+                Status.Text = string.format("Too late! Timing -> %.3fs (Press E)", GUARD_HIT_TIMING)
+                Status.TextColor3 = Color3.fromRGB(255, 160, 100)
+                log("----------------------------------------")
+                log(string.format("RESULT: FAILED — Snapped back despite strike (%s).", tostring(strikeSource)))
+                log("[DIAGNOSIS] Strike registered but hit authority expired before drop completed.")
+                log(string.format("[AUTO-ADJUST] Timing auto-lowered to %.3fs (-%.3fs).", oldTiming, GUARD_HIT_TIMING, step))
+                log(string.format("[NEXT] Press E on egg in %s to retry at %.3fs!", TARGET_GUARD_AREA, GUARD_HIT_TIMING))
+            end
+        else
+            Status.Text = string.format("Success! Landed at drop (Timing: %.3fs)", GUARD_HIT_TIMING)
+            Status.TextColor3 = Color3.fromRGB(150, 255, 150)
+            log("----------------------------------------")
+            log(string.format("RESULT: SUCCESS — Replicated at drop location (error: %.2f studs)!", dist))
+            log(string.format("[SAVED] Winning timing verified: %.3fs! Egg dropped into pen.", GUARD_HIT_TIMING))
+        end
+
+        log("TEST END")
+        log("----------------------------------------")
+    end
+
+    local function checkMotorsDisabled(ch)
+        if not ch then return false end
+        local off = 0
+        for _, m in ipairs(ch:GetDescendants()) do
+            if m:IsA("Motor6D") and not m.Enabled then
+                off = off + 1
+                if off >= 2 then return true end
+            end
+        end
+        return false
+    end
+
     -- Hook hit / damage / ragdoll detection listeners
     pcall(function()
         local net = ReplicatedStorage:FindFirstChild("Packages")
@@ -1135,6 +1268,14 @@ runTest = function()
             local fToll = net:FindFirstChild("RE/GuardPatrol/SpeedTollOffer")
             if fToll and fToll:IsA("RemoteEvent") then
                 table.insert(tempConns, fToll.OnClientEvent:Connect(function() onStrike("SpeedTollOffer") end))
+            end
+            local fWarn = net:FindFirstChild("RE/GuardPatrol/SpeedTollWarning")
+            if fWarn and fWarn:IsA("RemoteEvent") then
+                table.insert(tempConns, fWarn.OnClientEvent:Connect(function() onStrike("SpeedTollWarning") end))
+            end
+            local fHazard = net:FindFirstChild("RE/BossEvent/HazardHit")
+            if fHazard and fHazard:IsA("RemoteEvent") then
+                table.insert(tempConns, fHazard.OnClientEvent:Connect(function() onStrike("HazardHit") end))
             end
             local fStrike = net:FindFirstChild("RE/GuardPatrol/ForestStrike")
             if fStrike and fStrike:IsA("RemoteEvent") then
@@ -1152,30 +1293,67 @@ runTest = function()
     table.insert(tempConns, Player.AttributeChanged:Connect(function(attr)
         if attr == "RagdollEndTime" then
             local v = Player:GetAttribute("RagdollEndTime") or 0
-            if typeof(v) == "number" and v > baselineRagdoll + 0.2 then
-                onStrike("RagdollEndTime:" .. string.format("%.2f", v))
+            if typeof(v) == "number" and v > baselineRagdoll + 0.15 then
+                onStrike("PlayerRagdollEndTime:" .. string.format("%.2f", v))
             end
         end
     end))
 
-    table.insert(tempConns, Humanoid.StateChanged:Connect(function(_, newState)
-        if newState == Enum.HumanoidStateType.Physics
-            or newState == Enum.HumanoidStateType.Ragdoll
-            or newState == Enum.HumanoidStateType.FallingDown
-            or newState == Enum.HumanoidStateType.Dead then
-            onStrike("HumanoidState:" .. newState.Name)
-        end
-    end))
+    if Character then
+        local charBaselineRagdoll = Character:GetAttribute("RagdollEndTime") or 0
+        if typeof(charBaselineRagdoll) ~= "number" then charBaselineRagdoll = 0 end
+        table.insert(tempConns, Character.AttributeChanged:Connect(function(attr)
+            if attr == "RagdollEndTime" then
+                local v = Character:GetAttribute("RagdollEndTime") or 0
+                if typeof(v) == "number" and v > charBaselineRagdoll + 0.15 then
+                    onStrike("CharRagdollEndTime:" .. string.format("%.2f", v))
+                end
+            elseif attr == "IsRagdolled" or attr == "Ragdoll" then
+                if Character:GetAttribute(attr) == true then
+                    onStrike("CharAttr:" .. attr)
+                end
+            end
+        end))
+    end
 
-    -- Trigger Rouse on Titan Temple Guard
-    rouseTitanGuard()
+    if Humanoid then
+        table.insert(tempConns, Humanoid.StateChanged:Connect(function(_, newState)
+            if newState == Enum.HumanoidStateType.Physics
+                or newState == Enum.HumanoidStateType.Ragdoll
+                or newState == Enum.HumanoidStateType.FallingDown
+                or newState == Enum.HumanoidStateType.Dead then
+                onStrike("HumanoidState:" .. newState.Name)
+            end
+        end))
+    end
+
+    -- Trigger Rouse on local biome guard
+    rouseGuard(guard, TARGET_GUARD_AREA)
 
     -- Wait timing delay (or proceed if early strike confirmed)
     if GUARD_HIT_TIMING > 0 then
         local waitStart = os.clock()
         while Running and (os.clock() - waitStart < GUARD_HIT_TIMING) do
+            -- Continuous physical indicator polling
+            if Root and Root.Parent then
+                if Root.AssemblyLinearVelocity.Magnitude > 12 then
+                    onStrike("VelocityKnockback:" .. string.format("%.1f", Root.AssemblyLinearVelocity.Magnitude))
+                elseif StartLocation and (Root.Position - StartLocation).Magnitude > 3.0 then
+                    onStrike("Displaced:" .. string.format("%.1f", (Root.Position - StartLocation).Magnitude))
+                elseif checkMotorsDisabled(Character) then
+                    onStrike("MotorsDisabled")
+                elseif Humanoid then
+                    local st = Humanoid:GetState()
+                    if st == Enum.HumanoidStateType.Physics
+                        or st == Enum.HumanoidStateType.Ragdoll
+                        or st == Enum.HumanoidStateType.FallingDown then
+                        onStrike("PolledState:" .. st.Name)
+                    end
+                end
+            end
+
             if struck then
-                log(string.format("Strike confirmed during wait window at +%.4fs! Proceeding...", os.clock() - waitStart))
+                log(string.format("Strike confirmed during wait window at +%.4fs! (%s) Proceeding...", os.clock() - waitStart, tostring(strikeSource)))
                 break
             end
             RunService.Heartbeat:Wait()
@@ -1189,6 +1367,13 @@ runTest = function()
 
     if not Running then
         return
+    end
+
+    -- Verify egg is still held before teleporting
+    local isHeld = isHoldingEgg()
+    log(string.format("Pre-teleport egg status: holding=%s", tostring(isHeld)))
+    if not isHeld then
+        log("[WARN] Egg is not held before teleport! (Guard may have stripped it early)")
     end
 
     --------------------------------------------------
@@ -1215,6 +1400,12 @@ runTest = function()
         .. vec(Root.Position)
     )
 
+    -- Trigger AskFieldEggDrop spam immediately so the drop request arrives
+    -- while server hit authority / knockback is still active!
+    task.spawn(function()
+        invokeEggDropSpam(currentRunToken, EGG_DROP_SPAM_COUNT)
+    end)
+
     -- Allow position replication to settle on the server before dropping
     if POSITION_SETTLE_TIME > 0 then
         Status.Text =
@@ -1234,7 +1425,8 @@ runTest = function()
     local distFromDrop = (Root.Position - SavedLocation).Magnitude
     if distFromDrop > 50 then
         log(string.format("[WARN] RUBBERBAND DETECTED DURING HOLD! pos=%s (%.1f studs from drop).", vec(Root.Position), distFromDrop))
-        log(string.format("[ADVICE] Did not hit in time! Lower timing (current: %.3fs) using [-] and retry picking up egg.", GUARD_HIT_TIMING))
+        finishRun(false, distFromDrop)
+        return
     else
         log(string.format("[OK] Position held at drop location (dist=%.2f studs). Hit authority active!", distFromDrop))
     end
@@ -1408,7 +1600,8 @@ runTest = function()
                 "FINAL DESCENT TIMEOUT"
             )
 
-            stopTest()
+            local curDist = (Root.Position - SavedLocation).Magnitude
+            finishRun(curDist <= 50, curDist)
             return
         end
 
@@ -1503,28 +1696,7 @@ runTest = function()
     Phase = "LANDED"
 
     local finalDist = (Root.Position - SavedLocation).Magnitude
-    if finalDist > 50 then
-        -- FLIGHT FAILED (Rubberbanded!)
-        local oldTiming = GUARD_HIT_TIMING
-        local step = (GUARD_HIT_TIMING <= 0.020) and 0.005 or 0.010
-        GUARD_HIT_TIMING = math.max(0.000, math.floor((GUARD_HIT_TIMING - step) * 1000 + 0.5) / 1000)
-        updateTimingUI()
-
-        Status.Text = string.format("Failed! Timing -> %.3fs. Press E to retry.", GUARD_HIT_TIMING)
-        log("----------------------------------------")
-        log(string.format("RESULT: FAILED — Snapped back to Titan Temple (%.1f studs from drop).", finalDist))
-        log(string.format("[AUTO-ADJUST] Timing auto-lowered from %.3fs to %.3fs (-%.3fs).", oldTiming, GUARD_HIT_TIMING, step))
-        log(string.format("[NEXT] Press E on egg in Titan Temple to retry at %.3fs!", GUARD_HIT_TIMING))
-    else
-        -- FLIGHT SUCCEEDED!
-        Status.Text = string.format("Success! Landed at drop (Timing: %.3fs)", GUARD_HIT_TIMING)
-        log("----------------------------------------")
-        log(string.format("RESULT: SUCCESS — Replicated at drop location (error: %.2f studs)!", finalDist))
-        log(string.format("[SAVED] Winning timing verified: %.3fs! Egg dropped.", GUARD_HIT_TIMING))
-    end
-
-    log("TEST END")
-    log("----------------------------------------")
+    finishRun(finalDist <= 50, finalDist)
 end
 
 RunButton.MouseButton1Click:Connect(function()
@@ -1537,11 +1709,19 @@ RouseOnlyButton.MouseButton1Click:Connect(function()
         return
     end
     Status.Text = "Status: Testing Rouse..."
-    local ok = rouseTitanGuard()
-    if ok then
-        Status.Text = "Status: Titan Guard roused!"
+    refreshCharacter()
+    local pos = (Root and Root.Position) or Vector3.zero
+    local guard, areaName, dist = getClosestGuard(pos)
+    if guard then
+        TARGET_GUARD_AREA = areaName
+        local ok = rouseGuard(guard, areaName)
+        if ok then
+            Status.Text = string.format("Status: %s Guard roused!", areaName)
+        else
+            Status.Text = "Status: Rouse failed (see log)"
+        end
     else
-        Status.Text = "Status: Rouse failed (see log)"
+        Status.Text = "Status: No guard nearby"
     end
 end)
 
@@ -1560,11 +1740,13 @@ CopyButton.MouseButton1Click:Connect(copyLog)
 --==================================================
 
 hookEggCarryRequest()
+updateTimingUI()
 
-log("Titan Guard Drop Tester loaded")
+local initPing = getPingMs()
+log("Guard Drop Tester loaded")
 log("Landing location preset to " .. vec(SavedLocation))
-log("Focus Biome Guard: " .. TARGET_GUARD_AREA .. " (RE/GuardPatrol/Rouse)")
-log(string.format("Initial Timing delay: %.3fs (adjust with [-]/[+] buttons)", GUARD_HIT_TIMING))
-log("Press E on egg in Titan Temple:")
-log(" -> When request returns true, timing is set & drop flight begins!")
-log(" -> If flight rubberbands, timing auto-steps down. Press E to retry!")
+log("Focus Biome Guard: Dynamic closest area (RE/GuardPatrol/Rouse)")
+log(string.format("Initial Timing delay: %.3fs (live ping: %dms; adjust with [-]/[+] buttons)", GUARD_HIT_TIMING, initPing))
+log("Press E on egg in any area:")
+log(" -> When request returns true, timing wait begins & hit is verified!")
+log(" -> If timed out before hit, timing steps up. If strike expired, timing steps down.")

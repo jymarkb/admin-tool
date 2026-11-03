@@ -1966,8 +1966,17 @@ Helpers.isHoldingEgg = function()
     end
     if Character then
         for _, c in ipairs(Character:GetChildren()) do
-            if c:IsA("Tool") and (c.Name:lower():find("egg", 1, true) or c:GetAttribute("IsEgg") == true or c:GetAttribute("HalloweenEggUid") ~= nil) then
-                return true
+            if c:IsA("Tool") then
+                local low = c.Name:lower()
+                local isEggTool = low:find("egg", 1, true) or c:GetAttribute("IsEgg") == true or c:GetAttribute("ItemType") == "Egg" or c:GetAttribute("Category") == "Egg" or c:GetAttribute("EggUid") ~= nil or c:GetAttribute("HalloweenEggUid") ~= nil
+                if isEggTool and not c:GetAttribute("IsBat") and not c:GetAttribute("ButterflyNet") and c.Name ~= "ButterflyNet" and c.Name ~= "Bat" then
+                    return true
+                end
+            elseif (c:IsA("Model") or c:IsA("BasePart")) and c.Name ~= "HumanoidRootPart" then
+                local isEggModel = c:GetAttribute("IsEgg") == true or c:GetAttribute("ItemType") == "Egg" or c:GetAttribute("Category") == "Egg" or c:GetAttribute("EggUid") ~= nil or c:GetAttribute("HalloweenEggUid") ~= nil or c.Name:lower():find("egg", 1, true)
+                if isEggModel and not c:GetAttribute("IsBat") and not c:GetAttribute("ButterflyNet") and c.Name ~= "ButterflyNet" and c.Name ~= "Bat" then
+                    return true
+                end
             end
         end
     end
@@ -1976,12 +1985,13 @@ Helpers.isHoldingEgg = function()
         local expName = Engine.State and Engine.State.CarryUid and (myUidStr .. "_" .. tostring(Engine.State.CarryUid))
         if expName and cra:FindFirstChild(expName) then
             local rec = Engine.State and Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[Engine.State.CarryUid]
-            local isDropped = rec and (rec.State == "Dropped" or rec.State == "Field" or rec.State == "Slot")
+            local isDropped = rec and (rec.State == "Dropped")
             if not isDropped then
                 local m = cra:FindFirstChild(expName)
+                local part = m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)))
                 local okP, pv = pcall(function() return m:GetPivot().Position end)
-                local pos = (okP and pv) or (m:IsA("BasePart") and m.Position)
-                if pos and hrp and hrp.Parent and (pos - hrp.Position).Magnitude <= 4.5 then
+                local pos = (okP and pv) or (part and part.Position)
+                if pos and hrp and hrp.Parent and (pos - hrp.Position).Magnitude <= 12.0 then
                     return true
                 end
             end
@@ -1994,16 +2004,28 @@ Helpers.isHoldingEgg = function()
                 if m.Name:sub(1, #pfx) == pfx then
                     local eggUid = m.Name:sub(#pfx + 1)
                     local rec = Engine.State and Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[eggUid]
-                    local isDropped = rec and (rec.State == "Dropped" or rec.State == "Field" or rec.State == "Slot")
+                    local isDropped = rec and (rec.State == "Dropped")
                     if not isDropped then
+                        local part = m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)))
                         local okP, pv = pcall(function() return m:GetPivot().Position end)
-                        local pos = (okP and pv) or (m:IsA("BasePart") and m.Position)
-                        if pos and (pos - hrp.Position).Magnitude <= 4.0 then
+                        local pos = (okP and pv) or (part and part.Position)
+                        if pos and (pos - hrp.Position).Magnitude <= 12.0 then
+                            if Engine.State and (not Engine.State.CarryUid or Engine.State.CarryUid == "") then
+                                Engine.State.CarryUid = eggUid
+                            end
+                            if rec then rec.State = "Carried" end
                             return true
                         end
                     end
                 end
             end
+        end
+    end
+    -- Authoritative snapshot / cache check if our user is marked as carrying an egg
+    if Engine.State and Engine.State.CarryUid and Engine.State.EggCacheByUid then
+        local rec = Engine.State.EggCacheByUid[Engine.State.CarryUid]
+        if rec and rec.State == "Carried" and (not rec.CarrierUserId or tostring(rec.CarrierUserId) == myUidStr) then
+            return true
         end
     end
     return false
@@ -2533,6 +2555,7 @@ Engine.Velocity.updatePhysics = function(isCarry)
     if isCarry ~= nil then
         Engine.Velocity.setCarry(isCarry)
     end
+
     if not Engine.State.VelocityEnabled then return end
     if not (hrp and hrp.Parent and hum and hum.Parent and hum.Health > 0) then return end
     if Engine.State.IsRecovering then return end
@@ -3417,8 +3440,11 @@ Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)
             local ok, res = pcall(function() return rf:InvokeServer(payload) end)
             local confirmedHolding = (Helpers.isHoldingEgg and Helpers.isHoldingEgg())
             if (ok and res == true) or (Engine.State.CarryUid == uid and Engine.State.IsCarry) or confirmedHolding then
-                Engine.Velocity.setCarry(true)
                 Engine.State.CarryUid = uid
+                if Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[uid] then
+                    Engine.State.EggCacheByUid[uid].State = "Carried"
+                end
+                Engine.Velocity.setCarry(true)
                 if onCarried then task.spawn(onCarried) end
                 if Engine.State.AutoReturnActive and not Engine.State.ReturnTripInProgress then
                     if Engine.Travel and Engine.Travel.startReturnTrip then
@@ -5649,6 +5675,12 @@ addConnection(UI.Elements.VelToggleBtn.MouseButton1Click:Connect(function()
                 hrp.CustomPhysicalProperties = Engine.Velocity.ZeroFriction
             end
         end)
+        local holding = (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) or (Engine.State and Engine.State.IsCarry == true)
+        if holding then
+            Engine.Velocity.setCarry(true)
+        else
+            Engine.Velocity.setCarry(false)
+        end
     end
     UI.updateActivityStatus()
 end))

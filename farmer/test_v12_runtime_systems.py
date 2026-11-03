@@ -364,5 +364,153 @@ class TestV12RuntimeSystems(unittest.TestCase):
         self.assertIn('state == "Claimed"', shifted_block)
         self.assertIn('Engine.Travel.handleEggDelivered(u)', shifted_block)
 
+    def test_19_world1_multi_egg_target_isolation(self):
+        """Verify targeted pickup isolates selected egg UID and prevents grabbing adjacent eggs."""
+        # 1. Helpers.getEggInstance resolves exact egg from AreaEggSlotsClient or Eggs
+        self.assertIn('Helpers.getEggInstance = function(uid)', self.code)
+        self.assertIn('slots:FindFirstChild(uid)', self.code)
+        self.assertIn('eggs:FindFirstChild(uid)', self.code)
+
+        # 2. startAutoPickupSpam accepts targetUid and binds to AutoReturnTargetUid
+        self.assertIn('Engine.Pickup.startAutoPickupSpam = function(targetUid)', self.code)
+        self.assertIn('targetUid = targetUid or (Engine.State.AutoReturnActive and Engine.State.AutoReturnTargetUid)', self.code)
+
+        # 3. Targeted branch only invokes carryEgg with targetUid and filters SmartPromptPart
+        pickup_block = self.code.split('Engine.Pickup.startAutoPickupSpam = function(targetUid)')[1].split('Engine.Pickup.toggle = function(enabled)')[0]
+        self.assertIn('if targetUid and targetUid ~= "" then', pickup_block)
+        self.assertIn('Engine.Pickup.carryEgg(targetUid, 15,', pickup_block)
+        self.assertIn('(spp.Position - targetPos).Magnitude <= 3.5', pickup_block)
+
+        # 4. teleportToEgg and walkToEgg pass itemData.Uid to startAutoPickupSpam
+        tp_egg_block = self.code.split('Engine.Travel.teleportToEgg = function(itemData)')[1].split('Engine.Travel.walkToEgg = function(itemData)')[0]
+        self.assertIn('Engine.Pickup.startAutoPickupSpam(itemData.Uid)', tp_egg_block)
+
+        walk_egg_block = self.code.split('Engine.Travel.walkToEgg = function(itemData)')[1].split('Engine.Travel.startReturnTrip = function()')[0]
+        self.assertIn('Engine.Pickup.startAutoPickupSpam(itemData.Uid)', walk_egg_block)
+
+    def test_20_world1_walk_velocity_max_speed_without_w(self):
+        """Verify auto-walk injects full velocity on Stepped and bypasses MoveTo when velocity is enabled."""
+        # 1. Helpers.getPlayerInputVector allows steering blending
+        self.assertIn('Helpers.getPlayerInputVector = function()', self.code)
+        self.assertIn('ctrl:GetMoveVector()', self.code)
+
+        # 2. RenderStepped overrides PlayerModule zero-move & ZeroFriction prevents friction drag
+        self.assertIn('Engine.Velocity.ZeroFriction = PhysicalProperties.new(0.7, 0, 0, 100, 100)', self.code)
+        self.assertIn('addConnection(RunService.RenderStepped:Connect(function()', self.code)
+        self.assertIn('hrp.CustomPhysicalProperties = Engine.Velocity.ZeroFriction', self.code)
+
+        # 3. Stepped loop injects pre-physics auto-walk velocity and MoveDirection
+        stepped_block = self.code.split('addConnection(RunService.Stepped:Connect(function()')[1].split('addConnection(RunService.Heartbeat:Connect(function()')[0]
+        self.assertIn('if Engine.State.ActiveWalkTarget and hrp and hrp.Parent', stepped_block)
+        self.assertIn('hum:Move(moveDir, false)', stepped_block)
+        self.assertIn('hrp.AssemblyLinearVelocity = Vector3.new(', stepped_block)
+        self.assertIn('hum.WalkSpeed = targetSpeed', stepped_block)
+
+        # 4. walkToTarget only calls hum:MoveTo when VelocityEnabled is off
+        walk_block = self.code.split('Engine.Travel.walkToTarget = function(targetPos')[1].split('Engine.Travel.teleportToEgg = function(itemData)')[0]
+        self.assertIn('if not Engine.State.VelocityEnabled then', walk_block)
+        self.assertIn('hum:MoveTo(targetPos)', walk_block)
+
+    def test_21_bump_recovery_and_persistent_pickup_walk_to_safezone(self):
+        """Verify bump recovery does not halt outbound walk, dropped eggs are re-picked, and safezone walk persists."""
+        # 1. Engine.Recovery.execute only stops walking if ReturnTripInProgress is true
+        rec_block = self.code.split('Engine.Recovery.execute = function(reason)')[1].split('Engine.Recovery.setupFallHooks')[0]
+        self.assertIn('if Engine.State.ReturnTripInProgress then', rec_block)
+        self.assertIn('Engine.State.ReturnTripInProgress = false', rec_block)
+        self.assertIn('Engine.State.CarryUid = nil', rec_block)
+
+        # 2. Helpers.isHoldingEgg checks if egg record in EggCacheByUid is Dropped/Field/Slot
+        is_holding_block = self.code.split('Helpers.isHoldingEgg = function()')[1].split('Helpers.getEggInstance = function(uid)')[0]
+        self.assertIn('isDropped', is_holding_block)
+        self.assertIn('rec.State == "Dropped"', is_holding_block)
+
+        # 3. Engine.Pickup.carryEgg always triggers prompt and invokes remote without premature return
+        carry_block = self.code.split('Engine.Pickup.carryEgg = function(uid, burstCount, onCarried)')[1].split('Engine.Pickup.startAutoPickupSpam = function(targetUid)')[0]
+        self.assertNotIn('if Engine.State.IsCarry or (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) then\n                Engine.Velocity.setCarry(true)', carry_block)
+        self.assertIn('rf:InvokeServer(payload)', carry_block)
+        self.assertIn('Engine.Travel.startReturnTrip()', carry_block)
+
+        # 4. teleportToEgg and walkToEgg clear carry state before travelling
+        tp_block = self.code.split('Engine.Travel.teleportToEgg = function(itemData)')[1].split('Engine.Travel.walkToEgg = function(itemData)')[0]
+        self.assertIn('Engine.Velocity.setCarry(false)', tp_block)
+        self.assertIn('Engine.State.CarryUid = nil', tp_block)
+
+        walk_block = self.code.split('Engine.Travel.walkToEgg = function(itemData)')[1].split('Engine.Travel.startReturnTrip = function()')[0]
+        self.assertIn('Engine.Velocity.setCarry(false)', walk_block)
+        self.assertIn('Engine.State.CarryUid = nil', walk_block)
+
+        # 5. getEggPosition checks ClientRenderedAssets for dropped egg position
+        get_pos_block = self.code.split('Engine.Travel.getEggPosition = function(rec, uid)')[1].split('Engine.Travel.isFarmableEgg = function(r)')[0]
+        self.assertIn('Workspace:FindFirstChild("ClientRenderedAssets")', get_pos_block)
+
+        # 6. Anti-drift grounding avoids wiping velocity when ActiveWalkTarget is active
+        self.assertIn('if hum.MoveDirection.Magnitude <= 0.05 and not Engine.State.ActiveWalkTarget then', self.code)
+
+        # 7. walkToEgg does not snap 60 studs away from egg; walkToTarget only applies 60 studs to SafeZone
+        self.assertIn('local isSafeZone = (uid == "SAFE_ZONE")', self.code)
+        self.assertIn('snapDist or (isSafeZone and (Config.Velocity.TargetSnapDist or 60.0)) or arriveDist', self.code)
+        self.assertIn('Engine.Travel.walkToTarget(targetPos, 4.0, function()', self.code)
+        self.assertIn('end, itemData.Uid, nil, true)', self.code)
+
+    def test_22_auto_treadmill_account_agnostic_and_resilient_discovery(self):
+        """Verify Auto Treadmill is not hardcoded to an account and has multi-tier plot & treadmill resolution."""
+        # 1. Engine.Plot.getPlot checks UserId, Name, DisplayName, attributes and SafeZone proximity
+        plot_block = self.code.split('Engine.Plot.getPlot = function()')[1].split('Engine.Treadmill = {')[0]
+        self.assertIn('LocalPlayer.UserId', plot_block)
+        self.assertIn('LocalPlayer.DisplayName', plot_block)
+        self.assertIn('ownerAttr', plot_block)
+        self.assertIn('Config.Velocity.SafeZonePosition', plot_block)
+
+        # 2. Engine.Treadmill.findTreadmill has distance fallback & belt resolution
+        tm_block = self.code.split('Engine.Treadmill.findTreadmill = function(forceRefresh)')[1].split('Engine.Treadmill.isOnTreadmill = function()')[0]
+        self.assertIn('__ClientTreadmillRenders', tm_block)
+        self.assertIn('belt', tm_block)
+
+        # 3. goToTreadmill calls walkToTarget with nil snapDist (does not snap 60 studs away)
+        goto_block = self.code.split('Engine.Treadmill.goToTreadmill = function()')[1].split('Engine.Treadmill.dismount = function()')[0]
+        self.assertIn('Engine.Travel.walkToTarget(tmPos, 2.5, function()', goto_block)
+        self.assertIn('end, "TREADMILL", nil, false)', goto_block)
+
+    def test_23_big_egg_geometry_and_zero_freefall_scaling(self):
+        """Verify big egg geometry clamps snap beside egg within reach and arrival threshold within pickup range."""
+        tp_block = self.code.split('Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)')[1].split('Engine.Travel.walkToTarget')[0]
+        # 1. eggRadius clamped beside egg within reach
+        self.assertIn('eggRadius = math.clamp(eggRadius, 2.5, 4.0)', tp_block)
+        # 2. Raycast ignores all egg containers to find true floor level beside big eggs
+        self.assertIn('Workspace:FindFirstChild("AreaEggSlotsClient")', tp_block)
+        self.assertIn('Workspace:FindFirstChild("Eggs")', tp_block)
+        self.assertIn('Workspace:FindFirstChild("ClientRenderedAssets")', tp_block)
+        # 3. walkToTarget bounds arriveDist within interaction range
+        walk_block = self.code.split('Engine.Travel.walkToTarget = function(targetPos')[1].split('Engine.Travel.teleportToEgg')[0]
+        self.assertIn('eggPaddingRadius', walk_block)
+        self.assertIn('arriveDist = math.clamp(arriveDist, 3.5, 4.0)', walk_block)
+
+    def test_24_manual_carry_velocity_toggle_and_detection(self):
+        """Verify picking up an egg does not auto-enable Velocity, and enabling Velocity detects carry."""
+        # 1. setCarry does NOT auto-enable VelocityEnabled or touch VelToggleBtn
+        set_carry_block = self.code.split('Engine.Velocity.setCarry = function(isCarry)')[1].split('Engine.Velocity.setCarryingState = function(carrying)')[0]
+        self.assertNotIn('Engine.State.VelocityEnabled = true', set_carry_block)
+        self.assertNotIn('VelToggleBtn.Text = "Velocity: ON"', set_carry_block)
+
+        # 2. updatePhysics returns early before stillHolding when VelocityEnabled is false
+        physics_block = self.code.split('Engine.Velocity.updatePhysics = function(isCarry)')[1].split('Engine.Recovery = {')[0]
+        vel_check_idx = physics_block.find('if not Engine.State.VelocityEnabled then return end')
+        holding_idx = physics_block.find('local stillHolding = Helpers.isHoldingEgg and Helpers.isHoldingEgg()')
+        self.assertNotEqual(vel_check_idx, -1)
+        self.assertNotEqual(holding_idx, -1)
+        self.assertLess(vel_check_idx, holding_idx, "VelocityEnabled check must precede physics/holding sync")
+
+        # 3. VelToggleBtn checks physical and state carry upon turning ON
+        vel_toggle_block = self.code.split('UI.Elements.VelToggleBtn.MouseButton1Click:Connect')[1].split('UI.Elements.GoBox.FocusLost')[0]
+        self.assertIn('local holding = (Helpers.isHoldingEgg and Helpers.isHoldingEgg()) or (Engine.State and Engine.State.IsCarry == true)', vel_toggle_block)
+        self.assertIn('Engine.Velocity.setCarry(true)', vel_toggle_block)
+        self.assertIn('Engine.Velocity.setCarry(false)', vel_toggle_block)
+
+        # 4. Helpers.isHoldingEgg detects attributes and authoritative cache
+        holding_block = self.code.split('Helpers.isHoldingEgg = function()')[1].split('Helpers.applyReachAssist')[0]
+        self.assertIn('c:GetAttribute("ItemType") == "Egg"', holding_block)
+        self.assertIn('c:GetAttribute("EggUid") ~= nil', holding_block)
+        self.assertIn('rec.State == "Carried"', holding_block)
+
 if __name__ == "__main__":
     unittest.main()
