@@ -91,7 +91,8 @@ local function getBiomeName(pos)
     end
 end
 
-local SavedLocation = Vector3.new(949.147, 70.724, -412.289)
+local SavedLocation = Vector3.new(599.365, 71.411, -312.642)
+local COSMIC_RELAY_LOCATION = Vector3.new(3387.591, 71.411, -301.853)
 
 -- Start is captured automatically when RUN is pressed.
 local StartLocation = nil
@@ -1327,8 +1328,92 @@ local function runTest()
         pinConn = nil
     end
 
-    -- Travel in hops <= 800 studs so server physics replication accepts every jump
-    local travelOk = travelInChunks(StartLocation, SavedLocation)
+    -- If egg originates beyond Cosmic (> 3387.591 X), partially drop at Cosmic before final leg
+    if StartLocation.X > (COSMIC_RELAY_LOCATION.X + 50) then
+        log(string.format("RELAY: Origin X (%.1f) > Cosmic (%.1f). Hopping to Cosmic relay first...", StartLocation.X, COSMIC_RELAY_LOCATION.X))
+        Status.Text = "Status: Traveling to Cosmic relay..."
+
+        local relayOk = travelInChunks(StartLocation, COSMIC_RELAY_LOCATION)
+        if not relayOk or not isHoldingEgg() then
+            Status.Text = "Status: Egg lost to Cosmic!"
+            log("❌ Aborted: Egg lost while traveling to Cosmic relay.")
+            stopTest()
+            return
+        end
+
+        -- Pin character to Cosmic relay on Heartbeat and settle so server accepts position
+        local cosmicPin = RunService.Heartbeat:Connect(function()
+            if Root and Root.Parent then
+                Root.CFrame = CFrame.new(COSMIC_RELAY_LOCATION)
+                Root.AssemblyLinearVelocity = Vector3.zero
+                Root.AssemblyAngularVelocity = Vector3.zero
+            end
+        end)
+        Root.CFrame = CFrame.new(COSMIC_RELAY_LOCATION)
+        nullifyRagdoll()
+
+        log("HOLD / REPLICATING POSITION (0.30s at Cosmic relay)...")
+        local cosmicSettle = os.clock()
+        while Running and (os.clock() - cosmicSettle < 0.30) do
+            RunService.Heartbeat:Wait()
+        end
+
+        -- Refresh strike authority directly at Cosmic before partial drop
+        fireForestStrike()
+
+        -- Partial drop at Cosmic
+        local droppedUid = carriedEggUid
+        log("PARTIAL DROP: Dropping egg at Cosmic relay waypoint...")
+        Status.Text = "Status: Cosmic partial drop..."
+        local dropRemote = findEggDropRemote()
+        if dropRemote then
+            if Humanoid and Humanoid.Parent then
+                pcall(function() Humanoid:ChangeState(Enum.HumanoidStateType.Freefall) end)
+            end
+            pcall(function() dropRemote:InvokeServer({ Reason = "PlayerRequest" }) end)
+            local dropWait = os.clock()
+            while (os.clock() - dropWait < 0.20) and isHoldingEgg() do
+                RunService.Heartbeat:Wait()
+            end
+        end
+
+        -- Fast repick at Cosmic (targeting the exact dropped egg at feet)
+        log("PARTIAL DROP: Fast re-picking egg at Cosmic...")
+        Status.Text = "Status: Cosmic re-pickup..."
+        nullifyRagdoll()
+        if Humanoid and Humanoid.Parent and Humanoid.Health > 0 then
+            pcall(function() Humanoid:ChangeState(Enum.HumanoidStateType.Running) end)
+        end
+
+        if droppedUid and droppedUid ~= "" then
+            local carryRemote = getRemote("RF/EggWorld/AskFieldEggCarry")
+            if carryRemote and carryRemote:IsA("RemoteFunction") then
+                pcall(function() carryRemote:InvokeServer({ Uid = droppedUid }) end)
+            end
+        end
+
+        local repicked = isHoldingEgg() or pickupNearbyEgg(25.0, 3)
+        if not repicked and not isHoldingEgg() then
+            repicked = pickupNearbyEgg(45.0, 5)
+        end
+
+        pcall(function() cosmicPin:Disconnect() end)
+
+        if not isHoldingEgg() then
+            Status.Text = "Status: Failed repick at Cosmic!"
+            log("❌ Aborted: Could not re-pick egg at Cosmic relay waypoint.")
+            stopTest()
+            return
+        end
+
+        log("✓ Successfully re-picked egg at Cosmic! Resuming to Forest...")
+        fireForestStrike()
+        task.wait(0.05)
+    end
+
+    -- Travel to final Forest dropzone
+    Status.Text = "Status: Traveling to Forest dropzone..."
+    local travelOk = travelInChunks(Root.Position, SavedLocation)
     if not travelOk or not isHoldingEgg() then
         Status.Text = "Status: Egg lost during travel!"
         log("❌ Aborted: Egg was confiscated or dropped during travel. Step aborted.")
