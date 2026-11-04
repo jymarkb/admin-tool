@@ -594,14 +594,26 @@ task.defer(function()
     local eggShiftedRemote = getRemote("RE/EggWorld/FieldEggShifted")
     if eggShiftedRemote and eggShiftedRemote:IsA("RemoteEvent") then
         eggShiftedRemote.OnClientEvent:Connect(function(payload)
-            if typeof(payload) == "table" and payload.State == "Dropped" then
+            if typeof(payload) == "table" then
                 local u = tostring(payload.Uid or payload.EggUid or "unknown")
+                local st = tostring(payload.State or "")
                 local cf = payload.BoundsCFrame or payload.BottomCFrame or payload.Position
                 local pos = (typeof(cf) == "CFrame" and cf.Position) or (typeof(cf) == "Vector3" and cf)
-                if pos then
+                if st == "Dropped" and pos then
                     log(string.format("[AUTHORITATIVE SHIFT EVENT] Server dropped egg Uid=%s at %s %s", u, getBiomeName(pos), vec(pos)))
+                elseif st == "Slot" then
+                    local area = payload.AreaId and tostring(payload.AreaId) or (pos and getBiomeName(pos)) or "Nest"
+                    log(string.format("[AUTHORITATIVE SHIFT EVENT] Egg Uid=%s returned to %s nest slot!", u, area))
                 end
             end
+        end)
+    end
+
+    local eggGoneRemote = getRemote("RE/EggWorld/FieldEggGone")
+    if eggGoneRemote and eggGoneRemote:IsA("RemoteEvent") then
+        eggGoneRemote.OnClientEvent:Connect(function(payload)
+            local u = typeof(payload) == "table" and tostring(payload.Uid or payload.EggUid or "unknown") or tostring(payload or "unknown")
+            log(string.format("[AUTHORITATIVE GONE EVENT] Egg Uid=%s despawned/removed", u))
         end)
     end
 end)
@@ -975,12 +987,28 @@ local function fireForestStrike()
         return false
     end
 
-    if not cachedEggUid or cachedEggUid == "" then
-        log("No cached Egg UID. Performing immediate lookup...")
-        refreshEggUid(true)
+    local forestEggUid = nil
+    -- When at or near Forest, dynamically query active slot eggs from workspace
+    local slots = workspace:FindFirstChild("AreaEggSlotsClient")
+    if slots then
+        for _, sl in ipairs(slots:GetChildren()) do
+            if string.find(string.lower(sl.Name), "_forest:slot_", 1, true) then
+                forestEggUid = sl.Name
+                break
+            end
+        end
     end
 
-    local forestEggUid = cachedEggUid
+    if not forestEggUid then
+        forestEggUid = cachedEggUid
+    end
+
+    if not forestEggUid or forestEggUid == "" then
+        log("No cached Egg UID. Performing immediate lookup...")
+        refreshEggUid(true)
+        forestEggUid = cachedEggUid
+    end
+
     if not forestEggUid or forestEggUid == "" then
         forestEggUid = "FirstAreaEgg_11924439055_5979147_Forest:Slot_001"
     end
@@ -1331,19 +1359,26 @@ local function runTest()
 
     log(string.format("DROP POSITIONED | biome=%s | pos=%s", getBiomeName(Root.Position), vec(Root.Position)))
 
-    -- Settle at final dropzone: adaptive based on total travel distance so server physics replication completes
+    -- Refresh ForestStrike authority directly at destination dropzone
+    -- Ensures server has fresh active strike authority (<0.50s old) upon drop invocation,
+    -- preventing cross-biome server trip validation from resetting the egg to its origin nest.
+    log("Refreshing ForestStrike authority at destination dropzone...")
+    fireForestStrike()
+
+    -- Settle at final dropzone: 0.35s - 0.50s ensures server position replication
+    -- while keeping fresh strike authority well within the server's 2.0s validity window.
     local distToDrop = (StartLocation - SavedLocation).Magnitude
     local settleDuration = 0.35
     if distToDrop > 5500 then
-        settleDuration = 1.45 -- Enchanted Forest (~6,100 studs, crosses entire map)
+        settleDuration = 0.50 -- Enchanted Forest (~6,100 studs)
     elseif distToDrop > 4500 then
-        settleDuration = 1.20 -- Light Dark (~5,100 studs)
+        settleDuration = 0.45 -- Light Dark (~5,100 studs)
     elseif distToDrop > 3500 then
-        settleDuration = 0.85 -- Titan Temple (~4,200 studs - proven working 1-shot)
+        settleDuration = 0.40 -- Titan Temple (~4,200 studs - proven working 1-shot)
     elseif distToDrop > 2500 then
-        settleDuration = 0.65 -- Cosmic (~2,800 studs - proven working 1-shot)
+        settleDuration = 0.35 -- Cosmic (~2,800 studs - proven working 1-shot)
     elseif distToDrop > 1500 then
-        settleDuration = 0.45 -- Abyss Ocean (~1,700 studs - proven working 1-shot)
+        settleDuration = 0.35 -- Abyss Ocean (~1,700 studs - proven working 1-shot)
     end
 
     Status.Text = "Status: Replicating position..."
