@@ -55,8 +55,41 @@ Player.CharacterAdded:Connect(function()
 end)
 
 --==================================================
--- LOCATION
+-- BIOMES & LOCATION
 --==================================================
+
+local BIOMES = {
+    { Name = "Forest", Pos = Vector3.new(596.7, 71.4, -327.8) },
+    { Name = "Lake", Pos = Vector3.new(735.9, 71.0, -410.7) },
+    { Name = "Desert", Pos = Vector3.new(943.2, 71.0, -321.4) },
+    { Name = "Jungle", Pos = Vector3.new(1193.2, 71.0, -405.3) },
+    { Name = "Snow", Pos = Vector3.new(1488.2, 75.0, -318.8) },
+    { Name = "Volcano", Pos = Vector3.new(1883.4, 71.0, -393.8) },
+    { Name = "Abyss Ocean", Pos = Vector3.new(2281.6, 71.0, -323.1) },
+    { Name = "Prehistoric", Pos = Vector3.new(2813.6, 71.0, -402.2) },
+    { Name = "Cosmic", Pos = Vector3.new(3395.0, 71.0, -329.2) },
+    { Name = "Cherry Blossom", Pos = Vector3.new(4031.5, 71.0, -392.4) },
+    { Name = "Titan Temple", Pos = Vector3.new(4790.8, 71.5, -326.7) },
+    { Name = "Light Dark", Pos = Vector3.new(5662.2, 71.5, -324.7) },
+    { Name = "Enchanted Forest", Pos = Vector3.new(6700.8, 71.5, -353.8) },
+}
+
+local function getBiomeName(pos)
+    if not pos then return "Unknown" end
+    local closest, minDist = "Unknown", math.huge
+    for _, b in ipairs(BIOMES) do
+        local d = (pos - b.Pos).Magnitude
+        if d < minDist then
+            minDist = d
+            closest = b.Name
+        end
+    end
+    if minDist <= 250 then
+        return closest
+    else
+        return string.format("%s (~%dm)", closest, math.floor(minDist))
+    end
+end
 
 local SavedLocation = Vector3.new(949.147, 70.724, -412.289)
 
@@ -70,12 +103,13 @@ local StartLocation = nil
 local Running = false
 local Phase = "IDLE"
 local RunToken = 0
-local LastEggDropRunToken = nil
+local pinConn = nil
+local isCarryingEgg = false
+local carriedEggUid = nil
 
 local cachedEggUid = nil
 local cachedEggSource = nil
 local isRefreshingEggUid = false
-local forestStrikeWatchRemote = nil
 
 local TestStartTime = 0
 local LastTrace = 0
@@ -124,9 +158,11 @@ local function logCharacterPosition(label)
     local p = Root.Position
     local v = Root.AssemblyLinearVelocity
     local stateName = Humanoid:GetState().Name
+    local biome = getBiomeName(p)
     log(string.format(
-        "POSITION [%s]: %s | vel=%s (speed=%.2f) | state=%s",
+        "POSITION [%s]: %s (%s) | vel=%s (speed=%.2f) | state=%s",
         tostring(label or "snapshot"),
+        biome,
         vec(p),
         vec(v),
         v.Magnitude,
@@ -511,6 +547,297 @@ local function getRemote(subPath)
     return nil
 end
 
+task.defer(function()
+    local carryRemote = getRemote("RE/EggWorld/FieldEggCarry")
+    if carryRemote and carryRemote:IsA("RemoteEvent") then
+        carryRemote.OnClientEvent:Connect(function(payload)
+            if typeof(payload) == "table" then
+                if payload.IsCarrying ~= nil then
+                    isCarryingEgg = payload.IsCarrying
+                    log(string.format("[CARRY EVENT] IsCarrying = %s, SpeedMultiplier = %s", tostring(payload.IsCarrying), tostring(payload.SpeedMultiplier or 1)))
+                end
+                local uid = payload.Uid or payload.EggUid or payload.uid or payload.UID
+                if uid and tostring(uid) ~= "" then
+                    carriedEggUid = tostring(uid)
+                    log(string.format("[CARRY EVENT] Updated carried Egg UID: %s", carriedEggUid))
+                    if EggUidLabel and EggUidLabel.Parent then
+                        EggUidLabel.Text = "Egg UID: " .. carriedEggUid
+                        EggUidLabel.TextColor3 = Color3.fromRGB(170, 255, 200)
+                    end
+                end
+                if payload.IsCarrying == false then
+                    isCarryingEgg = false
+                    carriedEggUid = nil
+                end
+            end
+        end)
+    end
+
+    local ownerDroppedRemote = getRemote("RE/EggWorld/OwnerDropped")
+    if ownerDroppedRemote and ownerDroppedRemote:IsA("RemoteEvent") then
+        ownerDroppedRemote.OnClientEvent:Connect(function(payload)
+            isCarryingEgg = false
+            carriedEggUid = nil
+            if typeof(payload) == "table" then
+                local u = tostring(payload.Uid or payload.EggUid or "unknown")
+                local cf = payload.BoundsCFrame or payload.BottomCFrame or payload.Position
+                local pos = (typeof(cf) == "CFrame" and cf.Position) or (typeof(cf) == "Vector3" and cf)
+                if pos then
+                    log(string.format("[AUTHORITATIVE DROP EVENT] Server dropped egg Uid=%s at %s %s", u, getBiomeName(pos), vec(pos)))
+                else
+                    log(string.format("[AUTHORITATIVE DROP EVENT] Server dropped egg Uid=%s", u))
+                end
+            end
+        end)
+    end
+
+    local eggShiftedRemote = getRemote("RE/EggWorld/FieldEggShifted")
+    if eggShiftedRemote and eggShiftedRemote:IsA("RemoteEvent") then
+        eggShiftedRemote.OnClientEvent:Connect(function(payload)
+            if typeof(payload) == "table" and payload.State == "Dropped" then
+                local u = tostring(payload.Uid or payload.EggUid or "unknown")
+                local cf = payload.BoundsCFrame or payload.BottomCFrame or payload.Position
+                local pos = (typeof(cf) == "CFrame" and cf.Position) or (typeof(cf) == "Vector3" and cf)
+                if pos then
+                    log(string.format("[AUTHORITATIVE SHIFT EVENT] Server dropped egg Uid=%s at %s %s", u, getBiomeName(pos), vec(pos)))
+                end
+            end
+        end)
+    end
+end)
+
+local function isHoldingEgg()
+    if isCarryingEgg then return true end
+    if Character then
+        for _, child in ipairs(Character:GetChildren()) do
+            if child:IsA("Tool") or (child:IsA("Model") and string.find(string.lower(child.Name), "egg", 1, true)) then
+                return true
+            end
+        end
+    end
+    local attr = Player and (Player:GetAttribute("IsCarrying") or Player:GetAttribute("HoldingEgg") or Player:GetAttribute("CarryingEgg"))
+    if attr ~= nil and attr ~= false and attr ~= "" then
+        return true
+    end
+    return false
+end
+
+--==================================================
+-- V12 FAST PICKUP ENGINE
+--==================================================
+
+local function isCarryPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") or not prompt.Enabled then return false end
+    local n = prompt.Name:lower()
+    local a = prompt.ActionText:lower()
+    local o = prompt.ObjectText:lower()
+    for _, bl in ipairs({ "shop", "hatch", "buy", "purchase", "open", "talk", "dialog", "manor" }) do
+        if n:find(bl, 1, true) or a:find(bl, 1, true) or o:find(bl, 1, true) then
+            return false
+        end
+    end
+    if n:find("carry", 1, true) or n:find("steal", 1, true) or n:find("pickup", 1, true) or n:find("egg", 1, true) then
+        return true
+    end
+    if a:find("steal", 1, true) or a:find("carry", 1, true) or a:find("pick", 1, true) or a:find("take", 1, true) or a:find("grab", 1, true) then
+        return true
+    end
+    if o:find("egg", 1, true) or o:find("steal", 1, true) or o:find("carry", 1, true) then
+        return true
+    end
+    local pName = prompt.Parent and prompt.Parent.Name:lower() or ""
+    if pName:find("smartprompt", 1, true) or pName:find("egg", 1, true) or pName:find("slot", 1, true) then
+        return true
+    end
+    return false
+end
+
+local function triggerPrompt(prompt)
+    if not prompt then return false end
+    pcall(function()
+        if typeof(fireproximityprompt) == "function" then
+            fireproximityprompt(prompt, 0)
+            fireproximityprompt(prompt, 1)
+        elseif typeof(prompt.InputHoldBegin) == "function" then
+            prompt:InputHoldBegin()
+            task.delay(0.02, function()
+                pcall(function() prompt:InputHoldEnd() end)
+            end)
+        end
+    end)
+end
+
+local function pickupNearbyEgg(radius, maxAttempts)
+    radius = radius or 45.0
+    maxAttempts = maxAttempts or 5
+    if not Root or not Root.Parent then return false end
+    if isHoldingEgg() then return true end
+
+    local carryRemote = getRemote("RF/EggWorld/AskFieldEggCarry")
+
+    for attempt = 1, maxAttempts do
+        if isHoldingEgg() then return true end
+        local charPos = Root and Root.Parent and Root.Position
+        if not charPos then break end
+
+        -- 1. Find the SINGLE closest egg candidate (preventing multi-slot prompt spam)
+        local bestPrompt = nil
+        local bestUid = nil
+        local bestDist = radius
+
+        -- Check SmartPromptPart (game dynamic prompt)
+        local spp = workspace:FindFirstChild("SmartPromptPart")
+        if spp then
+            for _, pr in ipairs(spp:GetDescendants()) do
+                if pr:IsA("ProximityPrompt") and isCarryPrompt(pr) then
+                    local part = pr.Parent and (pr.Parent:IsA("BasePart") and pr.Parent or pr.Parent:FindFirstChildWhichIsA("BasePart"))
+                    local d = part and (part.Position - charPos).Magnitude or 0
+                    if d <= radius then
+                        bestPrompt = pr
+                        break
+                    end
+                end
+            end
+        end
+
+        -- Check AreaEggSlotsClient for closest slot (primary egg container)
+        local slots = workspace:FindFirstChild("AreaEggSlotsClient")
+            or (workspace:FindFirstChild("World") and workspace.World:FindFirstChild("Areas") and workspace.World.Areas:FindFirstChild("EggSlotsClient"))
+        if slots then
+            for _, sl in ipairs(slots:GetChildren()) do
+                local p = (sl:IsA("BasePart") and sl.Position)
+                    or (sl:IsA("Model") and (sl.PrimaryPart and sl.PrimaryPart.Position or sl:GetPivot().Position))
+                if p then
+                    local d = (p - charPos).Magnitude
+                    if d <= bestDist then
+                        bestDist = d
+                        local uid = sl:GetAttribute("Uid") or sl:GetAttribute("EggUid")
+                        if not uid and #sl.Name == 32 and sl.Name:match("^%x+$") then
+                            uid = sl.Name
+                        elseif not uid then
+                            uid = sl.Name
+                        end
+                        bestUid = uid
+
+                        local pr = sl:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if pr and isCarryPrompt(pr) then
+                            bestPrompt = pr
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Check Workspace.Eggs as secondary container
+        if not bestUid then
+            local eggsFolder = workspace:FindFirstChild("Eggs")
+            if eggsFolder then
+                for _, egg in ipairs(eggsFolder:GetChildren()) do
+                    local p = (egg:IsA("BasePart") and egg.Position)
+                        or (egg:IsA("Model") and (egg.PrimaryPart and egg.PrimaryPart.Position or egg:GetPivot().Position))
+                    if p then
+                        local d = (p - charPos).Magnitude
+                        if d <= bestDist then
+                            bestDist = d
+                            bestUid = egg:GetAttribute("Uid") or egg:GetAttribute("EggUid") or egg.Name
+                            local pr = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if pr and isCarryPrompt(pr) then
+                                bestPrompt = pr
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Check AskFieldEggSnapshot as authoritative server fallback
+        if not bestUid then
+            local snapshotRemote = getRemote("RF/EggWorld/AskFieldEggSnapshot")
+            if snapshotRemote and snapshotRemote:IsA("RemoteFunction") then
+                local ok, res = pcall(function() return snapshotRemote:InvokeServer() end)
+                if ok and typeof(res) == "table" then
+                    local records = res.Records or res.records
+                    if typeof(records) == "table" then
+                        for _, r in pairs(records) do
+                            if typeof(r) == "table" and isEggAvailable(r) then
+                                local cf = r.BoundsCFrame or r.BottomCFrame or r.Position
+                                local pos = (typeof(cf) == "CFrame" and cf.Position) or (typeof(cf) == "Vector3" and cf)
+                                if pos then
+                                    local d = (pos - charPos).Magnitude
+                                    if d <= bestDist then
+                                        bestDist = d
+                                        bestUid = tostring(r.Uid or r.EggUid or "")
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if not bestPrompt and not bestUid then
+            break -- No egg in range
+        end
+
+        log(string.format("Fast pickup (attempt %d): targeting uid=%s (dist=%.1f studs, prompt=%s)", attempt, tostring(bestUid or "none"), bestDist, bestPrompt and bestPrompt.Name or "none"))
+
+        -- 2. Trigger ONLY the single best egg candidate
+        if bestPrompt then
+            triggerPrompt(bestPrompt)
+        end
+        if bestUid and carryRemote then
+            pcall(function()
+                carryRemote:InvokeServer({ Uid = bestUid })
+            end)
+        end
+
+        -- 3. Wait up to 0.15s for server carry confirmation before retrying
+        local pollStart = os.clock()
+        while (os.clock() - pollStart < 0.15) and not isHoldingEgg() do
+            RunService.Heartbeat:Wait()
+        end
+
+        if isHoldingEgg() then
+            return true
+        end
+    end
+    return isHoldingEgg()
+end
+
+local function nullifyRagdoll()
+    if Root and Root.Parent then
+        pcall(function()
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+    if Character then
+        pcall(function()
+            Character:SetAttribute("RagdollEndTime", 0)
+            Character:SetAttribute("RagdollTime", 0)
+            Character:SetAttribute("IsRagdoll", false)
+            Character:SetAttribute("Ragdolled", false)
+        end)
+    end
+    if Humanoid and Humanoid.Parent and Humanoid.Health > 0 then
+        pcall(function()
+            Humanoid.PlatformStand = false
+            Humanoid.Sit = false
+            Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end)
+    end
+end
+
+local function getPivotPos(inst)
+    if not inst then return nil end
+    local ok, p = pcall(function() return inst:GetPivot() end)
+    if ok and p then return p end
+    if inst:IsA("Model") and inst.PrimaryPart then return inst.PrimaryPart.CFrame end
+    if inst:IsA("BasePart") then return inst.CFrame end
+    return nil
+end
+
 local function isEggAvailable(record)
     local carrier = record.CarrierUserId or record.carrierUserId
     return carrier == nil or carrier == 0 or carrier == "" or carrier == "0"
@@ -634,22 +961,6 @@ end
 -- FOREST STRIKE
 --==================================================
 
-local function connectForestStrikeInboundLogger(remote)
-    if forestStrikeWatchRemote == remote then
-        return
-    end
-    if not remote or not remote:IsA("RemoteEvent") then
-        return
-    end
-
-    forestStrikeWatchRemote = remote
-    remote.OnClientEvent:Connect(function(...)
-        local count = select("#", ...)
-        log("INBOUND ForestStrike event received (" .. tostring(count) .. " args)")
-    end)
-    log("Attached listener for inbound ForestStrike events.")
-end
-
 local function fireForestStrike()
     log("----------------------------------------")
     log("FOREST STRIKE TRIGGERED")
@@ -664,27 +975,25 @@ local function fireForestStrike()
         return false
     end
 
-    connectForestStrikeInboundLogger(remote)
-
     if not cachedEggUid or cachedEggUid == "" then
         log("No cached Egg UID. Performing immediate lookup...")
         refreshEggUid(true)
     end
 
-    if not cachedEggUid or cachedEggUid == "" then
-        log("ERROR: ForestStrike skipped — no Egg UID available!")
-        return false
+    local forestEggUid = cachedEggUid
+    if not forestEggUid or forestEggUid == "" then
+        forestEggUid = "FirstAreaEgg_11924439055_5979147_Forest:Slot_001"
     end
 
-    -- Guard CFrame: try finding live forest guard or use proven sample
+    -- Guard CFrame: Forest guard CFrame (SAMPLE_GUARD_CFRAME or ForestGuardAuthored)
     local guardCFrame = SAMPLE_GUARD_CFRAME
     pcall(function()
-        local guard = workspace:FindFirstChild("World", true)
-        if guard then
-            local forestGuard = guard:FindFirstChild("ForestGuardAuthored", true)
-                or guard:FindFirstChild("Forest", true)
+        local wsGuard = workspace:FindFirstChild("World", true)
+        if wsGuard then
+            local forestGuard = wsGuard:FindFirstChild("ForestGuardAuthored", true)
+                or wsGuard:FindFirstChild("Forest", true)
             if forestGuard then
-                local pivot = forestGuard:GetPivot()
+                local pivot = getPivotPos(forestGuard)
                 if pivot then guardCFrame = pivot end
             end
         end
@@ -692,10 +1001,10 @@ local function fireForestStrike()
 
     local payload = {
         GuardCFrame = guardCFrame,
-        EggUid = cachedEggUid,
+        EggUid = forestEggUid,
     }
 
-    log(string.format("Calling ForestStrike:FireServer with EggUid=%s...", cachedEggUid))
+    log(string.format("Calling ForestStrike:FireServer with Forest EggUid=%s...", forestEggUid))
 
     local ok, err = pcall(function()
         remote:FireServer(payload)
@@ -729,15 +1038,8 @@ local function invokeEggDropSpam(runToken, count)
         log("AskFieldEggDrop cancelled because this run was stopped or superseded.")
         return false
     end
-    if runToken ~= nil and LastEggDropRunToken == runToken then
-        log("AskFieldEggDrop already attempted for this run; duplicate request suppressed.")
-        return false
-    end
-    if runToken ~= nil then
-        LastEggDropRunToken = runToken
-    end
 
-    log(string.format("Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Spam %dx)...", count))
+    log(string.format("Looking for RemoteFunction RF/EggWorld/AskFieldEggDrop (Max %dx)...", count))
 
     local remote, detail = findEggDropRemote()
     if not remote then
@@ -753,42 +1055,76 @@ local function invokeEggDropSpam(runToken, count)
         return false
     end
 
-    logCharacterPosition("before AskFieldEggDrop spam sequence")
-    log(string.format("Starting AskFieldEggDrop spam (%dx, %.2fs interval)...", count, EGG_DROP_SPAM_INTERVAL))
+    logCharacterPosition("before AskFieldEggDrop sequence")
+    log(string.format("Starting AskFieldEggDrop sequence (%dx, %.2fs interval)...", count, EGG_DROP_SPAM_INTERVAL))
 
+    local dropped = false
     for i = 1, count do
         if runToken ~= nil and runToken ~= RunToken then
             log(string.format("AskFieldEggDrop [#%d/%d] cancelled (run superseded)", i, count))
             break
         end
-        if not Running then
-            log(string.format("AskFieldEggDrop [#%d/%d] cancelled (test stopped)", i, count))
+        if not Running or dropped or not isCarryingEgg then
+            if not isCarryingEgg and not dropped then
+                if i > 1 then
+                    dropped = true
+                    log("✓ Confirmed egg dropped via FieldEggCarry event!")
+                else
+                    log("⚠️ AskFieldEggDrop aborted: Not carrying egg at start of drop sequence.")
+                end
+            end
             break
         end
 
-        task.spawn(function()
-            local sendPos = Root and Root.Parent and Root.Position
-            local ok, result = pcall(function()
-                return remote:InvokeServer({ Reason = "PlayerRequest" })
-            end)
+        -- Hold character at SavedLocation immediately prior to remote call
+        if Root and Root.Parent then
+            Root.CFrame = CFrame.new(SavedLocation)
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+        end
 
-            local statusStr = ok and tostring(result) or ("ERROR: " .. tostring(result))
-            log(string.format(
-                "AskFieldEggDrop [#%d/%d] returned: %s | pos=%s",
-                i,
-                count,
-                statusStr,
-                vec(sendPos)
-            ))
+        local sendPos = Root and Root.Parent and Root.Position
+        local ok, result = pcall(function()
+            return remote:InvokeServer({ Reason = "PlayerRequest" })
         end)
+        if not ok or result == false then
+            pcall(function()
+                remote:InvokeServer()
+            end)
+        end
 
-        if i < count then
+        local statusStr = ok and tostring(result) or ("ERROR: " .. tostring(result))
+        local biomeAtSend = getBiomeName(sendPos)
+        log(string.format(
+            "AskFieldEggDrop [#%d/%d] returned: %s | pos=%s (%s)",
+            i,
+            count,
+            statusStr,
+            vec(sendPos),
+            biomeAtSend
+        ))
+
+        -- Wait up to 0.15s for server to fire FieldEggCarry { IsCarrying = false }
+        local pollStart = os.clock()
+        while (os.clock() - pollStart < 0.15) and isCarryingEgg do
+            RunService.Heartbeat:Wait()
+        end
+
+        if not isCarryingEgg or (ok and result == true) then
+            dropped = true
+            isCarryingEgg = false
+            carriedEggUid = nil
+            log(string.format("✓ Egg dropped successfully in %s at %s on attempt #%d!", biomeAtSend, vec(sendPos), i))
+            break
+        end
+
+        if i < count and not dropped then
             task.wait(EGG_DROP_SPAM_INTERVAL)
         end
     end
 
-    logCharacterPosition("after AskFieldEggDrop spam sequence")
-    return true
+    logCharacterPosition("after AskFieldEggDrop sequence")
+    return dropped or not isCarryingEgg
 end
 
 --==================================================
@@ -799,6 +1135,11 @@ local function stopTest()
     Running = false
     RunToken += 1
 
+    if pinConn then
+        pcall(function() pinConn:Disconnect() end)
+        pinConn = nil
+    end
+
     if Root and Root.Parent then
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
@@ -806,6 +1147,63 @@ local function stopTest()
 
     Status.Text =
         "Status: Stopped"
+end
+
+--==================================================
+-- CHUNK TRAVEL (Hops <= 800 studs to prevent server position clamp)
+--==================================================
+
+local CHUNK_MAX_DIST = 550.0
+local CHUNK_HOP_WAIT = 0.12
+local CHUNK_AIR_HEIGHT = 65.0 -- Elevate hops +65 studs above ground to avoid all guard detection zones
+
+local function travelInChunks(startPos, targetPos)
+    local totalDist = (targetPos - startPos).Magnitude
+    if totalDist <= CHUNK_MAX_DIST then
+        Root.CFrame = CFrame.new(targetPos)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        nullifyRagdoll()
+        return isHoldingEgg()
+    end
+
+    local hops = math.ceil(totalDist / CHUNK_MAX_DIST)
+    log(string.format("CHUNK TRAVEL: Splitting %.0f studs into %d hops (<=%.0f studs each, +%.0f air Y)...", totalDist, hops, CHUNK_MAX_DIST, CHUNK_AIR_HEIGHT))
+
+    for h = 1, hops do
+        if not Running then break end
+        local alpha = h / hops
+        local hopPos = startPos:Lerp(targetPos, alpha)
+
+        -- Keep intermediate hops airborne so ground guards cannot intercept
+        if h < hops then
+            hopPos = Vector3.new(hopPos.X, math.max(startPos.Y, targetPos.Y) + CHUNK_AIR_HEIGHT, hopPos.Z)
+        end
+
+        Root.CFrame = CFrame.new(hopPos)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        nullifyRagdoll()
+
+        local currentBiome = getBiomeName(hopPos)
+        log(string.format("  [HOP %d/%d] -> %s %s", h, hops, currentBiome, vec(hopPos)))
+
+        if not isHoldingEgg() then
+            log(string.format("⚠️ WARNING: Egg lost or stripped at HOP %d/%d in %s!", h, hops, currentBiome))
+            return false
+        end
+
+        if h < hops then
+            local hopStart = os.clock()
+            while Running and (os.clock() - hopStart < CHUNK_HOP_WAIT) do
+                if Root and Root.Parent then
+                    Root.CFrame = CFrame.new(hopPos)
+                    Root.AssemblyLinearVelocity = Vector3.zero
+                    Root.AssemblyAngularVelocity = Vector3.zero
+                end
+                RunService.Heartbeat:Wait()
+            end
+        end
+    end
+    return isHoldingEgg()
 end
 
 --==================================================
@@ -832,6 +1230,18 @@ local function runTest()
         return
     end
 
+    if not isHoldingEgg() then
+        Status.Text = "Status: Fast picking up egg..."
+        log("No egg carried. Executing fast pickup (targeting closest egg within 45 studs)...")
+        pickupNearbyEgg(45.0, 5)
+        if not isHoldingEgg() then
+            Status.Text = "Status: No nearby egg found!"
+            log("⚠️ Aborted: No nearby egg found within 45 studs! Stand closer to an egg or pick one up.")
+            return
+        end
+        log("✓ Successfully picked up egg via fast pickup spam!")
+    end
+
     Running = true
     RunToken += 1
     local currentRunToken = RunToken
@@ -847,15 +1257,13 @@ local function runTest()
     log("----------------------------------------")
     log("TEST START")
 
-    log(
-        "START = "
-        .. vec(StartLocation)
-    )
+    local startBiome = getBiomeName(StartLocation)
+    local dropBiome = getBiomeName(SavedLocation)
+    local distToDrop = (StartLocation - SavedLocation).Magnitude
 
-    log(
-        "DROP / LANDING = "
-        .. vec(SavedLocation)
-    )
+    log(string.format("START = %s %s", startBiome, vec(StartLocation)))
+    log(string.format("DROP / LANDING = %s %s", dropBiome, vec(SavedLocation)))
+    log(string.format("ROUTE: Carrying egg from %s -> traveling to %s (dist=%.0f studs)", startBiome, dropBiome, distToDrop))
 
     --------------------------------------------------
     -- FOREST STRIKE (FIRST TRIGGER ON RUN)
@@ -869,270 +1277,46 @@ local function runTest()
 
     fireForestStrike()
 
-    task.wait(0.05)
+    -- For biomes above Snow (dist > 900), allow 0.10s for server strike authority replication across the map
+    local dispatchWait = (distToDrop > 900) and 0.10 or 0.05
+    log(string.format("Strike dispatched. Waiting %.2fs for authority before travel...", dispatchWait))
+    task.wait(dispatchWait)
+
+    nullifyRagdoll()
 
     --------------------------------------------------
-    -- POSITION AT DROP
+    -- POSITION AT DROP (Chunked travel <= 800 studs per hop)
     --------------------------------------------------
 
     Phase = "DROP POSITION"
     Status.Text =
-        "Status: Drop position"
+        "Status: Traveling to dropzone..."
 
-    log("PHASE = DROP POSITION")
+    log(string.format("PHASE = DROP POSITION (Traveling to %s)", dropBiome))
 
-    Root.CFrame =
-        CFrame.new(SavedLocation)
+    if pinConn then
+        pcall(function() pinConn:Disconnect() end)
+        pinConn = nil
+    end
 
-    Root.AssemblyLinearVelocity =
-        Vector3.zero
+    -- Travel in hops <= 800 studs so server physics replication accepts every jump
+    local travelOk = travelInChunks(StartLocation, SavedLocation)
+    if not travelOk or not isHoldingEgg() then
+        Status.Text = "Status: Egg lost during travel!"
+        log("❌ Aborted: Egg was confiscated or dropped during travel. Step aborted.")
+        stopTest()
+        return
+    end
 
-    Root.AssemblyAngularVelocity =
-        Vector3.zero
-
-    log(
-        "DROP POSITIONED | pos="
-        .. vec(Root.Position)
-    )
-
-    -- Allow position replication to settle on the server before dropping
-    if POSITION_SETTLE_TIME > 0 then
-        Status.Text =
-            "Status: Replicating position..."
-        log(string.format("HOLD / REPLICATING POSITION (%.2fs)...", POSITION_SETTLE_TIME))
-
-        local settleStart = os.clock()
-        while Running and (os.clock() - settleStart < POSITION_SETTLE_TIME) do
+    -- Pin Root to SavedLocation continuously on Heartbeat so server physics
+    -- cannot rubberband the character back to origin during the drop sequence
+    pinConn = RunService.Heartbeat:Connect(function()
+        if Root and Root.Parent then
             Root.CFrame = CFrame.new(SavedLocation)
             Root.AssemblyLinearVelocity = Vector3.zero
             Root.AssemblyAngularVelocity = Vector3.zero
-            RunService.Heartbeat:Wait()
         end
-    end
-
-    --------------------------------------------------
-    -- INITIAL FREEFALL
-    --------------------------------------------------
-
-    Phase = "FREEFALL"
-    Status.Text =
-        "Status: Freefall"
-
-    log("PHASE = FREEFALL")
-
-    Humanoid:ChangeState(
-        Enum.HumanoidStateType.Freefall
-    )
-
-    local fallStart =
-        os.clock()
-
-    local lastTime =
-        fallStart
-
-    local velocityY =
-        INITIAL_VERTICAL_SPEED
-
-    log(
-        "FREEFALL START | pos="
-        .. vec(Root.Position)
-        .. " | vel="
-        .. vec(Root.AssemblyLinearVelocity)
-    )
-
-    -- Trigger AskFieldEggDrop spam during freefall without blocking the physics loop
-    task.spawn(function()
-        invokeEggDropSpam(currentRunToken, EGG_DROP_SPAM_COUNT)
     end)
-
-    while Running do
-
-        local now =
-            os.clock()
-
-        local elapsed =
-            now - fallStart
-
-        if elapsed >= INITIAL_FREEFALL_TIME then
-            break
-        end
-
-        local dt =
-            now - lastTime
-
-        if dt > 0 then
-            velocityY =
-                velocityY
-                + FALL_ACCELERATION * dt
-
-            Root.AssemblyLinearVelocity =
-                Vector3.new(
-                    0,
-                    velocityY,
-                    0
-                )
-        end
-
-        lastTime = now
-
-        trace("FREEFALL")
-
-        RunService.Heartbeat:Wait()
-    end
-
-    if not Running then
-        return
-    end
-
-    log(
-        "FREEFALL END | elapsed="
-        .. string.format(
-            "%.4f",
-            os.clock() - fallStart
-        )
-        .. " | pos="
-        .. vec(Root.Position)
-        .. " | vel="
-        .. vec(Root.AssemblyLinearVelocity)
-    )
-
-    --------------------------------------------------
-    -- LOCAL DROP TRANSITION
-    --------------------------------------------------
-
-    Phase = "DROP TRANSITION"
-    Status.Text =
-        "Status: Drop transition"
-
-    log(
-        "PHASE = DROP TRANSITION"
-    )
-
-    local entry =
-        SavedLocation
-        + Vector3.new(
-            0,
-            ENTRY_HEIGHT,
-            0
-        )
-
-    local previous =
-        Root.Position
-
-    Root.CFrame =
-        CFrame.new(entry)
-
-    Root.AssemblyLinearVelocity =
-        Vector3.new(
-            0,
-            FINAL_VERTICAL_SPEED,
-            0
-        )
-
-    Root.AssemblyAngularVelocity =
-        Vector3.zero
-
-    Humanoid:ChangeState(
-        Enum.HumanoidStateType.Freefall
-    )
-
-    log(
-        "LOCAL DROP TRANSITION"
-        .. " | previous="
-        .. vec(previous)
-        .. " | entry="
-        .. vec(entry)
-        .. " | distance="
-        .. string.format(
-            "%.3f",
-            (entry - previous).Magnitude
-        )
-    )
-
-    --------------------------------------------------
-    -- FINAL DESCENT
-    --------------------------------------------------
-
-    Phase = "FINAL DESCENT"
-    Status.Text =
-        "Status: Final descent"
-
-    log("PHASE = FINAL DESCENT")
-
-    local descentStart =
-        os.clock()
-
-    local lastDescentTime =
-        descentStart
-
-    local descentVelocity =
-        FINAL_VERTICAL_SPEED
-
-    while Running do
-
-        local now =
-            os.clock()
-
-        if now - descentStart >= MAX_DESCENT_TIME then
-
-            log(
-                "FINAL DESCENT TIMEOUT"
-            )
-
-            stopTest()
-            return
-        end
-
-        local current =
-            Root.Position
-
-        local difference =
-            current.Y - SavedLocation.Y
-
-        if difference <= 0.15 then
-            break
-        end
-
-        local dt =
-            now - lastDescentTime
-
-        if dt > 0 then
-            descentVelocity =
-                math.max(
-                    descentVelocity
-                    + FALL_ACCELERATION * 0.20 * dt,
-                    -32
-                )
-
-            Root.AssemblyLinearVelocity =
-                Vector3.new(
-                    0,
-                    descentVelocity,
-                    0
-                )
-        end
-
-        lastDescentTime = now
-
-        trace("FINAL DESCENT")
-
-        RunService.Heartbeat:Wait()
-    end
-
-    if not Running then
-        return
-    end
-
-    --------------------------------------------------
-    -- LAND
-    --------------------------------------------------
-
-    Phase = "LANDING"
-
-    Status.Text =
-        "Status: Landing"
-
-    log("PHASE = LANDING")
 
     Root.CFrame =
         CFrame.new(SavedLocation)
@@ -1143,9 +1327,85 @@ local function runTest()
     Root.AssemblyAngularVelocity =
         Vector3.zero
 
-    Humanoid:ChangeState(
-        Enum.HumanoidStateType.Landed
-    )
+    nullifyRagdoll()
+
+    log(string.format("DROP POSITIONED | biome=%s | pos=%s", getBiomeName(Root.Position), vec(Root.Position)))
+
+    -- Settle at final dropzone: adaptive based on total travel distance so server physics replication completes
+    local distToDrop = (StartLocation - SavedLocation).Magnitude
+    local settleDuration = 0.35
+    if distToDrop > 5500 then
+        settleDuration = 1.45 -- Enchanted Forest (~6,100 studs, crosses entire map)
+    elseif distToDrop > 4500 then
+        settleDuration = 1.20 -- Light Dark (~5,100 studs)
+    elseif distToDrop > 3500 then
+        settleDuration = 0.85 -- Titan Temple (~4,200 studs - proven working 1-shot)
+    elseif distToDrop > 2500 then
+        settleDuration = 0.65 -- Cosmic (~2,800 studs - proven working 1-shot)
+    elseif distToDrop > 1500 then
+        settleDuration = 0.45 -- Abyss Ocean (~1,700 studs - proven working 1-shot)
+    end
+
+    Status.Text = "Status: Replicating position..."
+    log(string.format("HOLD / REPLICATING POSITION (%.2fs for %.0f studs)...", settleDuration, distToDrop))
+
+    local settleStart = os.clock()
+    while Running and (os.clock() - settleStart < settleDuration) do
+        RunService.Heartbeat:Wait()
+    end
+
+    --------------------------------------------------
+    -- DROP EGG (Directly at location while pinned on Heartbeat!)
+    --------------------------------------------------
+
+    Phase = "DROP"
+    Status.Text =
+        "Status: Dropping egg..."
+
+    log("PHASE = DROP")
+
+    -- Set Freefall state (Step 4 from dropper-1.lua) so humanoid releases carried item
+    if Humanoid and Humanoid.Parent then
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+        end)
+    end
+
+    local dropped = invokeEggDropSpam(currentRunToken, EGG_DROP_SPAM_COUNT)
+
+    -- Disconnect pin once drop sequence finishes
+    if pinConn then
+        pcall(function() pinConn:Disconnect() end)
+        pinConn = nil
+    end
+
+    --------------------------------------------------
+    -- LANDED
+    --------------------------------------------------
+
+    Phase = "LANDED"
+
+    if Root and Root.Parent then
+        Root.CFrame = CFrame.new(SavedLocation)
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    nullifyRagdoll()
+
+    if Humanoid and Humanoid.Parent and Humanoid.Health > 0 then
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+
+    if dropped or not isCarryingEgg then
+        Status.Text = "Status: Egg Dropped Successfully!"
+        log("SUCCESS: Egg dropped at landing location!")
+    else
+        Status.Text = "Status: Drop Finished"
+        log("Egg drop sequence finished.")
+    end
 
     log(
         "LANDED | final="
@@ -1171,11 +1431,6 @@ local function runTest()
     )
 
     Running = false
-    Phase = "LANDED"
-
-    Status.Text =
-        "Status: Landed"
-
     log("TEST END")
     log("----------------------------------------")
 end
@@ -1188,11 +1443,11 @@ CopyButton.MouseButton1Click:Connect(copyLog)
 -- INIT
 --==================================================
 
-log("One-location Drop / Freefall Tester loaded")
+log("One-location Direct Drop Tester loaded")
 log("Landing location preset to " .. vec(SavedLocation))
 log("RUN automatically captures START location")
-log("ForestStrike triggers FIRST on RUN press")
-log(string.format("Position settles (%.2fs) then EggDrop (%dx spam)", POSITION_SETTLE_TIME, EGG_DROP_SPAM_COUNT))
+log("Strike confirms Hit Authority -> direct set to location -> settle -> drop")
+log(string.format("Position settles (%.2fs) then EggDrop (%dx)", POSITION_SETTLE_TIME, EGG_DROP_SPAM_COUNT))
 
 -- Automatically query egg UID on script startup
 task.defer(function()
