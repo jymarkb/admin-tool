@@ -5367,7 +5367,8 @@ UI.renderFarmableEggs = function()
 
     table.sort(farmableList, function(a, b)
         if a.Rank ~= b.Rank then return a.Rank > b.Rank end
-        return (a.Distance or 99999) < (b.Distance or 99999)
+        if a.DisplayName ~= b.DisplayName then return a.DisplayName < b.DisplayName end
+        return tostring(a.Uid) < tostring(b.Uid)
     end)
 
     -- Update empty notice
@@ -5498,7 +5499,8 @@ UI.renderHalloweenEggs = function()
 
     table.sort(eggList, function(a, b)
         if a.Rank ~= b.Rank then return a.Rank > b.Rank end
-        return a.Distance < b.Distance
+        if a.DisplayName ~= b.DisplayName then return a.DisplayName < b.DisplayName end
+        return tostring(a.Uid) < tostring(b.Uid)
     end)
 
     if UI.Elements.HwEmptyNotice then
