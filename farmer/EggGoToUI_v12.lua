@@ -662,6 +662,7 @@ UI.Elements = {
     GoBox              = nil,
     CarryBox           = nil,
     CurrentSpeedLabel  = nil,
+    HallowToggleBtn    = nil,
     BiomeDropdownBtn   = nil,
     RarityDropdownBtn  = nil,
     EggListScroll      = nil,
@@ -1199,11 +1200,34 @@ UI.build = function()
     spdLbl.Parent = spdFrame
     UI.Elements.CurrentSpeedLabel = spdLbl
 
-    -- Row 2.3.3: Filter Bar (Biome Dropdown & Rarity Dropdown)
+    -- Row 2.3.3: Halloween Dimension Toggle Row
+    local hwRow = Instance.new("Frame")
+    hwRow.Name = "HallowDimensionFrame"
+    hwRow.Size = UDim2.new(1, -16, 0, 26)
+    hwRow.Position = UDim2.new(0, 8, 0, 52)
+    hwRow.BackgroundTransparency = 1
+    hwRow.Parent = tabEggs
+
+    local isHwOn = Engine.State and Engine.State.InHalloweenDimension == true
+    local hallowBtn = Instance.new("TextButton")
+    hallowBtn.Name = "HallowToggleBtn"
+    hallowBtn.Size = UDim2.new(1, 0, 1, 0)
+    hallowBtn.Position = UDim2.new(0, 0, 0, 0)
+    hallowBtn.BorderSizePixel = 0
+    hallowBtn.Font = Enum.Font.GothamBold
+    hallowBtn.TextSize = 11
+    hallowBtn.Text = isHwOn and "InHalloweenDimension: [ ON ]" or "InHalloweenDimension: [ OFF ]"
+    hallowBtn.BackgroundColor3 = isHwOn and Color3.fromRGB(255, 130, 25) or theme.GrayOff
+    hallowBtn.TextColor3 = isHwOn and Color3.new(1, 1, 1) or Color3.fromRGB(180, 190, 210)
+    hallowBtn.Parent = hwRow
+    Instance.new("UICorner", hallowBtn).CornerRadius = UDim.new(0, 4)
+    UI.Elements.HallowToggleBtn = hallowBtn
+
+    -- Row 2.3.4: Filter Bar (Biome Dropdown & Rarity Dropdown)
     local filterBar = Instance.new("Frame")
     filterBar.Name = "FilterBar"
     filterBar.Size = UDim2.new(1, -16, 0, 26)
-    filterBar.Position = UDim2.new(0, 8, 0, 52)
+    filterBar.Position = UDim2.new(0, 8, 0, 82)
     filterBar.BackgroundTransparency = 1
     filterBar.BorderSizePixel = 0
     filterBar.ClipsDescendants = false
@@ -1272,11 +1296,11 @@ UI.build = function()
         scrollable = true,
     })
 
-    -- Row 2.3.4: Egg List Scroll Frame & Card Pool (Full Height to Bottom)
+    -- Row 2.3.5: Egg List Scroll Frame & Card Pool (Full Height to Bottom)
     local scroll = Instance.new("ScrollingFrame")
     scroll.Name = "EggListScroll"
-    scroll.Size = UDim2.new(1, -16, 1, -88)
-    scroll.Position = UDim2.new(0, 8, 0, 82)
+    scroll.Size = UDim2.new(1, -16, 1, -118)
+    scroll.Position = UDim2.new(0, 8, 0, 112)
     scroll.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
     scroll.BorderSizePixel = 0
     scroll.ScrollBarThickness = 4
@@ -2531,6 +2555,7 @@ Engine.State = {
     NoclipParts           = {},
     AutoPickupToken       = 0,
     HwPickupToken         = 0,
+    InHalloweenDimension  = false,
     EggCacheByUid         = {},
     RarityByUid           = {},
     HwNameCache           = setmetatable({}, { __mode = "k" }),
@@ -2553,6 +2578,13 @@ Engine.State = {
 -- Initialize default selected rarities
 for r, sel in pairs(Config.Taxonomy.DefaultSelectedRarities) do
     Engine.State.SelectedRarities[r] = sel
+end
+
+if LocalPlayer then
+    local initHw = LocalPlayer:GetAttribute("InHalloweenDimension")
+    if initHw ~= nil then
+        Engine.State.InHalloweenDimension = (initHw == true)
+    end
 end
 
 -- 4.2 Velocity Engine (Continuous Speed with isCarry true/false param)
@@ -3664,6 +3696,34 @@ Engine.Pickup.toggle = function(enabled)
         if Config.HwPickup then Config.HwPickup.Enabled = false end
     end
     if UI.syncPickupToggles then UI.syncPickupToggles() end
+end
+
+-- 4.6.0 Halloween Dimension Attribute Engine
+Engine.Halloween = {}
+
+Engine.Halloween.setDimension = function(enabled)
+    Engine.State.InHalloweenDimension = (enabled == true)
+    local targets = { LocalPlayer, Character }
+    for _, obj in ipairs(targets) do
+        if obj and obj.Parent then
+            pcall(function() obj:SetAttribute("InHalloweenDimension", Engine.State.InHalloweenDimension) end)
+        end
+    end
+    if UI.Elements.HallowToggleBtn then
+        if Engine.State.InHalloweenDimension then
+            UI.Elements.HallowToggleBtn.Text = "InHalloweenDimension: [ ON ]"
+            UI.Elements.HallowToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 130, 25)
+            UI.Elements.HallowToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+        else
+            UI.Elements.HallowToggleBtn.Text = "InHalloweenDimension: [ OFF ]"
+            UI.Elements.HallowToggleBtn.BackgroundColor3 = Config.UI.Theme.GrayOff
+            UI.Elements.HallowToggleBtn.TextColor3 = Color3.fromRGB(180, 190, 210)
+        end
+    end
+end
+
+Engine.Halloween.toggleDimension = function()
+    Engine.Halloween.setDimension(not Engine.State.InHalloweenDimension)
 end
 
 -- 4.6.1 Halloween Fast Pickup Engine
@@ -5808,6 +5868,13 @@ addConnection(UI.Elements.CarryBox.FocusLost:Connect(function()
     UI.updateActivityStatus()
 end))
 
+-- Halloween Dimension Toggle Button
+if UI.Elements.HallowToggleBtn then
+    addConnection(UI.Elements.HallowToggleBtn.MouseButton1Click:Connect(function()
+        Engine.Halloween.toggleDimension()
+    end))
+end
+
 -- Fast Pickup Toggle Button
 addConnection(UI.Elements.TogglePickupBtn.MouseButton1Click:Connect(function()
     Engine.Pickup.toggle()
@@ -6072,6 +6139,9 @@ end
 
 addConnection(LocalPlayer.CharacterAdded:Connect(function(newChar)
     bindLifecycle(newChar)
+    if Engine.State.InHalloweenDimension == true then
+        pcall(function() newChar:SetAttribute("InHalloweenDimension", true) end)
+    end
 end))
 
 addConnection(LocalPlayer.CharacterRemoving:Connect(function()
