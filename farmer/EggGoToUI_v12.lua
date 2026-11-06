@@ -4181,9 +4181,10 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
             local besideZ = targetPos.Z + dir.Z * eggRadius
             local eggBottomY = targetPos.Y - (eggHeight * 0.5) + 2.8
 
-            -- Ground raycast from above egg to find true floor level beside egg (eliminating excess freefall)
+            -- Ground raycast from just above egg downwards to find true floor level beside egg
+            -- Ray starts at targetPos.Y + 2.0 (never high up in trees/canopies/ceilings)
             local groundY = eggBottomY
-            local rayStartY = targetPos.Y + (eggHeight * 0.5) + 12
+            local rayStartY = targetPos.Y + 2.0
             local rayOk, rayRes = pcall(function()
                 local rParams = RaycastParams.new()
                 rParams.FilterType = RaycastFilterType.Exclude
@@ -4197,15 +4198,17 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
                 if cra then table.insert(ign, cra) end
                 rParams.FilterDescendantsInstances = ign
                 rParams.IgnoreWater = true
-                return Workspace:Raycast(Vector3.new(besideX, rayStartY, besideZ), Vector3.new(0, -150, 0), rParams)
+                return Workspace:Raycast(Vector3.new(besideX, rayStartY, besideZ), Vector3.new(0, -35, 0), rParams)
             end)
 
-            if rayOk and rayRes and rayRes.Position then
+            if rayOk and rayRes and rayRes.Position and rayRes.Position.Y <= targetPos.Y + 1.2 then
                 groundY = rayRes.Position.Y + 2.8
             else
-                local curY = hrp.Position.Y
-                if math.abs(curY - eggBottomY) <= 6.0 then
+                local curY = hrp and hrp.Position.Y
+                if curY and math.abs(curY - eggBottomY) <= 4.0 then
                     groundY = curY
+                else
+                    groundY = eggBottomY
                 end
             end
 
@@ -4218,14 +4221,14 @@ Engine.Travel.teleportTo = function(targetPos, snapBeside, eggModelOrSize)
                 rParams.FilterType = RaycastFilterType.Exclude
                 rParams.FilterDescendantsInstances = { Character }
                 rParams.IgnoreWater = true
-                return Workspace:Raycast(Vector3.new(targetPos.X, targetPos.Y + 12, targetPos.Z), Vector3.new(0, -60, 0), rParams)
+                return Workspace:Raycast(Vector3.new(targetPos.X, targetPos.Y + 3.0, targetPos.Z), Vector3.new(0, -35, 0), rParams)
             end)
-            if rayOk and rayRes and rayRes.Position then
+            if rayOk and rayRes and rayRes.Position and rayRes.Position.Y <= targetPos.Y + 1.2 then
                 groundY = rayRes.Position.Y + 2.8
             elseif math.abs(hrp.Position.Y - targetPos.Y) <= 4 then
                 groundY = hrp.Position.Y
             else
-                groundY = targetPos.Y + 2.5
+                groundY = targetPos.Y + 0.5
             end
             finalPos = Vector3.new(targetPos.X, groundY, targetPos.Z)
         end
@@ -4306,8 +4309,18 @@ Engine.Travel.walkToTarget = function(targetPos, arriveDist, onArrived, uid, sna
 
             -- Arrival snap towards target when within effective snap distance
             if dist <= snapDist or dist <= arriveDist then
-                local eggInst = uid and Helpers.getEggInstance and Helpers.getEggInstance(uid)
-                Engine.Travel.teleportTo(targetPos, snapBeside, eggInst)
+                if isSafeZone then
+                    Engine.Travel.teleportTo(targetPos, false)
+                else
+                    -- For eggs: Character has arrived right beside the egg at ground level.
+                    -- Smoothly orient facing egg without popping into the air.
+                    if hrp and hrp.Parent then
+                        local curY = hrp.Position.Y
+                        local lookTarget = Vector3.new(targetPos.X, curY, targetPos.Z)
+                        hrp.CFrame = CFrame.lookAt(hrp.Position, lookTarget)
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                    end
+                end
                 Engine.Travel.stopWalking()
                 if onArrived then task.spawn(onArrived) end
                 break
