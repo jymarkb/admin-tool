@@ -661,6 +661,7 @@ UI.Elements = {
     VelToggleBtn       = nil,
     GoBox              = nil,
     CarryBox           = nil,
+    CurrentSpeedLabel  = nil,
     BiomeDropdownBtn   = nil,
     RarityDropdownBtn  = nil,
     EggListScroll      = nil,
@@ -1176,6 +1177,27 @@ UI.build = function()
     carryBox.ClearTextOnFocus = false
     carryBox.Parent = carryFrame
     UI.Elements.CarryBox = carryBox
+
+    -- Row 2.3.2 Column 4: Current Speed Readout
+    local spdFrame = Instance.new("Frame")
+    spdFrame.Name = "CurrentSpeedFrame"
+    spdFrame.Size = UDim2.new(1, -270, 1, 0)
+    spdFrame.Position = UDim2.new(0, 270, 0, 0)
+    spdFrame.BackgroundColor3 = Color3.fromRGB(28, 34, 48)
+    spdFrame.Parent = velFrame
+    Instance.new("UICorner", spdFrame).CornerRadius = UDim.new(0, 4)
+
+    local spdLbl = Instance.new("TextLabel")
+    spdLbl.Name = "CurrentSpeedLabel"
+    spdLbl.Size = UDim2.new(1, 0, 1, 0)
+    spdLbl.BackgroundTransparency = 1
+    spdLbl.Text = "0"
+    spdLbl.TextColor3 = Color3.fromRGB(120, 240, 160)
+    spdLbl.TextSize = 11
+    spdLbl.Font = Enum.Font.GothamBold
+    spdLbl.TextXAlignment = Enum.TextXAlignment.Center
+    spdLbl.Parent = spdFrame
+    UI.Elements.CurrentSpeedLabel = spdLbl
 
     -- Row 2.3.3: Filter Bar (Biome Dropdown & Rarity Dropdown)
     local filterBar = Instance.new("Frame")
@@ -2518,6 +2540,7 @@ Engine.State = {
     LastDeliveredUid      = nil,
     CachedControls        = nil,
     LastGoodCFrame        = nil,
+    LastDisplayedSpeed    = 0,
 }
 
 -- Initialize default selected rarities
@@ -5301,6 +5324,19 @@ Engine.Loops.start = function()
         end
 
         Engine.Velocity.updatePhysics()
+
+        -- Row Velocity 4th Column: Current Speed Readout (pure number, no "Vel" prefix)
+        if UI.Elements.CurrentSpeedLabel then
+            local spd = 0
+            if hrp and hrp.Parent then
+                local curVel = hrp.AssemblyLinearVelocity or Vector3.zero
+                spd = math.floor(Vector3.new(curVel.X, 0, curVel.Z).Magnitude)
+            end
+            if Engine.State.LastDisplayedSpeed ~= spd then
+                Engine.State.LastDisplayedSpeed = spd
+                UI.Elements.CurrentSpeedLabel.Text = tostring(spd)
+            end
+        end
     end))
 
     -- Throttled 0.3s Loop: DOM Updates & Safety Fallback
