@@ -1988,14 +1988,21 @@ Helpers.isHoldingEgg = function()
     end
     if Character then
         for _, c in ipairs(Character:GetChildren()) do
-            if c:IsA("Tool") then
-                local low = c.Name:lower()
-                local isEggTool = low:find("egg", 1, true) or c:GetAttribute("IsEgg") == true or c:GetAttribute("ItemType") == "Egg" or c:GetAttribute("Category") == "Egg" or c:GetAttribute("EggUid") ~= nil or c:GetAttribute("HalloweenEggUid") ~= nil
-                if isEggTool and not c:GetAttribute("IsBat") and not c:GetAttribute("ButterflyNet") and c.Name ~= "ButterflyNet" and c.Name ~= "Bat" then
-                    return true
-                end
-            elseif (c:IsA("Model") or c:IsA("BasePart")) and c.Name ~= "HumanoidRootPart" then
-                local isEggModel = c:GetAttribute("IsEgg") == true or c:GetAttribute("ItemType") == "Egg" or c:GetAttribute("Category") == "Egg" or c:GetAttribute("EggUid") ~= nil or c:GetAttribute("HalloweenEggUid") ~= nil or c.Name:lower():find("egg", 1, true)
+            -- Strictly reject inventory/bag tools, satchel assets, and pets
+            local isBagAsset = c:IsA("Tool")
+                or c:GetAttribute("ItemType") == "Asset"
+                or c:GetAttribute("Weight") ~= nil
+                or c:GetAttribute("Scale") ~= nil
+                or c:GetAttribute("IsInventorySlot") ~= nil
+                or c:GetAttribute("HasEggOverlay") ~= nil
+                or (c:GetAttribute("UID") ~= nil and c:GetAttribute("EggUid") == nil and c:GetAttribute("HalloweenEggUid") == nil)
+
+            if not isBagAsset and (c:IsA("Model") or c:IsA("BasePart")) and c.Name ~= "HumanoidRootPart" then
+                local isEggModel = c:GetAttribute("IsEgg") == true
+                    or c:GetAttribute("ItemType") == "Egg"
+                    or c:GetAttribute("EggUid") ~= nil
+                    or c:GetAttribute("HalloweenEggUid") ~= nil
+                    or (c:GetAttribute("HalloweenEggCanPickUp") == false and c.Name:lower():find("egg", 1, true))
                 if isEggModel and not c:GetAttribute("IsBat") and not c:GetAttribute("ButterflyNet") and c.Name ~= "ButterflyNet" and c.Name ~= "Bat" then
                     return true
                 end
@@ -2007,8 +2014,8 @@ Helpers.isHoldingEgg = function()
         local expName = Engine.State and Engine.State.CarryUid and (myUidStr .. "_" .. tostring(Engine.State.CarryUid))
         if expName and cra:FindFirstChild(expName) then
             local rec = Engine.State and Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[Engine.State.CarryUid]
-            local isDropped = rec and (rec.State == "Dropped")
-            if not isDropped then
+            local isDropped = (not rec) or (rec.State == "Dropped")
+            if not isDropped and rec and rec.State ~= "Dropped" then
                 local m = cra:FindFirstChild(expName)
                 local part = m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)))
                 local okP, pv = pcall(function() return m:GetPivot().Position end)
@@ -2026,8 +2033,8 @@ Helpers.isHoldingEgg = function()
                 if m.Name:sub(1, #pfx) == pfx then
                     local eggUid = m.Name:sub(#pfx + 1)
                     local rec = Engine.State and Engine.State.EggCacheByUid and Engine.State.EggCacheByUid[eggUid]
-                    local isDropped = rec and (rec.State == "Dropped")
-                    if not isDropped then
+                    local isDropped = (not rec) or (rec.State == "Dropped")
+                    if not isDropped and rec and (rec.State == "Carried" or tostring(rec.CarrierUserId or "") == myUidStr or Engine.State.CarryUid == eggUid) then
                         local part = m:IsA("BasePart") and m or (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)))
                         local okP, pv = pcall(function() return m:GetPivot().Position end)
                         local pos = (okP and pv) or (part and part.Position)
@@ -2035,7 +2042,7 @@ Helpers.isHoldingEgg = function()
                             if Engine.State and (not Engine.State.CarryUid or Engine.State.CarryUid == "") then
                                 Engine.State.CarryUid = eggUid
                             end
-                            if rec then rec.State = "Carried" end
+                            rec.State = "Carried"
                             return true
                         end
                     end
