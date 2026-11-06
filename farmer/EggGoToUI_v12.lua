@@ -543,7 +543,7 @@ Config.Velocity = {
     MaxSpeed          = 500,
     DefaultWalkSpeed  = 16.0,
     TargetSnapDist    = 60.0,
-    SafeZonePosition  = Vector3.new(530.332, 70.724, -399.111),
+    SafeZonePosition  = Vector3.new(542.304, 70.813, -302.677),
 }
 
 -- 1.3 Instant Recovery Configuration (Zero-Wait Anti-Ragdoll & Anti-Fling)
@@ -2092,13 +2092,14 @@ end
 -- 3.4 String & Taxonomy Normalizers
 Helpers.normalizeSpecies = function(name)
     if not name or type(name) ~= "string" then return "" end
-    local str = name:lower():gsub("^%b[]%s*", "")
-    str = str:gsub("%s*%(x%d+%)%s*$", ""):gsub("%s*%(%d+%%%)%s*$", ""):gsub("%s*%(%+%d+%)%s*$", "")
-    for _, prefix in ipairs({ "rainbow", "golden", "silver", "gold", "shiny" }) do
-        str = str:gsub("^" .. prefix .. "%s+", "")
-    end
-    str = str:gsub("%s*egg%s*$", ""):gsub("^%s*", ""):gsub("%s*$", "")
-    return str
+    local str = name:gsub("(%l)(%u)", "%1 %2")
+    str = str:gsub("%b[]", " ")
+    str = str:gsub("%s*%([%d,%.]+%s*[Kk][Gg]%)%s*", " ")
+    str = str:gsub("%s*%(x%d+%)%s*", " "):gsub("%s*%(%d+%%%)%s*", " "):gsub("%s*%(%+%d+%)%s*", " ")
+    str = str:gsub("%s*[-–—]%s*%S+%s*$", "")
+    str = str:lower():gsub("%s+", " "):gsub("^%s*", ""):gsub("%s*$", "")
+    str = str:gsub("%s*egg%s*$", "")
+    return str:gsub("^%s*", ""):gsub("%s*$", "")
 end
 
 Helpers.isGenericEggName = function(name)
@@ -2205,6 +2206,32 @@ Helpers.getSpeciesInfo = function(rawName, searchArea)
 
     for _, bTable in pairs(SPECIES_INFO_BY_BIOME) do
         if bTable[clean] then return bTable[clean] end
+    end
+
+    -- Universal prefix/adjective fallback (e.g. "golden sunlion" -> "sunlion", "silver frog" -> "frog")
+    -- Strips leading qualifier without hardcoding mutation names
+    local stripped = clean:match("^%S+%s+(.+)$")
+    if stripped and stripped ~= "" then
+        if searchArea and searchArea ~= "" and searchArea ~= "Unknown" and SPECIES_INFO_BY_BIOME[searchArea] then
+            local bRec = SPECIES_INFO_BY_BIOME[searchArea][stripped]
+            if bRec then return bRec end
+        end
+        if SPECIES_INFO[stripped] then return SPECIES_INFO[stripped] end
+        local canStripped = EGG_ALIASES[stripped]
+        if canStripped and SPECIES_INFO[canStripped] then
+            return SPECIES_INFO[canStripped]
+        end
+        for _, bTable in pairs(SPECIES_INFO_BY_BIOME) do
+            if bTable[stripped] then return bTable[stripped] end
+        end
+    end
+
+    -- Also strip trailing parentheses (e.g. "sunlion (golden)" -> "sunlion")
+    local noParen = clean:gsub("%s*%b()$", "")
+    if noParen ~= clean and noParen ~= "" then
+        if SPECIES_INFO[noParen] then return SPECIES_INFO[noParen] end
+        local canParen = EGG_ALIASES[noParen]
+        if canParen and SPECIES_INFO[canParen] then return SPECIES_INFO[canParen] end
     end
 
     return nil
@@ -4616,8 +4643,23 @@ Engine.Travel.resolveEggFields = function(r, uid, charPos)
             or Helpers.getSpeciesInfo(rawName)
     end
 
-    local disp = (info and info.DisplayName) or (not Helpers.isGenericEggName(rawName) and rawName) or nil
-    local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown") and serverRarity or ((info and info.Rarity) or "Unknown")
+    local baseSpecies = (info and info.DisplayName)
+    if not baseSpecies and rawName and not Helpers.isGenericEggName(rawName) then
+        local stripped = rawName:match("^%S+%s+(.+)$")
+        if stripped then
+            local strippedInfo = Helpers.getSpeciesInfo(stripped, searchArea)
+            if strippedInfo then
+                info = strippedInfo
+                baseSpecies = strippedInfo.DisplayName
+            end
+        end
+        if not baseSpecies then
+            baseSpecies = rawName
+        end
+    end
+    local disp = baseSpecies
+    local catalogRarity = info and info.Rarity
+    local rarity = (serverRarity and serverRarity ~= "" and serverRarity ~= "Unknown" and (serverRarity ~= "Common" or not catalogRarity or catalogRarity == "Common")) and serverRarity or (catalogRarity or "Unknown")
 
     -- Fallback: If name is unknown/generic but rarity & area are known, deduce from catalog
     local isGeneric = (not disp or disp == "" or Helpers.isGenericEggName(disp) or not info)
@@ -4749,6 +4791,10 @@ Engine.Sync.startPushMonitor = function()
                 elseif typeof(cf) == "Vector3" then Engine.State.EggCacheByUid[u].Position = cf
                 end
             end
+            if payload.BaseMutation then Engine.State.EggCacheByUid[u].BaseMutation = payload.BaseMutation end
+            if payload.Mutations then Engine.State.EggCacheByUid[u].Mutations = payload.Mutations end
+            if payload.AssetCategory then Engine.State.EggCacheByUid[u].AssetCategory = payload.AssetCategory end
+            if payload.DisplayName then Engine.State.EggCacheByUid[u].DisplayName = payload.DisplayName end
         else
             Engine.State.EggCacheByUid[u] = payload
             if state ~= "Carried" then
@@ -4950,6 +4996,8 @@ Engine.Sync.startPushMonitor = function()
 end
 
 Engine.Sync.syncEggSnapshot = function()
+    local container = Workspace:FindFirstChild("AreaEggSlotsClient")
+    if not container then return end
     local rf = Helpers.getNetRemote("RF/EggWorld/AskFieldEggSnapshot") or Helpers.getNetRemote("RF/EggWorld/GetEggSnapshot")
     if not rf then return end
     local okSnap, res = pcall(function() return rf:InvokeServer() end)
@@ -5278,7 +5326,7 @@ Engine.Loops.start = function()
         end
     end)
 
-    -- Immediate hydration & periodic 30s overworld safety snapshot sync
+    -- One-time initial hydration on startup (Pure Push / Zero-Polling)
     task.spawn(function()
         pcall(Engine.Sync.syncAreaEggSlotsESP)
         pcall(Engine.Sync.syncEggSnapshot)
@@ -5290,11 +5338,6 @@ Engine.Loops.start = function()
         pcall(Engine.Butterfly.init)
         pcall(Engine.Sync.syncAreaEggSlotsESP)
         pcall(Engine.Sync.syncEggSnapshot)
-
-        while not _G.EggGoToUI_Stop do
-            task.wait(30.0)
-            pcall(Engine.Sync.syncEggSnapshot)
-        end
     end)
 end
 
@@ -5430,7 +5473,10 @@ UI.renderHalloweenEggs = function()
                 Engine.State.ListDirty = true
                 if UI.renderHalloweenEggs then pcall(UI.renderHalloweenEggs) end
             end))
-            table.insert(Engine.State.HwFolderConns, wEggs.ChildRemoved:Connect(function()
+            table.insert(Engine.State.HwFolderConns, wEggs.ChildRemoved:Connect(function(child)
+                if Engine.State.HwNameCache and child then
+                    Engine.State.HwNameCache[child] = nil
+                end
                 Engine.State.ListDirty = true
                 if UI.renderHalloweenEggs then pcall(UI.renderHalloweenEggs) end
             end))
@@ -5918,6 +5964,15 @@ local function clearCharRefs()
 end
 
 local function bindLifecycle(newChar)
+    if Engine.State.LifecycleConns then
+        for _, c in ipairs(Engine.State.LifecycleConns) do
+            pcall(function() c:Disconnect() end)
+        end
+        table.clear(Engine.State.LifecycleConns)
+    else
+        Engine.State.LifecycleConns = {}
+    end
+
     Character = newChar
     local h = newChar:WaitForChild("Humanoid", 5)
     local r = newChar:WaitForChild("HumanoidRootPart", 5)
@@ -5927,14 +5982,16 @@ local function bindLifecycle(newChar)
     hrp = r
 
     if h then
-        addConnection(h.Died:Connect(function()
+        local cDied = h.Died:Connect(function()
             clearCharRefs()
             Engine.Velocity.setCarry(false)
             Engine.Travel.stopWalking()
-        end))
+        end)
+        table.insert(Engine.State.LifecycleConns, cDied)
+        addConnection(cDied)
     end
     if r then
-        addConnection(r.AncestryChanged:Connect(function(_, parent)
+        local cAnc = r.AncestryChanged:Connect(function(_, parent)
             if not parent then
                 -- Void destruction / part detached from Workspace
                 RootPart = nil
@@ -5942,7 +5999,9 @@ local function bindLifecycle(newChar)
                 Engine.Velocity.setCarry(false)
                 Engine.Travel.stopWalking()
             end
-        end))
+        end)
+        table.insert(Engine.State.LifecycleConns, cAnc)
+        addConnection(cAnc)
     end
 
     task.spawn(function()
