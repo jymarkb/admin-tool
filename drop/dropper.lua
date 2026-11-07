@@ -91,7 +91,7 @@ local function getBiomeName(pos)
     end
 end
 
-local SavedLocation = Vector3.new(599.365, 71.411, -312.642)
+local SavedLocation = Vector3.new(597.618, 70.813, -329.401)
 local COSMIC_RELAY_LOCATION = Vector3.new(3387.591, 71.411, -301.853)
 
 -- Start is captured automatically when RUN is pressed.
