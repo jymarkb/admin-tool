@@ -31,7 +31,7 @@ local Config = {
     GuiName = "MultiBiomeDropperGui",
     DropSpamCount = 8,
     DropSpamInterval = 0.03,
-    PositionSettleTime = 0.12,
+    PositionSettleTime = 0.30,
     StrikeTimeout = 2.50,
     ReturnDelay = 0.50,
     NestScanRadius = 50.0,
@@ -111,6 +111,7 @@ local State = {
     IsActive = false,
     IsCarrying = false,
     CurrentEggUid = nil,
+    ForestEggUid = nil,
     TargetEggUid = nil,
     CarriedUid = nil,
     TargetEggRepicked = false,
@@ -243,15 +244,89 @@ Helpers.getClosestGuard = function(playerPos)
     return bestGuard, bestAreaName, bestDist
 end
 
-Helpers.rouseGuard = function(guard)
-    local event = Remotes.Rouse
+Helpers.getBiomeGuard = function(biomeName)
+    local ws = workspace
+    local areas = ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas")
+    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
+    if guardAreas and biomeName then
+        local area = guardAreas:FindFirstChild(biomeName)
+            or (biomeName == "Light Dark" and guardAreas:FindFirstChild("Light & Dark"))
+        if area then
+            local g = area:FindFirstChild("Guard") or area:FindFirstChild("ForestGuardAuthored")
+            if g then
+                local pivot = g:GetPivot()
+                local dist = RootPart and (pivot.Position - RootPart.Position).Magnitude or 0
+                return g, area.Name, dist
+            end
+        end
+    end
+    return Helpers.getClosestGuard(RootPart and RootPart.Position or Vector3.zero)
+end
+
+Helpers.rouseGuard = function(guard, areaName)
+    local event = Remotes.Rouse or Helpers.getNetRemote("RE/GuardPatrol/Rouse")
     if event and guard then
         pcall(function()
             if typeof(firesignal) == "function" then
-                firesignal(event.OnClientEvent, guard)
+                firesignal(event.OnClientEvent, guard, areaName)
+            elseif typeof(getconnections) == "function" then
+                for _, conn in ipairs(getconnections(event.OnClientEvent)) do
+                    if conn.Function then
+                        task.spawn(conn.Function, guard, areaName)
+                    elseif conn.Fire then
+                        conn:Fire(guard, areaName)
+                    end
+                end
             end
         end)
     end
+end
+
+Helpers.getForestGuard = function()
+    local ws = workspace
+    local guard = ws:FindFirstChild("World", true)
+    if guard then
+        local fg = guard:FindFirstChild("ForestGuardAuthored", true)
+            or guard:FindFirstChild("Forest", true)
+        if fg then return fg end
+    end
+    local areas = ws:FindFirstChild("World") and ws.World:FindFirstChild("Areas")
+    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
+    if guardAreas then
+        local fa = guardAreas:FindFirstChild("Forest")
+        if fa then
+            local g = fa:FindFirstChild("Guard") or fa:FindFirstChild("ForestGuardAuthored")
+            if g then return g end
+        end
+    end
+    return nil
+end
+
+Helpers.getForestGuardCFrame = function()
+    local fg = Helpers.getForestGuard()
+    if fg then
+        local p = fg:GetPivot()
+        if p then return p end
+    end
+    return Config.SampleGuardCFrame
+end
+
+Helpers.getForestEggUid = function()
+    if State.ForestEggUid and string.find(tostring(State.ForestEggUid), "Forest", 1, true) then
+        return State.ForestEggUid
+    end
+    if State.CurrentEggUid and string.find(tostring(State.CurrentEggUid), "Forest", 1, true) then
+        return State.CurrentEggUid
+    end
+    local slots = workspace:FindFirstChild("AreaEggSlotsClient")
+    if slots then
+        for _, sl in ipairs(slots:GetChildren()) do
+            if string.find(string.lower(sl.Name), "_forest:slot_", 1, true) then
+                return sl.Name
+            end
+        end
+    end
+    return "FirstAreaEgg_11924439055_5979114_Forest:Slot_001"
 end
 
 -- Proximity Prompt Filtering & Activation (Prevents opening Hatch / Shop / Dialog UIs)
@@ -280,10 +355,12 @@ Helpers.triggerPrompt = function(prompt)
     if not Helpers.isCarryPrompt(prompt) then return false end
     local ok = pcall(function()
         if typeof(fireproximityprompt) == "function" then
-            fireproximityprompt(prompt)
+            pcall(function() fireproximityprompt(prompt, 1) end)
+            pcall(function() fireproximityprompt(prompt, 0) end)
+            pcall(function() fireproximityprompt(prompt) end)
         elseif prompt.InputHoldBegin then
             prompt:InputHoldBegin()
-            task.wait(prompt.HoldDuration or 0.1)
+            task.wait(prompt.HoldDuration or 0)
             prompt:InputHoldEnd()
         end
     end)
@@ -315,28 +392,63 @@ Helpers.nullifyRagdoll = function()
     end
 end
 
--- Egg Drop Remote Invocation
+-- Egg Drop Remote Invocation (Spams drop, waits for server FieldEggCarry { IsCarrying = false })
 Engine.dropEggSpam = function(count)
-    count = count or Config.DropSpamCount
+    count = count or Config.DropSpamCount or 8
     local rf = Remotes.AskDrop or Helpers.getNetRemote("RF/EggWorld/AskFieldEggDrop")
     if not rf then
         Helpers.log("ERROR: AskFieldEggDrop remote not found", "ERROR")
-        return
+        return false
     end
 
+    local dropped = false
     for i = 1, count do
-        task.spawn(function()
-            local ok, res = pcall(function()
-                return rf:InvokeServer({ Reason = "PlayerRequest" })
-            end)
-            if not ok or res == false then
-                pcall(function() rf:InvokeServer() end)
-            end
+        if not State.IsCarrying then
+            dropped = true
+            break
+        end
+
+        local sendPos = RootPart and RootPart.Parent and RootPart.Position
+        local ok, res = pcall(function()
+            return rf:InvokeServer({ Reason = "PlayerRequest" })
         end)
+        if not ok or res == false then
+            pcall(function() rf:InvokeServer() end)
+        end
+        local statusStr = ok and tostring(res) or ("ERROR: " .. tostring(res))
+        Helpers.log(string.format("AskFieldEggDrop [#%d/%d] returned: %s%s",
+            i, count, statusStr,
+            sendPos and string.format(" | pos=(%.1f, %.1f, %.1f)", sendPos.X, sendPos.Y, sendPos.Z) or ""
+        ), "DROP")
+
+        -- Wait up to 0.15s for server to fire FieldEggCarry { IsCarrying = false }
+        local pollStart = os.clock()
+        while (os.clock() - pollStart < 0.15) and State.IsCarrying do
+            RunService.Heartbeat:Wait()
+        end
+
+        if not State.IsCarrying then
+            dropped = true
+            break
+        end
+
         if i < count then
             task.wait(Config.DropSpamInterval)
         end
     end
+
+    -- Extra replication window if needed
+    if not dropped and State.IsCarrying then
+        local waitDrop = os.clock()
+        while State.IsCarrying and (os.clock() - waitDrop < 0.35) do
+            RunService.Heartbeat:Wait()
+        end
+        if not State.IsCarrying then
+            dropped = true
+        end
+    end
+
+    return not State.IsCarrying
 end
 
 -- Synchronous & Verified Egg Drop (Waits until server confirms drop)
@@ -345,6 +457,11 @@ Engine.dropEggSync = function(timeout)
     local rf = Remotes.AskDrop or Helpers.getNetRemote("RF/EggWorld/AskFieldEggDrop")
     if not rf then
         Helpers.log("ERROR: AskFieldEggDrop remote not found", "ERROR")
+        return false
+    end
+
+    if not State.IsCarrying then
+        Helpers.log("⚠️ Drop skipped: Not carrying any egg!", "WARN")
         return false
     end
 
@@ -376,11 +493,19 @@ Engine.dropEggSync = function(timeout)
         end
     end
 
-    local dropped = (not State.IsCarrying)
+    local myPos = RootPart and RootPart.Position or Vector3.zero
+    local forestPos = State.ForestLocation or Vector3.new(596.7, 71.4, -327.8)
+    local inForest = (myPos - forestPos).Magnitude <= 150.0
+
+    local dropped = (not State.IsCarrying) and inForest
     if dropped then
         Helpers.log(string.format("✓ Egg dropped successfully in Forest (+%.3fs, %d attempts)!", os.clock() - dropStart, attempt), "DROP")
     else
-        Helpers.log(string.format("⚠️ Egg drop timeout in Forest after %.3fs (%d attempts). Still carrying: %s", os.clock() - dropStart, attempt, tostring(State.IsCarrying)), "WARN")
+        if not inForest then
+            Helpers.log(string.format("⚠️ Drop failed: Character not in Forest (dist=%.1f studs). Rubberband detected!", (myPos - forestPos).Magnitude), "WARN")
+        else
+            Helpers.log(string.format("⚠️ Egg drop timeout in Forest after %.3fs (%d attempts). Still carrying: %s", os.clock() - dropStart, attempt, tostring(State.IsCarrying)), "WARN")
+        end
     end
     return dropped
 end
@@ -476,22 +601,45 @@ Helpers.repickupTargetEgg = function(targetUid, dropPos)
 
     -- 1. Ensure character stays positioned right on the dropped egg
     if RootPart and RootPart.Parent and dropPos then
-        if (RootPart.Position - dropPos).Magnitude > 4.0 then
+        if (RootPart.Position - dropPos).Magnitude > 2.0 then
             RootPart.CFrame = CFrame.new(dropPos)
             RootPart.AssemblyLinearVelocity = Vector3.zero
+            RootPart.AssemblyAngularVelocity = Vector3.zero
         end
     end
 
-    -- 2. Direct remote invocation on targetUid ONLY (Never query Forest slots!)
+    -- 2. Direct remote invocation on targetUid
     if rfCarry then
         task.spawn(function()
-            pcall(function()
-                rfCarry:InvokeServer({ Uid = targetUid })
+            local ok, res = pcall(function()
+                return rfCarry:InvokeServer({ Uid = targetUid })
             end)
+            if ok and res == true then
+                State.IsCarrying = true
+                State.TargetEggRepicked = true
+                Helpers.log(string.format("✓ AskFieldEggCarry returned true for %s!", tostring(targetUid)), "SAFEZONE")
+            else
+                pcall(function()
+                    rfCarry:InvokeServer({
+                        FirstAreaSlotKey = State.TargetBiome .. ":" .. targetUid,
+                        Uid = targetUid,
+                    })
+                end)
+            end
         end)
     end
 
-    -- 3. Search for dropped target egg instance in Workspace containers
+    -- 3. Dynamic SmartPromptPart (Game's dynamic carry prompt)
+    local spp = ws:FindFirstChild("SmartPromptPart")
+    if spp then
+        for _, pr in ipairs(spp:GetDescendants()) do
+            if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                Helpers.triggerPrompt(pr)
+            end
+        end
+    end
+
+    -- 4. Search for dropped target egg instance in Workspace containers
     local eggInst = nil
     local slotsFolder = ws:FindFirstChild("AreaEggSlotsClient")
     if slotsFolder then
@@ -516,24 +664,9 @@ Helpers.repickupTargetEgg = function(targetUid, dropPos)
     end
 
     if eggInst then
-        local pr = eggInst:FindFirstChildWhichIsA("ProximityPrompt", true)
-        if pr and pr.Enabled then
-            Helpers.triggerPrompt(pr)
-        end
-    end
-
-    -- 4. Dynamic SmartPromptPart (only if close to dropPos and not locked on Forest slot)
-    local spp = ws:FindFirstChild("SmartPromptPart")
-    if spp and dropPos and (spp.Position - dropPos).Magnitude <= 8.0 then
-        local forestPos = State.ForestLocation or Vector3.new(596.7, 71.4, -327.8)
-        local distToDrop = (spp.Position - dropPos).Magnitude
-        local distToForestSlot = (spp.Position - forestPos).Magnitude
-        if distToDrop <= distToForestSlot or distToDrop <= 4.0 then
-            for _, pr in ipairs(spp:GetDescendants()) do
-                if pr:IsA("ProximityPrompt") and pr.Enabled then
-                    Helpers.triggerPrompt(pr)
-                    break
-                end
+        for _, pr in ipairs(eggInst:GetDescendants()) do
+            if pr:IsA("ProximityPrompt") and Helpers.isCarryPrompt(pr) then
+                Helpers.triggerPrompt(pr)
             end
         end
     end
@@ -555,12 +688,20 @@ Engine.handleForestPickup = function(eggUid)
     State.IsActive = true
     State.CurrentPhase = Phases.OUTBOUND_TO_TARGET_BIOME
     State.CurrentEggUid = eggUid
+    State.ForestEggUid = eggUid
 
     if RootPart and RootPart.Parent then
         local myPos = RootPart.Position
         if (myPos - (State.ForestLocation or Vector3.new(596.7, 71.4, -327.8))).Magnitude <= 200.0 then
             State.ForestLocation = myPos
         end
+    end
+
+    if _G.DropperTargetEggPos then
+        State.TargetBiomeLocation = _G.DropperTargetEggPos
+    end
+    if _G.DropperTargetBiome then
+        State.TargetBiome = _G.DropperTargetBiome
     end
 
     local targetEggPos = State.TargetBiomeLocation or Helpers.getBiomeNestPosition(State.TargetBiome)
@@ -603,7 +744,7 @@ Engine.handleForestPickup = function(eggUid)
 
         -- Step 2: Teleport directly to Target Biome Egg
         if RootPart and RootPart.Parent then
-            RootPart.CFrame = CFrame.new(targetEggPos)
+            RootPart.CFrame = CFrame.new(targetEggPos + Vector3.new(0, 2.5, 0))
             RootPart.AssemblyLinearVelocity = Vector3.zero
             RootPart.AssemblyAngularVelocity = Vector3.zero
         end
@@ -619,7 +760,7 @@ Engine.handleForestPickup = function(eggUid)
         local settleStart = os.clock()
         while (os.clock() - settleStart < Config.PositionSettleTime) do
             if RootPart and RootPart.Parent then
-                RootPart.CFrame = CFrame.new(targetEggPos)
+                RootPart.CFrame = CFrame.new(targetEggPos + Vector3.new(0, 2.5, 0))
                 RootPart.AssemblyLinearVelocity = Vector3.zero
             end
             RunService.Heartbeat:Wait()
@@ -689,7 +830,7 @@ Engine.handleBiomeEggPickup = function(targetEggPos)
     end)
 end
 
--- Step 3 Part B: Target Biome Egg Picked -> Teleport to Forest First, then Drop Target Egg
+-- Step 2: Target Biome Egg Picked -> Return Drop Sequence (like dropper.lua & drop-13.log)
 Engine.handleReturnToForest = function(biomeEggUid)
     if not State.Enabled or State.IsActive then return end
     State.IsActive = true
@@ -699,10 +840,28 @@ Engine.handleReturnToForest = function(biomeEggUid)
     local forestPos = State.ForestLocation or Vector3.new(596.7, 71.4, -327.8)
     State.SavedLocation = forestPos
 
-    UI.setStatus(string.format("Carrying %s Egg! Teleporting to Forest...", State.TargetBiome), Config.Theme.Cyan)
-    Helpers.log(string.format("Carrying %s egg (%s). Teleporting to Forest biome first...", State.TargetBiome, tostring(biomeEggUid)), "INBOUND")
+    UI.setStatus(string.format("Carrying %s Egg! Returning to Forest (Drop Sequence)...", State.TargetBiome), Config.Theme.Cyan)
+    Helpers.log(string.format("Carrying %s egg (%s). Starting return drop sequence...",
+        State.TargetBiome, tostring(biomeEggUid)), "INBOUND")
 
-    -- 1. Teleport to Forest biome FIRST while carrying the target egg
+    local forestEggUid = State.ForestEggUid or Helpers.getForestEggUid()
+    local guardCFrame = Helpers.getForestGuardCFrame()
+
+    -- 1. FOREST STRIKE TRIGGER (Exact dropper.lua pattern)
+    local strikeRemote = Remotes.ForestStrike or Helpers.getNetRemote("RE/GuardPatrol/ForestStrike")
+    if strikeRemote then
+        pcall(function()
+            strikeRemote:FireServer({
+                GuardCFrame = guardCFrame,
+                EggUid = forestEggUid,
+            })
+        end)
+        Helpers.log(string.format("ForestStrike sent for return (EggUid=%s)", tostring(forestEggUid)), "STRIKE")
+    end
+
+    task.wait(0.05)
+
+    -- 2. DROP POSITION (Set directly to location, NO flying down!)
     if RootPart and RootPart.Parent then
         RootPart.CFrame = CFrame.new(State.SavedLocation)
         RootPart.AssemblyLinearVelocity = Vector3.zero
@@ -711,32 +870,38 @@ Engine.handleReturnToForest = function(biomeEggUid)
 
     Helpers.nullifyRagdoll()
 
-    -- Settle position in Forest
+    -- 3. HOLD / REPLICATING POSITION (0.30s as in dropper.lua)
+    local settleTime = Config.PositionSettleTime or 0.30
     local settleStart = os.clock()
-    while (os.clock() - settleStart < Config.PositionSettleTime) do
+    while (os.clock() - settleStart < settleTime) do
         if RootPart and RootPart.Parent then
             RootPart.CFrame = CFrame.new(State.SavedLocation)
             RootPart.AssemblyLinearVelocity = Vector3.zero
+            RootPart.AssemblyAngularVelocity = Vector3.zero
         end
         RunService.Heartbeat:Wait()
     end
 
-    -- 2. Optional: Fire ForestStrike in Forest in case server tracks guard interaction
-    local strikeRemote = Remotes.ForestStrike or Helpers.getNetRemote("RE/GuardPatrol/ForestStrike")
-    if strikeRemote and State.CurrentEggUid then
+    -- 4. STATE: FREEFALL (As in dropper.lua)
+    if Humanoid and Humanoid.Parent then
         pcall(function()
-            strikeRemote:FireServer({
-                GuardCFrame = Config.SampleGuardCFrame,
-                EggUid = State.CurrentEggUid,
-            })
+            Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
         end)
     end
 
-    -- 3. Synchronously drop the target biome egg in Forest and verify server confirmation
-    local dropped = Engine.dropEggSync(2.0)
+    -- 5. DROP REMOTE AT FOREST LOCATION (Holding location, NO flying down!)
+    local dropped = Engine.dropEggSpam(Config.DropSpamCount or 8)
 
-    -- Guard: If egg failed to drop, DO NOT proceed to Step 4 or flag delivered!
-    if not dropped and State.IsCarrying then
+    -- Pin position at location to prevent flinging or rubberbanding
+    if RootPart and RootPart.Parent then
+        RootPart.CFrame = CFrame.new(State.SavedLocation)
+        RootPart.AssemblyLinearVelocity = Vector3.zero
+        RootPart.AssemblyAngularVelocity = Vector3.zero
+    end
+    Helpers.nullifyRagdoll()
+
+    -- Strict check: Did the egg actually drop?
+    if not dropped or State.IsCarrying then
         UI.setStatus("❌ Error: Egg failed to drop in Forest!", Config.Theme.Red)
         Helpers.log("Drop failed in Forest: Server did not drop egg. Step 4 aborted.", "ERROR")
         State.IsActive = false
@@ -744,34 +909,33 @@ Engine.handleReturnToForest = function(biomeEggUid)
         return
     end
 
-    -- Keep character at Forest location
-    if RootPart and RootPart.Parent then
-        RootPart.CFrame = CFrame.new(State.SavedLocation)
-        RootPart.AssemblyLinearVelocity = Vector3.zero
-        RootPart.AssemblyAngularVelocity = Vector3.zero
+    -- Restore Running state so Humanoid can interact with ProximityPrompts
+    if Humanoid and Humanoid.Parent and Humanoid.Health > 0 then
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
     end
-    Helpers.nullifyRagdoll()
 
-    UI.setStatus(string.format("✓ Dropped %s egg in Forest! Pausing to settle...", State.TargetBiome), Config.Theme.Green)
-    Helpers.log(string.format("Dropped %s egg in Forest biome. Waiting for egg to settle on ground...", State.TargetBiome), "SUCCESS")
-
-    -- Allow the egg to visibly fall to the ground and replicate
-    task.wait(0.40)
+    UI.setStatus(string.format("✓ At Forest! Dropped %s egg on ground.", State.TargetBiome), Config.Theme.Green)
+    Helpers.log(string.format("Arrived in Forest. Dropped %s egg. Waiting for egg to settle...", State.TargetBiome), "ARRIVED")
 
     State.IsActive = false
     State.IsCarrying = false
 
-    -- Proceed to Step 4: Re-pick up target egg from the ground and deliver to SafeZone
+    -- 6. Pause to let egg settle on Forest ground, then re-pickup and deliver to SafeZone
+    task.wait(0.50)
     Engine.handleRepickupAndReturnToSafezone(biomeEggUid, forestPos)
 end
 
 -- Step 4: Return to SafeZone After Repick up
 Engine.handleRepickupAndReturnToSafezone = function(targetEggUid, forestPos)
+    if not State.Enabled then return end
     targetEggUid = targetEggUid or State.TargetEggUid
     forestPos = forestPos or State.ForestLocation or Vector3.new(596.7, 71.4, -327.8)
     State.IsActive = true
     State.CurrentPhase = Phases.REPICKUP_TO_SAFEZONE
     State.TargetEggRepicked = false
+    State.IsCarrying = false
 
     -- Guard: If somehow still carrying before repickup, force a drop first
     if State.IsCarrying then
@@ -786,12 +950,17 @@ Engine.handleRepickupAndReturnToSafezone = function(targetEggUid, forestPos)
 
     local dropPos = RootPart and RootPart.Position or forestPos
     local attempts = 0
-    local maxAttempts = 20
+    local maxAttempts = 30
 
     while attempts < maxAttempts and (not State.TargetEggRepicked or not State.IsCarrying) do
         attempts = attempts + 1
         Helpers.repickupTargetEgg(targetEggUid, dropPos)
-        task.wait(0.25)
+
+        if State.TargetEggRepicked and State.IsCarrying then
+            break
+        end
+
+        task.wait(0.20)
     end
 
     -- Strict Guard: MUST be both TargetEggRepicked and IsCarrying to deliver!
@@ -839,6 +1008,13 @@ Engine.executeDrop = function(eggUid)
 end
 
 Engine.returnToNestAndPickup = function()
+    if _G.DropperTargetEggPos then
+        State.TargetBiomeLocation = _G.DropperTargetEggPos
+    end
+    if _G.DropperTargetBiome then
+        State.TargetBiome = _G.DropperTargetBiome
+    end
+
     local targetEggPos = State.TargetBiomeLocation or Helpers.getBiomeNestPosition(State.TargetBiome)
     if targetEggPos and RootPart and RootPart.Parent then
         RootPart.CFrame = CFrame.new(targetEggPos)
@@ -1311,10 +1487,14 @@ local function fullCleanup()
     if UI.Elements.ScreenGui and UI.Elements.ScreenGui.Parent then
         pcall(function() UI.Elements.ScreenGui:Destroy() end)
     end
+    _G.Dropper_Engine = nil
+    _G.Dropper_State = nil
     print("[MultiBiomeDropper] Cleaned up cleanly.")
 end
 
 _G.ForestDropper_Cleanup = fullCleanup
+_G.Dropper_Engine = Engine
+_G.Dropper_State = State
 
 -- Startup: Passive listener only. Zero random teleports!
 UI.init()
