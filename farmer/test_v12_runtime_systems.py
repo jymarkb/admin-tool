@@ -34,8 +34,8 @@ class TestV12RuntimeSystems(unittest.TestCase):
         self.assertIn('slotsContainer.ChildAdded:Connect', self.code)
         # Default State fallback in isFarmableEgg
         self.assertIn('tostring(r.State or "Slot")', self.code)
-        # Safe distance sort
-        self.assertIn('(a.Distance or 99999) < (b.Distance or 99999)', self.code)
+        # Stable sort (independent of character proximity)
+        self.assertIn('a.DisplayName < b.DisplayName', self.code)
         # Immediate sync on startup
         self.assertIn('pcall(Engine.Sync.syncAreaEggSlotsESP)', self.code)
 
@@ -511,6 +511,66 @@ class TestV12RuntimeSystems(unittest.TestCase):
         self.assertIn('c:GetAttribute("ItemType") == "Egg"', holding_block)
         self.assertIn('c:GetAttribute("EggUid") ~= nil', holding_block)
         self.assertIn('rec.State == "Carried"', holding_block)
+
+    def test_25_row_velocity_fourth_column_speed_display(self):
+        """Verify 4th column of row velocity displays live speed number without 'Vel' prefix."""
+        # 1. UI Elements definition and frame hierarchy
+        self.assertIn('CurrentSpeedLabel  = nil', self.code)
+        self.assertIn('spdFrame.Name = "CurrentSpeedFrame"', self.code)
+        self.assertIn('spdFrame.Position = UDim2.new(0, 270, 0, 0)', self.code)
+        self.assertIn('spdLbl.Name = "CurrentSpeedLabel"', self.code)
+        self.assertIn('UI.Elements.CurrentSpeedLabel = spdLbl', self.code)
+
+        # 2. Velocity calculation from AssemblyLinearVelocity horizontal components
+        self.assertIn('local curVel = hrp.AssemblyLinearVelocity', self.code)
+        self.assertIn('spd = math.floor(Vector3.new(curVel.X, 0, curVel.Z).Magnitude)', self.code)
+
+        # 3. Label text contains ONLY the speed number, NO 'Vel' prefix
+        self.assertIn('UI.Elements.CurrentSpeedLabel.Text = tostring(spd)', self.code)
+        self.assertNotIn('CurrentSpeedLabel.Text = "Vel', self.code)
+        self.assertNotIn('CurrentSpeedLabel.Text = string.format("Vel', self.code)
+
+    def test_26_bag_and_inventory_eggs_not_flagged_as_carrying(self):
+        """Verify inventory/bag eggs, equipped tools, and untracked CRA models are excluded from carry detection."""
+        # 1. Helpers.isHoldingEgg contains explicit rejection of Tool and bag/inventory attributes
+        holding_block = self.code.split('Helpers.isHoldingEgg = function()')[1].split('Helpers.applyReachAssist')[0]
+        self.assertIn('local isBagAsset = c:IsA("Tool")', holding_block)
+        self.assertIn('c:GetAttribute("ItemType") == "Asset"', holding_block)
+        self.assertIn('c:GetAttribute("Weight") ~= nil', holding_block)
+        self.assertIn('c:GetAttribute("Scale") ~= nil', holding_block)
+        self.assertIn('c:GetAttribute("IsInventorySlot") ~= nil', holding_block)
+        self.assertIn('c:GetAttribute("HasEggOverlay") ~= nil', holding_block)
+        self.assertIn('c:GetAttribute("UID") ~= nil and c:GetAttribute("EggUid") == nil and c:GetAttribute("HalloweenEggUid") == nil', holding_block)
+
+        # 2. Rejection must guard egg model checks
+        self.assertIn('if not isBagAsset and (c:IsA("Model") or c:IsA("BasePart"))', holding_block)
+
+        # 3. ClientRenderedAssets strictly treats untracked models (not rec) as dropped/ignored
+        self.assertIn('local isDropped = (not rec) or (rec.State == "Dropped")', holding_block)
+        self.assertIn('if not isDropped and rec and (rec.State == "Carried" or tostring(rec.CarrierUserId or "") == myUidStr or Engine.State.CarryUid == eggUid)', holding_block)
+
+    def test_27_halloween_dimension_button_row(self):
+        """Verify Halloween Dimension toggle button row is positioned below velocity in TabEggs."""
+        # 1. UI Elements definition and assignment
+        self.assertIn('HallowToggleBtn    = nil', self.code)
+        self.assertIn('UI.Elements.HallowToggleBtn = hallowBtn', self.code)
+
+        # 2. Row hierarchy and position below velocity (offset 52)
+        self.assertIn('hwRow.Name = "HallowDimensionFrame"', self.code)
+        self.assertIn('hwRow.Position = UDim2.new(0, 8, 0, 52)', self.code)
+        self.assertIn('hwRow.Parent = tabEggs', self.code)
+        self.assertIn('hallowBtn.Name = "HallowToggleBtn"', self.code)
+        self.assertIn('hallowBtn.Parent = hwRow', self.code)
+
+        # 3. Engine implementation for setting attribute on LocalPlayer and Character
+        self.assertIn('Engine.Halloween = {}', self.code)
+        self.assertIn('Engine.Halloween.setDimension', self.code)
+        self.assertIn('Engine.Halloween.toggleDimension', self.code)
+        self.assertIn('obj:SetAttribute("InHalloweenDimension"', self.code)
+
+        # 4. Persistence across respawns (CharacterAdded) and absence of recursive AttributeChanged loop
+        self.assertIn('newChar:SetAttribute("InHalloweenDimension", true)', self.code)
+        self.assertNotIn('LocalPlayer.AttributeChanged:Connect(function(name)', self.code)
 
 if __name__ == "__main__":
     unittest.main()

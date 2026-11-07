@@ -195,5 +195,36 @@ class TestV12TaxonomyResolution(unittest.TestCase):
             self.assertIn(name, hw, f"Species '{name}' missing from Halloween Dimension")
             self.assertEqual(hw[name]["Rarity"], rarity, f"Mismatched rarity for '{name}'")
 
+    def test_09_generic_mutation_taxonomy_resolution(self):
+        """Verify generic mutation stripping for any egg on World 1, avoiding Common fallback."""
+        ef = self.by_biome.get("Enchanted Forest", {})
+        # Sunlion / Celestial Sunlion resolves to Eternal
+        rec = ef.get("celestial sunlion") or ef.get("sunlion") or self.info_map.get("celestial sunlion") or self.info_map.get("sunlion")
+        self.assertIsNotNone(rec, "Sunlion missing from Enchanted Forest catalog")
+        self.assertEqual(rec["Rarity"], "Eternal")
+        self.assertEqual(rec["Biome"], "Enchanted Forest")
+
+        # Verify clean generic mutation taxonomy resolution without dead mutation getters
+        self.assertNotIn("Helpers.getEggMutation", self.src)
+        self.assertIn('serverRarity ~= "Common"', self.src)
+        self.assertIn('Helpers.getSpeciesInfo(stripped', self.src)
+
+    def test_10_display_name_egg_only_without_mutation_prefix(self):
+        """Verify display name does not prepend mutation (just egg name only)."""
+        self.assertNotIn('disp = mutation .. " "', self.src, "Must not prepend mutation to egg display name!")
+        self.assertNotIn('disp = mutation .. " " .. baseSpecies', self.src, "Must not prepend mutation to baseSpecies!")
+
+    def test_11_no_hardcoded_mutation_loops(self):
+        """Verify normalizeSpecies does not contain hardcoded mutation loops."""
+        self.assertNotIn('for _, m in ipairs({ "golden"', self.src, "Hardcoded mutation loop must be removed!")
+        self.assertNotIn('for _, m in ipairs({ "rainbow"', self.src, "Hardcoded mutation loop must be removed!")
+
+    def test_12_clean_production_ui_without_diagnostic_bloat(self):
+        """Verify production UI is free of temporary scanner bloat while preserving Export JSON."""
+        self.assertNotIn("Helpers.scanEggMutations", self.src, "Diagnostic scanner function must not be embedded in production script!")
+        self.assertNotIn("UI.Elements.UtilityScanEggsBtn", self.src, "Diagnostic button must not bloat production UI!")
+        self.assertIn('rowExp.Name = "RowExportJson"', self.src)
+        self.assertIn("UI.Elements.UtilityCopyJsonBtn", self.src)
+
 if __name__ == "__main__":
     unittest.main()
