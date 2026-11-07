@@ -122,7 +122,7 @@ local PET_RARITY_PRESETS = {
 
     -- Eternal
     ["Abomination Kong"]="Eternal", ["Abomination Kong Egg"]="Eternal", ["Ascended Vermilion Phoenix"]="Eternal", ["Balrog"]="Eternal",
-    ["Biohazard Egg (Nuclear Mantis)"]="Eternal", ["Celestial Sunlion"]="Eternal", ["Celestial Sunlion Egg"]="Eternal", ["Deadstinger"]="Eternal",
+    ["Biohazard Egg (Nuclear Mantis)"]="Eternal", ["Celestial Sunlion"]="Eternal", ["Celestial Sunlion Egg"]="Eternal", ["Sunlion"]="Eternal", ["Sunlion Egg"]="Eternal", ["Deadstinger"]="Eternal",
     ["Dragon"]="Eternal", ["El Maja"]="Eternal", ["El Maja Egg"]="Eternal", ["Engine Snail"]="Eternal",
     ["Engine Snail Egg"]="Eternal", ["Equinox"]="Eternal", ["Eternal Lunar Dragon"]="Eternal", ["Experimental Pets Egg (Deadstinger)"]="Eternal",
     ["Extinction Egg (Gigantus)"]="Eternal", ["Extinction Egg (Skeletal Dunkleosteus)"]="Eternal", ["Extinction Egg (Skeletal Gigantus)"]="Eternal", ["Ghost Reaper"]="Eternal",
@@ -462,7 +462,7 @@ local STATIC_SPECIES_TO_BIOME_EGG = {
 
     -- Enchanted Forest Egg
     ["Astral Jackalope"] = "Enchanted Forest Egg", ["Astral Jackalope Egg"] = "Enchanted Forest Egg", ["Banjo Firefly"] = "Enchanted Forest Egg",
-    ["Celestial Sunlion"] = "Enchanted Forest Egg", ["Celestial Sunlion Egg"] = "Enchanted Forest Egg", ["Centapede"] = "Enchanted Forest Egg",
+    ["Celestial Sunlion"] = "Enchanted Forest Egg", ["Celestial Sunlion Egg"] = "Enchanted Forest Egg", ["Sunlion"] = "Enchanted Forest Egg", ["Sunlion Egg"] = "Enchanted Forest Egg", ["Centapede"] = "Enchanted Forest Egg",
     ["Cosmic Beetle Blue"] = "Enchanted Forest Egg", ["Crane"] = "Enchanted Forest Egg", ["Enchanted Bluejay"] = "Enchanted Forest Egg",
     ["Enchanted Bluejay Egg"] = "Enchanted Forest Egg", ["Kitsune"] = "Enchanted Forest Egg", ["Koi"] = "Enchanted Forest Egg",
     ["Oni Tiger"] = "Enchanted Forest Egg", ["Petal Beetle"] = "Enchanted Forest Egg", ["Petal Beetle Egg"] = "Enchanted Forest Egg",

@@ -332,8 +332,11 @@ Config.BiomeCatalog = {
     },
 }
 
+Config.HopDistance  = 850
+Config.HopInterval  = 0.25
+
 Config.UI = {
-    WindowSize     = UDim2.new(0, 280, 0, 380),
+    WindowSize     = UDim2.new(0, 280, 0, 390),
     TitleBarHeight = 32,
     Theme = {
         BgDark     = Color3.fromRGB(22, 24, 30),
@@ -347,6 +350,7 @@ Config.UI = {
         BtnDefault = Color3.fromRGB(45, 110, 195),
         BtnSuccess = Color3.fromRGB(35, 145, 75),
         BtnActive  = Color3.fromRGB(210, 150, 35),
+        BtnHop     = Color3.fromRGB(38, 128, 155),
     }
 }
 
@@ -357,6 +361,7 @@ Config.UI = {
 State.EggCacheByUid = {}
 State.ListDirty     = false
 State.IsSwapping    = false
+State.IsHopping     = false
 State.IsCarrying    = false
 State.CarriedUid    = nil
 State.ForestEggUid  = nil
@@ -922,11 +927,73 @@ UI.build = function()
         main.Visible = not main.Visible
     end))
 
+    -- Hop Distance Control Bar (Adjustable Hop Distance)
+    local hopBar = Instance.new("Frame")
+    hopBar.Name = "HopControlBar"
+    hopBar.Size = UDim2.new(1, -12, 0, 22)
+    hopBar.Position = UDim2.new(0, 6, 0, Config.UI.TitleBarHeight + 4)
+    hopBar.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
+    hopBar.BorderSizePixel = 0
+    hopBar.Parent = main
+    Instance.new("UICorner", hopBar).CornerRadius = UDim.new(0, 4)
+
+    local hopBarStroke = Instance.new("UIStroke", hopBar)
+    hopBarStroke.Color = Color3.fromRGB(45, 55, 80)
+    hopBarStroke.Thickness = 1
+
+    local hopLbl = Instance.new("TextLabel")
+    hopLbl.Name = "HopDistLabel"
+    hopLbl.Size = UDim2.new(0, 85, 1, 0)
+    hopLbl.Position = UDim2.new(0, 8, 0, 0)
+    hopLbl.BackgroundTransparency = 1
+    hopLbl.Text = "Hop Distance:"
+    hopLbl.TextColor3 = theme.TextMuted
+    hopLbl.Font = Enum.Font.GothamBold
+    hopLbl.TextSize = 10.5
+    hopLbl.TextXAlignment = Enum.TextXAlignment.Left
+    hopLbl.Parent = hopBar
+
+    local hopBox = Instance.new("TextBox")
+    hopBox.Name = "HopDistanceBox"
+    hopBox.Size = UDim2.new(0, 52, 0, 16)
+    hopBox.Position = UDim2.new(0, 92, 0.5, -8)
+    hopBox.BackgroundColor3 = Color3.fromRGB(32, 38, 55)
+    hopBox.Text = tostring(Config.HopDistance or 850)
+    hopBox.PlaceholderText = "850"
+    hopBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hopBox.Font = Enum.Font.GothamBold
+    hopBox.TextSize = 10.5
+    hopBox.ClearTextOnFocus = false
+    hopBox.Parent = hopBar
+    Instance.new("UICorner", hopBox).CornerRadius = UDim.new(0, 3)
+    UI.Elements.HopDistanceBox = hopBox
+
+    local studsLbl = Instance.new("TextLabel")
+    studsLbl.Name = "StudsLabel"
+    studsLbl.Size = UDim2.new(1, -150, 1, 0)
+    studsLbl.Position = UDim2.new(0, 148, 0, 0)
+    studsLbl.BackgroundTransparency = 1
+    studsLbl.Text = "studs"
+    studsLbl.TextColor3 = Color3.fromRGB(130, 145, 175)
+    studsLbl.Font = Enum.Font.Gotham
+    studsLbl.TextSize = 10
+    studsLbl.TextXAlignment = Enum.TextXAlignment.Left
+    studsLbl.Parent = hopBar
+
+    addConnection(hopBox.FocusLost:Connect(function()
+        local val = tonumber(hopBox.Text)
+        if val and val > 0 then
+            Config.HopDistance = math.clamp(math.floor(val), 100, 5000)
+        end
+        hopBox.Text = tostring(Config.HopDistance)
+        Helpers.log(string.format("Hop distance updated to %d studs", Config.HopDistance), "INFO")
+    end))
+
     -- Scrolling Frame for Biome Egg List
     local scroll = Instance.new("ScrollingFrame")
     scroll.Name = "EggListScroll"
-    scroll.Size = UDim2.new(1, -12, 1, -Config.UI.TitleBarHeight - 10)
-    scroll.Position = UDim2.new(0, 6, 0, Config.UI.TitleBarHeight + 5)
+    scroll.Size = UDim2.new(1, -12, 1, -Config.UI.TitleBarHeight - 34)
+    scroll.Position = UDim2.new(0, 6, 0, Config.UI.TitleBarHeight + 30)
     scroll.BackgroundColor3 = Color3.fromRGB(18, 20, 26)
     scroll.BorderSizePixel = 0
     scroll.ScrollBarThickness = 4
@@ -1011,8 +1078,8 @@ UI.getItem = function(idx)
 
     local label = Instance.new("TextLabel")
     label.Name = "NameLabel"
-    label.Size = UDim2.new(1, -54, 1, 0)
-    label.Position = UDim2.new(0, 10, 0, 0)
+    label.Size = UDim2.new(1, -92, 1, 0)
+    label.Position = UDim2.new(0, 8, 0, 0)
     label.BackgroundTransparency = 1
     label.Font = Enum.Font.GothamMedium
     label.TextSize = 11
@@ -1021,10 +1088,22 @@ UI.getItem = function(idx)
     label.TextTruncate = Enum.TextTruncate.AtEnd
     label.Parent = row
 
+    local hopBtn = Instance.new("TextButton")
+    hopBtn.Name = "HopBtn"
+    hopBtn.Size = UDim2.new(0, 36, 0, 18)
+    hopBtn.Position = UDim2.new(1, -80, 0.5, -9)
+    hopBtn.BackgroundColor3 = theme.BtnHop
+    hopBtn.Text = "HOP"
+    hopBtn.TextColor3 = Color3.new(1, 1, 1)
+    hopBtn.Font = Enum.Font.GothamBold
+    hopBtn.TextSize = 10
+    hopBtn.Parent = row
+    Instance.new("UICorner", hopBtn).CornerRadius = UDim.new(0, 3)
+
     local goBtn = Instance.new("TextButton")
     goBtn.Name = "GoBtn"
-    goBtn.Size = UDim2.new(0, 42, 0, 18)
-    goBtn.Position = UDim2.new(1, -46, 0.5, -9)
+    goBtn.Size = UDim2.new(0, 36, 0, 18)
+    goBtn.Position = UDim2.new(1, -40, 0.5, -9)
     goBtn.BackgroundColor3 = theme.BtnDefault
     goBtn.Text = "GO"
     goBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -1033,7 +1112,13 @@ UI.getItem = function(idx)
     goBtn.Parent = row
     Instance.new("UICorner", goBtn).CornerRadius = UDim.new(0, 3)
 
-    local item = { Frame = row, Label = label, Button = goBtn, Data = nil }
+    local item = { Frame = row, Label = label, Button = goBtn, HopButton = hopBtn, Data = nil }
+
+    addConnection(hopBtn.MouseButton1Click:Connect(function()
+        if item.Data and Engine.hopTowardsEgg then
+            Engine.hopTowardsEgg(item.Data, hopBtn)
+        end
+    end))
 
     addConnection(goBtn.MouseButton1Click:Connect(function()
         if item.Data and Engine.executeSwapSequence then
@@ -1101,6 +1186,10 @@ UI.render = function()
             it.Label.Text = "• " .. eggData.Name
             it.Button.Text = "GO"
             it.Button.BackgroundColor3 = Config.UI.Theme.BtnDefault
+            if it.HopButton then
+                it.HopButton.Text = "HOP"
+                it.HopButton.BackgroundColor3 = Config.UI.Theme.BtnHop
+            end
             it.Frame.LayoutOrder = layoutOrder
             it.Frame.Visible = true
         end
@@ -1776,6 +1865,106 @@ Engine.executeSwapSequence = function(targetEggData, button)
         end
 
         State.IsSwapping = false
+    end)
+end
+
+-- Hop Towards Target Egg (Chunked hopping with adjustable distance, no pickup / no return)
+Engine.hopTowardsEgg = function(targetEggData, button)
+    if not targetEggData then return end
+    if State.IsHopping or State.IsSwapping then
+        Helpers.log("Cannot hop: movement or swap already in progress", "WARN")
+        return
+    end
+
+    State.IsHopping = true
+
+    Helpers.log(string.format(">>> HOP CLICKED: Target '%s' in Biome '%s' (Uid=%s)",
+        tostring(targetEggData.Name), tostring(targetEggData.Biome), tostring(targetEggData.Uid)), "HOP")
+
+    if button and button.Parent then
+        button.Text = "..."
+        button.BackgroundColor3 = Config.UI.Theme.BtnActive
+    end
+
+    task.spawn(function()
+        local success = false
+        pcall(function()
+            local targetEggPos = targetEggData.Position
+            if not targetEggPos then
+                targetEggPos = Helpers.getEggPosition(targetEggData.Record, targetEggData.Uid)
+            end
+            if not targetEggPos and Config.BiomeNestFallbacks[targetEggData.Biome] then
+                targetEggPos = Config.BiomeNestFallbacks[targetEggData.Biome]
+            end
+
+            if not targetEggPos then
+                Helpers.log("HOP FAILED: targetEggPos is nil", "ERROR")
+                return
+            end
+
+            local char = LocalPlayer and LocalPlayer.Character
+            local hrp = char and (char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart)
+            if not (hrp and hrp.Parent) then
+                Helpers.log("HOP FAILED: Character/HumanoidRootPart not found", "ERROR")
+                return
+            end
+
+            local startPos = hrp.Position
+            local landingPos = Vector3.new(targetEggPos.X, targetEggPos.Y + 2.5, targetEggPos.Z)
+            local totalDist = (landingPos - startPos).Magnitude
+            local hopDist = math.clamp(Config.HopDistance or 850, 100, 5000)
+            local hopInterval = Config.HopInterval or 0.25
+
+            Helpers.log(string.format("Hopping from %s to %s (Dist: %.1f studs, Chunk: %d)",
+                tostring(startPos), tostring(landingPos), totalDist, hopDist), "HOP")
+
+            if totalDist <= (hopDist + 50) then
+                hrp.CFrame = CFrame.new(landingPos)
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                if hrp.AssemblyAngularVelocity then
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                end
+            else
+                local hops = math.ceil(totalDist / hopDist)
+                for h = 1, hops do
+                    local alpha = h / hops
+                    hrp.CFrame = CFrame.new(startPos:Lerp(landingPos, alpha))
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    if hrp.AssemblyAngularVelocity then
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end
+                    if h < hops then
+                        task.wait(hopInterval)
+                    end
+                end
+                hrp.CFrame = CFrame.new(landingPos)
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                if hrp.AssemblyAngularVelocity then
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+
+            if Helpers.nullifyRagdoll then
+                pcall(Helpers.nullifyRagdoll)
+            end
+
+            success = true
+        end)
+
+        Helpers.log(string.format("<<< HOP FINISHED: Result=%s", success and "SUCCESS" or "FAIL"), success and "HOP" or "ERROR")
+
+        if button and button.Parent then
+            button.Text = success and "✓" or "FAIL"
+            button.BackgroundColor3 = success and Config.UI.Theme.BtnSuccess or Color3.fromRGB(200, 60, 60)
+            task.delay(1.2, function()
+                if button and button.Parent then
+                    button.Text = "HOP"
+                    button.BackgroundColor3 = Config.UI.Theme.BtnHop
+                end
+            end)
+        end
+
+        State.IsHopping = false
     end)
 end
 

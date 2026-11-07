@@ -73,9 +73,9 @@ end
 local TOOLS = {
 
     { name = "Enchanted Hammer",type = "bat"  },
-    { name = "Scramble Sword",  type = "bat"  },
-    { name = "Pumpkin Scythe",  type = "bat"  },
-    { name = "The Scrambler",   type = "tool" },
+    -- { name = "Scramble Sword",  type = "bat"  },
+    -- { name = "Pumpkin Scythe",  type = "bat"  },
+    -- { name = "The Scrambler",   type = "tool" },
     { name = "Cricket's Banjo", type = "tool" },
 }
 

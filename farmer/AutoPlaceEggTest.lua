@@ -80,7 +80,7 @@ local PET_RARITY_PRESETS = {
     ["Void Dragon"]="Eternal", ["Shattered Drake"]="Eternal", ["Void Serpent"]="Eternal",
     ["World Eater"]="Eternal", ["Strawberry Elephant"]="Eternal", ["Krakenoid"]="Eternal",
     ["Mecha Krakenoid"]="Eternal", ["Terra Snapper"]="Eternal", ["Luminous Terra Snapper"]="Eternal",
-    ["Balrog"]="Eternal", ["Equinox"]="Eternal",
+    ["Balrog"]="Eternal", ["Equinox"]="Eternal", ["Celestial Sunlion"]="Eternal", ["Celestial Sunlion Egg"]="Eternal", ["Sunlion"]="Eternal", ["Sunlion Egg"]="Eternal",
 
     -- Secret
     ["Alien Skeleton Boss"]="Secret", ["Cosmic Skeleton Boss"]="Secret",
@@ -274,6 +274,8 @@ local STATIC_SPECIES_TO_BIOME_EGG = {
     ["Peacock"] = "Angels & Demons Egg", ["Holy Peacock"] = "Angels & Demons Egg",
 
     -- Enchanted Forest Egg
+    ["Celestial Sunlion"] = "Enchanted Forest Egg", ["Celestial Sunlion Egg"] = "Enchanted Forest Egg",
+    ["Sunlion"] = "Enchanted Forest Egg", ["Sunlion Egg"] = "Enchanted Forest Egg",
     ["Spirit Panda"] = "Enchanted Forest Egg", ["Spirit Hare"] = "Enchanted Forest Egg",
     ["Toucax"] = "Enchanted Forest Egg", ["Red Panda"] = "Enchanted Forest Egg",
     ["Enchanted Bluejay"] = "Enchanted Forest Egg", ["Salamander"] = "Enchanted Forest Egg",
